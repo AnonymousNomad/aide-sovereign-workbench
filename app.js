@@ -277,12 +277,27 @@ async function startTool(kind, id, label) {
     appendLog('TOOLCHAIN', `${label} ${result.status}.`);
     if (kind === 'lsp') {
       const init = await fetch('http://127.0.0.1:4777/api/lsp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, message: { method: 'initialize', params: { processId: null, rootUri: null, capabilities: {} } } }) });
-      appendLog('LSP', init.ok ? 'initialize response received.' : 'initialize request failed.', init.ok ? '' : 'warning');
+      const initialized = await fetch('http://127.0.0.1:4777/api/lsp/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, message: { method: 'initialized', params: {} } }) });
+      appendLog('LSP', init.ok && initialized.ok ? 'initialize handshake completed.' : 'initialize handshake failed.', init.ok && initialized.ok ? '' : 'warning');
     }
   } catch (error) {
     $('#tool-status').textContent = `${label}: unavailable`;
     appendLog('TOOLCHAIN', `${label} unavailable: ${error.message}`, 'warning');
   }
+}
+
+async function checkActiveFile() {
+  try {
+    const content = $('#code').textContent;
+    const uri = `file:///workspace/${state.activeFile}`;
+    const open = await fetch('http://127.0.0.1:4777/api/lsp/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/didOpen', params: { textDocument: { uri, languageId: 'typescript', version: 1, text: content } } } }) });
+    if (!open.ok) throw new Error('LSP is not running');
+    const response = await fetch('http://127.0.0.1:4777/api/lsp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/completion', params: { textDocument: { uri }, position: { line: 0, character: 0 } } } }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error?.message || 'completion request failed');
+    const count = result.result?.items?.length ?? result.result?.length ?? 0;
+    appendLog('LSP', `Active file analyzed. Completion items returned: ${count}.`);
+  } catch (error) { appendLog('LSP', error.message, 'warning'); }
 }
 
 async function trainingRequest(action, payload = {}) {
@@ -358,6 +373,7 @@ async function boot() {
   document.querySelectorAll('[data-community-tab]').forEach(button => button.onclick = () => renderCommunity(button.dataset.communityTab));
   $('#community-add').onclick = addCommunityIssue;
   $('#lsp-button').onclick = () => startTool('lsp', 'typescript', 'TypeScript LSP');
+  $('#lsp-check').onclick = checkActiveFile;
   $('#dap-button').onclick = () => startTool('dap', 'python-debugpy', 'Python DAP');
   $('#training-verify').onclick = () => trainingRequest('start', { id: 'verify-release', approved: true });
   $('#training-stop').onclick = () => trainingRequest('stop');

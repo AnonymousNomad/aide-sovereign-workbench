@@ -63,6 +63,8 @@ The Training Room is defined in `training/manifest.json` and `training/README.md
 
 `capsules/` adds reproducible offline workspace capsules: portable metadata for the exact model, runtime, Git revision, evidence hashes, tools, and Veritas result without exporting private source by default.
 
+The first live three-pack scorecard is in `benchmarks/live-results-2026-08-10.json`: all three models passed function and planning smoke tasks, while all failed strict unified-diff formatting. AIDE therefore keeps every raw patch behind Veritas and human approval.
+
 ## Status
 
 This is a pre-production engineering release. The Liquid checkpoint is not included until its exact artifact, license, checksum, and evaluation are confirmed. The Qwen weight is downloaded separately from its official repository and should be verified before offline use.

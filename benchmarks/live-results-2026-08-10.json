@@ -1,0 +1,13 @@
+{
+  "suite": "aide-local-model-smoke-v1",
+  "measured_at": "2026-08-10",
+  "device": "8-core ARM Android userspace",
+  "runtime": "llama.cpp b10333 Ubuntu ARM64",
+  "results": [
+    {"model": "smollm2-360m-q8", "passed": 2, "total": 3, "score": 0.667, "failed": ["unified-diff"], "sha256": "48ab3034d0dd401fbc721eb1df3217902fee7dab9078992d66431f09b7750201"},
+    {"model": "qwen-coder-0.5b-q4", "passed": 2, "total": 3, "score": 0.667, "failed": ["unified-diff"], "sha256": "1d9614638d18024d0fbb36575a15f1302a3adf044df10345688ec4f6e1c4ff32"},
+    {"model": "qwen-coder-1.5b-q4", "passed": 2, "total": 3, "score": 0.667, "failed": ["unified-diff"], "sha256": "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046"}
+  ],
+  "decision": "No model is authorized to apply patches from raw output. All model output must pass the structural diff gate, Veritas checks, and human approval.",
+  "limitations": ["Smoke suite is not a coding benchmark or production quality claim.", "Latency and memory telemetry are next benchmark fields.", "The Liquid model is intentionally not included."]
+}

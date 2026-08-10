@@ -332,6 +332,16 @@ async function trainingRequest(action, payload = {}) {
   } catch (error) { $('#training-status').textContent = `Blocked: ${error.message}`; appendLog('TRAINING', error.message, 'warning'); }
 }
 
+async function refreshTrainingStatus() {
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/training/status');
+    if (!response.ok) return;
+    const result = await response.json();
+    const active = result.active ? `running: ${result.active.id}` : 'idle';
+    $('#training-status').textContent = `Training Room ${active} | ${result.jobs.length} allowlisted job(s)`;
+  } catch { /* daemon is optional while the static shell is offline */ }
+}
+
 async function digestFile(file) {
   const buffer = await file.arrayBuffer();
   const digest = await crypto.subtle.digest('SHA-256', buffer);
@@ -400,6 +410,8 @@ async function boot() {
   $('#debug-file').onclick = debugActiveFile;
   $('#training-verify').onclick = () => trainingRequest('start', { id: 'verify-release', approved: true });
   $('#training-stop').onclick = () => trainingRequest('stop');
+  refreshTrainingStatus();
+  setInterval(refreshTrainingStatus, 5000);
   loadCommunity();
   $('#input').onkeydown = event => { if (event.key === 'Enter') sendChat(); };
 }

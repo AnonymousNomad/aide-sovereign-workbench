@@ -348,10 +348,14 @@ async function saveReplay(status = 'verified') {
 }
 
 async function compareModels() {
-  const scores = { 'smollm2-360m-q8': 0.667, 'qwen-coder-0.5b-q4': 0.667, 'qwen-coder-1.5b-q4': 0.667 };
-  const winner = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
-  $('#arena-status').textContent = `Smoke winner: ${winner[0]} (${(winner[1] * 100).toFixed(1)}%). Equal tie; use role and memory to choose.`;
-  appendLog('MODEL ARENA', 'Comparison uses the recorded live smoke scorecard; no general capability claim.');
+  $('#arena-status').textContent = 'Running models sequentially...';
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/arena/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approved: true }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'arena failed');
+    $('#arena-status').textContent = result.winner ? `Winner: ${result.winner.model} (${(result.winner.score * 100).toFixed(1)}%, avg ${result.winner.latency_ms}ms)` : 'No model completed.';
+    appendLog('MODEL ARENA', 'Live sequential comparison complete. Scores are benchmark-local only.');
+  } catch (error) { $('#arena-status').textContent = `Arena blocked: ${error.message}`; appendLog('MODEL ARENA', error.message, 'warning'); }
 }
 
 async function digestFile(file) {

@@ -275,6 +275,10 @@ async function startTool(kind, id, label) {
     if (!response.ok) throw new Error(result.error || `${label} failed`);
     $('#tool-status').textContent = `${label}: ${result.status}`;
     appendLog('TOOLCHAIN', `${label} ${result.status}.`);
+    if (kind === 'lsp') {
+      const init = await fetch('http://127.0.0.1:4777/api/lsp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, message: { method: 'initialize', params: { processId: null, rootUri: null, capabilities: {} } } }) });
+      appendLog('LSP', init.ok ? 'initialize response received.' : 'initialize request failed.', init.ok ? '' : 'warning');
+    }
   } catch (error) {
     $('#tool-status').textContent = `${label}: unavailable`;
     appendLog('TOOLCHAIN', `${label} unavailable: ${error.message}`, 'warning');

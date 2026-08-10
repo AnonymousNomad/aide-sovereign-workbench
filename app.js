@@ -281,6 +281,16 @@ async function startTool(kind, id, label) {
   }
 }
 
+async function trainingRequest(action, payload = {}) {
+  try {
+    const response = await fetch(`http://127.0.0.1:4777/api/training/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Training Room request failed');
+    $('#training-status').textContent = result.status === 'running' ? `Running: ${result.id}` : `Training Room: ${result.status}`;
+    appendLog('TRAINING', JSON.stringify(result));
+  } catch (error) { $('#training-status').textContent = `Blocked: ${error.message}`; appendLog('TRAINING', error.message, 'warning'); }
+}
+
 async function digestFile(file) {
   const buffer = await file.arrayBuffer();
   const digest = await crypto.subtle.digest('SHA-256', buffer);
@@ -345,6 +355,8 @@ async function boot() {
   $('#community-add').onclick = addCommunityIssue;
   $('#lsp-button').onclick = () => startTool('lsp', 'typescript', 'TypeScript LSP');
   $('#dap-button').onclick = () => startTool('dap', 'python-debugpy', 'Python DAP');
+  $('#training-verify').onclick = () => trainingRequest('start', { id: 'verify-release', approved: true });
+  $('#training-stop').onclick = () => trainingRequest('stop');
   loadCommunity();
   $('#input').onkeydown = event => { if (event.key === 'Enter') sendChat(); };
 }

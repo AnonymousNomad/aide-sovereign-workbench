@@ -282,7 +282,10 @@ async function startTool(kind, id, label) {
     }
     if (kind === 'dap') {
       const init = await fetch('http://127.0.0.1:4777/api/dap/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, request: { command: 'initialize', arguments: { clientID: 'aide', clientName: 'AIDE', adapterID: id, linesStartAt1: true, columnsStartAt1: true, pathFormat: 'path' } } }) });
-      appendLog('DAP', init.ok ? 'initialize handshake completed.' : 'initialize request failed.', init.ok ? '' : 'warning');
+      const payload = await init.json().catch(() => ({}));
+      const capabilities = Object.keys(payload.body || {}).filter(key => key.startsWith('supports'));
+      $('#debug-status').textContent = init.ok ? `Adapter ready: ${capabilities.length} capabilities.` : 'Adapter initialize failed.';
+      appendLog('DAP', init.ok ? `initialize handshake completed; ${capabilities.length} capabilities reported.` : 'initialize request failed.', init.ok ? '' : 'warning');
     }
   } catch (error) {
     $('#tool-status').textContent = `${label}: unavailable`;
@@ -302,6 +305,21 @@ async function checkActiveFile() {
     const count = result.result?.items?.length ?? result.result?.length ?? 0;
     appendLog('LSP', `Active file analyzed. Completion items returned: ${count}.`);
   } catch (error) { appendLog('LSP', error.message, 'warning'); }
+}
+
+async function debugActiveFile() {
+  if (!state.activeFile.endsWith('.py')) {
+    $('#debug-status').textContent = 'Blocked: active file is not Python.';
+    appendLog('DAP', 'Debug launch blocked because the active file is not Python.', 'warning');
+    return;
+  }
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/dap/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'python-debugpy', request: { command: 'launch', arguments: { program: `/workspace/${state.activeFile}`, cwd: '/workspace', stopOnEntry: true } } }) });
+    const result = await response.json();
+    if (!response.ok || result.success === false) throw new Error(result.message || 'debug launch rejected');
+    $('#debug-status').textContent = 'Debug launch requested; waiting for entry stop.';
+    appendLog('DAP', 'Debug launch requested for the active Python file.');
+  } catch (error) { $('#debug-status').textContent = `Debug blocked: ${error.message}`; appendLog('DAP', error.message, 'warning'); }
 }
 
 async function trainingRequest(action, payload = {}) {
@@ -379,6 +397,7 @@ async function boot() {
   $('#lsp-button').onclick = () => startTool('lsp', 'typescript', 'TypeScript LSP');
   $('#lsp-check').onclick = checkActiveFile;
   $('#dap-button').onclick = () => startTool('dap', 'python-debugpy', 'Python DAP');
+  $('#debug-file').onclick = debugActiveFile;
   $('#training-verify').onclick = () => trainingRequest('start', { id: 'verify-release', approved: true });
   $('#training-stop').onclick = () => trainingRequest('stop');
   loadCommunity();

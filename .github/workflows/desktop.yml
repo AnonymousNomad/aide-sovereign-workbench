@@ -31,3 +31,9 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm run desktop:build
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: aide-desktop-${{ matrix.os }}-${{ matrix.target }}
+          path: desktop/target/release/bundle/**
+          if-no-files-found: error

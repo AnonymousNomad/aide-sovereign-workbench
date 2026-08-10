@@ -69,14 +69,19 @@
       <div class="section-heading divider">TOOLCHAIN</div>
       <button id="lsp-button" class="secondary" style="width:100%;padding:6px">START TYPESCRIPT LSP</button>
       <button id="lsp-check" class="secondary" style="width:100%;margin-top:5px;padding:6px">CHECK ACTIVE FILE</button>
+      <div class="tool-grid"><button data-lsp-action="hover">HOVER</button><button data-lsp-action="definition">DEFINITION</button><button data-lsp-action="rename">RENAME</button><button data-lsp-action="formatting">FORMAT</button></div>
       <button id="dap-button" class="secondary" style="width:100%;margin-top:5px;padding:6px">START PYTHON DAP</button>
       <button id="debug-file" class="secondary" style="width:100%;margin-top:5px;padding:6px">DEBUG ACTIVE PYTHON FILE</button>
+      <button id="debug-threads" class="secondary" style="width:100%;margin-top:5px;padding:6px">REFRESH DEBUG THREADS</button>
       <div id="tool-status" style="color:#718994;font:9px/1.6 ui-monospace,monospace;margin-top:6px">LSP/DAP status unknown.</div>
       <div id="debug-status" style="color:#718994;font:9px/1.6 ui-monospace,monospace;margin-top:5px">Debug session idle.</div>
       <div class="section-heading divider">TRAINING ROOM</div>
       <button id="training-verify" class="secondary" style="width:100%;padding:6px">RUN VERITAS JOB</button>
       <button id="training-stop" class="secondary" style="width:100%;margin-top:5px;padding:6px">STOP TRAINING JOB</button>
       <div id="training-status" style="color:#718994;font:9px/1.6 ui-monospace,monospace;margin-top:6px">Training Room idle.</div>
+      <div class="section-heading divider">MODEL ARENA</div>
+      <button id="arena-button" class="secondary" style="width:100%;padding:6px">COMPARE MODEL PACKS</button>
+      <div id="arena-status" style="color:#718994;font:9px/1.6 ui-monospace,monospace;margin-top:6px">No comparison selected.</div>
     </aside>
 
     <section class="editor-column">

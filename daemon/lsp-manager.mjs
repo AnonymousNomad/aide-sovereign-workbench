@@ -9,6 +9,8 @@ export class LspManager {
     this.spawnProcess = spawnProcess;
     this.servers = new Map();
     this.processes = new Map();
+    this.pending = new Map();
+    this.nextId = 1;
   }
 
   async load() {
@@ -34,8 +36,47 @@ export class LspManager {
     await fs.access(command).catch(() => { throw new Error(`language server is unavailable: ${command}`); });
     const child = this.spawnProcess(command, server.args, { cwd: this.workspace, stdio: ['pipe', 'pipe', 'pipe'] });
     this.processes.set(id, child);
+    child.stdout?.on('data', data => this.#consume(id, data));
     child.once('exit', () => this.processes.delete(id));
     return { id, status: 'starting', languages: server.languages };
+  }
+
+  request(id, message) {
+    const child = this.processes.get(id);
+    if (!child) return Promise.reject(new Error('language server is not running'));
+    const requestId = message.id ?? this.nextId++;
+    const payload = JSON.stringify({ ...message, id: requestId, jsonrpc: '2.0' });
+    child.stdin.write(`Content-Length: ${Buffer.byteLength(payload)}\r\n\r\n${payload}`);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.pending.delete(`${id}:${requestId}`); reject(new Error('LSP request timed out')); }, 15000);
+      this.pending.set(`${id}:${requestId}`, { resolve, reject, timer });
+    });
+  }
+
+  notify(id, message) {
+    const child = this.processes.get(id);
+    if (!child) throw new Error('language server is not running');
+    const payload = JSON.stringify({ ...message, jsonrpc: '2.0' });
+    child.stdin.write(`Content-Length: ${Buffer.byteLength(payload)}\r\n\r\n${payload}`);
+    return { sent: true };
+  }
+
+  #consume(id, data) {
+    const state = this[`buffer_${id}`] = `${this[`buffer_${id}`] || ''}${data}`;
+    let buffer = state;
+    while (true) {
+      const split = buffer.indexOf('\r\n\r\n');
+      if (split < 0) break;
+      const header = buffer.slice(0, split);
+      const match = /Content-Length:\s*(\d+)/i.exec(header);
+      if (!match) { buffer = buffer.slice(split + 4); continue; }
+      const length = Number(match[1]);
+      const start = split + 4;
+      if (Buffer.byteLength(buffer.slice(start)) < length) break;
+      const raw = buffer.slice(start, start + length); buffer = buffer.slice(start + length);
+      try { const message = JSON.parse(raw); const key = `${id}:${message.id}`; const pending = this.pending.get(key); if (pending) { clearTimeout(pending.timer); this.pending.delete(key); pending.resolve(message); } } catch { /* malformed server output is ignored */ }
+    }
+    this[`buffer_${id}`] = buffer;
   }
 
   async stop(id) {

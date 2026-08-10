@@ -3,6 +3,11 @@
   "room": "AIDE Training Room",
   "network": "disabled",
   "job_policy": "allowlisted-resume-safe-only",
+  "adapters": ["training/tinyliquid-adapter.json"],
+  "jobs": [
+    {"id": "verify-release", "name": "Run Veritas release gate", "command": "npm", "args": ["run", "veritas"], "status": "available"},
+    {"id": "benchmark-dry-run", "name": "Benchmark model registry", "command": "npm", "args": ["run", "benchmarks", "--", "--dry-run"], "status": "available"}
+  ],
   "stages": [
     {"id": "data-audit", "name": "Dataset audit", "requires": ["manifest", "license", "split-check"], "status": "available"},
     {"id": "tokenizer", "name": "Tokenizer training", "requires": ["corpus", "special-token-lock", "parity-gate"], "status": "available"},

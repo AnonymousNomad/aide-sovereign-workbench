@@ -12,3 +12,5 @@ The Training Room is a visual control room for reproducible local model work. It
 - **Release:** export, quantization, checksum, model card, license, and publication checklist.
 
 Jobs are allowlisted, resumable, one-heavy-job-at-a-time, and approval-required for training or publication. The room records commands, parameters, outputs, failures, and artifacts locally.
+
+`tinyliquid-adapter.json` maps the owner's active FSI training pipeline into the room without launching it. While the current 50M run is active, the adapter is read-only; queued tokenizer, post-training, and evaluation stages require owner approval and a completed checkpoint gate.

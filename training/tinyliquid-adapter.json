@@ -1,0 +1,15 @@
+{
+  "id": "fsi-tinyliquid",
+  "display_name": "FSI TinyLiquid Research Model",
+  "workspace": "/root/Documents/Codex/2026-07-31/so-i-ve-got-a-task",
+  "read_only_until_training_complete": true,
+  "active_checkpoint": "ckpt/hybrid50m_pretrain",
+  "stages": [
+    {"id": "continue-pretrain", "script": "train/watchdog_50m.sh", "status": "running", "approval": "owner"},
+    {"id": "tokenizer-16k", "script": "stage_tokenizer_16k.sh", "status": "queued", "approval": "owner"},
+    {"id": "continue-pretrain-16k", "script": "stage_v16k_continue.sh", "status": "queued", "approval": "owner"},
+    {"id": "lora-sft", "script": "stage_lora_50m.sh", "status": "queued", "approval": "owner"},
+    {"id": "eval", "script": "stage_eval_50m.sh", "status": "queued", "approval": "owner"}
+  ],
+  "gates": ["one-heavy-job", "resume-safe-checkpoint", "ppl-guard", "fixed-probe-battery", "red-team-battery", "owner-approval"]
+}

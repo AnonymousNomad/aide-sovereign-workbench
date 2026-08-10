@@ -308,6 +308,23 @@ async function checkActiveFile() {
   } catch (error) { appendLog('LSP', error.message, 'warning'); }
 }
 
+async function lspAction(action) {
+  const uri = `file:///workspace/${state.activeFile}`;
+  const base = { textDocument: { uri }, position: { line: 0, character: 0 } };
+  const requests = {
+    hover: { method: 'textDocument/hover', params: base },
+    definition: { method: 'textDocument/definition', params: base },
+    rename: { method: 'textDocument/rename', params: { ...base, newName: 'AIDE_RENAMED' } },
+    formatting: { method: 'textDocument/formatting', params: { textDocument: { uri }, options: { tabSize: 2, insertSpaces: true } } }
+  };
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/lsp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: requests[action] }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error?.message || 'LSP request failed');
+    appendLog('LSP', `${action}: ${JSON.stringify(result.result || null).slice(0, 500)}`);
+  } catch (error) { appendLog('LSP', `${action} blocked: ${error.message}`, 'warning'); }
+}
+
 async function debugActiveFile() {
   if (!state.activeFile.endsWith('.py')) {
     $('#debug-status').textContent = 'Blocked: active file is not Python.';
@@ -321,6 +338,17 @@ async function debugActiveFile() {
     $('#debug-status').textContent = 'Debug launch requested; waiting for entry stop.';
     appendLog('DAP', 'Debug launch requested for the active Python file.');
   } catch (error) { $('#debug-status').textContent = `Debug blocked: ${error.message}`; appendLog('DAP', error.message, 'warning'); }
+}
+
+async function refreshDebugThreads() {
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/dap/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'python-debugpy', request: { command: 'threads', arguments: {} } }) });
+    const result = await response.json();
+    if (!response.ok || result.error) throw new Error(result.error?.format || 'debug adapter is not running');
+    const count = result.body?.threads?.length || 0;
+    $('#debug-status').textContent = `Debug threads: ${count}. Stack/variables populate after launch.`;
+    appendLog('DAP', `Threads refreshed: ${count}.`);
+  } catch (error) { appendLog('DAP', error.message, 'warning'); }
 }
 
 async function trainingRequest(action, payload = {}) {
@@ -339,7 +367,8 @@ async function refreshTrainingStatus() {
     if (!response.ok) return;
     const result = await response.json();
     const active = result.active ? `running: ${result.active.id}` : 'idle';
-    $('#training-status').textContent = `Training Room ${active} | ${result.jobs.length} allowlisted job(s)`;
+    const last = result.logs?.at(-1)?.line || 'no log output';
+    $('#training-status').textContent = `Training Room ${active} | ${result.jobs.length} job(s) | ${last.slice(0, 100)}`;
   } catch { /* daemon is optional while the static shell is offline */ }
 }
 
@@ -422,8 +451,10 @@ async function boot() {
   $('#community-add').onclick = addCommunityIssue;
   $('#lsp-button').onclick = () => startTool('lsp', 'typescript', 'TypeScript LSP');
   $('#lsp-check').onclick = checkActiveFile;
+  document.querySelectorAll('[data-lsp-action]').forEach(button => button.onclick = () => lspAction(button.dataset.lspAction));
   $('#dap-button').onclick = () => startTool('dap', 'python-debugpy', 'Python DAP');
   $('#debug-file').onclick = debugActiveFile;
+  $('#debug-threads').onclick = refreshDebugThreads;
   $('#training-verify').onclick = () => trainingRequest('start', { id: 'verify-release', approved: true });
   $('#training-stop').onclick = () => trainingRequest('stop');
   $('#arena-button').onclick = compareModels;

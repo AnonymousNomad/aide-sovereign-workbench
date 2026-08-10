@@ -9,6 +9,7 @@ import { DapManager } from './dap-manager.mjs';
 import { WorkspaceManager } from './workspace-manager.mjs';
 import { TrainingManager } from './training-manager.mjs';
 import { ReplayStore } from './replay-store.mjs';
+import { ArenaManager } from './arena-manager.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -28,6 +29,7 @@ const trainingManager = new TrainingManager({ manifestPath: path.join(WORKSPACE,
 await trainingManager.load().catch(() => {});
 const replayStore = new ReplayStore(path.join(WORKSPACE, 'replays', 'store.json'));
 await replayStore.load().catch(() => {});
+const arenaManager = new ArenaManager({ modelManager, manifestPath: MANIFEST, suitePath: path.join(WORKSPACE, 'benchmarks', 'manifest.json') });
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -112,6 +114,7 @@ const server = http.createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url === '/api/replays') return json(response, 200, replayStore.list());
     if (request.method === 'POST' && request.url === '/api/replays') return json(response, 201, { replay: await replayStore.add(await body(request)) });
+    if (request.method === 'POST' && request.url === '/api/arena/run') return json(response, 200, await arenaManager.run((await body(request)).approved));
     if (request.method === 'POST' && request.url === '/api/training/start') {
       const input = await body(request);
       return json(response, 200, trainingManager.start(input.id, input.approved));

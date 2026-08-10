@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, readFile, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { CommunityStore } from '../community/store.mjs';
+
+const root = await mkdtemp(path.join(tmpdir(), 'aide-community-'));
+const file = path.join(root, 'community', 'store.json');
+await mkdir(path.dirname(file), { recursive: true });
+await writeFile(file, JSON.stringify({ schema_version: '1.0', sync: 'local-only', projects: [], issues: [], discussions: [], marketplace: [] }));
+const store = new CommunityStore(file);
+await store.load();
+await store.add('issues', { title: 'Local issue', detail: 'Keep this on device.' });
+assert.equal(store.list().issues.length, 1);
+await store.update('issues', 0, { detail: 'Updated locally.' });
+assert.equal(store.list().issues[0].detail, 'Updated locally.');
+assert.match(await readFile(file, 'utf8'), /Local issue/);
+await store.remove('issues', 0);
+assert.equal(store.list().issues.length, 0);
+await assert.rejects(store.add('unknown', { title: 'bad' }), /not allowed/);
+console.log('community store test passed');

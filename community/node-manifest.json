@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "node_mode": "local-first",
+  "node_id": "generated-on-first-run",
+  "network_default": "disabled",
+  "data_boundaries": ["private", "group", "public", "marketplace"],
+  "replication": {
+    "private": "never",
+    "group": "invitation-and-encryption-required",
+    "public": "explicit-publish-only",
+    "marketplace": "explicit-publish-and-license-required"
+  },
+  "capabilities": {
+    "local_node_identity": true,
+    "local_git": true,
+    "encrypted_group_sync": false,
+    "direct_peer_discovery": false,
+    "relay": false,
+    "payments": false,
+    "moderation": "local-block-mute-report",
+    "marketplace_profiles": true
+  },
+  "policy": "No source, prompts, model traces, credentials, or private project metadata leave this device unless the user changes the boundary and approves the action.",
+  "future_adapters": ["encrypted-peer-sync", "user-selected-relay", "payment-provider", "artifact-moderation"]
+}

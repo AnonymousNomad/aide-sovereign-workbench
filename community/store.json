@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "sync": "local-only",
+  "projects": [
+    {"title": "AIDE Sovereign Workbench", "detail": "Local-first IDE and model harness", "boundary": "private"}
+  ],
+  "issues": [],
+  "discussions": [
+    {"title": "Welcome to the local developer network", "detail": "No account, relay, or network required", "status": "local"}
+  ],
+  "marketplace": [
+    {"title": "No marketplace listings yet", "detail": "Publish signed artifacts only after license and checksum review", "status": "empty"}
+  ]
+}

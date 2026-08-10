@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "max_turns": 4,
+  "max_context_bytes": 120000,
+  "max_patch_bytes": 200000,
+  "require_human_approval": true,
+  "allow_network": false,
+  "allow_untrusted_commands": false,
+  "self_approval_forbidden": true,
+  "revision_policy": "stop-after-budget",
+  "verification": ["patch-parse", "path-boundary", "format", "tests", "git-diff"],
+  "feedback_storage": "local-only",
+  "weights_mutated_by_harness": false
+}

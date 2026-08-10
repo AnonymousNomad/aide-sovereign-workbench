@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071018">
+  <title>AIDE | Sovereign Workbench</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">AIDE <span>SOVEREIGN WORKBENCH</span></div>
+    <div class="workspace"><b>LOCAL</b> / agent-kit / main</div>
+    <div class="network"><i></i> AIR-GAPPED</div>
+    <button class="icon-button" id="command-button" title="Command palette">CMD K</button>
+  </header>
+
+  <main class="shell">
+    <nav class="activity" aria-label="Activity">
+      <button class="activity-button active" title="Explorer">EXP</button>
+      <button class="activity-button" title="Search">SRCH</button>
+      <button class="activity-button" title="Source control">GIT</button>
+      <button class="activity-button" title="Run and debug">RUN</button>
+      <button class="activity-button" title="Model lanes">AI</button>
+      <button class="activity-button" title="Sovereign community">NODE</button>
+      <span></span>
+      <button class="activity-button" title="Settings">CFG</button>
+    </nav>
+
+    <aside class="sidebar explorer">
+      <div class="section-heading">EXPLORER <button class="quiet-button">+</button></div>
+      <div class="tree-title">AGENT-KIT <span>main*</span></div>
+      <div class="tree">
+        <button data-file="agent.ts">TS <span>agent.ts</span><b>*</b></button>
+        <button data-file="router.ts">TS <span>router.ts</span></button>
+        <button data-file="models.ts">TS <span>models.ts</span></button>
+        <button data-file="types.ts">TS <span>types.ts</span></button>
+        <button data-file="README.md">MD <span>README.md</span></button>
+      </div>
+      <div class="section-heading divider">MODEL LANES <button class="quiet-button">+</button></div>
+      <div id="model-list" class="model-list"></div>
+      <div class="section-heading divider">PRIVACY</div>
+      <ul class="privacy-list">
+        <li>Network calls disabled</li>
+        <li>Prompts stay on device</li>
+        <li>Writes require approval</li>
+        <li>Model output is untrusted</li>
+      </ul>
+      <div class="section-heading divider">LOCAL NODE</div>
+      <div id="node-status" class="node-status" style="border:1px solid #285344;background:#0d211c;color:#91c9aa;padding:9px;font:9px/1.7 ui-monospace,monospace">Loading node policy...</div>
+      <button id="node-button" class="secondary" style="width:100%;margin-top:8px;padding:7px">CREATE LOCAL NODE ID</button>
+      <div class="section-heading divider">JOURNAL DESK</div>
+      <button id="case-button" class="secondary" style="width:100%;padding:7px">CREATE LOCAL CASEFILE</button>
+      <label for="evidence-input" class="secondary" style="display:block;text-align:center;margin-top:7px;padding:7px;cursor:pointer">IMPORT EVIDENCE</label>
+      <input id="evidence-input" type="file" multiple accept=".txt,.md,.json,.csv,.html,.log,.xml" hidden>
+      <div id="case-status" style="color:#91c9aa;font:9px/1.7 ui-monospace,monospace;margin-top:8px">No case open.</div>
+      <div id="evidence-list" style="font:9px/1.5 ui-monospace,monospace;color:#9fb8ba;margin-top:5px"></div>
+      <div class="section-heading divider">COMMUNITY HUB</div>
+      <div class="community-tabs">
+        <button data-community-tab="projects">PROJECTS</button>
+        <button data-community-tab="issues">ISSUES</button>
+        <button data-community-tab="discussions">DISCUSSIONS</button>
+        <button data-community-tab="marketplace">MARKET</button>
+      </div>
+      <select id="community-type" style="width:100%;margin-top:7px;background:#09151d;border:1px solid #203342;color:#e4f2ef;padding:6px;font:9px ui-monospace,monospace"><option value="issues">ISSUE</option><option value="discussions">DISCUSSION</option></select>
+      <input id="community-title" placeholder="New local item" style="width:100%;margin-top:5px;background:#09151d;border:1px solid #203342;color:#e4f2ef;padding:6px;font:9px ui-monospace,monospace">
+      <button id="community-add" class="secondary" style="width:100%;margin-top:5px;padding:6px">ADD LOCAL ITEM</button>
+      <div id="community-feed" style="font:9px/1.6 ui-monospace,monospace;color:#9fb8ba;margin-top:7px"></div>
+    </aside>
+
+    <section class="editor-column">
+      <div class="tabs"><button class="tab active">agent.ts <span>*</span></button><button class="tab">router.ts</button><button class="tab-add">+</button><button id="save-file" class="tab" style="margin-left:auto;color:#72ff9e">SAVE APPROVED FILE</button></div>
+      <div class="breadcrumbs">src <b>/</b> agent.ts <b>/</b> AgentRuntime</div>
+      <div class="editor" role="textbox" aria-label="Code editor">
+        <div id="line-numbers" class="line-numbers"></div>
+        <pre id="code" contenteditable="true" spellcheck="false"></pre>
+      </div>
+      <div class="bottom-panel">
+        <div class="panel-tabs"><b>TERMINAL</b><span>PROBLEMS <em>0</em></span><span>OUTPUT</span><span>COLLABORATION</span><span>CASEFILE</span><span>COMMUNITY</span></div>
+        <div id="terminal" class="terminal"><p><b>~/agent-kit $</b> aide runtime status</p><p class="muted">network: disabled | writes: approval required | coordinator: bounded</p><p class="ok">ready: model registry loaded; coding lane awaiting local checkpoint</p><p><b>~/agent-kit $</b> <span class="cursor"></span></p></div>
+      </div>
+      <footer class="statusbar"><span>LOCAL ONLY</span><span>GIT main*</span><span>UTF-8</span><span>TypeScript</span><b>READY</b></footer>
+    </section>
+
+    <aside class="sidebar agent-panel">
+      <div class="eyebrow">MODEL ORCHESTRATOR</div>
+      <h1>Build privately.</h1>
+      <p class="subtle">Research, build, verify. Every lane is visible and bounded.</p>
+      <div class="runtime-card"><span id="selected-model">Select a lane</span><small id="selected-detail">No model request has been made.</small></div>
+      <div class="lane-grid" id="lane-grid"></div>
+      <div class="runtime-row"><span class="dot green"></span><span>Local adapter</span><b id="runtime-name">OpenAI-compatible HTTP</b></div>
+      <div id="collab-log" class="collab-log"><div class="empty-state">Cross-chat is idle.<br>Start a bounded review to create a research, build, and verify run.</div></div>
+      <div class="agent-actions"><button id="review-button" class="primary">START BOUNDED REVIEW</button><button id="connection-button" class="secondary">START / TEST RUNTIME</button></div>
+      <div class="chat-row"><input id="input" placeholder="Ask the local lanes..." aria-label="Ask the local lanes"><button id="send-button">SEND</button></div>
+      <div id="chat" class="chat" aria-live="polite"></div>
+    </aside>
+  </main>
+  <script src="app.js"></script>
+  <input id="model-file-input" type="file" accept=".gguf,.safetensors" hidden>
+</body>
+</html>

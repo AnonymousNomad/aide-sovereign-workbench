@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AIDE Offline Community Store",
+  "type": "object",
+  "required": ["schema_version", "sync", "projects", "issues", "discussions", "marketplace"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "sync": {"enum": ["local-only", "invited-encrypted", "public-publish"]},
+    "projects": {"type": "array"},
+    "issues": {"type": "array"},
+    "discussions": {"type": "array"},
+    "marketplace": {"type": "array"}
+  },
+  "additionalProperties": false
+}

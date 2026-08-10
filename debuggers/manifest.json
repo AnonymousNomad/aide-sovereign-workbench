@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "adapters": [
+    {
+      "id": "python-debugpy",
+      "name": "Python debugpy",
+      "command": ".venv/bin/python",
+      "args": ["-m", "debugpy.adapter"],
+      "languages": ["python"],
+      "protocol": "DAP",
+      "status": "available"
+    }
+  ]
+}

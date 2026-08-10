@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { WorkspaceManager } from './workspace-manager.mjs';
+
+const run = promisify(execFile);
+const root = await mkdtemp(path.join(tmpdir(), 'aide-workspace-'));
+await mkdir(path.join(root, 'src'));
+await writeFile(path.join(root, 'src', 'example.ts'), 'export const value = 1;\n');
+await run('git', ['init', '-q'], { cwd: root });
+await run('git', ['add', '.'], { cwd: root });
+await run('git', ['-c', 'user.name=AIDE', '-c', 'user.email=aide@example.invalid', 'commit', '-qm', 'base'], { cwd: root });
+const manager = new WorkspaceManager(root);
+assert.equal(await manager.read('src/example.ts'), 'export const value = 1;\n');
+await assert.rejects(manager.write('../escape.txt', 'bad', true), /escaped/);
+await assert.rejects(manager.write('src/example.ts', 'bad', false), /approval/);
+await manager.write('src/example.ts', 'export const value = 2;\n', true);
+assert.match(await readFile(path.join(root, 'src/example.ts'), 'utf8'), /value = 2/);
+await assert.rejects(manager.applyPatch('diff --git a/src/example.ts b/src/example.ts\n', false), /approval/);
+const patch = 'diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-export const value = 2;\n+export const value = 3;\n';
+await manager.applyPatch(patch, true);
+assert.match(await manager.read('src/example.ts'), /value = 3/);
+console.log('workspace manager test passed');

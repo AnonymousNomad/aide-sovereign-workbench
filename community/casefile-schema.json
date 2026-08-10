@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AIDE Local CaseFile",
+  "type": "object",
+  "required": ["id", "created_at", "boundary", "evidence"],
+  "properties": {
+    "id": {"type": "string"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "boundary": {"enum": ["private", "group", "public", "marketplace"]},
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "bytes", "hash", "dates", "imported_at"],
+        "properties": {
+          "name": {"type": "string"},
+          "bytes": {"type": "integer", "minimum": 0},
+          "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "dates": {"type": "array", "items": {"type": "string"}},
+          "imported_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    }
+  }
+}

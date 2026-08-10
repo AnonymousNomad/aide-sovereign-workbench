@@ -1,0 +1,11 @@
+node_modules/
+desktop/frontend/
+desktop/target/
+models/*.gguf
+models/*.safetensors
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+community/store.local.json

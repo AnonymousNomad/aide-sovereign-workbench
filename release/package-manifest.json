@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0",
+  "product": "AIDE Sovereign Workbench",
+  "release_channel": "local-development",
+  "version": "0.1.0-preflight",
+  "offline_default": true,
+  "distribution_profiles": [
+    {
+      "id": "core",
+      "description": "IDE only: editor, Git, terminal, tasks, reviewable patches, and adapter settings. No model weights included.",
+      "recommended_for": "every user"
+    },
+    {
+      "id": "coding-local",
+      "description": "Core plus Qwen2.5-Coder 1.5B Instruct Q4_K_M, downloaded or imported after license and hardware checks.",
+      "recommended_for": "daily local software development"
+    },
+    {
+      "id": "research-lab",
+      "description": "Core plus model registry, cross-model coordinator, benchmark runner, training timeline, eval cards, and release tools.",
+      "recommended_for": "showing how the owner's models are trained, evaluated, and promoted"
+    }
+  ],
+  "recommended_coding_models": [
+    {
+      "name": "Qwen2.5-Coder 1.5B Instruct",
+      "reason": "Best first small coding pack for constrained hardware; use a compatible quantized format and verify its upstream license before redistribution.",
+      "packaging": "download-on-first-use"
+    },
+    {
+      "name": "DeepSeek-Coder 1.3B Instruct",
+      "reason": "Small alternative for code completion and simple patch generation; benchmark against Qwen rather than assuming it is stronger.",
+      "packaging": "download-on-first-use"
+    },
+    {
+      "name": "Qwen2.5-Coder 3B Instruct",
+      "reason": "Higher-quality optional pack when the device has enough memory; keep it out of the default download.",
+      "packaging": "optional-large-pack"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "qwen2.5-coder-1.5b-instruct-q4_k_m",
+      "kind": "model-slot",
+      "status": "pending",
+      "manifest": "../models/manifest.json",
+      "model_card": "model-card-coding-template.md",
+      "license": "Apache-2.0",
+      "sha256": null
+    },
+    {
+      "id": "lfm25-thinking",
+      "kind": "model-slot",
+      "status": "pending",
+      "manifest": "../models/manifest.json",
+      "model_card": "model-card-liquid-thinking-template.md",
+      "license": "CONFIRM_UPSTREAM_LICENSE_BEFORE_RELEASE",
+      "sha256": null
+    }
+  ],
+  "release_gates": [
+    "run the local UI smoke test",
+    "verify each model artifact loads in its declared runtime",
+    "record model revision, tokenizer, prompt template, quantization, and metrics",
+    "review model card and license for every artifact",
+    "generate checksums and sign the release manifest",
+    "publish only after explicit owner approval"
+  ]
+}

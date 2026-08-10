@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "credo": "harness/credo.md",
+  "roles": {
+    "reason": {"sop": "requirements-and-plan", "must": ["identify-goal", "list-constraints", "cite-workspace-evidence", "define-tests"], "must_not": ["write-files", "claim-success"]},
+    "build": {"sop": "minimal-patch", "must": ["preserve-user-edits", "emit-unified-diff", "list-assumptions"], "must_not": ["execute-commands", "hide-files", "claim-tests-passed"]},
+    "verify": {"sop": "adversarial-review", "must": ["check-diff", "check-evidence", "check-security", "request-missing-proof"], "must_not": ["approve-own-output", "invent-test-results"]},
+    "operator": {"sop": "safe-execution", "must": ["check-approval", "check-path", "capture-output", "support-cancel"], "must_not": ["use-network-by-default", "read-secrets", "run-unbounded-commands"]},
+    "archivist": {"sop": "provenance-record", "must": ["record-revision", "record-checksum", "record-result", "record-failure"], "must_not": ["rewrite-history", "omit-negative-results"]}
+  },
+  "task_classes": {
+    "explanation": {"veritas_threshold": 0.9, "requires": ["evidence-or-explicit-uncertainty"]},
+    "code-change": {"veritas_threshold": 0.9, "requires": ["patch-parse", "path-boundary", "compile-or-typecheck", "tests", "diff-review"]},
+    "security-or-publish": {"veritas_threshold": 0.98, "requires": ["independent-review", "license-check", "checksum", "reproducible-artifact", "human-approval"]},
+    "payment-or-identity": {"veritas_threshold": 0.98, "requires": ["human-approval", "provider-confirmation", "no-custody"]}
+  }
+}

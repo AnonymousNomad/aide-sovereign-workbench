@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "servers": [
+    {
+      "id": "typescript",
+      "name": "TypeScript Language Server",
+      "command": "node_modules/.bin/typescript-language-server",
+      "args": ["--stdio"],
+      "languages": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+      "protocol": "LSP",
+      "status": "available"
+    }
+  ]
+}

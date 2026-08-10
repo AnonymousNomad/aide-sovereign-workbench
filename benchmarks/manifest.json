@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "suite": "aide-local-model-smoke-v1",
+  "tasks": [
+    {"id": "code-function", "prompt": "Return only a TypeScript function add(a: number, b: number): number.", "checks": ["typescript-shape"]},
+    {"id": "unified-diff", "prompt": "Return a unified diff that adds a comment to src/example.ts. Do not use Markdown fences.", "checks": ["diff-shape"]},
+    {"id": "plan", "prompt": "List three ordered steps for debugging a failing TypeScript test. Do not claim execution.", "checks": ["ordered-list"]}
+  ],
+  "models": ["smollm2-360m-q8", "qwen-coder-0.5b-q4", "qwen-coder-1.5b-q4"]
+}

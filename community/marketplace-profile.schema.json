@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AIDE Marketplace Profile",
+  "type": "object",
+  "required": ["schema_version", "developer", "payment_destinations", "terms"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "developer": {"type": "string", "minLength": 1, "maxLength": 120},
+    "payment_destinations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["provider", "uri"],
+        "properties": {
+          "provider": {"type": "string", "maxLength": 60},
+          "uri": {"type": "string", "format": "uri", "maxLength": 500}
+        },
+        "additionalProperties": false
+      }
+    },
+    "terms": {"type": "string", "maxLength": 2000},
+    "refund_policy": {"type": "string", "maxLength": 2000},
+    "public_key": {"type": "string", "maxLength": 500},
+    "signature": {"type": "string", "maxLength": 2000}
+  },
+  "additionalProperties": false
+}

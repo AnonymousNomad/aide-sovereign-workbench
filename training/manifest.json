@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "room": "AIDE Training Room",
+  "network": "disabled",
+  "job_policy": "allowlisted-resume-safe-only",
+  "stages": [
+    {"id": "data-audit", "name": "Dataset audit", "requires": ["manifest", "license", "split-check"], "status": "available"},
+    {"id": "tokenizer", "name": "Tokenizer training", "requires": ["corpus", "special-token-lock", "parity-gate"], "status": "available"},
+    {"id": "pretrain", "name": "Continue pretraining", "requires": ["checkpoint", "resume", "val-set", "ram-budget"], "status": "approval-required"},
+    {"id": "posttrain", "name": "SFT and preference", "requires": ["replay", "ppl-guard", "held-out-probes"], "status": "approval-required"},
+    {"id": "evaluate", "name": "Probe and red-team", "requires": ["fixed-battery", "raw-logs", "scorecard"], "status": "available"},
+    {"id": "release", "name": "Export and release", "requires": ["eval-pass", "license", "checksum", "model-card"], "status": "approval-required"}
+  ]
+}

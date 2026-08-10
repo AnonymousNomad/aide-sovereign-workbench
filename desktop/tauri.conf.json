@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AIDE Sovereign Workbench",
+  "version": "0.1.0-preflight",
+  "identifier": "org.ferrellsyntheticintelligence.aide",
+  "build": {
+    "frontendDist": "frontend",
+    "devUrl": "http://127.0.0.1:4173"
+  },
+  "app": {
+    "windows": [{"title": "AIDE Sovereign Workbench", "width": 1440, "height": 900, "minWidth": 900, "minHeight": 600}],
+    "security": {"csp": "default-src 'self' http://127.0.0.1:4173 http://127.0.0.1:4777 http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:*"}
+  },
+  "bundle": {"active": true, "targets": "all", "icon": ["icons/icon.svg"], "resources": []}
+}

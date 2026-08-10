@@ -5,7 +5,7 @@ const calls = [];
 const provider = role => ({ complete: async input => {
   calls.push({ role, input });
   if (role === 'reason') return 'constraints: preserve API; tests: npm test';
-  if (role === 'build') return 'diff --git a/a b/a\n+safe change';
+  if (role === 'build') return 'diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1 @@\n-old\n+safe change';
   return 'APPROVE: diff is bounded; run tests before apply';
 }});
 
@@ -26,4 +26,8 @@ const verified = await verifiedHarness.run('Run the verified flow', { taskClass:
 assert.equal(verified.status, 'ready-for-apply');
 assert.equal(verified.veritas.status, 'verified');
 assert.equal(verified.execution.checks['patch-parse'], true);
+const malformedProviders = { reason: provider('reason'), build: { complete: async () => '```diff\nnot a patch\n```' }, verify: provider('verify'), repair: { complete: async () => 'diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1 @@\n-old\n+new\n' } };
+const repaired = await createHarness({ providers: malformedProviders, policy: { require_human_approval: false }, verificationRunner: async () => ({ passed: true, checks: { compile: true } }) }).run('Repair the patch');
+assert.equal(repaired.veritas.status, 'verified');
+assert.ok(repaired.trace.some(item => item.stage === 'repair' && item.status === 'accepted'));
 console.log('universal harness test passed');

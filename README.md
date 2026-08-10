@@ -65,6 +65,8 @@ The Training Room is defined in `training/manifest.json` and `training/README.md
 
 The first live three-pack scorecard is in `benchmarks/live-results-2026-08-10.json`: all three models passed function and planning smoke tasks, while all failed strict unified-diff formatting. AIDE therefore keeps every raw patch behind Veritas and human approval.
 
+The ARM64 Rust desktop binary is compiled and hashed in `release/desktop-build-status.json`. Installer bundles still require a desktop host with a graphical session.
+
 ## Status
 
 This is a pre-production engineering release. The Liquid checkpoint is not included until its exact artifact, license, checksum, and evaluation are confirmed. The Qwen weight is downloaded separately from its official repository and should be verified before offline use.

@@ -1,0 +1,12 @@
+{
+  "version": "0.1.0-preflight",
+  "target": "aarch64-unknown-linux-gnu",
+  "status": "compiled",
+  "artifact": "aide-sovereign-workbench-linux-arm64",
+  "sha256": "aa50c4d4c396e58e15abd9f60523e0e78aaf10e1ac8b34d9f8a1370f70db9a49",
+  "notes": [
+    "Rust release binary compiled successfully on the ARM64 userspace.",
+    "GUI launch was not smoke-tested because this terminal has no active GTK display.",
+    "Installer bundle generation remains a desktop-host release step."
+  ]
+}

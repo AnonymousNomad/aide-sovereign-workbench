@@ -12,7 +12,10 @@ const required = [
   'community/casefile-schema.json', 'community/journal-desk.md', 'community/store-schema.json', 'community/store.json',
   'languages/manifest.json',
   'debuggers/manifest.json',
-  'benchmarks/manifest.json', 'training/manifest.json', 'desktop/tauri.conf.json',
+  'benchmarks/manifest.json', 'benchmarks/live-results-2026-08-10.json', 'benchmarks/README.md', 'training/manifest.json', 'desktop/tauri.conf.json',
+  'capsules/manifest.schema.json', 'capsules/README.md', 'training/tinyliquid-adapter.json', 'replays/store.json', 'replays/README.md',
+  'release/desktop-build-status.json',
+  'scripts/e2e.mjs',
   'daemon/server.mjs', 'desktop/README.md'
 ];
 for (const file of required) assert.ok(existsSync(path.join(root, file)), `missing ${file}`);

@@ -43,6 +43,7 @@ export interface ModelManifest {
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+const patchValid = value => /^diff --git\s+\S+\s+\S+/m.test(value) && /^---\s+/m.test(value) && /^\+\+\+\s+/m.test(value) && !/^```/m.test(value);
 
 function openFile(name) {
   const text = state.files[name] || state.files['agent.ts'];
@@ -150,7 +151,12 @@ async function runReview() {
     const findings = await requestLocal(research, [{ role: 'system', content: research.system_prompt }, { role: 'user', content: task }]);
     appendLog('RESEARCH', findings);
     if (builder.status === 'pending') throw new Error('Coding lane is not configured. Install a coding checkpoint before applying patches.');
-    const patch = await requestLocal(builder, [{ role: 'system', content: builder.system_prompt }, { role: 'user', content: `Task: ${task}\nResearch findings:\n${findings}\nReturn a unified diff only.` }]);
+    let patch = await requestLocal(builder, [{ role: 'system', content: builder.system_prompt }, { role: 'user', content: `Task: ${task}\nResearch findings:\n${findings}\nReturn a unified diff only.` }]);
+    if (!patchValid(patch)) {
+      appendLog('REPAIR', 'Builder output was not a valid unified diff. Requesting one bounded repair.', 'warning');
+      patch = await requestLocal(builder, [{ role: 'system', content: 'Convert the raw response into one valid unfenced unified diff. Preserve intent. Return only the diff. Do not invent files or claim tests passed.' }, { role: 'user', content: `Task: ${task}\nRaw response:\n${patch}` }]);
+    }
+    if (!patchValid(patch)) throw new Error('Patch repair failed structural validation; no files changed.');
     appendLog('BUILD', patch, 'patch');
     if (verifier.status === 'pending') throw new Error('Verifier lane is not configured.');
     const verdict = await requestLocal(verifier, [{ role: 'system', content: verifier.system_prompt }, { role: 'user', content: `Task: ${task}\nProposed patch:\n${patch}\nReturn APPROVE, REJECT, or NEEDS-EVIDENCE with reasons.` }]);

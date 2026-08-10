@@ -280,6 +280,10 @@ async function startTool(kind, id, label) {
       const initialized = await fetch('http://127.0.0.1:4777/api/lsp/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, message: { method: 'initialized', params: {} } }) });
       appendLog('LSP', init.ok && initialized.ok ? 'initialize handshake completed.' : 'initialize handshake failed.', init.ok && initialized.ok ? '' : 'warning');
     }
+    if (kind === 'dap') {
+      const init = await fetch('http://127.0.0.1:4777/api/dap/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, request: { command: 'initialize', arguments: { clientID: 'aide', clientName: 'AIDE', adapterID: id, linesStartAt1: true, columnsStartAt1: true, pathFormat: 'path' } } }) });
+      appendLog('DAP', init.ok ? 'initialize handshake completed.' : 'initialize request failed.', init.ok ? '' : 'warning');
+    }
   } catch (error) {
     $('#tool-status').textContent = `${label}: unavailable`;
     appendLog('TOOLCHAIN', `${label} unavailable: ${error.message}`, 'warning');

@@ -260,6 +260,21 @@ async function addCommunityIssue() {
   }
 }
 
+async function startTool(kind, id, label) {
+  try {
+    const response = await fetch(`http://127.0.0.1:4777/api/${kind}/start`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `${label} failed`);
+    $('#tool-status').textContent = `${label}: ${result.status}`;
+    appendLog('TOOLCHAIN', `${label} ${result.status}.`);
+  } catch (error) {
+    $('#tool-status').textContent = `${label}: unavailable`;
+    appendLog('TOOLCHAIN', `${label} unavailable: ${error.message}`, 'warning');
+  }
+}
+
 async function digestFile(file) {
   const buffer = await file.arrayBuffer();
   const digest = await crypto.subtle.digest('SHA-256', buffer);
@@ -322,6 +337,8 @@ async function boot() {
   $('#evidence-input').onchange = importEvidence;
   document.querySelectorAll('[data-community-tab]').forEach(button => button.onclick = () => renderCommunity(button.dataset.communityTab));
   $('#community-add').onclick = addCommunityIssue;
+  $('#lsp-button').onclick = () => startTool('lsp', 'typescript', 'TypeScript LSP');
+  $('#dap-button').onclick = () => startTool('dap', 'python-debugpy', 'Python DAP');
   loadCommunity();
   $('#input').onkeydown = event => { if (event.key === 'Enter') sendChat(); };
 }

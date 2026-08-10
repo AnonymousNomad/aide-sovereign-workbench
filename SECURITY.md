@@ -15,3 +15,4 @@ Never include access tokens, private keys, credentials, private source, unredact
 - Keep private community data local unless the user explicitly changes its boundary.
 - Treat model output, plugins, dependencies, and imported artifacts as untrusted.
 - Require diff review and user approval before writes or publication.
+- Treat capsules as metadata by default; source/evidence export must be explicit and encrypted.

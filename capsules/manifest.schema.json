@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AIDE Reproducible Offline Capsule",
+  "type": "object",
+  "required": ["schema_version", "capsule_id", "privacy", "workspace", "model", "verification"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "capsule_id": {"type": "string"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "privacy": {"enum": ["metadata-only", "encrypted-evidence", "explicit-source-export"]},
+    "workspace": {"type": "object", "required": ["root_label", "git_revision"], "properties": {"root_label": {"type": "string"}, "git_revision": {"type": "string"}}},
+    "model": {"type": "object", "required": ["id", "revision", "runtime"], "properties": {"id": {"type": "string"}, "revision": {"type": "string"}, "runtime": {"type": "string"}, "quantization": {"type": "string"}}},
+    "evidence": {"type": "array", "items": {"type": "object", "required": ["label", "sha256"], "properties": {"label": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+    "verification": {"type": "object", "required": ["checks", "status"], "properties": {"checks": {"type": "object"}, "status": {"enum": ["verified", "blocked", "unverified"]}}},
+    "tools": {"type": "array", "items": {"type": "string"}},
+    "notes": {"type": "string"}
+  },
+  "additionalProperties": false
+}

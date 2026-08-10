@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+const run = promisify(execFile);
+const root = await mkdtemp(path.join(tmpdir(), 'aide-capsule-'));
+const output = path.join(root, 'capsule.json');
+await run(process.execPath, ['capsules/create.mjs', output], { cwd: process.cwd(), env: { ...process.env, AIDE_MODEL_ID: 'test-model' } });
+const capsule = JSON.parse(await readFile(output, 'utf8'));
+assert.equal(capsule.privacy, 'metadata-only');
+assert.equal(capsule.model.id, 'test-model');
+console.log('capsule test passed');

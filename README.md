@@ -61,6 +61,8 @@ The daemon also owns an allowlisted DAP registry. Python debugging is provided t
 
 The Training Room is defined in `training/manifest.json` and `training/README.md`; it is an approval-gated, resume-safe control room for data, tokenizer, training, evaluation, and release jobs. `benchmarks/` contains the first common smoke suite for all three public model packs. `desktop/tauri.conf.json` is the reproducible desktop-shell configuration; native compilation remains a platform gate until Rust/Tauri is installed.
 
+`capsules/` adds reproducible offline workspace capsules: portable metadata for the exact model, runtime, Git revision, evidence hashes, tools, and Veritas result without exporting private source by default.
+
 ## Status
 
 This is a pre-production engineering release. The Liquid checkpoint is not included until its exact artifact, license, checksum, and evaluation are confirmed. The Qwen weight is downloaded separately from its official repository and should be verified before offline use.

@@ -8,6 +8,7 @@ import { LspManager } from './lsp-manager.mjs';
 import { DapManager } from './dap-manager.mjs';
 import { WorkspaceManager } from './workspace-manager.mjs';
 import { TrainingManager } from './training-manager.mjs';
+import { ReplayStore } from './replay-store.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -20,11 +21,13 @@ const communityStore = new CommunityStore(path.join(WORKSPACE, 'community', 'sto
 await communityStore.load().catch(() => {});
 const lspManager = new LspManager({ manifestPath: path.join(WORKSPACE, 'languages', 'manifest.json'), workspace: WORKSPACE });
 await lspManager.load().catch(() => {});
-const dapManager = new DapManager({ manifestPath: path.join(WORKSPACE, 'debuggers', 'manifest.json'), workspace: WORKSPACE });
+const dapManager = new DapManager({ manifestPath: path.join(WORKSPACE, 'debuggers', 'manifest.json'), workspace: WORKSPACE, pythonPath: process.env.AIDE_PYTHON || '' });
 await dapManager.load().catch(() => {});
 const workspaceManager = new WorkspaceManager(WORKSPACE);
 const trainingManager = new TrainingManager({ manifestPath: path.join(WORKSPACE, 'training', 'manifest.json'), workspace: WORKSPACE });
 await trainingManager.load().catch(() => {});
+const replayStore = new ReplayStore(path.join(WORKSPACE, 'replays', 'store.json'));
+await replayStore.load().catch(() => {});
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -107,6 +110,8 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/api/training/status') {
       return json(response, 200, trainingManager.status());
     }
+    if (request.method === 'GET' && request.url === '/api/replays') return json(response, 200, replayStore.list());
+    if (request.method === 'POST' && request.url === '/api/replays') return json(response, 201, { replay: await replayStore.add(await body(request)) });
     if (request.method === 'POST' && request.url === '/api/training/start') {
       const input = await body(request);
       return json(response, 200, trainingManager.start(input.id, input.approved));
@@ -117,11 +122,23 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/dap/start') {
       return json(response, 200, await dapManager.start((await body(request)).id));
     }
+    if (request.method === 'POST' && request.url === '/api/dap/request') {
+      const input = await body(request);
+      return json(response, 200, await dapManager.request(input.id, input.request));
+    }
     if (request.method === 'POST' && request.url === '/api/dap/stop') {
       return json(response, 200, await dapManager.stop((await body(request)).id));
     }
     if (request.method === 'POST' && request.url === '/api/lsp/start') {
       return json(response, 200, await lspManager.start((await body(request)).id));
+    }
+    if (request.method === 'POST' && request.url === '/api/lsp/request') {
+      const input = await body(request);
+      return json(response, 200, await lspManager.request(input.id, input.message));
+    }
+    if (request.method === 'POST' && request.url === '/api/lsp/notify') {
+      const input = await body(request);
+      return json(response, 200, lspManager.notify(input.id, input.message));
     }
     if (request.method === 'POST' && request.url === '/api/lsp/stop') {
       return json(response, 200, await lspManager.stop((await body(request)).id));

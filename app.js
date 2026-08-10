@@ -165,6 +165,7 @@ async function runReview() {
   } catch (error) {
     appendLog('STOPPED', error.message, 'warning');
   } finally {
+    await saveReplay('review-complete');
     $('#review-button').disabled = false;
     $('#review-button').textContent = 'START BOUNDED REVIEW';
   }
@@ -342,6 +343,17 @@ async function refreshTrainingStatus() {
   } catch { /* daemon is optional while the static shell is offline */ }
 }
 
+async function saveReplay(status = 'verified') {
+  try { await fetch('http://127.0.0.1:4777/api/replays', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_class: 'code-change', model: state.selected?.id || 'unknown', status, checks: { human_approval_required: true, source_exported: false } }) }); } catch { /* replay is optional while daemon is offline */ }
+}
+
+async function compareModels() {
+  const scores = { 'smollm2-360m-q8': 0.667, 'qwen-coder-0.5b-q4': 0.667, 'qwen-coder-1.5b-q4': 0.667 };
+  const winner = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  $('#arena-status').textContent = `Smoke winner: ${winner[0]} (${(winner[1] * 100).toFixed(1)}%). Equal tie; use role and memory to choose.`;
+  appendLog('MODEL ARENA', 'Comparison uses the recorded live smoke scorecard; no general capability claim.');
+}
+
 async function digestFile(file) {
   const buffer = await file.arrayBuffer();
   const digest = await crypto.subtle.digest('SHA-256', buffer);
@@ -410,6 +422,7 @@ async function boot() {
   $('#debug-file').onclick = debugActiveFile;
   $('#training-verify').onclick = () => trainingRequest('start', { id: 'verify-release', approved: true });
   $('#training-stop').onclick = () => trainingRequest('stop');
+  $('#arena-button').onclick = compareModels;
   refreshTrainingStatus();
   setInterval(refreshTrainingStatus, 5000);
   loadCommunity();

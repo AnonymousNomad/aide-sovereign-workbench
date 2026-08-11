@@ -138,9 +138,10 @@ async function requestLocal(model, messages) {
 
 async function runReview() {
   const task = $('#input').value.trim() || 'Review the local provider router for safer fallback behavior.';
-  const ready = state.manifest.models.filter(model => model.status === 'ready');
-  const research = state.manifest.models.find(model => model.lane === 'research' && model.status !== 'pending') || ready[0];
-  const builder = state.manifest.models.find(model => model.lane === 'build' && model.status !== 'pending') || ready[0];
+  const runnable = model => ['ready', 'experimental'].includes(model.status) && model.endpoint?.startsWith('http');
+  const ready = state.manifest.models.filter(runnable);
+  const research = state.manifest.models.find(model => model.id === 'fsi-tinyliquid-training' && model.status === 'ready') || state.manifest.models.find(model => model.lane === 'research' && runnable(model)) || ready[0];
+  const builder = state.manifest.models.find(model => model.lane === 'build' && runnable(model)) || ready[0];
   const verifier = state.manifest.models.find(model => model.lane === 'verify') || builder;
   $('#review-button').disabled = true;
   $('#review-button').textContent = 'RUNNING...';

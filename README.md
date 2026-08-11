@@ -34,10 +34,15 @@ The public pack includes registry entries for three optional Apache-2.0 models: 
 
 ## Offline Use
 
-1. Serve this repository locally with `python -m http.server 4173 --bind 127.0.0.1`.
-2. Start a local OpenAI-compatible runtime for the selected model on loopback.
-3. Open `http://127.0.0.1:4173/`.
-4. Use **TEST LOCAL RUNTIME** and then **START BOUNDED REVIEW**.
+Install Node.js 20+ and run:
+
+```bash
+npm install
+npm run doctor
+npm start
+```
+
+Then open `http://127.0.0.1:4173/`. The doctor reports missing optional runtimes as warnings instead of hiding them. Import a model pack from the Model Lanes panel and use **START / TEST RUNTIME**.
 
 See `runtime/README.md` and `models/manifest.json` for the adapter contract and model configuration. AIDE does not apply model-generated patches automatically.
 

@@ -5,13 +5,15 @@
   "description": "Local-first sovereign development workbench",
   "type": "module",
   "scripts": {
-    "test": "node tests/smoke.mjs && node harness/test-orchestrator.mjs && node daemon/test-model-manager.mjs && node daemon/test-community-store.mjs && node daemon/test-lsp-manager.mjs && node daemon/test-dap-manager.mjs && node daemon/test-workspace-manager.mjs && node daemon/test-training-manager.mjs && node daemon/test-replay-store.mjs && node benchmarks/test-run.mjs && node benchmarks/test-arena.mjs && node capsules/test-create.mjs && node scripts/e2e.mjs",
+    "test": "node tests/smoke.mjs && node harness/test-orchestrator.mjs && node daemon/test-model-manager.mjs && node daemon/test-community-store.mjs && node daemon/test-lsp-manager.mjs && node daemon/test-dap-manager.mjs && node daemon/test-workspace-manager.mjs && node daemon/test-training-manager.mjs && node daemon/test-replay-store.mjs && node daemon/test-agent-policy.mjs && node benchmarks/test-run.mjs && node benchmarks/test-arena.mjs && node capsules/test-create.mjs && node scripts/e2e.mjs",
     "check": "node --check app.js && node --check daemon/server.mjs && node --check harness/orchestrator.mjs && node --check harness/checks.mjs",
     "veritas": "node harness/run-veritas.mjs",
     "benchmarks": "node benchmarks/run.mjs",
     "arena": "node benchmarks/arena.mjs",
     "e2e": "node scripts/e2e.mjs",
     "capsule": "node capsules/create.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "start": "node scripts/start.mjs",
     "desktop:dev": "tauri dev --config desktop/tauri.conf.json",
     "desktop:prepare": "node desktop/prepare.mjs",
     "desktop:build": "npm run desktop:prepare && tauri build --config desktop/tauri.conf.json"

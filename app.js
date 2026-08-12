@@ -45,12 +45,51 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 const patchValid = value => /^diff --git\s+\S+\s+\S+/m.test(value) && /^---\s+/m.test(value) && /^\+\+\+\s+/m.test(value) && !/^```/m.test(value);
 
-function openFile(name) {
+async function openFile(name) {
   const text = state.files[name] || state.files['agent.ts'];
-  state.activeFile = `src/${name}`;
-  $('#code').textContent = text;
+  state.activeFile = name;
+  try {
+    const response = await fetch(`http://127.0.0.1:4777/api/file?path=${encodeURIComponent(name)}`);
+    if (response.ok) $('#code').textContent = (await response.json()).content;
+    else $('#code').textContent = text;
+  } catch { $('#code').textContent = text; }
   $('#line-numbers').textContent = text.split('\n').map((_, index) => index + 1).join('\n');
+  $('#line-numbers').textContent = $('#code').textContent.split('\n').map((_, index) => index + 1).join('\n');
   document.querySelectorAll('[data-file]').forEach(button => button.classList.toggle('active', button.dataset.file === name));
+}
+
+function renderWorkspaceTree(nodes, depth = 0) {
+  return nodes.map(node => node.kind === 'directory'
+    ? `<div class="tree-folder" style="padding-left:${depth * 10}px">▾ ${esc(node.name)}</div>${renderWorkspaceTree(node.children, depth + 1)}`
+    : `<button data-file="${esc(node.path)}" style="padding-left:${depth * 10 + 8}px">${esc(node.name.split('.').pop()?.toUpperCase() || 'FILE')} <span>${esc(node.name)}</span></button>`).join('');
+}
+
+async function loadWorkspaceTree() {
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/workspace/tree');
+    if (!response.ok) throw new Error('workspace tree unavailable');
+    const result = await response.json(); $('#workspace-tree').innerHTML = renderWorkspaceTree(result.tree);
+    $('#workspace-tree').querySelectorAll('[data-file]').forEach(button => button.onclick = () => openFile(button.dataset.file));
+  } catch (error) { $('#workspace-tree').innerHTML = `<span class="muted">${esc(error.message)}</span>`; }
+}
+
+async function loadPlugins() {
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/plugins'); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'plugin registry unavailable');
+    $('#plugin-list').innerHTML = result.plugins.length ? result.plugins.map(plugin => `<div class="plugin-item"><b>${esc(plugin.name || plugin.id)}</b><small>${esc(plugin.version || 'invalid')} | ${plugin.trusted ? 'trusted' : 'approval required'}</small>${plugin.invalid ? `<em>${esc(plugin.invalid)}</em>` : plugin.trusted ? '<span class="plugin-state ready">ENABLED / ISOLATED</span>' : `<button data-plugin-trust="${esc(plugin.id)}" class="secondary">TRUST MANIFEST</button>`}</div>`).join('') : '<span class="muted">Drop a plugin folder with aide-plugin.json here.</span>';
+    $('#plugin-list').querySelectorAll('[data-plugin-trust]').forEach(button => button.onclick = async () => { await fetch('http://127.0.0.1:4777/api/plugins/trust', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: button.dataset.pluginTrust, trusted: true }) }); loadPlugins(); });
+  } catch (error) { $('#plugin-list').innerHTML = `<span class="muted">${esc(error.message)}</span>`; }
+}
+
+async function runTerminalCommand() {
+  const input = $('#terminal-command'); const raw = input.value.trim(); if (!raw) return;
+  const parts = raw.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || []; const program = parts.shift(); const args = parts.map(value => value.replace(/^['"]|['"]$/g, ''));
+  $('#terminal').insertAdjacentHTML('beforeend', `<p><b>~/workspace $</b> ${esc(raw)}</p><p class="muted">running...</p>`); input.value = '';
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/terminal/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ program, args, approved: true }) });
+    const result = await response.json(); if (!response.ok) throw new Error(result.error || 'command rejected');
+    const output = `${result.stdout || ''}${result.stderr || ''}`.trim() || `(exit ${result.code})`; $('#terminal').insertAdjacentHTML('beforeend', `<pre class="terminal-output ${result.code ? 'error' : 'ok'}">${esc(output)}</pre>`);
+  } catch (error) { $('#terminal').insertAdjacentHTML('beforeend', `<pre class="terminal-output error">${esc(error.message)}</pre>`); }
 }
 
 async function saveFile() {
@@ -539,12 +578,15 @@ async function boot() {
   $('#connection-button').onclick = startRuntime;
   $('#mode-toggle').onclick = () => { document.body.classList.toggle('simple-mode'); $('#mode-toggle').textContent = document.body.classList.contains('simple-mode') ? 'ADVANCED' : 'SIMPLE'; };
   bindLaunchGuide();
-  openFile('agent.ts');
-  document.querySelectorAll('[data-file]').forEach(button => button.onclick = () => openFile(button.dataset.file));
+  openFile('README.md');
+  loadWorkspaceTree();
+  loadPlugins();
   $('#review-button').onclick = runReview;
   $('#save-file').onclick = saveFile;
   $('#connection-button').onclick = startRuntime;
   $('#send-button').onclick = sendChat;
+  $('#terminal-run').onclick = runTerminalCommand;
+  $('#terminal-command').onkeydown = event => { if (event.key === 'Enter') runTerminalCommand(); };
   $('#node-button').onclick = () => { localNodeId(); renderNode(); appendLog('NODE', 'Local identity created. No network connection or private data was shared.'); };
   document.querySelectorAll('[data-community-tab]').forEach(button => button.onclick = () => renderCommunity(button.dataset.communityTab));
   $('#community-add').onclick = addCommunityIssue;

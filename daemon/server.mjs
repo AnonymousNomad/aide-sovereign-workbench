@@ -12,6 +12,7 @@ import { ReplayStore } from './replay-store.mjs';
 import { ArenaManager } from './arena-manager.mjs';
 import { buildBlueprint } from '../blueprint/graph.mjs';
 import { TutorManager } from '../academy/tutor-manager.mjs';
+import { PluginManager } from '../plugins/manager.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -34,6 +35,8 @@ await replayStore.load().catch(() => {});
 const arenaManager = new ArenaManager({ modelManager, manifestPath: MANIFEST, suitePath: path.join(WORKSPACE, 'benchmarks', 'manifest.json') });
 const tutorManager = new TutorManager({ coursesDir: path.join(WORKSPACE, 'academy', 'courses'), progressPath: path.join(WORKSPACE, 'academy', 'progress.json') });
 await tutorManager.load().catch(() => {});
+const pluginManager = new PluginManager({ pluginsDir: path.join(WORKSPACE, 'plugins'), statePath: path.join(WORKSPACE, 'plugins', 'state.json') });
+await pluginManager.load().catch(() => {});
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -82,10 +85,18 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/api/workspace') {
       return json(response, 200, { workspace: WORKSPACE, entries: await workspaceSummary() });
     }
+    if (request.method === 'GET' && request.url === '/api/workspace/tree') {
+      return json(response, 200, { workspace: WORKSPACE, tree: await workspaceManager.tree() });
+    }
     if (request.method === 'GET' && request.url === '/api/blueprint') {
       return json(response, 200, buildBlueprint({ entries: await workspaceSummary(), models: modelManager.status(), training: trainingManager.status() }));
     }
     if (request.method === 'GET' && request.url === '/api/academy') return json(response, 200, { courses: tutorManager.catalog() });
+    if (request.method === 'GET' && request.url === '/api/plugins') return json(response, 200, { api_version: '1', plugins: pluginManager.list() });
+    if (request.method === 'POST' && request.url === '/api/plugins/trust') {
+      const input = await body(request);
+      return json(response, 200, { api_version: '1', plugins: await pluginManager.setTrust(input.id, input.trusted === true) });
+    }
     if (request.method === 'GET' && request.url.startsWith('/api/academy/session')) {
       const courseId = new URL(request.url, 'http://127.0.0.1').searchParams.get('course') || undefined;
       return json(response, 200, tutorManager.session(courseId));
@@ -101,6 +112,14 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/file/write') {
       const input = await body(request);
       return json(response, 200, await workspaceManager.write(input.path, input.content, input.approved));
+    }
+    if (request.method === 'POST' && request.url === '/api/terminal/run') {
+      const input = await body(request);
+      if (input.approved !== true) throw new Error('explicit approval required');
+      const allowed = new Set(['node', 'npm', 'npx', 'git', 'python', 'python3', 'cargo', 'rustc']);
+      if (!allowed.has(input.program) || !Array.isArray(input.args) || input.args.length > 24) throw new Error('terminal command is not allowlisted');
+      const result = await new Promise(resolve => execFile(input.program, input.args.map(String), { cwd: WORKSPACE, timeout: 30_000, maxBuffer: 512 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, NODE_PATH: process.env.NODE_PATH } }, (error, stdout, stderr) => resolve({ code: error?.code ?? 0, stdout, stderr })));
+      return json(response, 200, result);
     }
     if (request.method === 'POST' && request.url === '/api/patch/apply') {
       const input = await body(request);

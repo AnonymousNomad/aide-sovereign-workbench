@@ -15,6 +15,7 @@ await run('git', ['add', '.'], { cwd: root });
 await run('git', ['-c', 'user.name=AIDE', '-c', 'user.email=aide@example.invalid', 'commit', '-qm', 'base'], { cwd: root });
 const manager = new WorkspaceManager(root);
 assert.equal(await manager.read('src/example.ts'), 'export const value = 1;\n');
+assert.equal((await manager.tree())[0].name, 'src');
 await assert.rejects(manager.write('../escape.txt', 'bad', true), /escaped/);
 await assert.rejects(manager.write('src/example.ts', 'bad', false), /approval/);
 await manager.write('src/example.ts', 'export const value = 2;\n', true);

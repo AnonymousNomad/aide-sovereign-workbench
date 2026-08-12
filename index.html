@@ -35,16 +35,12 @@
 
     <aside class="sidebar explorer">
       <div class="section-heading">EXPLORER <button class="quiet-button">+</button></div>
-      <div class="tree-title">AGENT-KIT <span>main*</span></div>
-      <div class="tree">
-        <button data-file="agent.ts">TS <span>agent.ts</span><b>*</b></button>
-        <button data-file="router.ts">TS <span>router.ts</span></button>
-        <button data-file="models.ts">TS <span>models.ts</span></button>
-        <button data-file="types.ts">TS <span>types.ts</span></button>
-        <button data-file="README.md">MD <span>README.md</span></button>
-      </div>
-      <div class="section-heading divider">MODEL LANES <button class="quiet-button">+</button></div>
-      <div id="model-list" class="model-list"></div>
+       <div class="tree-title">AIDE WORKSPACE <span id="workspace-branch">local</span></div>
+       <div id="workspace-tree" class="tree"><span class="muted">Loading workspace...</span></div>
+       <div class="section-heading divider">MODEL LANES <button class="quiet-button">+</button></div>
+       <div id="model-list" class="model-list"></div>
+       <div class="section-heading divider">OFFLINE PLUGINS</div>
+       <div id="plugin-list" class="plugin-list"><span class="muted">No plugins loaded.</span></div>
       <div class="section-heading divider">PRIVACY</div>
       <ul class="privacy-list">
         <li>Network calls disabled</li>
@@ -102,7 +98,7 @@
       </div>
       <div class="bottom-panel">
          <div class="panel-tabs"><b>TERMINAL</b><span>PROBLEMS <em>0</em></span><span>OUTPUT</span><span>CHAT</span><span>COMMUNITY</span></div>
-        <div id="terminal" class="terminal"><p><b>~/agent-kit $</b> aide runtime status</p><p class="muted">network: disabled | writes: approval required | coordinator: bounded</p><p class="ok">ready: model registry loaded; coding lane awaiting local checkpoint</p><p><b>~/agent-kit $</b> <span class="cursor"></span></p></div>
+         <div id="terminal" class="terminal"><p><b>~/workspace $</b> aide runtime status</p><p class="muted">network: disabled | writes: approval required | coordinator: bounded</p><p class="ok">ready: local workbench connected</p></div><div class="terminal-input"><span>›</span><input id="terminal-command" placeholder="Run an approved command, e.g. npm test" aria-label="Terminal command"><button id="terminal-run">RUN</button></div>
       </div>
       <footer class="statusbar"><span>LOCAL ONLY</span><span>GIT main*</span><span>UTF-8</span><span>TypeScript</span><b>READY</b></footer>
     </section>

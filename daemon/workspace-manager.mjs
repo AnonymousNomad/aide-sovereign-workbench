@@ -16,6 +16,22 @@ export class WorkspaceManager {
     return fs.readFile(this.resolve(relativePath), 'utf8');
   }
 
+  async tree(maxDepth = 4) {
+    const walk = async (directory, depth) => {
+      if (depth > maxDepth) return [];
+      const entries = await fs.readdir(directory, { withFileTypes: true });
+      const result = [];
+      for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+        if (entry.name.startsWith('.') || ['node_modules', 'target', 'dist'].includes(entry.name)) continue;
+        const relative = path.relative(this.workspace, path.join(directory, entry.name));
+        if (entry.isDirectory()) result.push({ name: entry.name, path: relative, kind: 'directory', children: await walk(path.join(directory, entry.name), depth + 1) });
+        else result.push({ name: entry.name, path: relative, kind: 'file' });
+      }
+      return result;
+    };
+    return walk(this.workspace, 0);
+  }
+
   async write(relativePath, content, approved) {
     if (approved !== true) throw new Error('explicit approval required');
     const target = this.resolve(relativePath);

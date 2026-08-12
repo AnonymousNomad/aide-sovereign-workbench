@@ -157,6 +157,16 @@ the result, and refuse unsupported completion claims.
   suite, and daemon smoke PASS. Plugin network capability enforcement remains a
   later hardening gate.
 
+## 2026-08-12 — Command Palette
+
+- Research: VS Code Command Palette, Quick Pick, keyboard navigation, and
+  discoverable workbench commands: https://code.visualstudio.com/api/ux-guidelines/command-palette
+- Decision: every primary AIDE action gets a searchable command and keyboard
+  path; commands call the same tested handlers as visible buttons.
+- Change: real `CMD K` palette, filtering, Enter/Escape behavior, Ctrl/Cmd+K,
+  and commands for files, tasks, Assistant, Blueprint, Academy, and Problems.
+- Gate: UI contract audit and full suite PASS.
+
 ## 2026-08-12 — Editor Tabs And Dirty State
 
 - Research: VS Code quick navigation, editor groups/tabs, dirty indicators,

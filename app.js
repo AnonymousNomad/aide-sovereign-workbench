@@ -606,6 +606,25 @@ function bindWorkbenchNavigation() {
   $('#settings-button').onclick = () => appendLog('SETTINGS', 'Settings surface is not enabled yet. No hidden configuration is being changed.', 'warning');
 }
 
+const commands = [
+  { id: 'open-readme', label: 'Open README.md', run: () => openFile('README.md') },
+  { id: 'run-tests', label: 'Tasks: Run full test suite', run: () => document.querySelector('[data-task-id="test"]')?.click() },
+  { id: 'focus-chat', label: 'Assistant: Focus chat', run: () => { $('#ai-button').click(); $('#input').focus(); } },
+  { id: 'show-blueprint', label: 'AIDE: Open Blueprint', run: () => $('#blueprint-button').click() },
+  { id: 'show-academy', label: 'AIDE: Open Academy', run: () => $('#learn-button').click() },
+  { id: 'show-problems', label: 'View: Problems', run: () => $('#problems-tab').click() }
+];
+
+function renderCommands(query = '') {
+  const results = commands.filter(command => command.label.toLowerCase().includes(query.toLowerCase()));
+  $('#command-results').innerHTML = results.map((command, index) => `<button class="command-item" data-command-id="${command.id}"><span>${index + 1}</span>${esc(command.label)}</button>`).join('') || '<div class="muted command-empty">No matching commands.</div>';
+  $('#command-results').querySelectorAll('[data-command-id]').forEach(button => button.onclick = () => { commands.find(command => command.id === button.dataset.commandId)?.run(); closeCommandPalette(); });
+}
+
+function closeCommandPalette() { $('#command-palette').hidden = true; }
+function openCommandPalette() { $('#command-palette').hidden = false; $('#command-search').value = ''; renderCommands(); $('#command-search').focus(); }
+function bindCommandPalette() { $('#command-button').onclick = openCommandPalette; $('#command-search').oninput = event => renderCommands(event.target.value); $('#command-search').onkeydown = event => { if (event.key === 'Escape') closeCommandPalette(); if (event.key === 'Enter') document.querySelector('#command-results .command-item')?.click(); }; document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openCommandPalette(); } }); }
+
 function renderNode() {
   if (!state.node) return;
   const id = localStorage.getItem('aide.node.id');
@@ -666,6 +685,7 @@ async function boot() {
   bindBlueprint();
   bindAcademy();
   bindWorkbenchNavigation();
+  bindCommandPalette();
   testRuntime();
   refreshTrainingStatus();
   setInterval(refreshTrainingStatus, 5000);

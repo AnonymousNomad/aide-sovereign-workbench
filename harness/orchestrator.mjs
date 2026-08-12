@@ -1,5 +1,5 @@
 import { evaluateExecution, evaluateVeritas } from './veritas.mjs';
-import { validateUnifiedPatch } from './patch.mjs';
+import { normalizeUnifiedPatch, validateUnifiedPatch } from './patch.mjs';
 
 const DEFAULT_POLICY = Object.freeze({
   max_turns: 4,
@@ -53,22 +53,22 @@ export function createHarness({ providers, tools = {}, policy = {}, verification
       trace.push({ stage: 'plan', status: 'complete', bytes: Buffer.byteLength(String(plan)) });
 
       const builder = requireProvider(providers, 'build');
-      let patch = bounded(await builder.complete({
+      let patch = normalizeUnifiedPatch(bounded(await builder.complete({
         role: 'build',
         mandatory_credo: MANDATORY_CREDO,
         instruction: 'Return a unified diff only. Do not claim tests passed. Do not write files.',
         task: goal,
         plan: bounded(plan, rules.max_context_bytes, 'plan')
-      }), rules.max_patch_bytes, 'patch');
+      }), rules.max_patch_bytes, 'patch'));
       let patchParsePassed = validateUnifiedPatch(patch).valid;
       if (!patchParsePassed && providers.repair) {
         trace.push({ stage: 'repair', status: 'attempted' });
-        patch = bounded(await providers.repair.complete({
+        patch = normalizeUnifiedPatch(bounded(await providers.repair.complete({
           role: 'repair',
           instruction: 'Convert the raw response into one valid unfenced unified diff. Preserve intent. Return only the diff. Do not invent files or claim tests passed.',
           raw: patch,
           task: goal
-        }), rules.max_patch_bytes, 'repaired patch');
+        }), rules.max_patch_bytes, 'repaired patch'));
         patchParsePassed = validateUnifiedPatch(patch).valid;
         trace.push({ stage: 'repair', status: patchParsePassed ? 'accepted' : 'rejected' });
       }

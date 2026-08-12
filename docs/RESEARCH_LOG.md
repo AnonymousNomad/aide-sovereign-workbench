@@ -179,6 +179,33 @@ the result, and refuse unsupported completion claims.
   citation file, and support guide cleaned for professional presentation.
 - Gate: documentation review pending full repository scan and CI.
 
+## 2026-08-12 — Unified Diff Reliability
+
+- Signal: local coding benchmark showed useful code generation but strict
+  unified-diff formatting failures.
+- Research: Git patch format requirements and the existing Veritas/harness
+  validation boundary.
+- Decision: normalize only safe presentation noise deterministically, then
+  require real diff headers and hunk headers before verification. Never apply
+  raw model prose.
+- Change: patch normalization, stricter validation, and regression coverage for
+  prose-wrapped/fenced patches.
+- Gate: full harness suite PASS; real repository task benchmark remains open.
+
+## 2026-08-12 — External Product Review
+
+- Signal: external collaborator reviewed the cleaned README and identified the
+  remaining product risks as unified-diff reliability, desktop packaging,
+  real-world benchmarks, shared model harness contracts, and adoption friction.
+- Decision: keep AIDE public claims pre-production and evidence-first. Prioritize
+  release gates over mythology, model announcements, or broad feature claims.
+- AIDE actions: finish core workbench acceptance, make patch generation reliable,
+  ship and test the Tauri desktop artifact, benchmark real repository tasks, and
+  keep all model adapters behind one contract.
+- Boundary: feedback about the separate website-builder and journalist models is
+  recorded as future work only. Do not interrupt or modify their training while
+  AIDE release gates are active.
+
 ## 2026-08-12 — Editor Tabs And Dirty State
 
 - Research: VS Code quick navigation, editor groups/tabs, dirty indicators,

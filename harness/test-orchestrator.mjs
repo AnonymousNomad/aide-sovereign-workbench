@@ -30,4 +30,7 @@ const malformedProviders = { reason: provider('reason'), build: { complete: asyn
 const repaired = await createHarness({ providers: malformedProviders, policy: { require_human_approval: false }, verificationRunner: async () => ({ passed: true, checks: { compile: true } }) }).run('Repair the patch');
 assert.equal(repaired.veritas.status, 'verified');
 assert.ok(repaired.trace.some(item => item.stage === 'repair' && item.status === 'accepted'));
+const fenced = await createHarness({ providers: { reason: provider('reason'), build: { complete: async () => 'Here is the patch:\n```diff\ndiff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1 @@\n-old\n+new\n```' }, verify: provider('verify') }, policy: { require_human_approval: false }, verificationRunner: async () => ({ passed: true, checks: { compile: true } }) }).run('Normalize a fenced patch');
+assert.equal(fenced.veritas.status, 'verified');
+assert.ok(fenced.patch.startsWith('diff --git '));
 console.log('universal harness test passed');

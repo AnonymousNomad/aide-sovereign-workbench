@@ -289,6 +289,19 @@ the result, and refuse unsupported completion claims.
 - Gate: audit recorded; desktop release remains BLOCKED until the lifecycle and
   sidecar tests pass.
 
+## 2026-08-12 — Desktop Daemon Lifecycle
+
+- Research: Tauri resource embedding, sidecar/process lifecycle, secure app
+  startup, and clean exit from the official Tauri documentation.
+- Decision: desktop preparation bundles the daemon source and Node runtime;
+  Rust starts the daemon from the resource directory and terminates it on app
+  exit. Missing runtime resources must not be hidden.
+- Change: desktop prepare copies daemon/runtime support and Rust owns a managed
+  child process.
+- Gate: desktop frontend preparation PASS. Local Rust compilation is BLOCKED
+  because cargo is unavailable in this environment; GitHub desktop matrix is
+  required for the Rust compile and installer gate.
+
 ## 2026-08-12 — External Product Review
 
 - Signal: external collaborator reviewed the cleaned README and identified the

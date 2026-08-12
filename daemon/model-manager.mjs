@@ -38,7 +38,8 @@ export class ModelManager {
     const response = await fetch(`${model.endpoint}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: model.model, messages, temperature: 0.2, max_tokens: Math.min(Number(options.max_tokens) || 512, 512) })
+      body: JSON.stringify({ model: model.model, messages, temperature: 0.2, max_tokens: Math.min(Number(options.max_tokens) || 512, 512) }),
+      signal: AbortSignal.timeout(Number(options.timeout_ms) || 90_000)
     });
     if (!response.ok) throw new Error(`local runtime returned HTTP ${response.status}`);
     return response.json();

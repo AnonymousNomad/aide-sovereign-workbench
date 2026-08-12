@@ -57,6 +57,27 @@ The product should publish these measurements, screenshots of working flows, raw
 benchmark results, limitations, and checksums. Philosophy is internal
 engineering discipline; evidence is the public product message.
 
+## New Gap Matrix: August 2026 Research
+
+| Observed gap | Evidence | AIDE response | Acceptance metric |
+| --- | --- | --- | --- |
+| AI output is almost right | Stack Overflow 2025: 66% report this; 45.2% say debugging generated code takes more time. | Task contract, patch normalization, tests, diagnostics, diff, audit artifact, and revert. | Real multi-file task patch acceptance and test-pass rate. |
+| Complex tasks are not trusted | Only 3.9% of professional developers rate AI as very good at complex tasks. | Plan-first workflow, explicit handoffs, context manifest, independent verifier, and abstention. | Frozen complex-task battery with evidence score and failure categories. |
+| Planning and deployment remain human-controlled | Stack Overflow: 69.2% do not plan to use AI mostly for project planning; 75.8% do not plan to use it mostly for deployment/monitoring. | AIDE keeps planning, release, and deployment behind approval and deterministic gates. | Zero unapproved side effects in red-team acceptance runs. |
+| Agent sessions are hard to resume | Zed Agent Panel documents threads, checkpoints, compaction, and external-agent availability differences; current issues include resume failures. | Durable local sessions, metadata-only audit artifacts, checkpoint/revert, and clear unavailable state. | Kill/restart/recover session without losing state or silently duplicating work. |
+| Destructive discard can surprise users | Current Zed issue reports a folder discard causing broad data loss. | Dry-run destructive actions, scope preview, checkpoint, explicit confirmation, and undo/recovery. | Destructive-action test proves unrelated files remain unchanged. |
+| Sandbox/tool failure blocks trust | Current Zed issue reports trivial commands failing under sandboxing. | Explain capability denial, offer scoped escalation, preserve logs, and never silently bypass. | Denied command produces actionable reason and no side effect. |
+| Plugin ecosystems are powerful but risky | VS Code extension host isolates and lazily activates extensions; Zed uses ACP/MCP and granular tool controls. | AIDE manifests, capabilities, trust history, isolated child processes, timeouts, and scaffolds. | Untrusted plugin cannot execute; trusted plugin cannot read outside scope. |
+| Adoption depends on a low-friction core | VS Code remains dominant; Open Source Guides emphasizes README, license, contribution, conduct, issue hygiene, and maintainer capacity. | One-minute install, doctor, full offline bundle, real acceptance suite, support docs, and public limitations. | New user reaches local chat and opens a real file in under five minutes. |
+
+## Priority
+
+1. Finish the daily-driver editor and safe task contract.
+2. Make model sessions resumable, inspectable, and reversible.
+3. Build real repository benchmarks and publish failures as well as wins.
+4. Ship the desktop lifecycle and full offline model bundle.
+5. Grow the plugin/community ecosystem only around verified workflows.
+
 ## Hybrid Provider Boundary
 
 AIDE should not force a false choice between privacy and capability. The local

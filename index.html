@@ -8,6 +8,9 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <section id="launch-guide" class="launch-guide" hidden>
+    <div class="launch-card"><div class="eyebrow">AIDE / FIRST RUN</div><h1>Start here.</h1><p>AIDE is a local workbench. Choose a model, start it, and then talk to it. Nothing leaves this device.</p><div class="launch-steps"><div><b>01</b><span>Choose a model</span><small>Use the recommended coding model to begin.</small></div><div><b>02</b><span>Start the runtime</span><small>AIDE loads the model locally.</small></div><div><b>03</b><span>Chat or build</span><small>Ask a question or run a verified workflow.</small></div></div><div class="launch-actions"><button id="launch-start" class="primary">USE RECOMMENDED MODEL</button><button id="launch-learn" class="secondary">START WITH TUTOR MODE</button></div><label class="launch-dismiss"><input id="launch-dont-show" type="checkbox"> Do not show this guide again</label></div>
+  </section>
   <header class="topbar">
     <div class="brand">AIDE <span>SOVEREIGN WORKBENCH</span></div>
     <div class="workspace"><b>LOCAL</b> / agent-kit / main</div>
@@ -110,15 +113,16 @@
     </section>
 
     <aside class="sidebar agent-panel">
-      <div class="eyebrow">MODEL ORCHESTRATOR</div>
-      <h1>Build privately.</h1>
-      <p class="subtle">Research, build, verify. Every lane is visible and bounded.</p>
+      <div class="eyebrow">LOCAL AI WORKSPACE</div>
+      <h1>Chat and build.</h1>
+      <p class="subtle">Choose one local model, start it, then ask it anything. Use the bounded workflow when you want research, code, and verification together.</p>
+      <div class="chat-model-control"><label for="model-select">ACTIVE MODEL</label><select id="model-select"></select><button id="start-selected" class="primary">START SELECTED MODEL</button><button id="test-selected" class="secondary">TEST CONNECTION</button></div>
       <div class="runtime-card"><span id="selected-model">Select a lane</span><small id="selected-detail">No model request has been made.</small></div>
       <div class="lane-grid" id="lane-grid"></div>
       <div class="runtime-row"><span class="dot green"></span><span>Local adapter</span><b id="runtime-name">OpenAI-compatible HTTP</b></div>
       <div id="collab-log" class="collab-log"><div class="empty-state">Cross-chat is idle.<br>Start a bounded review to create a research, build, and verify run.</div></div>
       <div class="agent-actions"><button id="review-button" class="primary">START BOUNDED REVIEW</button><button id="connection-button" class="secondary">START / TEST RUNTIME</button></div>
-      <div class="chat-row"><input id="input" placeholder="Ask the local lanes..." aria-label="Ask the local lanes"><button id="send-button">SEND</button></div>
+      <div class="chat-label">CHAT WITH YOUR MODEL</div><div class="chat-row"><input id="input" placeholder="Ask the active local model..." aria-label="Ask the active local model"><button id="send-button">SEND</button></div>
       <div id="chat" class="chat" aria-live="polite"></div>
     </aside>
   </main>

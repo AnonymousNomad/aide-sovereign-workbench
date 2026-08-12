@@ -70,8 +70,10 @@ async function saveFile() {
 function renderModels() {
   const list = $('#model-list');
   const lanes = $('#lane-grid');
+  const select = $('#model-select');
   list.innerHTML = '';
   lanes.innerHTML = '';
+  select.innerHTML = '';
   state.manifest.models.forEach(model => {
     const installed = JSON.parse(localStorage.getItem(`aide.model.${model.id}`) || 'null');
     const visibleStatus = installed ? 'imported' : model.status;
@@ -87,7 +89,9 @@ function renderModels() {
     lane.innerHTML = `<b>${esc(model.lane.toUpperCase())}</b><span>${esc(model.name)}</span><small>${esc(roles)}</small>`;
     lane.onclick = () => selectModel(model);
     lanes.appendChild(lane);
+    const option = document.createElement('option'); option.value = model.id; option.textContent = `${model.name} [${model.status}]`; option.disabled = model.status === 'training-only'; select.appendChild(option);
   });
+  select.onchange = () => { const model = state.manifest.models.find(item => item.id === select.value); if (model) selectModel(model); };
 }
 
 async function importModel(model) {
@@ -111,6 +115,7 @@ let communityStore = { projects: [], issues: [], discussions: [], marketplace: [
 
 function selectModel(model) {
   state.selected = model;
+  if ($('#model-select')) $('#model-select').value = model.id;
   $('#selected-model').textContent = model.name;
   $('#selected-detail').textContent = `${model.format} | ${model.status} | ${model.description}`;
   $('#runtime-name').textContent = model.runtime;
@@ -200,12 +205,32 @@ async function startRuntime() {
   }
 }
 
-function sendChat() {
+function closeLaunchGuide() {
+  if ($('#launch-dont-show').checked) localStorage.setItem('aide.launch.dismissed', '1');
+  $('#launch-guide').hidden = true;
+}
+
+function bindLaunchGuide() {
+  const guide = $('#launch-guide');
+  if (localStorage.getItem('aide.launch.dismissed') !== '1') guide.hidden = false;
+  $('#launch-start').onclick = async () => { const model = state.manifest.models.find(item => item.id === 'qwen-coder-1.5b-q4') || state.manifest.models.find(item => item.status === 'ready'); if (model) selectModel(model); closeLaunchGuide(); await startRuntime(); };
+  $('#launch-learn').onclick = () => { closeLaunchGuide(); $('#learn-button').click(); };
+}
+
+async function sendChat() {
   const input = $('#input');
   const value = input.value.trim();
   if (!value) return;
-  $('#chat').insertAdjacentHTML('beforeend', `<p><b>YOU</b><br>${esc(value)}</p><p class="assistant"><b>AIDE</b><br>Use START BOUNDED REVIEW to send this task through the research, build, and verify lanes. No files will change automatically.</p>`);
+  if (!state.selected || state.selected.status === 'pending') return appendLog('CHAT', 'Choose and start a ready local model first.', 'warning');
+  $('#chat').insertAdjacentHTML('beforeend', `<p><b>YOU</b><br>${esc(value)}</p><p class="assistant"><b>${esc(state.selected.name)}</b><br><span class="muted">Thinking locally...</span></p>`);
   input.value = '';
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelId: state.selected.id, messages: [{ role: 'system', content: state.selected.system_prompt || 'You are a helpful local assistant.' }, { role: 'user', content: value }] }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'chat request failed');
+    const answer = result.choices?.[0]?.message?.content || 'The local model returned no text.';
+    const last = $('#chat').lastElementChild; last.innerHTML = `<b>${esc(state.selected.name)}</b><br>${esc(answer)}`;
+  } catch (error) { const last = $('#chat').lastElementChild; last.innerHTML = `<b>CHAT ERROR</b><br>${esc(error.message)}`; last.classList.add('warning'); }
 }
 
 function localNodeId() {
@@ -521,6 +546,7 @@ async function boot() {
   renderModels();
   const firstReady = state.manifest.models.find(model => model.status !== 'pending');
   if (firstReady) selectModel(firstReady);
+  bindLaunchGuide();
   openFile('agent.ts');
   document.querySelectorAll('[data-file]').forEach(button => button.onclick = () => openFile(button.dataset.file));
   $('#review-button').onclick = runReview;

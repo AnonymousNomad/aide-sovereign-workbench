@@ -116,6 +116,10 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/api/models/status') {
       return json(response, 200, { models: modelManager.status() });
     }
+    if (request.method === 'POST' && request.url === '/api/chat') {
+      const input = await body(request);
+      return json(response, 200, await modelManager.chat(input.modelId, input.messages || []));
+    }
     if (request.method === 'GET' && request.url === '/api/community') {
       return json(response, 200, communityStore.list());
     }

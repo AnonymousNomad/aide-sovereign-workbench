@@ -215,6 +215,27 @@ the result, and refuse unsupported completion claims.
 - Gate: provider unit test, UI audit, full suite, and daemon smoke PASS. Live
   external-provider tests remain intentionally unrun without user credentials.
 
+## 2026-08-12 — Shared Visible Model Handoff
+
+- Decision: model collaboration belongs in one user-visible chat surface, using
+  typed handoff artifacts rather than hidden free-form model conversation.
+- Change: handoff artifacts now carry `evidence_score: null` and an explicit
+  `not-scored-until-independent-verification` status. Added the operator
+  workflow contract and 98% evidence-gate policy.
+- Gate: handoff unit test and full suite remain required before claiming the
+  shared-chat workflow complete.
+
+## 2026-08-12 — Opt-In Dual Model Mode
+
+- Decision: single-model Ask/Plan/Agent remains the default; Dual is an explicit
+  user-selected mode for complex tasks or a second perspective.
+- Change: `DUAL / TWO MODELS` chat mode, same-chat analyst/builder messages,
+  approval-gated handoff, sequential model unloading/loading, and visible
+  handoff artifacts.
+- Evidence rule: confidence stays `NOT SCORED` until independent deterministic
+  checks pass; model agreement never creates a 98% result.
+- Gate: handoff unit test, UI audit, real acceptance suite, and full suite PASS.
+
 ## 2026-08-12 — Real Acceptance Suite
 
 - Research decision: smoke tests are insufficient for release confidence; use an

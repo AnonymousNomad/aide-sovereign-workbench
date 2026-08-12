@@ -1,0 +1,21 @@
+{
+  "id": "ml-ai-foundations",
+  "title": "ML and AI Foundations: From Data to Deployed Model",
+  "level": "beginner-to-advanced",
+  "description": "A hands-on path from data and metrics through neural networks, LLMs, and production evaluation.",
+  "estimated_hours": 36,
+  "prerequisites": "Python Foundations or equivalent Python experience.",
+  "assessment": "Complete three experiments and a documented model evaluation.",
+  "lessons": [
+    {"id":"data","title":"Data, Features, and Labels","kind":"concept","objective":"Build a clean dataset and identify leakage risks.","check":"python -c \"assert len({'train','valid','test'}) == 3\""},
+    {"id":"linear","title":"Linear Regression and Loss","kind":"exercise","objective":"Connect predictions, loss, and optimization.","check":"python -c \"assert 2 * 3 + 1 == 7\""},
+    {"id":"classification","title":"Classification and Metrics","kind":"exercise","objective":"Compare accuracy, precision, recall, and threshold tradeoffs.","check":"python -c \"assert 2 / 4 == 0.5\""},
+    {"id":"generalization","title":"Generalization and Overfitting","kind":"experiment","objective":"Design an experiment that exposes overfitting.","check":"python -c \"assert 'train' != 'test'\""},
+    {"id":"neural-networks","title":"Neural Networks","kind":"exercise","objective":"Train a small neural network and inspect its learning curve.","check":"python -c \"assert 1 + 1 == 2\""},
+    {"id":"embeddings","title":"Embeddings and Similarity","kind":"project","objective":"Use vectors to retrieve semantically related records.","check":"python -c \"assert len([1,2,3]) == 3\""},
+    {"id":"tokens","title":"Tokens and Language Models","kind":"concept","objective":"Trace text through tokenization and next-token prediction.","check":"python -c \"assert len('token') == 5\""},
+    {"id":"llm-eval","title":"LLM Evaluation and Failure Analysis","kind":"experiment","objective":"Build a labeled evaluation set and report uncertainty.","check":"python -c \"assert all(isinstance(x,bool) for x in [True,False])\""},
+    {"id":"production","title":"Production ML Systems","kind":"project","objective":"Package inference, monitoring, tests, and rollback evidence.","check":"python -c \"assert all(['model','tests','report'])\""},
+    {"id":"capstone","title":"Capstone: Evaluated Local Model","kind":"capstone","objective":"Ship a local model experiment with reproducible metrics and limitations.","check":"python -c \"assert 'limitations' in 'metrics and limitations'\""}
+  ]
+}

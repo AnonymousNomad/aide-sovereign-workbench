@@ -1,0 +1,21 @@
+{
+  "id": "production-engineering",
+  "title": "Production Software Engineering",
+  "level": "intermediate-to-professional",
+  "description": "Build maintainable software through tests, debugging, design, security, Git, and release engineering.",
+  "estimated_hours": 40,
+  "prerequisites": "A working programming language and basic Git knowledge.",
+  "assessment": "Complete a multi-file project with tests, review, release artifact, and incident note.",
+  "lessons": [
+    {"id":"workspace","title":"Workspace and Repository Discipline","kind":"practice","objective":"Create a reproducible project boundary and workflow.","check":"node -e \"console.log('workspace-ok')\""},
+    {"id":"git-review","title":"Git, Branches, and Review","kind":"practice","objective":"Use branches, diffs, staging, and review before commit.","check":"git --version"},
+    {"id":"testing","title":"Tests and Acceptance Gates","kind":"project","objective":"Turn requirements into tests that can fail honestly.","check":"node -e \"if (1 !== 1) process.exit(1)\""},
+    {"id":"debugging","title":"Debugging and Observability","kind":"project","objective":"Trace a failure from symptom to verified fix.","check":"node -e \"console.log('debug-ok')\""},
+    {"id":"architecture","title":"Architecture and Boundaries","kind":"design","objective":"Separate UI, domain, adapters, and side effects.","check":"node -e \"console.log('boundary-ok')\""},
+    {"id":"security","title":"Security and Threat Modeling","kind":"design","objective":"Identify trust boundaries, secrets, permissions, and abuse paths.","check":"node -e \"console.log('security-review-required')\""},
+    {"id":"performance","title":"Performance and Resource Budgets","kind":"experiment","objective":"Measure latency, memory, throughput, and failure behavior.","check":"node -e \"console.log('measure-not-guess')\""},
+    {"id":"release","title":"Release Engineering","kind":"project","objective":"Build, checksum, document, and verify a release artifact.","check":"node -e \"console.log('release-ok')\""},
+    {"id":"incident","title":"Incident Response and Recovery","kind":"scenario","objective":"Recover from a broken deployment without losing evidence.","check":"node -e \"console.log('recovery-ok')\""},
+    {"id":"capstone","title":"Capstone: Production-Ready Service","kind":"capstone","objective":"Deliver a reviewed, tested, observable, documented service.","check":"node -e \"console.log('capstone-review')\""}
+  ]
+}

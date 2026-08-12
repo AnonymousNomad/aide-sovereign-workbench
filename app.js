@@ -224,6 +224,11 @@ function appendLog(role, text, type = '') {
   log.scrollTop = log.scrollHeight;
 }
 
+function appendChatLane(role, text, type = '') {
+  $('#chat').insertAdjacentHTML('beforeend', `<p class="assistant ${type}"><b>${esc(role)}</b><br>${esc(text)}</p>`);
+  $('#chat').scrollTop = $('#chat').scrollHeight;
+}
+
 async function requestLocal(model, messages) {
   const response = await fetch(`${model.endpoint}/chat/completions`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -236,31 +241,16 @@ async function requestLocal(model, messages) {
 
 async function runReview() {
   const task = $('#input').value.trim() || 'Review the local provider router for safer fallback behavior.';
-  const runnable = model => ['ready', 'experimental'].includes(model.status) && model.endpoint?.startsWith('http');
-  const ready = state.manifest.models.filter(runnable);
-   const research = state.manifest.models.find(model => model.lane === 'research' && runnable(model)) || ready[0];
-  const builder = state.manifest.models.find(model => model.lane === 'build' && runnable(model)) || ready[0];
-  const verifier = state.manifest.models.find(model => model.lane === 'verify') || builder;
+  if (!state.selected || !state.runtimeReady) return appendLog('WORKFLOW', 'Start the selected model and wait for the green ready state first.', 'warning');
   $('#review-button').disabled = true;
   $('#review-button').textContent = 'RUNNING...';
   $('#collab-log').innerHTML = '';
-  appendLog('COORDINATOR', `Task accepted with a four-turn maximum: ${task}`);
+  appendLog('WORKFLOW', `Planning with ${state.selected.name}: ${task}`);
   try {
-    if (research.status === 'pending') throw new Error('Research lane is not configured. Add a local endpoint or checkpoint first.');
-    const findings = await requestLocal(research, [{ role: 'system', content: research.system_prompt }, { role: 'user', content: task }]);
-    appendLog('RESEARCH', findings);
-    if (builder.status === 'pending') throw new Error('Coding lane is not configured. Install a coding checkpoint before applying patches.');
-    let patch = await requestLocal(builder, [{ role: 'system', content: builder.system_prompt }, { role: 'user', content: `Task: ${task}\nResearch findings:\n${findings}\nReturn a unified diff only.` }]);
-    if (!patchValid(patch)) {
-      appendLog('REPAIR', 'Builder output was not a valid unified diff. Requesting one bounded repair.', 'warning');
-      patch = await requestLocal(builder, [{ role: 'system', content: 'Convert the raw response into one valid unfenced unified diff. Preserve intent. Return only the diff. Do not invent files or claim tests passed.' }, { role: 'user', content: `Task: ${task}\nRaw response:\n${patch}` }]);
-    }
-    if (!patchValid(patch)) throw new Error('Patch repair failed structural validation; no files changed.');
-    appendLog('BUILD', patch, 'patch');
-    if (verifier.status === 'pending') throw new Error('Verifier lane is not configured.');
-    const verdict = await requestLocal(verifier, [{ role: 'system', content: verifier.system_prompt }, { role: 'user', content: `Task: ${task}\nProposed patch:\n${patch}\nReturn APPROVE, REJECT, or NEEDS-EVIDENCE with reasons.` }]);
-    appendLog('VERIFY', verdict, verdict.includes('APPROVE') ? 'approved' : 'warning');
-    appendLog('COORDINATOR', 'No files were changed. Review and approve the patch before applying it.');
+    const response = await fetch('http://127.0.0.1:4777/api/workflow/plan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelId: state.selected.id, task }) });
+    const result = await response.json(); if (!response.ok) throw new Error(result.error || 'workflow failed');
+    appendLog('PLAN', result.plan); appendLog(result.status === 'awaiting-approval' ? 'PATCH READY' : 'BLOCKED', result.patch || result.verification.reason, result.status === 'awaiting-approval' ? 'patch' : 'warning');
+    if (result.status === 'awaiting-approval') { const approval = document.createElement('button'); approval.className = 'agent-approval'; approval.textContent = 'APPROVE AND APPLY PATCH'; approval.onclick = async () => { approval.disabled = true; const applied = await fetch('http://127.0.0.1:4777/api/workflow/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patch: result.patch, approved: true }) }); const data = await applied.json(); appendLog('APPLY', applied.ok ? `Applied. Audit artifact ${data.audit?.id || 'recorded'}. Run tests before commit.` : data.error, applied.ok ? 'approved' : 'warning'); }; $('#collab-log').appendChild(approval); }
   } catch (error) {
     appendLog('STOPPED', error.message, 'warning');
   } finally {
@@ -268,6 +258,15 @@ async function runReview() {
     $('#review-button').disabled = false;
     $('#review-button').textContent = 'START BOUNDED REVIEW';
   }
+}
+
+async function startModelHandoff() {
+  if (!state.selected || !state.runtimeReady) return appendLog('HANDOFF', 'Start the selected model first.', 'warning');
+  const candidates = state.manifest.models.filter(model => model.id !== state.selected.id && model.status !== 'training-only'); const target = candidates.find(model => model.status === 'ready') || candidates[0];
+  if (!target) return appendLog('HANDOFF', 'Install or configure a second model before starting a handoff.', 'warning');
+  const task = $('#input').value.trim() || 'Inspect this workspace and propose the next safe improvement.';
+  try { appendChatLane('HANDOFF', `${state.selected.name} -> ${target.name}: preparing visible handoff...`); const response = await fetch('http://127.0.0.1:4777/api/handoff/propose', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fromModelId: state.selected.id, toModelId: target.id, task }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'handoff proposal failed'); appendChatLane(`ANALYST / ${state.selected.name}`, result.handoff.analysis); const approval = document.createElement('button'); approval.className = 'agent-approval'; approval.textContent = `APPROVE HANDOFF TO ${target.name}`; approval.onclick = async () => { approval.disabled = true; const continued = await fetch('http://127.0.0.1:4777/api/handoff/continue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handoff: result.handoff, approved: true }) }); const data = await continued.json(); appendChatLane(`BUILDER / ${target.name}`, continued.ok ? data.answer : data.error, continued.ok ? '' : 'warning'); }; $('#chat').appendChild(approval); }
+  catch (error) { appendChatLane('HANDOFF ERROR', error.message, 'warning'); }
 }
 
 async function testRuntime() {
@@ -328,6 +327,7 @@ async function sendChat() {
   const value = input.value.trim();
   if (!value) return;
   if (!state.selected || !state.runtimeReady) return appendLog('CHAT', 'Start the selected model and wait for the green “Model ready” message first.', 'warning');
+  if ($('#assistant-mode').value === 'dual') { await startModelHandoff(); return; }
   $('#chat').insertAdjacentHTML('beforeend', `<p><b>YOU</b><br>${esc(value)}</p><p class="assistant"><b>${esc(state.selected.name)}</b><br><span class="muted">Thinking locally...</span></p>`);
   input.value = '';
   try {
@@ -582,7 +582,7 @@ function renderAcademy() {
   list.innerHTML = '<h4>COURSES / LOCAL CATALOG</h4>' + academyState.catalog.map(course => { const done = course.progress.completed.length; return `<button class="course-item ${academyState.session?.course.id === course.id ? 'active' : ''}" data-course-id="${esc(course.id)}"><b>${esc(course.title)}</b><small>${esc(course.level)} / ${done}/${course.lessons.length} complete</small></button>`; }).join('');
   list.querySelectorAll('[data-course-id]').forEach(button => button.onclick = () => loadAcademySession(button.dataset.courseId));
   const session = academyState.session; if (!session) return;
-  $('#lesson-kicker').textContent = `${session.course.title.toUpperCase()} / ${session.lesson.kind.toUpperCase()}`; $('#lesson-title').textContent = session.lesson.title; $('#lesson-objective').textContent = session.lesson.objective; $('#tutor-prompt-text').textContent = 'What do you think the safest first step is? Build it in the workspace, run the check, then explain your reasoning below.'; $('#lesson-progress').textContent = `${session.progress.completed.length} lesson(s) complete. Next gate: ${session.next?.title || 'course complete'}.`;
+  $('#lesson-kicker').textContent = `${session.course.title.toUpperCase()} / ${session.lesson.kind.toUpperCase()}`; $('#lesson-title').textContent = session.lesson.title; $('#lesson-objective').textContent = session.lesson.objective; $('#tutor-prompt-text').textContent = 'What do you think the safest first step is? Build it in the workspace, run the check, then explain your reasoning below.'; $('#lesson-progress').textContent = `${session.progress.completed.length} lesson(s) complete. Next gate: ${session.next?.title || 'course complete'}.`; $('#certificate-button').hidden = !session.progress.eligible_for_certificate;
 }
 
 async function loadAcademySession(courseId) {
@@ -606,6 +606,7 @@ function bindAcademy() {
   $('#learn-button').onclick = () => { const showing = view.hidden; view.hidden = !showing; $('#learn-button').classList.toggle('active', showing); if (showing) { $('#blueprint-view').hidden = true; $('#blueprint-button').classList.remove('active'); loadAcademy(); } };
   $('#lesson-complete').onclick = completeLesson;
   $('#lesson-hint').onclick = () => { $('#tutor-prompt-text').textContent = 'Hint: name the value first, then choose the smallest operation that proves the lesson objective. Run the lesson check before asking for the answer.'; appendLog('TUTOR', 'Progressive hint unlocked.'); };
+  $('#certificate-button').onclick = async () => { const courseId = academyState.session?.course.id; const response = await fetch(`http://127.0.0.1:4777/api/academy/certificate?course=${encodeURIComponent(courseId)}`); const result = await response.json(); if (!response.ok) return appendLog('ACADEMY', result.error || 'credential unavailable', 'warning'); appendLog('ACADEMY', `Local completion credential issued: ${result.digest}. ${result.limitation}`, 'approved'); };
 }
 
 function bindWorkbenchNavigation() {
@@ -677,6 +678,7 @@ async function boot() {
   setInterval(loadDiagnostics, 3000);
   $('#problems-tab').onclick = () => { $('#problems-list').hidden = false; $('#terminal').style.display = 'none'; };
   $('#review-button').onclick = runReview;
+  $('#handoff-button').onclick = startModelHandoff;
   $('#connection-button').onclick = startRuntime;
   $('#send-button').onclick = sendChat;
   $('#terminal-run').onclick = runTerminalCommand;

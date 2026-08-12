@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 export class TutorManager {
   constructor({ coursesDir, progressPath }) {
@@ -18,7 +19,7 @@ export class TutorManager {
   }
 
   catalog() {
-    return this.courses.map(course => ({ ...course, progress: this.progress[course.id] || { completed: [], current: course.lessons[0]?.id || null } }));
+    return this.courses.map(course => { const progress = this.progress[course.id] || { completed: [], current: course.lessons[0]?.id || null }; return { ...course, progress: { ...progress, eligible_for_certificate: course.lessons.length > 0 && course.lessons.every(lesson => progress.completed.includes(lesson.id)) } }; });
   }
 
   session(courseId) {
@@ -43,5 +44,12 @@ export class TutorManager {
     await fs.writeFile(temp, JSON.stringify(this.progress, null, 2));
     await fs.rename(temp, this.progressPath);
     return this.session(courseId);
+  }
+
+  certificate(courseId) {
+    const course = this.courses.find(item => item.id === courseId); if (!course) throw new Error('course is not installed');
+    const progress = this.progress[courseId] || { completed: [] }; if (!course.lessons.every(lesson => progress.completed.includes(lesson.id))) throw new Error('complete every assessed lesson first');
+    const issued = new Date().toISOString(); const credential = { type: ['VerifiableCredential', 'AIDECompletionCredential'], issuer: 'AIDE local issuer (unaccredited)', issuanceDate: issued, credentialSubject: { course_id: course.id, course_title: course.title, lessons_completed: course.lessons.length, assessment: course.assessment }, evidence: { completed_lesson_ids: progress.completed, reflections_recorded: Boolean(progress.last_reflection) }, status: 'locally-verifiable-unaccredited' };
+    return { credential, digest: crypto.createHash('sha256').update(JSON.stringify(credential)).digest('hex'), limitation: 'This local credential is not an accredited professional certification and has no employer recognition unless an independent issuer accepts it.' };
   }
 }

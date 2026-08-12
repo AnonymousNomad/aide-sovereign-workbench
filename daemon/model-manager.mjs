@@ -44,6 +44,13 @@ export class ModelManager {
     return response.json();
   }
 
+  async waitReady(id, timeoutMs = 30_000) {
+    const model = this.models.get(id); if (!model) throw new Error('model is not allowlisted');
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) { try { const response = await fetch(`${model.endpoint}/models`); if (response.ok) return true; } catch {} await new Promise(resolve => setTimeout(resolve, 500)); }
+    throw new Error(`${model.name} did not become ready within ${timeoutMs}ms`);
+  }
+
   async start(id) {
     const model = this.models.get(id);
     if (!model) throw new Error('model is not allowlisted');

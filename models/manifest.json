@@ -46,6 +46,45 @@
       "download_policy": "optional-pack",
       "sha256": "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046",
       "description": "Primary local coding model for patches, refactors, and test generation."
+    },
+    {
+      "id": "granite-3.3-2b-instruct",
+      "name": "IBM Granite 3.3 2B Instruct",
+      "role": "reasoning",
+      "license": "Apache-2.0",
+      "parameters": 2000000000,
+      "download_bytes_approx": null,
+      "context_tokens": 131072,
+      "source_repo": "ibm-granite/granite-3.3-2b-instruct",
+      "file": null,
+      "download_policy": "optional-pack",
+      "description": "Optional reasoning and structured-output candidate; exact local quantization and hardware cost require verification."
+    },
+    {
+      "id": "smollm2-1.7b-instruct",
+      "name": "SmolLM2 1.7B Instruct",
+      "role": "general-chat",
+      "license": "Apache-2.0",
+      "parameters": 1700000000,
+      "download_bytes_approx": null,
+      "context_tokens": 8192,
+      "source_repo": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+      "file": null,
+      "download_policy": "optional-pack",
+      "description": "Optional compact general assistant and function-calling candidate; exact local quantization requires verification."
+    },
+    {
+      "id": "phi-3.5-mini-instruct",
+      "name": "Microsoft Phi-3.5 Mini Instruct",
+      "role": "general-reasoning",
+      "license": "MIT",
+      "parameters": 3800000000,
+      "download_bytes_approx": null,
+      "context_tokens": 131072,
+      "source_repo": "microsoft/Phi-3.5-mini-instruct",
+      "file": null,
+      "download_policy": "optional-pack",
+      "description": "Optional multilingual and reasoning candidate; heavier hardware profile requires measurement."
     }
   ],
   "models": [
@@ -102,6 +141,57 @@
       "metrics": {"runtime_health": "verified", "coding_smoke": "passed"},
       "description": "Primary local coding model. Verified on this device.",
       "system_prompt": "You are the build lane. Produce a minimal unified diff only. Never invent files or claim tests passed."
+    },
+    {
+      "id": "granite-3.3-2b-instruct",
+      "name": "IBM Granite 3.3 2B Instruct",
+      "lane": "reasoning",
+      "status": "pending",
+      "roles": ["reason", "chat", "structured-output"],
+      "format": "GGUF pending verification",
+      "runtime": "OpenAI-compatible HTTP",
+      "endpoint": "http://127.0.0.1:8084/v1",
+      "model": "granite-3.3-2b-instruct",
+      "artifact_uri": "hf://ibm-granite/granite-3.3-2b-instruct",
+      "source_revision": "ibm-granite/granite-3.3-2b-instruct@main",
+      "parameters": 2000000000,
+      "context_tokens": 131072,
+      "metrics": null,
+      "description": "Optional reasoning candidate. Not downloaded or runtime-verified."
+    },
+    {
+      "id": "smollm2-1.7b-instruct",
+      "name": "SmolLM2 1.7B Instruct",
+      "lane": "general-chat",
+      "status": "pending",
+      "roles": ["chat", "reason", "fast"],
+      "format": "GGUF pending verification",
+      "runtime": "OpenAI-compatible HTTP",
+      "endpoint": "http://127.0.0.1:8085/v1",
+      "model": "SmolLM2-1.7B-Instruct",
+      "artifact_uri": "hf://HuggingFaceTB/SmolLM2-1.7B-Instruct",
+      "source_revision": "HuggingFaceTB/SmolLM2-1.7B-Instruct@main",
+      "parameters": 1700000000,
+      "context_tokens": 8192,
+      "metrics": null,
+      "description": "Optional compact assistant. Not downloaded or runtime-verified."
+    },
+    {
+      "id": "phi-3.5-mini-instruct",
+      "name": "Microsoft Phi-3.5 Mini Instruct",
+      "lane": "general-reasoning",
+      "status": "pending",
+      "roles": ["chat", "reason", "multilingual"],
+      "format": "GGUF pending verification",
+      "runtime": "OpenAI-compatible HTTP",
+      "endpoint": "http://127.0.0.1:8086/v1",
+      "model": "Phi-3.5-mini-instruct",
+      "artifact_uri": "hf://microsoft/Phi-3.5-mini-instruct",
+      "source_revision": "microsoft/Phi-3.5-mini-instruct@main",
+      "parameters": 3800000000,
+      "context_tokens": 131072,
+      "metrics": null,
+      "description": "Optional multilingual candidate. Not downloaded or runtime-verified."
     }
   ]
 }

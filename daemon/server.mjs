@@ -18,6 +18,8 @@ import { TaskManager } from '../tasks/manager.mjs';
 import { SessionStore } from '../session/store.mjs';
 import { ArtifactStore } from '../artifacts/store.mjs';
 import { ProviderManager } from '../providers/manager.mjs';
+import { WorkflowManager } from './workflow.mjs';
+import { HandoffManager } from './handoff.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -50,6 +52,8 @@ await sessionStore.load().catch(() => {});
 const artifactStore = new ArtifactStore(path.join(WORKSPACE, '.aide', 'artifacts'));
 const providerManager = new ProviderManager(path.join(WORKSPACE, 'providers', 'manifest.json'));
 await providerManager.load().catch(() => {});
+const workflowManager = new WorkflowManager({ modelManager, workspaceManager, artifactStore });
+const handoffManager = new HandoffManager({ modelManager, workspaceManager, artifactStore });
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -128,6 +132,10 @@ const server = http.createServer(async (request, response) => {
       const input = await body(request);
       return json(response, 200, await tutorManager.complete(input.courseId, input.lessonId, input.reflection));
     }
+    if (request.method === 'GET' && request.url.startsWith('/api/academy/certificate?')) {
+      const courseId = new URL(request.url, 'http://127.0.0.1').searchParams.get('course');
+      return json(response, 200, tutorManager.certificate(courseId));
+    }
     if (request.method === 'GET' && request.url.startsWith('/api/file?')) {
       const relativePath = new URL(request.url, 'http://127.0.0.1').searchParams.get('path');
       return json(response, 200, { path: relativePath, content: await workspaceManager.read(relativePath) });
@@ -197,6 +205,10 @@ const server = http.createServer(async (request, response) => {
       const audit = await artifactStore.add({ kind: 'operator-session', status: result.approval_required ? 'awaiting-approval' : 'answered', mode: result.mode, model_id: result.modelId, proposed_tools: result.proposed_tools, tools_executed: result.tools_executed, source_exported: false });
       return json(response, 200, { ...result, audit });
     }
+    if (request.method === 'POST' && request.url === '/api/workflow/plan') return json(response, 200, await workflowManager.planAndPropose(await body(request)));
+    if (request.method === 'POST' && request.url === '/api/workflow/apply') return json(response, 200, await workflowManager.apply(await body(request)));
+    if (request.method === 'POST' && request.url === '/api/handoff/propose') return json(response, 200, await handoffManager.propose(await body(request)));
+    if (request.method === 'POST' && request.url === '/api/handoff/continue') return json(response, 200, await handoffManager.continue(await body(request)));
     if (request.method === 'GET' && request.url === '/api/community') {
       return json(response, 200, communityStore.list());
     }

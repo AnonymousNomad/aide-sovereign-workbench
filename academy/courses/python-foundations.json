@@ -2,12 +2,21 @@
   "id": "python-foundations",
   "title": "Python Foundations: Build a Research Tool",
   "level": "beginner",
-  "description": "Learn by building a small, tested evidence organizer from first principles.",
-  "estimated_hours": 8,
+  "description": "Learn Python by building and testing a small command-line project from first principles.",
+  "estimated_hours": 24,
+  "prerequisites": "None. Every lesson runs inside AIDE.",
+  "assessment": "Complete the capstone, pass all checks, and explain the design decisions.",
   "lessons": [
-    {"id":"variables","title":"Values and Variables","kind":"concept","objective":"Store and inspect a piece of evidence safely.","check":"python -c \"evidence = 'claim'; assert evidence == 'claim'\""},
+    {"id":"variables","title":"Values and Variables","kind":"concept","objective":"Store and inspect a value safely.","check":"python -c \"value = 'claim'; assert value == 'claim'\""},
+    {"id":"control-flow","title":"Decisions and Loops","kind":"exercise","objective":"Use conditions and loops to classify inputs.","check":"python -c \"assert [x for x in range(4) if x % 2 == 0] == [0,2]\""},
     {"id":"functions","title":"Functions and Boundaries","kind":"exercise","objective":"Turn repeated work into a reusable function.","check":"python -c \"def normalize(value): return value.strip().lower(); assert normalize(' Claim ') == 'claim'\""},
-    {"id":"collections","title":"Collections and Records","kind":"exercise","objective":"Represent multiple evidence records and find one by title.","check":"python -c \"records = [{'title':'A'}]; assert records[0]['title'] == 'A'\""},
-    {"id":"testing","title":"Tests as Proof","kind":"project","objective":"Write a test that catches a broken evidence transformation.","check":"python -c \"assert 2 + 2 == 4\""}
+    {"id":"collections","title":"Collections and Records","kind":"exercise","objective":"Represent multiple records and find one by title.","check":"python -c \"records = [{'title':'A'}]; assert records[0]['title'] == 'A'\""},
+    {"id":"modules","title":"Modules and Packages","kind":"exercise","objective":"Split a growing program into importable modules.","check":"python -c \"import json; assert json.loads('{\\\"ok\\\":true}')[\\\"ok\\\"]\""},
+    {"id":"errors","title":"Errors and Recovery","kind":"exercise","objective":"Handle invalid input without hiding the failure.","check":"python -c \"try: int('x'); raise AssertionError\nexcept ValueError: pass\""},
+    {"id":"files","title":"Files and Structured Data","kind":"exercise","objective":"Read and write a small JSON record safely.","check":"python -c \"import json; assert json.loads(json.dumps({'ok': True}))['ok']\""},
+    {"id":"testing","title":"Tests as Proof","kind":"project","objective":"Write a test that catches a broken transformation.","check":"python -c \"assert 2 + 2 == 4\""},
+    {"id":"debugging","title":"Debugging a Failure","kind":"project","objective":"Use a traceback and a failing test to locate a defect.","check":"python -c \"assert 'traceback'.upper() == 'TRACEBACK'\""},
+    {"id":"packaging","title":"Package a Command-Line Tool","kind":"project","objective":"Make a small tool installable and documented.","check":"python -c \"assert 'README'.endswith('ME')\""},
+    {"id":"capstone","title":"Capstone: Evidence Organizer","kind":"capstone","objective":"Build, test, document, and explain the complete project.","check":"python -c \"assert all([True, True, True])\""}
   ]
 }

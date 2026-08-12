@@ -12,6 +12,55 @@ pipeline_tag: text-generation
 
 # AIDE Sovereign Workbench
 
+> An offline-first, model-agnostic development workbench with a real editor,
+> local operator workflows, Git review, tasks, plugins, and reproducible audit
+> artifacts.
+
+[![CI](https://github.com/AnonymousNomad/aide-sovereign-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/AnonymousNomad/aide-sovereign-workbench/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/AnonymousNomad/aide-sovereign-workbench)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/AnonymousNomad/aide-sovereign-workbench?include_prereleases)](https://github.com/AnonymousNomad/aide-sovereign-workbench/releases)
+
+## Start In One Minute
+
+```bash
+npm install
+npm run doctor
+npm start
+```
+
+Open `http://127.0.0.1:4173/`. The first-run guide walks through model
+selection, runtime startup, chat, Plan, Agent, and optional Dual Model mode.
+
+## What Works Today
+
+- Real workspace tree, file reads, editor tabs, dirty state, and session recovery
+- Local model chat through an OpenAI-compatible loopback runtime
+- Ask, Plan, Agent, and opt-in Dual Model handoff modes
+- Reviewable unified-diff workflow with explicit approval and audit artifacts
+- Bounded terminal and task execution
+- Git status, diff review, approved staging, and temporary-repository commit tests
+- LSP diagnostics and Problems navigation
+- DAP session event tracking and stack/scope inspection foundation
+- Offline plugin manifests, 20 preset scaffolds, trust, capabilities, and
+  isolated child-process execution
+- Academy tracks for Python, ML/AI, and Production Software Engineering
+- Interactive Blueprint view
+- Optional OpenAI-compatible, OpenAI, Anthropic, and Gemini provider adapters
+
+## Release Status
+
+AIDE is pre-production. The repository publishes verified engineering milestones,
+not a claim of complete VS Code parity. Desktop daemon lifecycle, full debugger
+fixtures, split editor groups, and broader real-repository benchmarks remain
+release gates. See `docs/RELEASE_ROADMAP.md` and `docs/RESEARCH_LOG.md`.
+
+## Offline Models
+
+The source repository does not store large weights. The full offline release
+uses a separate model bundle with checksums. Run `npm run verify:model-bundle`
+before publishing a bundle. Provider credentials are optional, never required
+for local mode, and never written to workspace artifacts.
+
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/anonymousnomad?style=flat&logo=github)](https://github.com/sponsors/anonymousnomad)
 
 If AIDE helps your local development or privacy work, sponsorship supports continued offline tooling, model evaluation, and community infrastructure.

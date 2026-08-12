@@ -25,7 +25,6 @@ AIDE workers are anonymous local roles governed by `agents/manifest.json` and th
 ## Current Model Strategy
 
 - **Builder:** Qwen2.5-Coder 1.5B Instruct Q4_K_M from the official [Qwen repository](https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF). The official model is Apache-2.0 and is intentionally not duplicated here.
-- **Reasoner/verifier:** FSI TinyLiquid, the owner's model trained from scratch with the project's own liquid architecture. It remains training-only until its checkpoint, evaluation, and release license are approved.
 - **Coordinator:** AIDE routes research, build, and verification sequentially. It shows a diff and requires approval before applying changes.
 
 ## Model Packs
@@ -58,10 +57,6 @@ The original AIDE Developer's Credo, inspired by broad Mandalorian discipline th
 
 `npm run veritas` executes the real local gate before a release or verified answer: compile checks, tests, Git whitespace checks, manifest validation, path boundaries, and secret scanning. It is intentionally allowlisted and does not execute arbitrary model-generated commands.
 
-## Journalism Desk
-
-The local CaseFile workflow in the UI creates a private case, imports local evidence, records SHA-256 receipts, and extracts date anchors before model analysis. See `community/journal-desk.md` and `community/casefile-schema.json`.
-
 The Community Hub provides an offline cache for projects, issues, discussions, and marketplace metadata. Sync remains disabled until an encrypted transport is explicitly configured.
 
 The daemon now owns an allowlisted LSP registry. TypeScript language intelligence is available through `languages/manifest.json`; models remain responsible for proposals, not syntax or semantic truth.
@@ -74,7 +69,7 @@ The Training Room is defined in `training/manifest.json` and `training/README.md
 
 The first live three-pack scorecard is in `benchmarks/live-results-2026-08-10.json`: all three models passed function and planning smoke tasks, while all failed strict unified-diff formatting. AIDE therefore keeps every raw patch behind Veritas and human approval.
 
-The three-model routing is staged: public coding packs remain runnable now; FSI TinyLiquid is visible as a training-only research/verifier slot and is automatically excluded until its status becomes `ready` with a local runtime endpoint.
+The public model packs are optional local adapters. The IDE remains useful with networking disabled and does not expose unfinished project-specific checkpoints as model choices.
 
 The ARM64 Rust desktop binary is compiled and hashed in `release/desktop-build-status.json`. Installer bundles still require a desktop host with a graphical session.
 

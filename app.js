@@ -1,4 +1,4 @@
-const state = { manifest: null, node: null, selected: null, runtimeReady: false, casefile: null, activeFile: 'src/agent.ts', files: {
+const state = { manifest: null, node: null, selected: null, runtimeReady: false, activeFile: 'src/agent.ts', files: {
   'agent.ts': `import { ChatMessage, ModelAdapter } from './types';
 import { LocalModelRouter } from './router';
 
@@ -153,7 +153,7 @@ async function runReview() {
   const task = $('#input').value.trim() || 'Review the local provider router for safer fallback behavior.';
   const runnable = model => ['ready', 'experimental'].includes(model.status) && model.endpoint?.startsWith('http');
   const ready = state.manifest.models.filter(runnable);
-  const research = state.manifest.models.find(model => model.id === 'fsi-tinyliquid-training' && model.status === 'ready') || state.manifest.models.find(model => model.lane === 'research' && runnable(model)) || ready[0];
+   const research = state.manifest.models.find(model => model.lane === 'research' && runnable(model)) || ready[0];
   const builder = state.manifest.models.find(model => model.lane === 'build' && runnable(model)) || ready[0];
   const verifier = state.manifest.models.find(model => model.lane === 'verify') || builder;
   $('#review-button').disabled = true;
@@ -261,18 +261,6 @@ function localNodeId() {
     localStorage.setItem('aide.node.id', id);
   }
   return id;
-}
-
-function renderCasefile() {
-  const status = $('#case-status');
-  const list = $('#evidence-list');
-  if (!state.casefile) {
-    status.textContent = 'No case open.';
-    list.textContent = '';
-    return;
-  }
-  status.innerHTML = `<b>CASE ${esc(state.casefile.id)}</b><br>${state.casefile.evidence.length} evidence item(s)<br>Local-only provenance ledger`;
-  list.innerHTML = state.casefile.evidence.map(item => `<div style="border-left:2px solid #58c7ff;padding-left:5px;margin-top:6px"><b>${esc(item.name)}</b><br>${esc(item.bytes)} bytes | SHA-256 ${esc(item.hash.slice(0, 12))}...<br>dates: ${esc(item.dates.join(', ') || 'none detected')}</div>`).join('');
 }
 
 function renderCommunity(tab = 'projects') {
@@ -434,28 +422,6 @@ async function compareModels() {
   } catch (error) { $('#arena-status').textContent = `Arena blocked: ${error.message}`; appendLog('MODEL ARENA', error.message, 'warning'); }
 }
 
-async function digestFile(file) {
-  const buffer = await file.arrayBuffer();
-  const digest = await crypto.subtle.digest('SHA-256', buffer);
-  const hash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
-  const text = new TextDecoder().decode(buffer);
-  const dates = [...new Set(text.match(/\b(?:19|20)\d{2}(?:[-/]\d{1,2}(?:[-/]\d{1,2})?)?\b/g) || [])].slice(0, 20);
-  return { name: file.name, bytes: file.size, hash, dates, imported_at: new Date().toISOString() };
-}
-
-async function importEvidence(event) {
-  if (!state.casefile) {
-    appendLog('CASEFILE', 'Create a case before importing evidence.', 'warning');
-    event.target.value = '';
-    return;
-  }
-  for (const file of event.target.files) state.casefile.evidence.push(await digestFile(file));
-  localStorage.setItem(`aide.case.${state.casefile.id}`, JSON.stringify(state.casefile));
-  renderCasefile();
-  appendLog('CASEFILE', `${event.target.files.length} evidence item(s) imported locally. Hashes and date anchors recorded; no network request made.`);
-  event.target.value = '';
-}
-
 const blueprintState = { graph: null, yaw: -0.45, pitch: 0.28, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0, selected: null };
 const blueprintColors = { source: '#58c7ff', data: '#b277ff', build: '#72ff9e', verify: '#ffc76b', release: '#ff5fcf' };
 const academyState = { catalog: [], session: null };
@@ -580,13 +546,6 @@ async function boot() {
   $('#connection-button').onclick = startRuntime;
   $('#send-button').onclick = sendChat;
   $('#node-button').onclick = () => { localNodeId(); renderNode(); appendLog('NODE', 'Local identity created. No network connection or private data was shared.'); };
-  $('#case-button').onclick = () => {
-    state.casefile = { id: `AIDE-${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}`, evidence: [], created_at: new Date().toISOString(), boundary: 'private' };
-    localStorage.setItem(`aide.case.${state.casefile.id}`, JSON.stringify(state.casefile));
-    renderCasefile();
-    appendLog('CASEFILE', `Created ${state.casefile.id}. Boundary: private. Evidence remains on this device.`);
-  };
-  $('#evidence-input').onchange = importEvidence;
   document.querySelectorAll('[data-community-tab]').forEach(button => button.onclick = () => renderCommunity(button.dataset.communityTab));
   $('#community-add').onclick = addCommunityIssue;
   $('#lsp-button').onclick = () => startTool('lsp', 'typescript', 'TypeScript LSP');

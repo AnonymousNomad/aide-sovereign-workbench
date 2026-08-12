@@ -3,7 +3,7 @@
   "project": "aide-sovereign-workbench",
   "offline_default": true,
   "liquid_models_included": false,
-  "pack_policy": "Only public models with verified upstream licensing are listed. User-trained Liquid checkpoints are not bundled until explicitly released.",
+  "pack_policy": "Only public model weights with verified licensing are bundled. Project-specific research checkpoints are never exposed as public IDE model packs.",
   "packs": [
     {
       "id": "smollm2-360m-q8",
@@ -16,6 +16,7 @@
       "source_repo": "HuggingFaceTB/SmolLM2-360M-Instruct-GGUF",
       "file": "smollm2-360m-instruct-q8_0.gguf",
       "download_policy": "optional-pack",
+      "sha256": "48ab3034d0dd401fbc721eb1df3217902fee7dab9078992d66431f09b7750201",
       "description": "Fast general chat, lightweight planning, summarization, and autocomplete support."
     },
     {
@@ -29,6 +30,7 @@
       "source_repo": "Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF",
       "file": "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
       "download_policy": "optional-pack",
+      "sha256": "1d9614638d18024d0fbb36575a15f1302a3adf044df10345688ec4f6e1c4ff32",
       "description": "Low-memory code completion, quick edits, and fast local suggestions."
     },
     {
@@ -42,6 +44,7 @@
       "source_repo": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
       "file": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
       "download_policy": "optional-pack",
+      "sha256": "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046",
       "description": "Primary local coding model for patches, refactors, and test generation."
     }
   ],

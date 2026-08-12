@@ -144,6 +144,19 @@ the result, and refuse unsupported completion claims.
 - Change: SessionStore, `/api/session`, restore-on-boot, and atomic session save.
 - Gate: session unit test, UI audit, full suite, and daemon smoke PASS.
 
+## 2026-08-12 — Plugin Execution And Git Mutation Tests
+
+- Research: VS Code extension host separation/lazy activation and Node 22
+  permission flags; VS Code Source Control approved mutation flow.
+- Decision: trusted plugins execute only in a child Node process with plugin-dir
+  read permission, no native addons, IPC JSON, timeout, and no UI-process load.
+  Git stage/commit is validated in a temporary repository before release UI.
+- Change: plugin execution host, `/api/plugins/execute`, temporary Git API test,
+  and explicit approval rejection test.
+- Gate: plugin host unit test, temporary Git stage/commit test, UI audit, full
+  suite, and daemon smoke PASS. Plugin network capability enforcement remains a
+  later hardening gate.
+
 ## 2026-08-12 — Editor Tabs And Dirty State
 
 - Research: VS Code quick navigation, editor groups/tabs, dirty indicators,
@@ -155,3 +168,14 @@ the result, and refuse unsupported completion claims.
   and real workspace file loading.
 - Gate: UI audit, full suite, and daemon smoke PASS. Undo stack and split editor
   groups remain next.
+
+## 2026-08-12 — Clean Install Audit
+
+- Research: VS Code startup/workspace expectations and AIDE release gates.
+- Decision: verify the user-facing launch path with the actual doctor, static
+  server, daemon health, and every primary endpoint before any release claim.
+- Gate: doctor 7/7 PASS; UI static server HTTP 200; daemon health HTTP 200;
+  workspace, model, Academy, Blueprint, plugin, task, session, diagnostics, and
+  Git endpoints all HTTP 200.
+- Result: PASS for current exposed services. Full editor, Git mutation, DAP
+  fixture, and plugin execution gates remain open.

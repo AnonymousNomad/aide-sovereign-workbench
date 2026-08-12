@@ -105,6 +105,10 @@ const server = http.createServer(async (request, response) => {
       const input = await body(request);
       return json(response, 200, { api_version: '1', plugins: await pluginManager.setTrust(input.id, input.trusted === true) });
     }
+    if (request.method === 'POST' && request.url === '/api/plugins/execute') {
+      const input = await body(request);
+      return json(response, 200, { result: await pluginManager.execute(input.id, input.payload || {}) });
+    }
     if (request.method === 'GET' && request.url.startsWith('/api/academy/session')) {
       const courseId = new URL(request.url, 'http://127.0.0.1').searchParams.get('course') || undefined;
       return json(response, 200, tutorManager.session(courseId));

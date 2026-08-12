@@ -95,7 +95,7 @@
         <div class="blueprint-toolbar"><span><i class="legend-dot source"></i>SOURCE</span><span><i class="legend-dot data"></i>DATA</span><span><i class="legend-dot build"></i>BUILD</span><span><i class="legend-dot verify"></i>VERIFY</span><span><i class="legend-dot release"></i>RELEASE</span><span class="blueprint-hint">drag orbit / wheel zoom / click node</span></div>
         <div class="blueprint-stage"><canvas id="blueprint-canvas" aria-label="Three dimensional project blueprint"></canvas><aside id="blueprint-inspector" class="blueprint-inspector"><b>SELECT A NODE</b><p>Choose a node to inspect its dependencies and next gate.</p></aside></div>
       </section>
-      <div class="tabs"><button class="tab active">agent.ts <span>*</span></button><button class="tab">router.ts</button><button class="tab-add">+</button><button id="save-file" class="tab" style="margin-left:auto;color:#72ff9e">SAVE APPROVED FILE</button></div>
+       <div id="editor-tabs" class="tabs"></div>
       <div class="breadcrumbs">src <b>/</b> agent.ts <b>/</b> AgentRuntime</div>
       <div class="editor" role="textbox" aria-label="Code editor">
         <div id="line-numbers" class="line-numbers"></div>

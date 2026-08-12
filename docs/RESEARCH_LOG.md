@@ -143,3 +143,15 @@ the result, and refuse unsupported completion claims.
   model output, or source content in the session record.
 - Change: SessionStore, `/api/session`, restore-on-boot, and atomic session save.
 - Gate: session unit test, UI audit, full suite, and daemon smoke PASS.
+
+## 2026-08-12 — Editor Tabs And Dirty State
+
+- Research: VS Code quick navigation, editor groups/tabs, dirty indicators,
+  close behavior, and breadcrumbs: https://code.visualstudio.com/docs/editing/editingevolved
+- Decision: tabs represent real workspace files; active file and dirty state are
+  explicit; closing the active tab selects the previous open file; save remains
+  approval-gated.
+- Change: dynamic editor tabs, active-file selection, dirty marker, close action,
+  and real workspace file loading.
+- Gate: UI audit, full suite, and daemon smoke PASS. Undo stack and split editor
+  groups remain next.

@@ -1,4 +1,4 @@
-const state = { manifest: null, node: null, selected: null, runtimeReady: false, activeFile: 'src/agent.ts', files: {
+const state = { manifest: null, node: null, selected: null, runtimeReady: false, activeFile: 'README.md', openFiles: [], dirtyFiles: new Set(), files: {
   'agent.ts': `import { ChatMessage, ModelAdapter } from './types';
 import { LocalModelRouter } from './router';
 
@@ -48,6 +48,7 @@ const patchValid = value => /^diff --git\s+\S+\s+\S+/m.test(value) && /^---\s+/m
 async function openFile(name) {
   const text = state.files[name] || state.files['agent.ts'];
   state.activeFile = name;
+  if (!state.openFiles.includes(name)) state.openFiles.push(name);
   try {
     const response = await fetch(`http://127.0.0.1:4777/api/file?path=${encodeURIComponent(name)}`);
     if (response.ok) $('#code').textContent = (await response.json()).content;
@@ -56,7 +57,15 @@ async function openFile(name) {
   $('#line-numbers').textContent = text.split('\n').map((_, index) => index + 1).join('\n');
   $('#line-numbers').textContent = $('#code').textContent.split('\n').map((_, index) => index + 1).join('\n');
   document.querySelectorAll('[data-file]').forEach(button => button.classList.toggle('active', button.dataset.file === name));
+  renderEditorTabs();
   saveSession({ active_file: name, open_files: [name] });
+}
+
+function renderEditorTabs() {
+  $('#editor-tabs').innerHTML = state.openFiles.map(file => `<button class="tab ${state.activeFile === file ? 'active' : ''}" data-editor-tab="${esc(file)}">${esc(file.split('/').pop())}${state.dirtyFiles.has(file) ? ' *' : ''}<span data-close-tab="${esc(file)}">×</span></button>`).join('') + '<button class="tab-add">+</button><button id="save-file" class="tab save-tab">SAVE APPROVED FILE</button>';
+  $('#editor-tabs').querySelectorAll('[data-editor-tab]').forEach(button => button.onclick = event => { if (event.target.dataset.closeTab) return; openFile(button.dataset.editorTab); });
+  $('#editor-tabs').querySelectorAll('[data-close-tab]').forEach(button => button.onclick = event => { event.stopPropagation(); state.openFiles = state.openFiles.filter(file => file !== button.dataset.closeTab); if (state.activeFile === button.dataset.closeTab) openFile(state.openFiles.at(-1) || 'README.md'); else renderEditorTabs(); });
+  $('#save-file').onclick = saveFile;
 }
 
 async function saveSession(statePatch) {
@@ -130,6 +139,7 @@ async function saveFile() {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'file write rejected');
     appendLog('WORKSPACE', `${result.path} saved atomically after explicit approval.`);
+    state.dirtyFiles.delete(state.activeFile); renderEditorTabs();
   } catch (error) {
     appendLog('WORKSPACE', `Save blocked: ${error.message}. Start the local daemon and open a trusted workspace.`, 'warning');
   }
@@ -637,7 +647,6 @@ async function boot() {
   setInterval(loadDiagnostics, 3000);
   $('#problems-tab').onclick = () => { $('#problems-list').hidden = false; $('#terminal').style.display = 'none'; };
   $('#review-button').onclick = runReview;
-  $('#save-file').onclick = saveFile;
   $('#connection-button').onclick = startRuntime;
   $('#send-button').onclick = sendChat;
   $('#terminal-run').onclick = runTerminalCommand;
@@ -662,6 +671,8 @@ async function boot() {
   setInterval(refreshTrainingStatus, 5000);
   loadCommunity();
   $('#input').onkeydown = event => { if (event.key === 'Enter') sendChat(); };
+  $('#code').oninput = () => { state.dirtyFiles.add(state.activeFile); renderEditorTabs(); };
+  renderEditorTabs();
 }
 
 boot();

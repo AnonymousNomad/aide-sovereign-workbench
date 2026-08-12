@@ -92,3 +92,16 @@ test, and an honest result. This is the project memory for architecture work.
 - Change: added task manifest, manager, start/stop/status APIs, and task UI.
 - Gate: allowlist unit test, UI audit, full suite, and daemon endpoint smoke.
 - Result: PASS. Problem matchers and richer task configuration remain next.
+
+## 2026-08-12 — LSP Diagnostics And Problems
+
+- Research: LSP `textDocument/publishDiagnostics` contract and VS Code Problems
+  behavior: severity, range, source, message, counts, navigation, and inline
+  feedback.
+- Decision: retain diagnostics by URI in the LSP manager, expose an aggregate
+  endpoint, render counts and clickable Problems entries, and never fabricate a
+  zero count when an LSP is unavailable.
+- Change: diagnostics storage, `/api/diagnostics`, Problems panel, and file
+  navigation from a diagnostic location.
+- Gate: UI audit, full suite, and daemon smoke PASS. Live LSP notification
+  fixture remains next for full protocol coverage.

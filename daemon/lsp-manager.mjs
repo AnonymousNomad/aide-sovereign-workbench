@@ -10,6 +10,7 @@ export class LspManager {
     this.servers = new Map();
     this.processes = new Map();
     this.pending = new Map();
+    this.diagnostics = new Map();
     this.nextId = 1;
   }
 
@@ -27,6 +28,8 @@ export class LspManager {
       status: this.processes.has(server.id) ? 'running' : server.status
     }));
   }
+
+  diagnosticsList() { return [...this.diagnostics.entries()].flatMap(([id, items]) => items.map(item => ({ server: id, ...item }))); }
 
   async start(id) {
     const server = this.servers.get(id);
@@ -74,7 +77,11 @@ export class LspManager {
       const start = split + 4;
       if (Buffer.byteLength(buffer.slice(start)) < length) break;
       const raw = buffer.slice(start, start + length); buffer = buffer.slice(start + length);
-      try { const message = JSON.parse(raw); const key = `${id}:${message.id}`; const pending = this.pending.get(key); if (pending) { clearTimeout(pending.timer); this.pending.delete(key); pending.resolve(message); } } catch { /* malformed server output is ignored */ }
+       try {
+         const message = JSON.parse(raw);
+         if (message.method === 'textDocument/publishDiagnostics') this.diagnostics.set(message.params.uri, message.params.diagnostics || []);
+         const key = `${id}:${message.id}`; const pending = this.pending.get(key); if (pending) { clearTimeout(pending.timer); this.pending.delete(key); pending.resolve(message); }
+       } catch { /* malformed server output is ignored */ }
     }
     this[`buffer_${id}`] = buffer;
   }

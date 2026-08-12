@@ -101,8 +101,8 @@
         <pre id="code" contenteditable="true" spellcheck="false"></pre>
       </div>
       <div class="bottom-panel">
-         <div class="panel-tabs"><b>TERMINAL</b><span>PROBLEMS <em>0</em></span><span>OUTPUT</span><span>CHAT</span><span>COMMUNITY</span></div>
-         <div id="terminal" class="terminal"><p><b>~/workspace $</b> aide runtime status</p><p class="muted">network: disabled | writes: approval required | coordinator: bounded</p><p class="ok">ready: local workbench connected</p></div><div class="terminal-input"><span>›</span><input id="terminal-command" placeholder="Run an approved command, e.g. npm test" aria-label="Terminal command"><button id="terminal-run">RUN</button></div>
+         <div class="panel-tabs"><b>TERMINAL</b><button id="problems-tab">PROBLEMS <em id="problem-count">0</em></button><span>OUTPUT</span><span>CHAT</span><span>COMMUNITY</span></div>
+         <div id="terminal" class="terminal"><p><b>~/workspace $</b> aide runtime status</p><p class="muted">network: disabled | writes: approval required | coordinator: bounded</p><p class="ok">ready: local workbench connected</p></div><div id="problems-list" class="problems-list" hidden></div><div class="terminal-input"><span>›</span><input id="terminal-command" placeholder="Run an approved command, e.g. npm test" aria-label="Terminal command"><button id="terminal-run">RUN</button></div>
       </div>
       <footer class="statusbar"><span>LOCAL ONLY</span><span>GIT main*</span><span>UTF-8</span><span>TypeScript</span><b>READY</b></footer>
     </section>

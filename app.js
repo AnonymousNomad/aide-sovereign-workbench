@@ -91,6 +91,11 @@ async function loadTasks() {
   catch (error) { $('#task-list').innerHTML = `<span class="muted">${esc(error.message)}</span>`; }
 }
 
+async function loadDiagnostics() {
+  try { const response = await fetch('http://127.0.0.1:4777/api/diagnostics'); const result = await response.json(); const diagnostics = result.diagnostics || []; $('#problem-count').textContent = diagnostics.length; $('#problems-list').innerHTML = diagnostics.length ? diagnostics.map(item => `<button class="problem-item" data-problem-uri="${esc(item.uri || '')}" data-problem-line="${item.range?.start?.line || 0}"><b>${esc(item.severity === 1 ? 'ERROR' : item.severity === 2 ? 'WARN' : 'INFO')}</b> ${esc(item.message)}<small>${esc(item.source || item.server || '')}</small></button>`).join('') : '<span class="muted">No diagnostics reported.</span>'; $('#problems-list').querySelectorAll('[data-problem-uri]').forEach(button => button.onclick = () => { const uri = decodeURIComponent(button.dataset.problemUri); const file = uri.replace(/^file:\/\/\/workspace\//, ''); openFile(file); appendLog('PROBLEMS', `Opened ${file}:${Number(button.dataset.problemLine) + 1}`); }); }
+  catch { /* diagnostics are optional until an LSP is active */ }
+}
+
 async function showGitDiff() {
   try { const response = await fetch('http://127.0.0.1:4777/api/git/diff'); const result = await response.json(); $('#terminal').insertAdjacentHTML('beforeend', `<pre class="terminal-output">${esc(result.diff || result.unavailable || 'No changes.')}</pre>`); document.querySelector('.bottom-panel').scrollIntoView({ block: 'nearest' }); }
   catch (error) { appendLog('GIT', error.message, 'warning'); }
@@ -612,6 +617,9 @@ async function boot() {
   $('#git-diff').onclick = showGitDiff;
   loadGitStatus();
   loadTasks();
+  loadDiagnostics();
+  setInterval(loadDiagnostics, 3000);
+  $('#problems-tab').onclick = () => { $('#problems-list').hidden = false; $('#terminal').style.display = 'none'; };
   $('#review-button').onclick = runReview;
   $('#save-file').onclick = saveFile;
   $('#connection-button').onclick = startRuntime;

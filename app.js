@@ -86,6 +86,11 @@ async function loadGitStatus() {
   catch (error) { $('#git-status').textContent = `Git unavailable: ${error.message}`; }
 }
 
+async function loadTasks() {
+  try { const response = await fetch('http://127.0.0.1:4777/api/tasks'); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'task registry unavailable'); $('#task-list').innerHTML = result.tasks.map(task => `<button class="task-item" data-task-id="${esc(task.id)}"><span>▶</span>${esc(task.label)}</button>`).join(''); $('#task-list').querySelectorAll('[data-task-id]').forEach(button => button.onclick = async () => { button.disabled = true; const run = await fetch('http://127.0.0.1:4777/api/tasks/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: button.dataset.taskId }) }); const data = await run.json(); $('#terminal').insertAdjacentHTML('beforeend', `<p class="muted">task ${esc(data.id || button.dataset.taskId)}: ${esc(data.status || data.error)}</p>`); }); }
+  catch (error) { $('#task-list').innerHTML = `<span class="muted">${esc(error.message)}</span>`; }
+}
+
 async function showGitDiff() {
   try { const response = await fetch('http://127.0.0.1:4777/api/git/diff'); const result = await response.json(); $('#terminal').insertAdjacentHTML('beforeend', `<pre class="terminal-output">${esc(result.diff || result.unavailable || 'No changes.')}</pre>`); document.querySelector('.bottom-panel').scrollIntoView({ block: 'nearest' }); }
   catch (error) { appendLog('GIT', error.message, 'warning'); }
@@ -606,6 +611,7 @@ async function boot() {
   $('#git-refresh').onclick = loadGitStatus;
   $('#git-diff').onclick = showGitDiff;
   loadGitStatus();
+  loadTasks();
   $('#review-button').onclick = runReview;
   $('#save-file').onclick = saveFile;
   $('#connection-button').onclick = startRuntime;

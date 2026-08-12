@@ -82,3 +82,13 @@ test, and an honest result. This is the project memory for architecture work.
   Explorer, refresh, and diff output in the Panel.
 - Gate: UI audit and full suite PASS. Clean repository behavior remains to be
   tested with a dedicated Git workspace before enabling mutations.
+
+## 2026-08-12 — Task Profiles
+
+- Research: VS Code task profiles, background tasks, output presentation,
+  problem matchers, and cancellation in the Debug/Tasks documentation.
+- Decision: tasks are manifest-defined, executable-plus-arguments only, bounded
+  by workspace, output, process lifecycle, and one-active-task policy.
+- Change: added task manifest, manager, start/stop/status APIs, and task UI.
+- Gate: allowlist unit test, UI audit, full suite, and daemon endpoint smoke.
+- Result: PASS. Problem matchers and richer task configuration remain next.

@@ -1,0 +1,7 @@
+{
+  "tasks": [
+    {"id":"test","label":"Run full test suite","program":"npm","args":["test"]},
+    {"id":"check","label":"Check JavaScript","program":"npm","args":["run","check"]},
+    {"id":"doctor","label":"Run AIDE doctor","program":"npm","args":["run","doctor"]}
+  ]
+}

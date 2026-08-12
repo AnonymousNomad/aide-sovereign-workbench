@@ -14,6 +14,7 @@ import { buildBlueprint } from '../blueprint/graph.mjs';
 import { TutorManager } from '../academy/tutor-manager.mjs';
 import { PluginManager } from '../plugins/manager.mjs';
 import { Operator } from './operator.mjs';
+import { TaskManager } from '../tasks/manager.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -39,6 +40,8 @@ await tutorManager.load().catch(() => {});
 const pluginManager = new PluginManager({ pluginsDir: path.join(WORKSPACE, 'plugins'), statePath: path.join(WORKSPACE, 'plugins', 'state.json') });
 await pluginManager.load().catch(() => {});
 const operator = new Operator({ modelManager, workspaceManager, gitStatus: () => runGit(['status', '--short']).catch(() => '') });
+const taskManager = new TaskManager({ manifestPath: path.join(WORKSPACE, 'tasks', 'manifest.json'), workspace: WORKSPACE });
+await taskManager.load().catch(() => {});
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -142,6 +145,10 @@ const server = http.createServer(async (request, response) => {
       try { return json(response, 200, { log: await runGit(['log', '--oneline', '--decorate', '-12']) }); }
       catch (error) { return json(response, 200, { log: '', unavailable: error.message }); }
     }
+    if (request.method === 'GET' && request.url === '/api/tasks') return json(response, 200, { tasks: taskManager.list(), active: taskManager.status() });
+    if (request.method === 'POST' && request.url === '/api/tasks/run') return json(response, 200, taskManager.run((await body(request)).id));
+    if (request.method === 'POST' && request.url === '/api/tasks/stop') return json(response, 200, taskManager.stop());
+    if (request.method === 'GET' && request.url === '/api/tasks/status') return json(response, 200, taskManager.status());
     if (request.method === 'GET' && request.url === '/api/models/status') {
       return json(response, 200, { models: modelManager.status() });
     }

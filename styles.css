@@ -9,3 +9,4 @@
  .chat-row select{border:0;border-right:1px solid #315061;outline:0;background:transparent;color:var(--purple);padding:8px 7px;font:bold 9px var(--mono);letter-spacing:.06em}
  .agent-approval{margin:8px 0;border:1px solid var(--amber);border-radius:999px;background:#302818;color:var(--amber);padding:8px 12px;font:bold 9px var(--mono);cursor:pointer}.agent-approval:disabled{opacity:.45}
  .git-status{white-space:pre-wrap;color:var(--muted);font:9px/1.5 var(--mono);padding:8px 3px;max-height:130px;overflow:auto}.git-status:not(:empty){border-left:2px solid var(--blue);margin-top:6px;padding-left:7px}
+ .task-list{display:grid;gap:5px}.task-item{border:1px solid #294454;border-radius:10px;background:#0a1721aa;color:#b8c9cf;text-align:left;padding:7px;font:9px var(--mono);cursor:pointer}.task-item:hover{border-color:var(--green);color:var(--green)}.task-item span{color:var(--green);margin-right:6px}

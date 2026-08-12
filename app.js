@@ -285,10 +285,11 @@ async function sendChat() {
   $('#chat').insertAdjacentHTML('beforeend', `<p><b>YOU</b><br>${esc(value)}</p><p class="assistant"><b>${esc(state.selected.name)}</b><br><span class="muted">Thinking locally...</span></p>`);
   input.value = '';
   try {
-    const response = await fetch('http://127.0.0.1:4777/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelId: state.selected.id, messages: [{ role: 'system', content: state.selected.system_prompt || 'You are a helpful local assistant.' }, { role: 'user', content: value }] }) });
+    const mode = $('#assistant-mode').value;
+    const response = await fetch('http://127.0.0.1:4777/api/operator', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, modelId: state.selected.id, prompt: value }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'chat request failed');
-    const answer = result.choices?.[0]?.message?.content || 'The local model returned no text.';
+    const answer = result.answer || 'The local model returned no text.';
     const last = $('#chat').lastElementChild; last.innerHTML = `<b>${esc(state.selected.name)}</b><br>${esc(answer)}`;
   } catch (error) { const last = $('#chat').lastElementChild; last.innerHTML = `<b>CHAT ERROR</b><br>${esc(error.message)}`; last.classList.add('warning'); }
 }

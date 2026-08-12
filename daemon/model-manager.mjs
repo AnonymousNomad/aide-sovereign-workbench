@@ -31,14 +31,14 @@ export class ModelManager {
     return this.models.get(id);
   }
 
-  async chat(id, messages) {
+  async chat(id, messages, options = {}) {
     const model = this.models.get(id);
     if (!model) throw new Error('model is not allowlisted');
     if (!['ready', 'experimental'].includes(model.status) && !this.processes.has(id)) throw new Error('start this model before chatting');
     const response = await fetch(`${model.endpoint}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: model.model, messages, temperature: 0.2, max_tokens: 512 })
+      body: JSON.stringify({ model: model.model, messages, temperature: 0.2, max_tokens: Math.min(Number(options.max_tokens) || 512, 512) })
     });
     if (!response.ok) throw new Error(`local runtime returned HTTP ${response.status}`);
     return response.json();

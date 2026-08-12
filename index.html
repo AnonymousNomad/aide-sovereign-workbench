@@ -113,7 +113,7 @@
       <div class="runtime-row"><span class="dot green"></span><span>Local adapter</span><b id="runtime-name">OpenAI-compatible HTTP</b></div>
       <div id="collab-log" class="collab-log"><div class="empty-state">Cross-chat is idle.<br>Start a bounded review to create a research, build, and verify run.</div></div>
       <div class="agent-actions"><button id="review-button" class="primary">START BOUNDED REVIEW</button><button id="connection-button" class="secondary">START / TEST RUNTIME</button></div>
-      <div class="chat-label">CHAT WITH YOUR MODEL</div><div class="chat-row"><input id="input" placeholder="Ask the active local model..." aria-label="Ask the active local model"><button id="send-button">SEND</button></div>
+      <div class="chat-label">ASSISTANT / MODEL OPERATOR</div><div class="chat-row"><select id="assistant-mode" aria-label="Assistant mode"><option value="ask">ASK</option><option value="plan">PLAN</option><option value="agent">AGENT</option></select><input id="input" placeholder="Ask the active local model..." aria-label="Ask the active local model"><button id="send-button">SEND</button></div>
       <div id="chat" class="chat" aria-live="polite"></div>
     </aside>
   </main>

@@ -13,6 +13,7 @@ import { ArenaManager } from './arena-manager.mjs';
 import { buildBlueprint } from '../blueprint/graph.mjs';
 import { TutorManager } from '../academy/tutor-manager.mjs';
 import { PluginManager } from '../plugins/manager.mjs';
+import { Operator } from './operator.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -37,6 +38,7 @@ const tutorManager = new TutorManager({ coursesDir: path.join(WORKSPACE, 'academ
 await tutorManager.load().catch(() => {});
 const pluginManager = new PluginManager({ pluginsDir: path.join(WORKSPACE, 'plugins'), statePath: path.join(WORKSPACE, 'plugins', 'state.json') });
 await pluginManager.load().catch(() => {});
+const operator = new Operator({ modelManager, workspaceManager, gitStatus: () => runGit(['status', '--short']).catch(() => '') });
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -139,6 +141,7 @@ const server = http.createServer(async (request, response) => {
       const input = await body(request);
       return json(response, 200, await modelManager.chat(input.modelId, input.messages || []));
     }
+    if (request.method === 'POST' && request.url === '/api/operator') return json(response, 200, await operator.run(await body(request)));
     if (request.method === 'GET' && request.url === '/api/community') {
       return json(response, 200, communityStore.list());
     }
@@ -206,7 +209,8 @@ const server = http.createServer(async (request, response) => {
     }
     return json(response, 404, { error: 'not found' });
   } catch (error) {
-    return json(response, 500, { error: 'local daemon error' });
+    console.error(`[aide] ${request.method} ${request.url}: ${error.message}`);
+    return json(response, 500, { error: error.message || 'local daemon error' });
   }
 });
 

@@ -332,6 +332,7 @@ async function sendChat() {
     if (!response.ok) throw new Error(result.error || 'chat request failed');
     const answer = result.answer || 'The local model returned no text.';
     const last = $('#chat').lastElementChild; last.innerHTML = `<b>${esc(state.selected.name)}</b><br>${esc(answer)}`;
+    if (result.audit?.id) last.insertAdjacentHTML('beforeend', `<small class="audit-badge">AUDIT ARTIFACT ${esc(result.audit.id)} / ${esc(result.audit.status)}</small>`);
     if (result.approval_required && result.proposed_tools?.length) {
       const approval = document.createElement('button'); approval.className = 'agent-approval'; approval.textContent = `APPROVE ${result.proposed_tools.length} TOOL CALL(S)`; approval.onclick = async () => { approval.disabled = true; for (const tool of result.proposed_tools) { const toolResponse = await fetch('http://127.0.0.1:4777/api/terminal/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...tool, approved: true }) }); const toolResult = await toolResponse.json(); $('#chat').insertAdjacentHTML('beforeend', `<pre class="terminal-output ${toolResponse.ok && !toolResult.code ? 'ok' : 'error'}">${esc(toolResult.stdout || toolResult.stderr || toolResult.error || `(exit ${toolResult.code})`)}</pre>`); } }; $('#chat').appendChild(approval);
     }

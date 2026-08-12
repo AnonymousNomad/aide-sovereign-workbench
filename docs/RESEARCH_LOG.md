@@ -190,6 +190,18 @@ the result, and refuse unsupported completion claims.
   preset catalog UI. Functional execution remains capability- and trust-gated.
 - Gate: plugin unit test, UI audit, full suite, and daemon smoke PASS.
 
+## 2026-08-12 — Audit Artifacts
+
+- Research: VS Code agent session/review concepts, Anthropic ground-truth
+  workflows, GitHub reproducibility guidance, and Stack Overflow's reported
+  distrust of inaccurate AI output.
+- Decision: every operator interaction emits a metadata-only local audit
+  artifact with mode, model, approval state, proposed tools, executed tools,
+  and source-export status. Never persist prompts or private source by default.
+- Change: ArtifactStore, `/api/artifacts`, operator audit IDs, and visible audit
+  badges in Assistant responses.
+- Gate: artifact unit test, UI audit, full suite, and daemon smoke PASS.
+
 ## 2026-08-12 — Unified Diff Reliability
 
 - Signal: local coding benchmark showed useful code generation but strict

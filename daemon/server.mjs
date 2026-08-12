@@ -16,6 +16,7 @@ import { PluginManager } from '../plugins/manager.mjs';
 import { Operator } from './operator.mjs';
 import { TaskManager } from '../tasks/manager.mjs';
 import { SessionStore } from '../session/store.mjs';
+import { ArtifactStore } from '../artifacts/store.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -45,6 +46,7 @@ const taskManager = new TaskManager({ manifestPath: path.join(WORKSPACE, 'tasks'
 await taskManager.load().catch(() => {});
 const sessionStore = new SessionStore(path.join(WORKSPACE, '.aide', 'session.json'));
 await sessionStore.load().catch(() => {});
+const artifactStore = new ArtifactStore(path.join(WORKSPACE, '.aide', 'artifacts'));
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -177,6 +179,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/api/tasks/status') return json(response, 200, taskManager.status());
     if (request.method === 'GET' && request.url === '/api/session') return json(response, 200, await sessionStore.load());
     if (request.method === 'PUT' && request.url === '/api/session') return json(response, 200, await sessionStore.save(await body(request)));
+    if (request.method === 'GET' && request.url === '/api/artifacts') return json(response, 200, { artifacts: await artifactStore.list() });
     if (request.method === 'GET' && request.url === '/api/models/status') {
       return json(response, 200, { models: modelManager.status() });
     }
@@ -184,7 +187,11 @@ const server = http.createServer(async (request, response) => {
       const input = await body(request);
       return json(response, 200, await modelManager.chat(input.modelId, input.messages || []));
     }
-    if (request.method === 'POST' && request.url === '/api/operator') return json(response, 200, await operator.run(await body(request)));
+    if (request.method === 'POST' && request.url === '/api/operator') {
+      const input = await body(request); const result = await operator.run(input);
+      const audit = await artifactStore.add({ kind: 'operator-session', status: result.approval_required ? 'awaiting-approval' : 'answered', mode: result.mode, model_id: result.modelId, proposed_tools: result.proposed_tools, tools_executed: result.tools_executed, source_exported: false });
+      return json(response, 200, { ...result, audit });
+    }
     if (request.method === 'GET' && request.url === '/api/community') {
       return json(response, 200, communityStore.list());
     }

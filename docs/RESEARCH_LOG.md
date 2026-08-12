@@ -3,6 +3,11 @@
 Every meaningful change must have a research basis, a decision, an acceptance
 test, and an honest result. This is the project memory for architecture work.
 
+## Operating Creed
+
+**This is the Way:** research, decide, implement surgically, test live, record
+the result, and refuse unsupported completion claims.
+
 ## 2026-08-12 — Workbench Reset
 
 - Research: VS Code UX containers, extension host, agents, harnesses, trust and
@@ -128,3 +133,13 @@ test, and an honest result. This is the project memory for architecture work.
 - Change: stack/scopes inspection UI plus approved Git stage/commit endpoints.
 - Gate: UI audit and full suite PASS. Dedicated temporary-repository mutation
   tests remain required before exposing commit controls in the default UI.
+
+## 2026-08-12 — Session Recovery
+
+- Research: VS Code hot exit/session behavior and recovery requirements from the
+  workbench/editor model.
+- Decision: persist only non-secret workspace UI state atomically: active file,
+  open files, selected panel, and mode. Never persist prompts, credentials,
+  model output, or source content in the session record.
+- Change: SessionStore, `/api/session`, restore-on-boot, and atomic session save.
+- Gate: session unit test, UI audit, full suite, and daemon smoke PASS.

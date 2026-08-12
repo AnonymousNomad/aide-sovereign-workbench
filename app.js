@@ -56,6 +56,15 @@ async function openFile(name) {
   $('#line-numbers').textContent = text.split('\n').map((_, index) => index + 1).join('\n');
   $('#line-numbers').textContent = $('#code').textContent.split('\n').map((_, index) => index + 1).join('\n');
   document.querySelectorAll('[data-file]').forEach(button => button.classList.toggle('active', button.dataset.file === name));
+  saveSession({ active_file: name, open_files: [name] });
+}
+
+async function saveSession(statePatch) {
+  try { await fetch('http://127.0.0.1:4777/api/session', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(statePatch) }); } catch { /* session persistence is best effort while daemon starts */ }
+}
+
+async function restoreSession() {
+  try { const response = await fetch('http://127.0.0.1:4777/api/session'); const session = await response.json(); if (session.active_file) await openFile(session.active_file); } catch { await openFile('README.md'); }
 }
 
 function renderWorkspaceTree(nodes, depth = 0) {
@@ -617,7 +626,7 @@ async function boot() {
   $('#connection-button').onclick = startRuntime;
   $('#mode-toggle').onclick = () => { document.body.classList.toggle('simple-mode'); $('#mode-toggle').textContent = document.body.classList.contains('simple-mode') ? 'ADVANCED' : 'SIMPLE'; };
   bindLaunchGuide();
-  openFile('README.md');
+  restoreSession();
   loadWorkspaceTree();
   loadPlugins();
   $('#git-refresh').onclick = loadGitStatus;

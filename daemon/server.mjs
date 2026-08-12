@@ -15,6 +15,7 @@ import { TutorManager } from '../academy/tutor-manager.mjs';
 import { PluginManager } from '../plugins/manager.mjs';
 import { Operator } from './operator.mjs';
 import { TaskManager } from '../tasks/manager.mjs';
+import { SessionStore } from '../session/store.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -42,6 +43,8 @@ await pluginManager.load().catch(() => {});
 const operator = new Operator({ modelManager, workspaceManager, gitStatus: () => runGit(['status', '--short']).catch(() => '') });
 const taskManager = new TaskManager({ manifestPath: path.join(WORKSPACE, 'tasks', 'manifest.json'), workspace: WORKSPACE });
 await taskManager.load().catch(() => {});
+const sessionStore = new SessionStore(path.join(WORKSPACE, '.aide', 'session.json'));
+await sessionStore.load().catch(() => {});
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -162,6 +165,8 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/tasks/run') return json(response, 200, taskManager.run((await body(request)).id));
     if (request.method === 'POST' && request.url === '/api/tasks/stop') return json(response, 200, taskManager.stop());
     if (request.method === 'GET' && request.url === '/api/tasks/status') return json(response, 200, taskManager.status());
+    if (request.method === 'GET' && request.url === '/api/session') return json(response, 200, await sessionStore.load());
+    if (request.method === 'PUT' && request.url === '/api/session') return json(response, 200, await sessionStore.save(await body(request)));
     if (request.method === 'GET' && request.url === '/api/models/status') {
       return json(response, 200, { models: modelManager.status() });
     }

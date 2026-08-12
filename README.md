@@ -29,7 +29,7 @@ AIDE workers are anonymous local roles governed by `agents/manifest.json` and th
 
 ## Model Packs
 
-The public pack includes registry entries for three optional Apache-2.0 models: SmolLM2 360M for fast chat/planning, Qwen2.5-Coder 0.5B for autocomplete, and Qwen2.5-Coder 1.5B for primary coding. See `models/PACKS.md`. The owner's unfinished Liquid model is deliberately excluded.
+The public pack includes registry entries for three optional Apache-2.0 models: SmolLM2 360M for fast chat/planning, Qwen2.5-Coder 0.5B for autocomplete, and Qwen2.5-Coder 1.5B for primary coding. See `models/PACKS.md`. My unfinished Liquid model is deliberately excluded.
 
 ## Offline Use
 

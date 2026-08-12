@@ -552,6 +552,14 @@ function bindAcademy() {
   $('#lesson-hint').onclick = () => { $('#tutor-prompt-text').textContent = 'Hint: name the value first, then choose the smallest operation that proves the lesson objective. Run the lesson check before asking for the answer.'; appendLog('TUTOR', 'Progressive hint unlocked.'); };
 }
 
+function bindWorkbenchNavigation() {
+  $('#explorer-button').onclick = () => { document.body.classList.add('simple-mode'); $('#mode-toggle').textContent = 'ADVANCED'; $('#workspace-tree').scrollIntoView({ block: 'nearest' }); };
+  $('#run-button').onclick = () => { document.querySelector('.bottom-panel').scrollIntoView({ block: 'nearest' }); $('#terminal-command').focus(); };
+  $('#ai-button').onclick = () => { document.querySelector('.agent-panel').scrollIntoView({ block: 'nearest' }); $('#input').focus(); };
+  $('#plugins-button').onclick = () => { document.body.classList.remove('simple-mode'); $('#mode-toggle').textContent = 'SIMPLE'; $('#plugin-list').scrollIntoView({ block: 'nearest' }); };
+  $('#settings-button').onclick = () => appendLog('SETTINGS', 'Settings surface is not enabled yet. No hidden configuration is being changed.', 'warning');
+}
+
 function renderNode() {
   if (!state.node) return;
   const id = localStorage.getItem('aide.node.id');
@@ -605,6 +613,7 @@ async function boot() {
   $('#arena-button').onclick = compareModels;
   bindBlueprint();
   bindAcademy();
+  bindWorkbenchNavigation();
   testRuntime();
   refreshTrainingStatus();
   setInterval(refreshTrainingStatus, 5000);

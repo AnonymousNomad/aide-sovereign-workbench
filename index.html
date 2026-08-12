@@ -114,7 +114,7 @@
       <div class="eyebrow">LOCAL AI WORKSPACE</div>
       <h1>Chat and build.</h1>
       <p class="subtle">Choose one local model, start it, then ask it anything. Use the bounded workflow when you want research, code, and verification together.</p>
-      <div class="chat-model-control"><label for="model-select">1. ACTIVE MODEL</label><select id="model-select"></select><button id="start-selected" class="primary">2. START MODEL</button><button id="test-selected" class="secondary">TEST CONNECTION</button><div id="runtime-state" class="runtime-state">Choose a model to begin.</div></div>
+      <div class="chat-model-control"><label for="model-select">1. ACTIVE MODEL</label><select id="model-select"></select><label for="provider-select">PROVIDER / SUBSCRIPTION</label><select id="provider-select"><option value="local-openai-compatible">LOCAL / OFFLINE</option></select><button id="start-selected" class="primary">2. START MODEL</button><button id="test-selected" class="secondary">TEST CONNECTION</button><div id="runtime-state" class="runtime-state">Choose a model to begin.</div></div>
       <div class="runtime-card"><span id="selected-model">Select a lane</span><small id="selected-detail">No model request has been made.</small></div>
       <div class="lane-grid" id="lane-grid"></div>
       <div class="runtime-row"><span class="dot green"></span><span>Local adapter</span><b id="runtime-name">OpenAI-compatible HTTP</b></div>

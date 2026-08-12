@@ -91,6 +91,11 @@ async function loadWorkspaceTree() {
   } catch (error) { $('#workspace-tree').innerHTML = `<span class="muted">${esc(error.message)}</span>`; }
 }
 
+async function loadProviders() {
+  try { const response = await fetch('http://127.0.0.1:4777/api/providers'); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'provider registry unavailable'); $('#provider-select').innerHTML = result.providers.map(provider => `<option value="${esc(provider.id)}" ${provider.configured ? '' : 'disabled'}>${esc(provider.name)}${provider.configured ? '' : ' / NOT CONFIGURED'}</option>`).join(''); }
+  catch (error) { appendLog('PROVIDERS', error.message, 'warning'); }
+}
+
 async function loadPlugins() {
   try {
     const response = await fetch('http://127.0.0.1:4777/api/plugins'); const result = await response.json(); const presetResponse = await fetch('http://127.0.0.1:4777/api/plugins/presets'); const presetResult = await presetResponse.json(); if (!response.ok || !presetResponse.ok) throw new Error(result.error || presetResult.error || 'plugin registry unavailable');
@@ -326,11 +331,13 @@ async function sendChat() {
   $('#chat').insertAdjacentHTML('beforeend', `<p><b>YOU</b><br>${esc(value)}</p><p class="assistant"><b>${esc(state.selected.name)}</b><br><span class="muted">Thinking locally...</span></p>`);
   input.value = '';
   try {
-    const mode = $('#assistant-mode').value;
-    const response = await fetch('http://127.0.0.1:4777/api/operator', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, modelId: state.selected.id, prompt: value }) });
+    const mode = $('#assistant-mode').value; const providerId = $('#provider-select').value;
+    const response = providerId === 'local-openai-compatible'
+      ? await fetch('http://127.0.0.1:4777/api/operator', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, modelId: state.selected.id, prompt: value }) })
+      : await fetch('http://127.0.0.1:4777/api/providers/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providerId, messages: [{ role: 'user', content: value }], max_tokens: 512 }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'chat request failed');
-    const answer = result.answer || 'The local model returned no text.';
+    const answer = result.answer || result.choices?.[0]?.message?.content || 'The selected provider returned no text.';
     const last = $('#chat').lastElementChild; last.innerHTML = `<b>${esc(state.selected.name)}</b><br>${esc(answer)}`;
     if (result.audit?.id) last.insertAdjacentHTML('beforeend', `<small class="audit-badge">AUDIT ARTIFACT ${esc(result.audit.id)} / ${esc(result.audit.status)}</small>`);
     if (result.approval_required && result.proposed_tools?.length) {
@@ -661,6 +668,7 @@ async function boot() {
   restoreSession();
   loadWorkspaceTree();
   loadPlugins();
+  loadProviders();
   $('#git-refresh').onclick = loadGitStatus;
   $('#git-diff').onclick = showGitDiff;
   loadGitStatus();

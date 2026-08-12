@@ -41,6 +41,8 @@ copy them. It can combine the gaps into one measurable niche:
   Git review used by professional developers.
 - Plugin system with capabilities, trust history, isolation, and scaffolding.
 - One simple installer and one first-run path.
+- Provider-neutral mode: local runtime by default, optional user-configured
+  subscriptions and OpenAI-compatible endpoints when explicitly enabled.
 
 ## Adoption Tests
 
@@ -54,3 +56,12 @@ copy them. It can combine the gaps into one measurable niche:
 The product should publish these measurements, screenshots of working flows, raw
 benchmark results, limitations, and checksums. Philosophy is internal
 engineering discipline; evidence is the public product message.
+
+## Hybrid Provider Boundary
+
+AIDE should not force a false choice between privacy and capability. The local
+provider is the default and must work without an account. Optional providers are
+server-side adapters selected by the user, show configured/unconfigured state,
+read credentials only from environment or OS secret storage, and never write
+keys to workspace files, chat logs, audit artifacts, or Git. Provider requests
+must show the network boundary and the user must explicitly enable online mode.

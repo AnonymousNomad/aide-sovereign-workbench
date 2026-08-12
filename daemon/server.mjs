@@ -17,6 +17,7 @@ import { Operator } from './operator.mjs';
 import { TaskManager } from '../tasks/manager.mjs';
 import { SessionStore } from '../session/store.mjs';
 import { ArtifactStore } from '../artifacts/store.mjs';
+import { ProviderManager } from '../providers/manager.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -47,6 +48,8 @@ await taskManager.load().catch(() => {});
 const sessionStore = new SessionStore(path.join(WORKSPACE, '.aide', 'session.json'));
 await sessionStore.load().catch(() => {});
 const artifactStore = new ArtifactStore(path.join(WORKSPACE, '.aide', 'artifacts'));
+const providerManager = new ProviderManager(path.join(WORKSPACE, 'providers', 'manifest.json'));
+await providerManager.load().catch(() => {});
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -183,6 +186,8 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/api/models/status') {
       return json(response, 200, { models: modelManager.status() });
     }
+    if (request.method === 'GET' && request.url === '/api/providers') return json(response, 200, { providers: providerManager.list() });
+    if (request.method === 'POST' && request.url === '/api/providers/chat') { const input = await body(request); return json(response, 200, await providerManager.chat(input.providerId, input.messages || [], input)); }
     if (request.method === 'POST' && request.url === '/api/chat') {
       const input = await body(request);
       return json(response, 200, await modelManager.chat(input.modelId, input.messages || []));

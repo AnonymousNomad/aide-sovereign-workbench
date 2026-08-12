@@ -1,0 +1,9 @@
+{
+  "providers": [
+    {"id":"local-openai-compatible","name":"Local runtime","kind":"openai-compatible","endpoint":"http://127.0.0.1:8081/v1","model":"qwen-coder-1.5b-q4","credential_env":null,"offline":true},
+    {"id":"openai","name":"OpenAI API","kind":"openai","endpoint":"https://api.openai.com/v1","model":"gpt-5.6","credential_env":"OPENAI_API_KEY","offline":false},
+    {"id":"anthropic","name":"Anthropic API","kind":"anthropic","endpoint":"https://api.anthropic.com","model":"claude-sonnet","credential_env":"ANTHROPIC_API_KEY","offline":false},
+    {"id":"gemini","name":"Google Gemini API","kind":"gemini","endpoint":"https://generativelanguage.googleapis.com/v1beta","model":"gemini-2.5-pro","credential_env":"GEMINI_API_KEY","offline":false},
+    {"id":"custom-openai-compatible","name":"Custom OpenAI-compatible endpoint","kind":"openai-compatible","endpoint":"","model":"","credential_env":"AIDE_CUSTOM_API_KEY","offline":false}
+  ]
+}

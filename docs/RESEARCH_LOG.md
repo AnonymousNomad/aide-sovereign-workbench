@@ -202,6 +202,19 @@ the result, and refuse unsupported completion claims.
   badges in Assistant responses.
 - Gate: artifact unit test, UI audit, full suite, and daemon smoke PASS.
 
+## 2026-08-12 — Hybrid Provider Boundary
+
+- Research: official provider API patterns and local OpenAI-compatible runtime
+  contracts; OpenAI, Anthropic, and Gemini request/response differences.
+- Decision: local runtime remains the default; optional provider adapters expose
+  configured state, keep credentials server-side, and never persist keys or
+  private prompts in artifacts. Online use is explicit and separate from local
+  operator mode.
+- Change: provider manifest, local/OpenAI-compatible/OpenAI/Anthropic/Gemini
+  adapter boundary, provider configuration UI, and unconfigured-state handling.
+- Gate: provider unit test, UI audit, full suite, and daemon smoke PASS. Live
+  external-provider tests remain intentionally unrun without user credentials.
+
 ## 2026-08-12 — Unified Diff Reliability
 
 - Signal: local coding benchmark showed useful code generation but strict

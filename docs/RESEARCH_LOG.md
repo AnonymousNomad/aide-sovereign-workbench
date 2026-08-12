@@ -167,6 +167,18 @@ the result, and refuse unsupported completion claims.
   and commands for files, tasks, Assistant, Blueprint, Academy, and Problems.
 - Gate: UI contract audit and full suite PASS.
 
+## 2026-08-12 — Public Repository Communication
+
+- Research: GitHub repository best practices, README, contributor guidance,
+  security policy, and community health files:
+  https://docs.github.com/en/repositories/creating-and-managing-repositories/best-practices-for-repositories
+- Decision: public communication leads with verified capabilities, installation,
+  tests, limitations, support, and security. Remove mythology, personas,
+  fictional references, and unsupported superiority claims.
+- Change: README, runtime/harness documentation, Engineering Standards naming,
+  citation file, and support guide cleaned for professional presentation.
+- Gate: documentation review pending full repository scan and CI.
+
 ## 2026-08-12 — Editor Tabs And Dirty State
 
 - Research: VS Code quick navigation, editor groups/tabs, dirty indicators,

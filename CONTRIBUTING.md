@@ -5,7 +5,7 @@ AIDE is a local-first, offline-capable development workbench. Contributions shou
 ## Before A Change
 
 - Open an issue for substantial features or protocol changes.
-- Keep model weights, tokens, credentials, private CaseFiles, and training checkpoints out of Git.
+- Keep model weights, tokens, credentials, private user data, and training checkpoints out of Git.
 - Prefer existing protocols such as LSP, DAP, Git, JSON-RPC, and OpenAI-compatible local APIs.
 - Add a test and update the relevant manifest or documentation.
 

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Report vulnerabilities in the daemon, model manager, patch application, community store, CaseFile handling, LSP/DAP process boundaries, or release tooling.
+Report vulnerabilities in the daemon, model manager, patch application, plugin host, LSP/DAP process boundaries, or release tooling.
 
 ## Do Not Publish
 

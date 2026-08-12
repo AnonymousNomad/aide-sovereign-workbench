@@ -16,7 +16,7 @@ pipeline_tag: text-generation
 
 If AIDE helps your local development or privacy work, sponsorship supports continued offline tooling, model evaluation, and community infrastructure.
 
-AIDE is a local-first development workbench with a compact security-tool layout, angular panel structure, and an original Matrix-neon visual system. It combines an editor, terminal, Git-oriented workflows, model adapters, and bounded multi-model collaboration while keeping model execution on the user's device.
+AIDE is an offline-first development workbench with a distinctive security-workbench visual system. It combines a real workspace editor, terminal, Git review, local model adapters, bounded operator modes, LSP/DAP services, tasks, plugins, Academy, and Blueprint views.
 
 ## Anonymous Local Agents
 
@@ -29,7 +29,7 @@ AIDE workers are anonymous local roles governed by `agents/manifest.json` and th
 
 ## Model Packs
 
-The public pack includes registry entries for three optional Apache-2.0 models: SmolLM2 360M for fast chat/planning, Qwen2.5-Coder 0.5B for autocomplete, and Qwen2.5-Coder 1.5B for primary coding. See `models/PACKS.md`. The owner's unfinished Liquid model is deliberately excluded.
+The public pack includes registry entries for three optional Apache-2.0 models: SmolLM2 360M for fast chat/planning, Qwen2.5-Coder 0.5B for autocomplete, and Qwen2.5-Coder 1.5B for primary coding. See `models/PACKS.md`. Unreleased project-specific checkpoints are not exposed as IDE model packs.
 
 ## Offline Use
 
@@ -41,7 +41,7 @@ npm run doctor
 npm start
 ```
 
-Then open `http://127.0.0.1:4173/`. The doctor reports missing optional runtimes as warnings instead of hiding them. Import a model pack from the Model Lanes panel and use **START / TEST RUNTIME**.
+Then open `http://127.0.0.1:4173/`. The first-run guide walks through selecting an installed model, starting the local runtime, and sending the first chat message.
 
 See `runtime/README.md` and `models/manifest.json` for the adapter contract and model configuration. AIDE does not apply model-generated patches automatically.
 
@@ -51,9 +51,9 @@ See `runtime/README.md` and `models/manifest.json` for the adapter contract and 
 
 ## Universal Harness
 
-`harness/` contains the model-independent closed loop: guard, retrieve, plan, propose, verify, revise, test, review, and learn. Liquid is assigned to reasoning and verification; Qwen Coder is assigned to patch generation. The harness does not mutate model weights and never lets a model approve or apply its own changes.
+`harness/` contains the model-independent closed loop: guard, retrieve, plan, propose, verify, revise, test, review, and learn. The harness does not mutate model weights and never lets a model approve or apply its own changes.
 
-The original AIDE Developer's Credo, inspired by broad Mandalorian discipline themes and translated into engineering behavior, lives in `harness/credo.md`; its research and copyright boundary is in `harness/credo-research.md`. It is mandatory harness context for every model role, alongside the role-specific SOP cards in `harness/sops.json`. `harness/veritas.mjs` uses calibrated task thresholds: 90% for ordinary explanation/code-change evidence and 98% for security, publishing, payment, and identity operations. These are evidence gates, not promises of universal model accuracy; failed gates produce abstention.
+`harness/credo.md` contains AIDE Engineering Standards: evidence over confidence, explicit approvals, reversible changes, and honest capability reporting. It is mandatory harness context for every model role, alongside the role-specific SOP cards in `harness/sops.json`. `harness/veritas.mjs` uses calibrated task thresholds: 90% for ordinary explanation/code-change evidence and 98% for security, publishing, payment, and identity operations. These are evidence gates, not promises of universal model accuracy; failed gates produce abstention.
 
 `npm run veritas` executes the real local gate before a release or verified answer: compile checks, tests, Git whitespace checks, manifest validation, path boundaries, and secret scanning. It is intentionally allowlisted and does not execute arbitrary model-generated commands.
 
@@ -63,7 +63,7 @@ The daemon now owns an allowlisted LSP registry. TypeScript language intelligenc
 
 The daemon also owns an allowlisted DAP registry. Python debugging is provided through `debuggers/manifest.json` and `debugpy`; breakpoints, stack inspection, and execution remain outside the model harness.
 
-The Training Room is defined in `training/manifest.json` and `training/README.md`; it is an approval-gated, resume-safe control room for data, tokenizer, training, evaluation, and release jobs. `benchmarks/` contains the first common smoke suite for all three public model packs. `desktop/tauri.conf.json` is the reproducible desktop-shell configuration; native compilation remains a platform gate until Rust/Tauri is installed.
+The Training Room is defined in `training/manifest.json` and `training/README.md`; it is an approval-gated, resume-safe control room for data, tokenizer, training, evaluation, and release jobs. `benchmarks/` contains the common smoke suite for all three public model packs. `desktop/tauri.conf.json` is the reproducible desktop-shell configuration; native compilation remains a platform gate until Rust/Tauri is installed.
 
 `capsules/` adds reproducible offline workspace capsules: portable metadata for the exact model, runtime, Git revision, evidence hashes, tools, and Veritas result without exporting private source by default.
 
@@ -75,7 +75,7 @@ The ARM64 Rust desktop binary is compiled and hashed in `release/desktop-build-s
 
 ## Status
 
-This is a pre-production engineering release. The Liquid checkpoint is not included until its exact artifact, license, checksum, and evaluation are confirmed. The Qwen weight is downloaded separately from its official repository and should be verified before offline use.
+This is a pre-production engineering release. Several advanced workflows remain behind explicit acceptance gates. The Qwen weight is downloaded separately from its official repository and should be verified before offline use.
 
 ## License
 

@@ -29,13 +29,13 @@ intake -> guard -> retrieve -> plan -> propose -> verify -> revise -> test -> re
 
 ## Model Roles
 
-- `reason`: Liquid thinking model for requirements, architecture, research, and test plans.
+- `reason`: configured reasoning model for requirements, architecture, research, and test plans.
 - `build`: Qwen Coder for code and unified diffs.
-- `verify`: Liquid or another independent verifier for evidence and failure analysis.
+- `verify`: independent verifier for evidence and failure analysis.
 - `fast`: optional small model for autocomplete and classification.
 
 See `orchestrator.mjs` and `policy.json` for the executable contract.
 
 Run `npm run veritas` from a workspace to execute the allowlisted compile, test, Git diff, manifest, secret, and path-boundary checks. The orchestrator also rejects malformed or fenced model patches before verification. A model verdict never overrides a failed execution check. The orchestrator accepts this runner as `verificationRunner` and blocks the final status until it passes.
 
-The research and translation boundary is documented in `credo-research.md`. The product uses original engineering language rather than fictional quotations or branding.
+The engineering standards and research basis are documented in `credo-research.md`. The product uses technical language rather than fictional quotations, personas, or branding.

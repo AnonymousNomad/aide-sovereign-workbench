@@ -1,6 +1,7 @@
-# AIDE Developer's Credo: The Way of the Craft
+# AIDE Engineering Standards
 
-This is an original engineering code inspired by broad themes associated with Mandalorian discipline: identity earned through conduct, loyalty to one's people, protection of those entrusted to you, respect for craft, adaptability, and keeping one's word. It is not a reproduction or quotation of the Mandalorian creed or scripts.
+This document defines the engineering behavior required for AIDE. It is
+technical policy, not product mythology or marketing language.
 
 The translation into software is simple: the developer's word is the contract, the test is the trial, the repository is entrusted property, and the user remains the person protected by the work.
 
@@ -15,7 +16,7 @@ The translation into software is simple: the developer's word is the contract, t
 
 ## Operational Translation
 
-| Philosophy | Developer behavior |
+| Standard | Developer behavior |
 | --- | --- |
 | Discipline | Follow the task SOP, budgets, permissions, and verification order. |
 | Loyalty | Preserve the user's intent, data boundaries, and existing work. |

@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+title: AIDE Sovereign Workbench
+message: If you use AIDE in research or software development, please cite this repository.
+type: software
+authors:
+  - family-names: AnonymousNomad
+    given-names: AIDE Contributors
+repository-code: https://github.com/AnonymousNomad/aide-sovereign-workbench
+license: Apache-2.0
+version: 0.1.0-preflight

@@ -81,6 +81,16 @@ async function loadPlugins() {
   } catch (error) { $('#plugin-list').innerHTML = `<span class="muted">${esc(error.message)}</span>`; }
 }
 
+async function loadGitStatus() {
+  try { const response = await fetch('http://127.0.0.1:4777/api/git/status'); const result = await response.json(); $('#git-status').textContent = result.unavailable ? `Git unavailable: ${result.unavailable}` : (result.status || 'Working tree clean.'); }
+  catch (error) { $('#git-status').textContent = `Git unavailable: ${error.message}`; }
+}
+
+async function showGitDiff() {
+  try { const response = await fetch('http://127.0.0.1:4777/api/git/diff'); const result = await response.json(); $('#terminal').insertAdjacentHTML('beforeend', `<pre class="terminal-output">${esc(result.diff || result.unavailable || 'No changes.')}</pre>`); document.querySelector('.bottom-panel').scrollIntoView({ block: 'nearest' }); }
+  catch (error) { appendLog('GIT', error.message, 'warning'); }
+}
+
 async function runTerminalCommand() {
   const input = $('#terminal-command'); const raw = input.value.trim(); if (!raw) return;
   const parts = raw.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || []; const program = parts.shift(); const args = parts.map(value => value.replace(/^['"]|['"]$/g, ''));
@@ -593,6 +603,9 @@ async function boot() {
   openFile('README.md');
   loadWorkspaceTree();
   loadPlugins();
+  $('#git-refresh').onclick = loadGitStatus;
+  $('#git-diff').onclick = showGitDiff;
+  loadGitStatus();
   $('#review-button').onclick = runReview;
   $('#save-file').onclick = saveFile;
   $('#connection-button').onclick = startRuntime;

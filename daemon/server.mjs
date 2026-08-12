@@ -134,6 +134,14 @@ const server = http.createServer(async (request, response) => {
         return json(response, 200, { workspace: WORKSPACE, status: '', unavailable: error.message });
       }
     }
+    if (request.method === 'GET' && request.url === '/api/git/diff') {
+      try { return json(response, 200, { diff: await runGit(['diff', '--no-ext-diff', '--', '.']) }); }
+      catch (error) { return json(response, 200, { diff: '', unavailable: error.message }); }
+    }
+    if (request.method === 'GET' && request.url === '/api/git/log') {
+      try { return json(response, 200, { log: await runGit(['log', '--oneline', '--decorate', '-12']) }); }
+      catch (error) { return json(response, 200, { log: '', unavailable: error.message }); }
+    }
     if (request.method === 'GET' && request.url === '/api/models/status') {
       return json(response, 200, { models: modelManager.status() });
     }

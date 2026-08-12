@@ -6,11 +6,12 @@ const CAPABILITIES = new Set(['workspace.read', 'workspace.write', 'terminal.run
 const ID = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 
 export class PluginManager {
-  constructor({ pluginsDir, statePath }) { this.pluginsDir = pluginsDir; this.statePath = statePath; this.plugins = []; this.trust = {}; }
+  constructor({ pluginsDir, statePath, presetsPath = path.join(pluginsDir, 'presets.json') }) { this.pluginsDir = pluginsDir; this.statePath = statePath; this.presetsPath = presetsPath; this.plugins = []; this.trust = {}; this.presetCatalog = []; }
 
   async load() {
     await fs.mkdir(this.pluginsDir, { recursive: true });
     this.trust = JSON.parse(await fs.readFile(this.statePath, 'utf8').catch(() => '{}'));
+    this.presetCatalog = JSON.parse(await fs.readFile(this.presetsPath, 'utf8').catch(() => '[]'));
     const entries = await fs.readdir(this.pluginsDir, { withFileTypes: true });
     this.plugins = [];
     for (const entry of entries.filter(item => item.isDirectory())) {
@@ -31,6 +32,18 @@ export class PluginManager {
   }
 
   list() { return this.plugins.map(plugin => ({ ...plugin, trust_required: !plugin.trusted, executable: plugin.executable === true })); }
+
+  presets() { return this.presetCatalog.map(preset => ({ ...preset, installed: this.plugins.some(plugin => plugin.id === preset.id) })); }
+
+  async scaffold(id) {
+    const preset = this.presetCatalog.find(item => item.id === id);
+    if (!preset) throw new Error('plugin preset is not available');
+    const directory = path.join(this.pluginsDir, preset.id);
+    await fs.mkdir(directory, { recursive: true });
+    const manifest = { ...preset, version: '0.1.0', api_version: '1', activation_events: [], contributes: { commands: [], views: [] }, status: 'template', entry: null };
+    await fs.writeFile(path.join(directory, 'aide-plugin.json'), JSON.stringify(manifest, null, 2));
+    return this.load();
+  }
 
   async setTrust(id, trusted) {
     const plugin = this.plugins.find(item => item.id === id);

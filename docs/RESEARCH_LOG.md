@@ -179,6 +179,17 @@ the result, and refuse unsupported completion claims.
   citation file, and support guide cleaned for professional presentation.
 - Gate: documentation review pending full repository scan and CI.
 
+## 2026-08-12 — Plugin Preset Catalog
+
+- Research: VS Code extension contribution points, plugin trust, lazy activation,
+  and AIDE's isolated execution boundary.
+- Decision: provide a catalog of 20 honest preset scaffolds, each with declared
+  capabilities; scaffolding writes only a manifest and never trusts or executes
+  the new plugin automatically.
+- Change: preset catalog, `/api/plugins/presets`, approved scaffold endpoint, and
+  preset catalog UI. Functional execution remains capability- and trust-gated.
+- Gate: plugin unit test, UI audit, full suite, and daemon smoke PASS.
+
 ## 2026-08-12 — Unified Diff Reliability
 
 - Signal: local coding benchmark showed useful code generation but strict
@@ -191,6 +202,19 @@ the result, and refuse unsupported completion claims.
 - Change: patch normalization, stricter validation, and regression coverage for
   prose-wrapped/fenced patches.
 - Gate: full harness suite PASS; real repository task benchmark remains open.
+
+## 2026-08-12 — Desktop Packaging Audit
+
+- Research: Tauri secure foundation, process model, sidecars, permissions,
+  frontend distribution, packaging, signing, and platform bundles:
+  https://v2.tauri.app/start/ and https://v2.tauri.app/distribute/
+- Finding: the current Tauri project packages the frontend but the Rust shell
+  does not yet own the daemon lifecycle or bundle a verified daemon/runtime.
+- Decision: do not call the desktop artifact production-ready. The next desktop
+  implementation must add a lifecycle-managed sidecar or native daemon, scoped
+  permissions, clean shutdown, crash cleanup, and platform build tests.
+- Gate: audit recorded; desktop release remains BLOCKED until the lifecycle and
+  sidecar tests pass.
 
 ## 2026-08-12 — External Product Review
 

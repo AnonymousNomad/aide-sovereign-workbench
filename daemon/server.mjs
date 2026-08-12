@@ -101,6 +101,7 @@ const server = http.createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url === '/api/academy') return json(response, 200, { courses: tutorManager.catalog() });
     if (request.method === 'GET' && request.url === '/api/plugins') return json(response, 200, { api_version: '1', plugins: pluginManager.list() });
+    if (request.method === 'GET' && request.url === '/api/plugins/presets') return json(response, 200, { api_version: '1', presets: pluginManager.presets() });
     if (request.method === 'POST' && request.url === '/api/plugins/trust') {
       const input = await body(request);
       return json(response, 200, { api_version: '1', plugins: await pluginManager.setTrust(input.id, input.trusted === true) });
@@ -108,6 +109,11 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/plugins/execute') {
       const input = await body(request);
       return json(response, 200, { result: await pluginManager.execute(input.id, input.payload || {}) });
+    }
+    if (request.method === 'POST' && request.url === '/api/plugins/scaffold') {
+      const input = await body(request);
+      if (input.approved !== true) throw new Error('explicit approval required');
+      return json(response, 201, { api_version: '1', plugins: await pluginManager.scaffold(input.id) });
     }
     if (request.method === 'GET' && request.url.startsWith('/api/academy/session')) {
       const courseId = new URL(request.url, 'http://127.0.0.1').searchParams.get('course') || undefined;

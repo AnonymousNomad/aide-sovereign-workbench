@@ -1,0 +1,22 @@
+[
+  {"id":"workspace-health","name":"Workspace Health","description":"Inspect workspace files, Git state, runtime, and trust boundaries.","capabilities":["workspace.read","ui.view"]},
+  {"id":"project-onboarding","name":"Project Onboarding","description":"Create a guided local project checklist.","capabilities":["workspace.read","ui.view"]},
+  {"id":"test-runner","name":"Test Runner","description":"Discover and present allowlisted test tasks.","capabilities":["command.register","terminal.run","ui.view"]},
+  {"id":"task-dashboard","name":"Task Dashboard","description":"Group tasks by build, test, lint, and release stage.","capabilities":["command.register","ui.view"]},
+  {"id":"git-review","name":"Git Review","description":"Review changed files and staged diffs before commit.","capabilities":["workspace.read","ui.view"]},
+  {"id":"git-history","name":"Git History","description":"Display local commit history and file timelines.","capabilities":["workspace.read","ui.view"]},
+  {"id":"branch-manager","name":"Branch Manager","description":"Inspect and safely switch local branches.","capabilities":["workspace.read","command.register"]},
+  {"id":"lsp-toolbox","name":"Language Toolbox","description":"Expose language-server status and navigation actions.","capabilities":["command.register","ui.view"]},
+  {"id":"dap-inspector","name":"Debugger Inspector","description":"Show DAP sessions, threads, scopes, and variables.","capabilities":["command.register","ui.view"]},
+  {"id":"problem-triage","name":"Problem Triage","description":"Group diagnostics and route them into an approved agent plan.","capabilities":["workspace.read","ui.view"]},
+  {"id":"assistant-context","name":"Context Builder","description":"Preview files, symbols, diagnostics, and budgets sent to the operator.","capabilities":["workspace.read","ui.view"]},
+  {"id":"patch-review","name":"Patch Review","description":"Compare, annotate, approve, reject, and revert proposed changes.","capabilities":["workspace.read","workspace.write","ui.view"]},
+  {"id":"blueprint-export","name":"Blueprint Export","description":"Export a project graph as a local capsule.","capabilities":["workspace.read","ui.view"]},
+  {"id":"academy-author","name":"Academy Author","description":"Create and validate hands-on tutor lessons.","capabilities":["workspace.read","workspace.write","ui.view"]},
+  {"id":"markdown-preview","name":"Markdown Preview","description":"Render local Markdown documentation safely.","capabilities":["workspace.read","ui.view"]},
+  {"id":"json-schema","name":"JSON Schema Tools","description":"Validate local manifests against declared schemas.","capabilities":["workspace.read","command.register"]},
+  {"id":"env-inspector","name":"Environment Inspector","description":"Report safe runtime versions without exposing secrets.","capabilities":["command.register","ui.view"]},
+  {"id":"dependency-audit","name":"Dependency Audit","description":"Run local dependency checks and show actionable results.","capabilities":["terminal.run","ui.view"]},
+  {"id":"release-checker","name":"Release Checker","description":"Run release gates, checksums, and artifact checks.","capabilities":["terminal.run","ui.view"]},
+  {"id":"local-notes","name":"Local Project Notes","description":"Keep durable project decisions and handoffs in the workspace.","capabilities":["workspace.read","workspace.write","ui.view"]}
+]

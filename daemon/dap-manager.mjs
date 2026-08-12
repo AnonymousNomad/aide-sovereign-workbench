@@ -11,6 +11,7 @@ export class DapManager {
     this.adapters = new Map();
     this.processes = new Map();
     this.pending = new Map();
+    this.events = new Map();
     this.nextSeq = 1;
   }
 
@@ -28,6 +29,8 @@ export class DapManager {
       status: this.processes.has(adapter.id) ? 'running' : adapter.status
     }));
   }
+
+  state(id) { return { id, events: this.events.get(id) || [], active: this.processes.has(id) }; }
 
   async start(id) {
     const adapter = this.adapters.get(id);
@@ -66,6 +69,11 @@ export class DapManager {
       const raw = buffer.slice(start, start + length); buffer = buffer.slice(start + length);
       try {
         const message = JSON.parse(raw);
+        if (message.type === 'event') {
+          const events = this.events.get(id) || [];
+          events.push({ event: message.event, body: message.body || {} });
+          this.events.set(id, events.slice(-100));
+        }
         const key = `${id}:${message.request_seq}`;
         const pending = this.pending.get(key);
         if (pending) { clearTimeout(pending.timer); this.pending.delete(key); pending.resolve(message); }

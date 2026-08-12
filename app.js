@@ -444,7 +444,8 @@ async function refreshDebugThreads() {
     const result = await response.json();
     if (!response.ok || result.error) throw new Error(result.error?.format || 'debug adapter is not running');
     const count = result.body?.threads?.length || 0;
-    $('#debug-status').textContent = `Debug threads: ${count}. Stack/variables populate after launch.`;
+    const stateResponse = await fetch('http://127.0.0.1:4777/api/dap/state?id=python-debugpy'); const session = await stateResponse.json(); const stopped = session.events?.findLast(event => event.event === 'stopped');
+    $('#debug-status').textContent = stopped ? `Debug stopped: ${stopped.body.reason || 'breakpoint'} / thread ${stopped.body.threadId || 'unknown'}. Threads: ${count}.` : `Debug threads: ${count}. Stack/variables populate after launch.`;
     appendLog('DAP', `Threads refreshed: ${count}.`);
   } catch (error) { appendLog('DAP', error.message, 'warning'); }
 }

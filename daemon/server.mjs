@@ -167,6 +167,10 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/api/dap/status') {
       return json(response, 200, { adapters: dapManager.status() });
     }
+    if (request.method === 'GET' && request.url.startsWith('/api/dap/state?')) {
+      const id = new URL(request.url, 'http://127.0.0.1').searchParams.get('id');
+      return json(response, 200, dapManager.state(id));
+    }
     if (request.method === 'GET' && request.url === '/api/training/status') {
       return json(response, 200, trainingManager.status());
     }

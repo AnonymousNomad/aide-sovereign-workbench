@@ -105,3 +105,15 @@ test, and an honest result. This is the project memory for architecture work.
   navigation from a diagnostic location.
 - Gate: UI audit, full suite, and daemon smoke PASS. Live LSP notification
   fixture remains next for full protocol coverage.
+
+## 2026-08-12 — DAP Session Events
+
+- Research: DAP initialization, initialized/configuration sequencing, stopped
+  events, thread/stack/scopes/variables waterfall, and terminate/disconnect:
+  https://microsoft.github.io/debug-adapter-protocol/overview
+- Decision: preserve bounded DAP events per adapter and expose session state to
+  the UI; do not infer a stopped state from a successful initialize response.
+- Change: DAP event history/state endpoint and stopped-event display in debug
+  status.
+- Gate: syntax and full suite PASS. Live debuggee fixture remains required
+  before claiming breakpoint/stack readiness.

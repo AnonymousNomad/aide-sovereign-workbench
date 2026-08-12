@@ -1,4 +1,4 @@
-const state = { manifest: null, node: null, selected: null, casefile: null, activeFile: 'src/agent.ts', files: {
+const state = { manifest: null, node: null, selected: null, runtimeReady: false, casefile: null, activeFile: 'src/agent.ts', files: {
   'agent.ts': `import { ChatMessage, ModelAdapter } from './types';
 import { LocalModelRouter } from './router';
 
@@ -115,10 +115,18 @@ let communityStore = { projects: [], issues: [], discussions: [], marketplace: [
 
 function selectModel(model) {
   state.selected = model;
+  state.runtimeReady = false;
   if ($('#model-select')) $('#model-select').value = model.id;
   $('#selected-model').textContent = model.name;
   $('#selected-detail').textContent = `${model.format} | ${model.status} | ${model.description}`;
   $('#runtime-name').textContent = model.runtime;
+  setRuntimeState('Model selected. Press START MODEL.', '');
+}
+
+function setRuntimeState(text, kind = '') {
+  const status = $('#runtime-state');
+  if (status) { status.textContent = text; status.className = `runtime-state ${kind}`; }
+  if ($('#send-button')) $('#send-button').disabled = !state.runtimeReady;
 }
 
 function appendLog(role, text, type = '') {
@@ -183,8 +191,12 @@ async function testRuntime() {
   appendLog('RUNTIME', `Testing ${model.name} at ${model.endpoint}...`);
   try {
     const response = await fetch(`${model.endpoint}/models`);
-    appendLog('RUNTIME', response.ok ? 'Local runtime reachable. Model remains subject to capability checks.' : `Runtime returned HTTP ${response.status}.`, response.ok ? 'approved' : 'warning');
+    state.runtimeReady = response.ok;
+    setRuntimeState(response.ok ? 'Model ready. You can chat now.' : `Runtime returned HTTP ${response.status}.`, response.ok ? 'ready' : 'error');
+    appendLog('RUNTIME', response.ok ? 'Local runtime reachable. Model is ready for chat.' : `Runtime returned HTTP ${response.status}.`, response.ok ? 'approved' : 'warning');
   } catch (error) {
+    state.runtimeReady = false;
+    setRuntimeState('Model is not ready yet. Start it and wait.', 'error');
     appendLog('RUNTIME', 'Offline shell is healthy, but no local HTTP runtime is reachable. This is expected until the adapter is started.', 'warning');
   }
 }
@@ -192,27 +204,36 @@ async function testRuntime() {
 async function startRuntime() {
   const model = state.selected;
   if (!model) return appendLog('RUNTIME', 'Select a model pack first.', 'warning');
+  if (model.status === 'pending' || model.status === 'training-only') return appendLog('RUNTIME', 'This model is not available for chat. Choose the ready coding model.', 'warning');
+  state.runtimeReady = false;
+  setRuntimeState('Starting model. Please wait...', 'busy');
+  $('#start-selected').disabled = true;
   try {
     const response = await fetch('http://127.0.0.1:4777/api/models/start', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: model.id })
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'runtime start failed');
-    appendLog('RUNTIME', `${model.name} is starting at ${result.endpoint}.`);
-    setTimeout(testRuntime, 1500);
+    appendLog('RUNTIME', `${model.name} is starting at ${result.endpoint}. Waiting for readiness...`);
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      try { const ready = await fetch(`${model.endpoint}/models`); if (ready.ok) { state.runtimeReady = true; setRuntimeState('Model ready. You can chat now.', 'ready'); appendLog('RUNTIME', 'Model is ready for chat.', 'approved'); break; } } catch { /* keep waiting */ }
+    }
+    if (!state.runtimeReady) setRuntimeState('Model did not become ready. Check the runtime status.', 'error');
   } catch (error) {
+    setRuntimeState(`Could not start model: ${error.message}`, 'error');
     appendLog('RUNTIME', `Local daemon unavailable: ${error.message}. Start daemon/server.mjs first.`, 'warning');
-  }
+  } finally { $('#start-selected').disabled = false; }
 }
 
 function closeLaunchGuide() {
-  if ($('#launch-dont-show').checked) localStorage.setItem('aide.launch.dismissed', '1');
+  if ($('#launch-dont-show').checked) localStorage.setItem('aide.launch.version', '2');
   $('#launch-guide').hidden = true;
 }
 
 function bindLaunchGuide() {
   const guide = $('#launch-guide');
-  if (localStorage.getItem('aide.launch.dismissed') !== '1') guide.hidden = false;
+  if (localStorage.getItem('aide.launch.version') !== '2') guide.hidden = false;
   $('#launch-start').onclick = async () => { const model = state.manifest.models.find(item => item.id === 'qwen-coder-1.5b-q4') || state.manifest.models.find(item => item.status === 'ready'); if (model) selectModel(model); closeLaunchGuide(); await startRuntime(); };
   $('#launch-learn').onclick = () => { closeLaunchGuide(); $('#learn-button').click(); };
 }
@@ -221,7 +242,7 @@ async function sendChat() {
   const input = $('#input');
   const value = input.value.trim();
   if (!value) return;
-  if (!state.selected || state.selected.status === 'pending') return appendLog('CHAT', 'Choose and start a ready local model first.', 'warning');
+  if (!state.selected || !state.runtimeReady) return appendLog('CHAT', 'Start the selected model and wait for the green “Model ready” message first.', 'warning');
   $('#chat').insertAdjacentHTML('beforeend', `<p><b>YOU</b><br>${esc(value)}</p><p class="assistant"><b>${esc(state.selected.name)}</b><br><span class="muted">Thinking locally...</span></p>`);
   input.value = '';
   try {
@@ -546,6 +567,11 @@ async function boot() {
   renderModels();
   const firstReady = state.manifest.models.find(model => model.status !== 'pending');
   if (firstReady) selectModel(firstReady);
+  setRuntimeState('Choose START MODEL, then wait for the green ready message.');
+  $('#start-selected').onclick = startRuntime;
+  $('#test-selected').onclick = testRuntime;
+  $('#connection-button').onclick = startRuntime;
+  $('#mode-toggle').onclick = () => { document.body.classList.toggle('simple-mode'); $('#mode-toggle').textContent = document.body.classList.contains('simple-mode') ? 'ADVANCED' : 'SIMPLE'; };
   bindLaunchGuide();
   openFile('agent.ts');
   document.querySelectorAll('[data-file]').forEach(button => button.onclick = () => openFile(button.dataset.file));
@@ -574,6 +600,7 @@ async function boot() {
   $('#arena-button').onclick = compareModels;
   bindBlueprint();
   bindAcademy();
+  testRuntime();
   refreshTrainingStatus();
   setInterval(refreshTrainingStatus, 5000);
   loadCommunity();

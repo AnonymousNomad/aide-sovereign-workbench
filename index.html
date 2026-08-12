@@ -7,14 +7,15 @@
   <title>AIDE | Sovereign Workbench</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="simple-mode">
   <section id="launch-guide" class="launch-guide" hidden>
-    <div class="launch-card"><div class="eyebrow">AIDE / FIRST RUN</div><h1>Start here.</h1><p>AIDE is a local workbench. Choose a model, start it, and then talk to it. Nothing leaves this device.</p><div class="launch-steps"><div><b>01</b><span>Choose a model</span><small>Use the recommended coding model to begin.</small></div><div><b>02</b><span>Start the runtime</span><small>AIDE loads the model locally.</small></div><div><b>03</b><span>Chat or build</span><small>Ask a question or run a verified workflow.</small></div></div><div class="launch-actions"><button id="launch-start" class="primary">USE RECOMMENDED MODEL</button><button id="launch-learn" class="secondary">START WITH TUTOR MODE</button></div><label class="launch-dismiss"><input id="launch-dont-show" type="checkbox"> Do not show this guide again</label></div>
+    <div class="launch-card"><div class="eyebrow">AIDE / FIRST RUN</div><h1>Start here.</h1><p>AIDE is a local workbench. For now, ignore the side tools. Follow this one path: choose a model, wait for the green ready state, then chat.</p><div class="launch-steps"><div><b>01</b><span>Choose a model</span><small>The recommended coding model is already installed.</small></div><div><b>02</b><span>Start and wait</span><small>Wait until AIDE says the model is ready.</small></div><div><b>03</b><span>Ask a question</span><small>Your conversation stays on this device.</small></div></div><div class="launch-actions"><button id="launch-start" class="primary">START CHAT WITH RECOMMENDED MODEL</button><button id="launch-learn" class="secondary">LEARN HOW TO USE AIDE</button></div><label class="launch-dismiss"><input id="launch-dont-show" type="checkbox"> Do not show this guide again</label></div>
   </section>
   <header class="topbar">
     <div class="brand">AIDE <span>SOVEREIGN WORKBENCH</span></div>
     <div class="workspace"><b>LOCAL</b> / agent-kit / main</div>
-    <div class="network"><i></i> AIR-GAPPED</div>
+    <div class="network"><i></i> LOCAL ONLY</div>
+    <button id="mode-toggle" class="icon-button">ADVANCED</button>
     <button class="icon-button" id="command-button" title="Command palette">CMD K</button>
   </header>
 
@@ -116,7 +117,7 @@
       <div class="eyebrow">LOCAL AI WORKSPACE</div>
       <h1>Chat and build.</h1>
       <p class="subtle">Choose one local model, start it, then ask it anything. Use the bounded workflow when you want research, code, and verification together.</p>
-      <div class="chat-model-control"><label for="model-select">ACTIVE MODEL</label><select id="model-select"></select><button id="start-selected" class="primary">START SELECTED MODEL</button><button id="test-selected" class="secondary">TEST CONNECTION</button></div>
+      <div class="chat-model-control"><label for="model-select">1. ACTIVE MODEL</label><select id="model-select"></select><button id="start-selected" class="primary">2. START MODEL</button><button id="test-selected" class="secondary">TEST CONNECTION</button><div id="runtime-state" class="runtime-state">Choose a model to begin.</div></div>
       <div class="runtime-card"><span id="selected-model">Select a lane</span><small id="selected-detail">No model request has been made.</small></div>
       <div class="lane-grid" id="lane-grid"></div>
       <div class="runtime-row"><span class="dot green"></span><span>Local adapter</span><b id="runtime-name">OpenAI-compatible HTTP</b></div>

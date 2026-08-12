@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, cp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import { execFile } from 'node:child_process';
+const run = promisify(execFile);
+const workspace = await mkdtemp(path.join(tmpdir(), 'aide-real-acceptance-'));
+await mkdir(path.join(workspace, 'tasks'), { recursive: true }); await mkdir(path.join(workspace, 'plugins', 'real-plugin'), { recursive: true }); await mkdir(path.join(workspace, 'academy', 'courses'), { recursive: true }); await mkdir(path.join(workspace, 'providers'), { recursive: true });
+await writeFile(path.join(workspace, 'README.md'), 'base\n');
+await writeFile(path.join(workspace, 'tasks', 'manifest.json'), JSON.stringify({ tasks: [{ id: 'real-task', label: 'Real task', program: 'node', args: ['-e', "process.stdout.write('task-ok')"] }] }));
+await writeFile(path.join(workspace, 'plugins', 'presets.json'), '[]');
+await writeFile(path.join(workspace, 'plugins', 'real-plugin', 'aide-plugin.json'), JSON.stringify({ id: 'real-plugin', name: 'Real Plugin', version: '1.0.0', api_version: '1', entry: 'index.mjs', capabilities: ['ui.view'] }));
+await writeFile(path.join(workspace, 'plugins', 'real-plugin', 'index.mjs'), "let d='';process.stdin.on('data', c => d += c);process.stdin.on('end', () => process.stdout.write(JSON.stringify({accepted:JSON.parse(d).value})));\n");
+await writeFile(path.join(workspace, 'academy', 'courses', 'real.json'), JSON.stringify({ id: 'real-course', title: 'Real Course', level: 'beginner', lessons: [{ id: 'one', title: 'One', kind: 'exercise', objective: 'Test one', check: 'node' }] }));
+await writeFile(path.join(workspace, 'providers', 'manifest.json'), JSON.stringify({ providers: [{ id: 'local', name: 'Local', kind: 'openai-compatible', endpoint: 'http://127.0.0.1:1/v1', model: 'local', offline: true }] }));
+await run('git', ['init', '-q'], { cwd: workspace }); await run('git', ['config', 'user.name', 'AIDE Acceptance'], { cwd: workspace }); await run('git', ['config', 'user.email', 'acceptance@aide.invalid'], { cwd: workspace }); await run('git', ['add', '.'], { cwd: workspace }); await run('git', ['commit', '-qm', 'base'], { cwd: workspace });
+const port = '4893'; const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: process.cwd(), env: { ...process.env, AIDE_WORKSPACE: workspace, AIDE_DAEMON_PORT: port }, stdio: 'ignore' });
+const url = pathPart => `http://127.0.0.1:${port}${pathPart}`;
+const request = async (pathPart, options) => { const response = await fetch(url(pathPart), options); const body = await response.json().catch(() => ({})); return { response, body }; };
+try {
+  for (let i = 0; i < 40; i += 1) { try { if ((await fetch(url('/health'))).ok) break; } catch {} await new Promise(resolve => setTimeout(resolve, 50)); }
+  assert.equal((await request('/health')).response.status, 200);
+  assert.ok((await request('/api/workspace/tree')).body.tree.some(item => item.name === 'README.md'));
+  assert.equal((await request('/api/file/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: 'README.md', content: 'blocked', approved: false }) })).response.status, 500);
+  assert.equal((await request('/api/file/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: 'README.md', content: 'edited\n', approved: true }) })).response.status, 200);
+  assert.match((await request('/api/file?path=README.md')).body.content, /edited/);
+  const patch = 'diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-edited\n+patched\n';
+  assert.equal((await request('/api/patch/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patch, approved: true }) })).response.status, 200);
+  const terminal = await request('/api/terminal/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ program: 'node', args: ['-e', "process.stdout.write('terminal-ok')"], approved: true }) }); assert.equal(terminal.body.stdout, 'terminal-ok');
+  const task = await request('/api/tasks/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'real-task' }) }); assert.equal(task.response.status, 200); let taskStatus; for (let i = 0; i < 20; i += 1) { await new Promise(resolve => setTimeout(resolve, 100)); taskStatus = (await request('/api/tasks/status')).body; if (taskStatus.status !== 'running') break; } assert.equal(taskStatus.status, 'passed'); assert.match(taskStatus.stdout, /task-ok/);
+  assert.equal((await request('/api/git/stage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paths: ['README.md'], approved: true }) })).response.status, 200);
+  assert.equal((await request('/api/git/commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'acceptance change', approved: true }) })).response.status, 200);
+  await request('/api/session', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active_file: 'README.md', open_files: ['README.md'], panel: 'terminal' }) }); assert.equal((await request('/api/session')).body.active_file, 'README.md');
+  assert.equal((await request('/api/plugins/trust', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'real-plugin', trusted: true }) })).response.status, 200);
+  const plugin = await request('/api/plugins/execute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'real-plugin', payload: { value: 'plugin-ok' } }) }); assert.equal(plugin.body.result.accepted, 'plugin-ok');
+  assert.equal((await request('/api/academy')).body.courses.length, 1); assert.equal((await request('/api/blueprint')).body.layers.length, 5); assert.equal((await request('/api/providers')).body.providers.length, 1); assert.equal((await request('/api/artifacts')).response.status, 200);
+  console.log('REAL AIDE ACCEPTANCE PASSED: workspace, write, patch, terminal, task, Git, session, plugin, Academy, Blueprint, provider, artifact');
+} finally { daemon.kill('SIGTERM'); }

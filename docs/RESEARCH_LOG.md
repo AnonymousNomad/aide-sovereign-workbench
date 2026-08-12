@@ -215,6 +215,18 @@ the result, and refuse unsupported completion claims.
 - Gate: provider unit test, UI audit, full suite, and daemon smoke PASS. Live
   external-provider tests remain intentionally unrun without user credentials.
 
+## 2026-08-12 — Real Acceptance Suite
+
+- Research decision: smoke tests are insufficient for release confidence; use an
+  isolated temporary Git workspace and exercise real state transitions.
+- Initial acceptance failure: task execution completed, but TaskManager discarded
+  the final result and `/api/tasks/status` returned idle without output.
+- Fix: retain the last task result and poll until completion in the acceptance
+  runner.
+- Final gate: REAL AIDE ACCEPTANCE PASSED for workspace read/write, approval
+  rejection, patch apply, terminal, task, Git stage/commit, session, plugin,
+  Academy, Blueprint, provider, and artifact workflows. Full `npm test` passed.
+
 ## 2026-08-12 — Unified Diff Reliability
 
 - Signal: local coding benchmark showed useful code generation but strict

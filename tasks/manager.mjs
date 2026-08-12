@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 const PROGRAMS = new Set(['node', 'npm', 'npx', 'git', 'python', 'python3', 'cargo', 'rustc']);
 
 export class TaskManager {
-  constructor({ manifestPath, workspace }) { this.manifestPath = manifestPath; this.workspace = workspace; this.tasks = []; this.active = null; }
+  constructor({ manifestPath, workspace }) { this.manifestPath = manifestPath; this.workspace = workspace; this.tasks = []; this.active = null; this.last = { status: 'idle' }; }
   async load() {
     const manifest = JSON.parse(await fs.readFile(this.manifestPath, 'utf8').catch(() => '{"tasks":[]}'));
     this.tasks = (manifest.tasks || []).filter(task => task.id && PROGRAMS.has(task.program) && Array.isArray(task.args));
@@ -20,9 +20,9 @@ export class TaskManager {
     this.active = { id, child, result };
     child.stdout.on('data', chunk => { result.stdout += chunk; result.stdout = result.stdout.slice(-512 * 1024); });
     child.stderr.on('data', chunk => { result.stderr += chunk; result.stderr = result.stderr.slice(-512 * 1024); });
-    child.on('close', code => { result.code = code; result.status = code === 0 ? 'passed' : 'failed'; this.active = null; });
+    child.on('close', code => { result.code = code; result.status = code === 0 ? 'passed' : 'failed'; this.last = { ...result }; this.active = null; });
     return { id, status: 'running' };
   }
   stop() { if (!this.active) return { status: 'idle' }; this.active.child.kill('SIGTERM'); return { id: this.active.id, status: 'stopping' }; }
-  status() { return this.active ? { ...this.active.result } : { status: 'idle' }; }
+  status() { return this.active ? { ...this.active.result } : { ...this.last }; }
 }

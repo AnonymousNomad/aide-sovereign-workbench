@@ -1,6 +1,9 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+const run = promisify(execFile);
 
 export class TutorManager {
   constructor({ coursesDir, progressPath }) {
@@ -34,6 +37,7 @@ export class TutorManager {
     const course = this.courses.find(item => item.id === courseId);
     if (!course || !course.lessons.some(lesson => lesson.id === lessonId)) throw new Error('lesson is not in the selected course');
     const progress = this.progress[courseId] || { completed: [], current: lessonId };
+    if (progress.last_check?.lessonId !== lessonId || progress.last_check.passed !== true) throw new Error('run and pass the lesson check before completing it');
     if (!progress.completed.includes(lessonId)) progress.completed.push(lessonId);
     const next = course.lessons.find(lesson => !progress.completed.includes(lesson.id));
     progress.current = next?.id || lessonId;
@@ -44,6 +48,18 @@ export class TutorManager {
     await fs.writeFile(temp, JSON.stringify(this.progress, null, 2));
     await fs.rename(temp, this.progressPath);
     return this.session(courseId);
+  }
+
+  async check(courseId, lessonId) {
+    const course = this.courses.find(item => item.id === courseId); const lesson = course?.lessons.find(item => item.id === lessonId);
+    if (!lesson) throw new Error('lesson is not in the selected course');
+    const match = String(lesson.check || '').match(/^(python3?|node|git)\s+(-c|-e|--version)(?:\s+([\s\S]*))?$/);
+    if (!match) throw new Error('lesson check is not a supported allowlisted command');
+    const args = [match[2]]; if (match[3]) args.push(match[3].replace(/^['"]|['"]$/g, ''));
+    let result; try { const output = await run(match[1], args, { timeout: 30_000, maxBuffer: 64 * 1024 }); result = { passed: true, stdout: output.stdout, stderr: output.stderr }; } catch (error) { result = { passed: false, stdout: error.stdout || '', stderr: error.stderr || error.message }; }
+    const progress = this.progress[courseId] || { completed: [], current: lessonId }; progress.last_check = { lessonId, ...result, checked_at: new Date().toISOString() }; this.progress[courseId] = progress;
+    const temp = `${this.progressPath}.tmp`; await fs.writeFile(temp, JSON.stringify(this.progress, null, 2)); await fs.rename(temp, this.progressPath);
+    return { lesson: lesson.id, ...result };
   }
 
   certificate(courseId) {

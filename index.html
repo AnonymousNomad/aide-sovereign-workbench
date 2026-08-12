@@ -90,7 +90,7 @@
     <section class="editor-column">
       <section id="learn-view" class="learn-view" hidden aria-label="AIDE Academy Tutor Mode">
         <div class="learn-head"><div><div class="eyebrow">AIDE ACADEMY / TUTOR MODE</div><h2>Learn by building.</h2><p>Your tutor explains, questions, tests, and verifies. It does not take the work away from you.</p></div><div class="learn-mode">SOCRATIC / HANDS-ON</div></div>
-        <div class="learn-layout"><aside id="course-list" class="course-list"></aside><article class="lesson-card"><div class="lesson-kicker" id="lesson-kicker">CURRENT LESSON</div><h3 id="lesson-title">Loading tutor session...</h3><p id="lesson-objective"></p><div class="tutor-prompt"><b>TUTOR PROMPT</b><p id="tutor-prompt-text">Start the local daemon to load your course.</p></div><textarea id="lesson-reflection" placeholder="Explain what you learned in your own words..."></textarea><div class="lesson-actions"><button id="lesson-complete" class="primary">MARK LESSON COMPLETE</button><button id="lesson-hint" class="secondary">GIVE ME A HINT</button><button id="certificate-button" class="secondary" hidden>ISSUE LOCAL CREDENTIAL</button></div><div id="lesson-progress" class="lesson-progress"></div><div id="credential-limit" class="credential-limit">Completion credentials are local evidence artifacts, not accredited certifications.</div></article></div>
+        <div class="learn-layout"><aside id="course-list" class="course-list"></aside><article class="lesson-card"><div class="lesson-kicker" id="lesson-kicker">CURRENT LESSON</div><h3 id="lesson-title">Loading tutor session...</h3><p id="lesson-objective"></p><div class="tutor-prompt"><b>TUTOR PROMPT</b><p id="tutor-prompt-text">Start the local daemon to load your course.</p></div><button id="lesson-check" class="secondary lesson-check">RUN LESSON CHECK</button><pre id="lesson-check-result" class="lesson-check-result"></pre><textarea id="lesson-reflection" placeholder="Explain what you learned in your own words..."></textarea><div class="lesson-actions"><button id="lesson-complete" class="primary" disabled>MARK LESSON COMPLETE</button><button id="lesson-hint" class="secondary">GIVE ME A HINT</button><button id="certificate-button" class="secondary" hidden>ISSUE LOCAL CREDENTIAL</button></div><div id="lesson-progress" class="lesson-progress"></div><div id="credential-limit" class="credential-limit">Completion credentials are local evidence artifacts, not accredited certifications.</div></article></div>
       </section>
       <section id="blueprint-view" class="blueprint-view" hidden aria-label="Interactive build blueprint">
         <div class="blueprint-head"><div><div class="eyebrow">SYSTEM BLUEPRINT</div><h2>Build graph <span id="blueprint-count"></span></h2><p>Orbit the project. Select a node to inspect what it needs and what it produces.</p></div><div class="blueprint-actions"><button id="blueprint-refresh" class="secondary">REFRESH</button><button id="blueprint-reset" class="secondary">RESET VIEW</button></div></div>
@@ -99,10 +99,11 @@
       </section>
        <div id="editor-tabs" class="tabs"></div>
       <div class="breadcrumbs">src <b>/</b> agent.ts <b>/</b> AgentRuntime</div>
-      <div class="editor" role="textbox" aria-label="Code editor">
+       <div class="editor" role="textbox" aria-label="Code editor">
         <div id="line-numbers" class="line-numbers"></div>
         <pre id="code" contenteditable="true" spellcheck="false"></pre>
-      </div>
+       </div>
+       <div id="secondary-editor" class="editor secondary-editor" hidden role="textbox" aria-label="Secondary code editor"><div id="secondary-line-numbers" class="line-numbers"></div><pre id="secondary-code"></pre></div>
       <div class="bottom-panel">
          <div class="panel-tabs"><b>TERMINAL</b><button id="problems-tab">PROBLEMS <em id="problem-count">0</em></button><span>OUTPUT</span><span>CHAT</span><span>COMMUNITY</span></div>
          <div id="terminal" class="terminal"><p><b>~/workspace $</b> aide runtime status</p><p class="muted">network: disabled | writes: approval required | coordinator: bounded</p><p class="ok">ready: local workbench connected</p></div><div id="problems-list" class="problems-list" hidden></div><div class="terminal-input"><span>›</span><input id="terminal-command" placeholder="Run an approved command, e.g. npm test" aria-label="Terminal command"><button id="terminal-run">RUN</button></div>

@@ -132,6 +132,7 @@ const server = http.createServer(async (request, response) => {
       const input = await body(request);
       return json(response, 200, await tutorManager.complete(input.courseId, input.lessonId, input.reflection));
     }
+    if (request.method === 'POST' && request.url === '/api/academy/check') { const input = await body(request); return json(response, 200, await tutorManager.check(input.courseId, input.lessonId)); }
     if (request.method === 'GET' && request.url.startsWith('/api/academy/certificate?')) {
       const courseId = new URL(request.url, 'http://127.0.0.1').searchParams.get('course');
       return json(response, 200, tutorManager.certificate(courseId));

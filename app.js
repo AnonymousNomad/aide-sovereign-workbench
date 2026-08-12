@@ -1,4 +1,4 @@
-const state = { manifest: null, node: null, selected: null, runtimeReady: false, activeFile: 'README.md', openFiles: [], dirtyFiles: new Set(), files: {
+const state = { manifest: null, node: null, selected: null, runtimeReady: false, activeFile: 'README.md', secondaryFile: null, splitEditor: false, openFiles: [], dirtyFiles: new Set(), files: {
   'agent.ts': `import { ChatMessage, ModelAdapter } from './types';
 import { LocalModelRouter } from './router';
 
@@ -62,10 +62,21 @@ async function openFile(name) {
 }
 
 function renderEditorTabs() {
-  $('#editor-tabs').innerHTML = state.openFiles.map(file => `<button class="tab ${state.activeFile === file ? 'active' : ''}" data-editor-tab="${esc(file)}">${esc(file.split('/').pop())}${state.dirtyFiles.has(file) ? ' *' : ''}<span data-close-tab="${esc(file)}">×</span></button>`).join('') + '<button class="tab-add">+</button><button id="save-file" class="tab save-tab">SAVE APPROVED FILE</button>';
+  $('#editor-tabs').innerHTML = state.openFiles.map(file => `<button class="tab ${state.activeFile === file ? 'active' : ''}" data-editor-tab="${esc(file)}">${esc(file.split('/').pop())}${state.dirtyFiles.has(file) ? ' *' : ''}<span data-close-tab="${esc(file)}">×</span></button>`).join('') + '<button class="tab-add">+</button><button id="split-editor" class="tab">SPLIT</button><button id="save-file" class="tab save-tab">SAVE APPROVED FILE</button>';
   $('#editor-tabs').querySelectorAll('[data-editor-tab]').forEach(button => button.onclick = event => { if (event.target.dataset.closeTab) return; openFile(button.dataset.editorTab); });
   $('#editor-tabs').querySelectorAll('[data-close-tab]').forEach(button => button.onclick = event => { event.stopPropagation(); state.openFiles = state.openFiles.filter(file => file !== button.dataset.closeTab); if (state.activeFile === button.dataset.closeTab) openFile(state.openFiles.at(-1) || 'README.md'); else renderEditorTabs(); });
   $('#save-file').onclick = saveFile;
+  $('#split-editor').onclick = toggleSplitEditor;
+}
+
+async function toggleSplitEditor() {
+  state.splitEditor = !state.splitEditor; $('#secondary-editor').hidden = !state.splitEditor;
+  if (state.splitEditor) { state.secondaryFile = state.openFiles.find(file => file !== state.activeFile) || state.openFiles[0] || 'README.md'; await openSecondaryFile(state.secondaryFile); }
+  renderEditorTabs();
+}
+
+async function openSecondaryFile(name) {
+  state.secondaryFile = name; const fallback = state.files[name] || ''; try { const response = await fetch(`http://127.0.0.1:4777/api/file?path=${encodeURIComponent(name)}`); $('#secondary-code').textContent = response.ok ? (await response.json()).content : fallback; } catch { $('#secondary-code').textContent = fallback; } $('#secondary-line-numbers').textContent = $('#secondary-code').textContent.split('\n').map((_, index) => index + 1).join('\n');
 }
 
 async function saveSession(statePatch) {
@@ -601,10 +612,19 @@ async function completeLesson() {
   catch (error) { appendLog('TUTOR', error.message, 'warning'); }
 }
 
+async function checkLesson() {
+  const session = academyState.session; if (!session) return;
+  $('#lesson-check').disabled = true; $('#lesson-check-result').textContent = 'Running check...';
+  try { const response = await fetch('http://127.0.0.1:4777/api/academy/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ courseId: session.course.id, lessonId: session.lesson.id }) }); const result = await response.json(); $('#lesson-check-result').textContent = result.passed ? `PASS\n${result.stdout || ''}` : `FAIL\n${result.stderr || ''}`; $('#lesson-complete').disabled = !result.passed; }
+  catch (error) { $('#lesson-check-result').textContent = `ERROR\n${error.message}`; }
+  finally { $('#lesson-check').disabled = false; }
+}
+
 function bindAcademy() {
   const view = $('#learn-view');
   $('#learn-button').onclick = () => { const showing = view.hidden; view.hidden = !showing; $('#learn-button').classList.toggle('active', showing); if (showing) { $('#blueprint-view').hidden = true; $('#blueprint-button').classList.remove('active'); loadAcademy(); } };
   $('#lesson-complete').onclick = completeLesson;
+  $('#lesson-check').onclick = checkLesson;
   $('#lesson-hint').onclick = () => { $('#tutor-prompt-text').textContent = 'Hint: name the value first, then choose the smallest operation that proves the lesson objective. Run the lesson check before asking for the answer.'; appendLog('TUTOR', 'Progressive hint unlocked.'); };
   $('#certificate-button').onclick = async () => { const courseId = academyState.session?.course.id; const response = await fetch(`http://127.0.0.1:4777/api/academy/certificate?course=${encodeURIComponent(courseId)}`); const result = await response.json(); if (!response.ok) return appendLog('ACADEMY', result.error || 'credential unavailable', 'warning'); appendLog('ACADEMY', `Local completion credential issued: ${result.digest}. ${result.limitation}`, 'approved'); };
 }

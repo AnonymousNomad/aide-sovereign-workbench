@@ -236,6 +236,21 @@ the result, and refuse unsupported completion claims.
   checks pass; model agreement never creates a 98% result.
 - Gate: handoff unit test, UI audit, real acceptance suite, and full suite PASS.
 
+## 2026-08-12 — Tutor Assessment Gate
+
+- Research: Python official tutorial sequencing; Google ML Crash Course's
+  self-contained modules, interactive exercises, metrics, production systems,
+  and fairness; fast.ai's examples-first practical learning; W3C Verifiable
+  Credentials Data Model 2.0.
+- Decision: Tutor Mode requires runnable lesson checks before completion. Tracks
+  cover Python, ML/AI, and Production Engineering across beginner-to-capstone
+  progression. AIDE credentials are local verifiable evidence artifacts and are
+  explicitly unaccredited until an external issuer/verifier adopts them.
+- Change: expanded three-course catalog, allowlisted lesson checks, completion
+  gating, and credential digest endpoint/UI.
+- Gate: every Python lesson check, certificate test, UI audit, real acceptance,
+  and full suite PASS.
+
 ## 2026-08-12 — Real Acceptance Suite
 
 - Research decision: smoke tests are insufficient for release confidence; use an

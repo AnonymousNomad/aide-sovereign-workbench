@@ -459,6 +459,7 @@ async function boot() {
   $('#training-verify').onclick = () => trainingRequest('start', { id: 'verify-release', approved: true });
   $('#training-stop').onclick = () => trainingRequest('stop');
   $('#arena-button').onclick = compareModels;
+  bindBlueprint();
   refreshTrainingStatus();
   setInterval(refreshTrainingStatus, 5000);
   loadCommunity();

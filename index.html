@@ -22,6 +22,7 @@
       <button class="activity-button" title="Source control">GIT</button>
       <button class="activity-button" title="Run and debug">RUN</button>
       <button class="activity-button" title="Model lanes">AI</button>
+      <button class="activity-button" id="blueprint-button" title="3D build blueprint">MAP</button>
       <button class="activity-button" title="Sovereign community">NODE</button>
       <span></span>
       <button class="activity-button" title="Settings">CFG</button>
@@ -85,6 +86,11 @@
     </aside>
 
     <section class="editor-column">
+      <section id="blueprint-view" class="blueprint-view" hidden aria-label="Interactive build blueprint">
+        <div class="blueprint-head"><div><div class="eyebrow">SYSTEM BLUEPRINT</div><h2>Build graph <span id="blueprint-count"></span></h2><p>Orbit the project. Select a node to inspect what it needs and what it produces.</p></div><div class="blueprint-actions"><button id="blueprint-refresh" class="secondary">REFRESH</button><button id="blueprint-reset" class="secondary">RESET VIEW</button></div></div>
+        <div class="blueprint-toolbar"><span><i class="legend-dot source"></i>SOURCE</span><span><i class="legend-dot data"></i>DATA</span><span><i class="legend-dot build"></i>BUILD</span><span><i class="legend-dot verify"></i>VERIFY</span><span><i class="legend-dot release"></i>RELEASE</span><span class="blueprint-hint">drag orbit / wheel zoom / click node</span></div>
+        <div class="blueprint-stage"><canvas id="blueprint-canvas" aria-label="Three dimensional project blueprint"></canvas><aside id="blueprint-inspector" class="blueprint-inspector"><b>SELECT A NODE</b><p>Choose a node to inspect its dependencies and next gate.</p></aside></div>
+      </section>
       <div class="tabs"><button class="tab active">agent.ts <span>*</span></button><button class="tab">router.ts</button><button class="tab-add">+</button><button id="save-file" class="tab" style="margin-left:auto;color:#72ff9e">SAVE APPROVED FILE</button></div>
       <div class="breadcrumbs">src <b>/</b> agent.ts <b>/</b> AgentRuntime</div>
       <div class="editor" role="textbox" aria-label="Code editor">

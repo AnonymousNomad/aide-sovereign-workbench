@@ -10,6 +10,7 @@ import { WorkspaceManager } from './workspace-manager.mjs';
 import { TrainingManager } from './training-manager.mjs';
 import { ReplayStore } from './replay-store.mjs';
 import { ArenaManager } from './arena-manager.mjs';
+import { buildBlueprint } from '../blueprint/graph.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -77,6 +78,9 @@ const server = http.createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url === '/api/workspace') {
       return json(response, 200, { workspace: WORKSPACE, entries: await workspaceSummary() });
+    }
+    if (request.method === 'GET' && request.url === '/api/blueprint') {
+      return json(response, 200, buildBlueprint({ entries: await workspaceSummary(), models: modelManager.status(), training: trainingManager.status() }));
     }
     if (request.method === 'GET' && request.url.startsWith('/api/file?')) {
       const relativePath = new URL(request.url, 'http://127.0.0.1').searchParams.get('path');

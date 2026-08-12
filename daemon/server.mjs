@@ -11,6 +11,7 @@ import { TrainingManager } from './training-manager.mjs';
 import { ReplayStore } from './replay-store.mjs';
 import { ArenaManager } from './arena-manager.mjs';
 import { buildBlueprint } from '../blueprint/graph.mjs';
+import { TutorManager } from '../academy/tutor-manager.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
@@ -31,6 +32,8 @@ await trainingManager.load().catch(() => {});
 const replayStore = new ReplayStore(path.join(WORKSPACE, 'replays', 'store.json'));
 await replayStore.load().catch(() => {});
 const arenaManager = new ArenaManager({ modelManager, manifestPath: MANIFEST, suitePath: path.join(WORKSPACE, 'benchmarks', 'manifest.json') });
+const tutorManager = new TutorManager({ coursesDir: path.join(WORKSPACE, 'academy', 'courses'), progressPath: path.join(WORKSPACE, 'academy', 'progress.json') });
+await tutorManager.load().catch(() => {});
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -81,6 +84,15 @@ const server = http.createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url === '/api/blueprint') {
       return json(response, 200, buildBlueprint({ entries: await workspaceSummary(), models: modelManager.status(), training: trainingManager.status() }));
+    }
+    if (request.method === 'GET' && request.url === '/api/academy') return json(response, 200, { courses: tutorManager.catalog() });
+    if (request.method === 'GET' && request.url.startsWith('/api/academy/session')) {
+      const courseId = new URL(request.url, 'http://127.0.0.1').searchParams.get('course') || undefined;
+      return json(response, 200, tutorManager.session(courseId));
+    }
+    if (request.method === 'POST' && request.url === '/api/academy/complete') {
+      const input = await body(request);
+      return json(response, 200, await tutorManager.complete(input.courseId, input.lessonId, input.reflection));
     }
     if (request.method === 'GET' && request.url.startsWith('/api/file?')) {
       const relativePath = new URL(request.url, 'http://127.0.0.1').searchParams.get('path');

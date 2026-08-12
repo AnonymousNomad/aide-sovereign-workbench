@@ -410,6 +410,93 @@ async function importEvidence(event) {
   event.target.value = '';
 }
 
+const blueprintState = { graph: null, yaw: -0.45, pitch: 0.28, zoom: 1, panX: 0, panY: 0, dragging: false, lastX: 0, lastY: 0, selected: null };
+const blueprintColors = { source: '#58c7ff', data: '#b277ff', build: '#72ff9e', verify: '#ffc76b', release: '#ff5fcf' };
+const academyState = { catalog: [], session: null };
+
+function blueprintCanvasPoint(node, width, height) {
+  const cy = Math.cos(blueprintState.yaw), sy = Math.sin(blueprintState.yaw);
+  const cp = Math.cos(blueprintState.pitch), sp = Math.sin(blueprintState.pitch);
+  const x1 = node.x * cy - node.z * sy;
+  const z1 = node.x * sy + node.z * cy;
+  const y1 = node.y * cp - z1 * sp;
+  const z2 = node.y * sp + z1 * cp;
+  const depth = 1 + z2 / 14;
+  return { x: width / 2 + blueprintState.panX + x1 * 72 * blueprintState.zoom / depth, y: height / 2 + blueprintState.panY - y1 * 72 * blueprintState.zoom / depth, depth, scale: blueprintState.zoom / depth };
+}
+
+function drawBlueprint() {
+  const canvas = $('#blueprint-canvas');
+  if (!canvas || !blueprintState.graph) return;
+  const rect = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.floor(rect.width * ratio) || canvas.height !== Math.floor(rect.height * ratio)) { canvas.width = Math.floor(rect.width * ratio); canvas.height = Math.floor(rect.height * ratio); }
+  const ctx = canvas.getContext('2d'); ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, rect.width, rect.height);
+  const points = new Map(blueprintState.graph.nodes.map(node => [node.id, { node, point: blueprintCanvasPoint(node, rect.width, rect.height) }]));
+  blueprintState.graph.edges.forEach(edge => { const from = points.get(edge.source)?.point; const to = points.get(edge.target)?.point; if (!from || !to) return; ctx.strokeStyle = '#4f768066'; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke(); ctx.setLineDash([]); });
+  [...points.values()].sort((a, b) => a.point.depth - b.point.depth).forEach(({ node, point }) => { const color = blueprintColors[node.layer] || '#9fb8ba'; const radius = Math.max(5, 8 * point.scale); const selected = blueprintState.selected === node.id; ctx.globalAlpha = Math.max(.45, Math.min(1, point.depth)); ctx.shadowBlur = selected ? 18 : 9; ctx.shadowColor = color; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(point.x, point.y, radius + (selected ? 3 : 0), 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#071018'; ctx.beginPath(); ctx.arc(point.x, point.y, Math.max(2, radius - 3), 0, Math.PI * 2); ctx.fill(); ctx.font = `${Math.max(8, 10 * point.scale)}px ui-monospace,monospace`; ctx.fillStyle = selected ? '#ffffff' : color; ctx.fillText(node.label, point.x + radius + 5, point.y + 3); });
+  ctx.globalAlpha = 1;
+}
+
+function inspectBlueprint(node) {
+  blueprintState.selected = node?.id || null;
+  const inspector = $('#blueprint-inspector');
+  if (!node) { inspector.innerHTML = '<b>SELECT A NODE</b><p>Choose a node to inspect its dependencies and next gate.</p>'; drawBlueprint(); return; }
+  const incoming = blueprintState.graph.edges.filter(edge => edge.target === node.id).map(edge => edge.source).join(', ') || 'none';
+  const outgoing = blueprintState.graph.edges.filter(edge => edge.source === node.id).map(edge => edge.target).join(', ') || 'none';
+  inspector.innerHTML = `<b>${esc(node.label)}</b><p><span style="color:${blueprintColors[node.layer]}">${esc(node.layer.toUpperCase())}</span> / ${esc(node.status)}</p><p>${esc(node.detail)}</p><p>needs: ${esc(incoming)}<br>feeds: ${esc(outgoing)}</p>`;
+  drawBlueprint();
+}
+
+async function loadBlueprint() {
+  try { const response = await fetch('http://127.0.0.1:4777/api/blueprint'); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'blueprint unavailable'); blueprintState.graph = result; $('#blueprint-count').textContent = `${result.nodes.length} NODES / ${result.edges.length} EDGES`; inspectBlueprint(null); drawBlueprint(); }
+  catch (error) { appendLog('BLUEPRINT', `Graph unavailable: ${error.message}. Start the local daemon to hydrate the project map.`, 'warning'); }
+}
+
+function bindBlueprint() {
+  const canvas = $('#blueprint-canvas'); const view = $('#blueprint-view');
+  $('#blueprint-button').onclick = () => { const showing = view.hidden; view.hidden = !showing; $('#blueprint-button').classList.toggle('active', showing); if (showing) { $('#learn-view').hidden = true; $('#learn-button').classList.remove('active'); loadBlueprint(); requestAnimationFrame(drawBlueprint); } };
+  $('#blueprint-refresh').onclick = loadBlueprint;
+  $('#blueprint-reset').onclick = () => { blueprintState.yaw = -.45; blueprintState.pitch = .28; blueprintState.zoom = 1; blueprintState.panX = 0; blueprintState.panY = 0; drawBlueprint(); };
+  canvas.onpointerdown = event => { blueprintState.dragging = false; blueprintState.lastX = event.clientX; blueprintState.lastY = event.clientY; canvas.setPointerCapture(event.pointerId); };
+  canvas.onpointermove = event => { if (!canvas.hasPointerCapture(event.pointerId)) return; const dx = event.clientX - blueprintState.lastX; const dy = event.clientY - blueprintState.lastY; if (Math.abs(dx) + Math.abs(dy) > 3) blueprintState.dragging = true; blueprintState.lastX = event.clientX; blueprintState.lastY = event.clientY; if (event.shiftKey) { blueprintState.panX += dx; blueprintState.panY += dy; } else { blueprintState.yaw += dx * .009; blueprintState.pitch = Math.max(-1.2, Math.min(1.2, blueprintState.pitch + dy * .009)); } drawBlueprint(); };
+  canvas.onpointerup = event => { canvas.releasePointerCapture(event.pointerId); };
+  canvas.onwheel = event => { event.preventDefault(); blueprintState.zoom = Math.max(.45, Math.min(2.5, blueprintState.zoom * (event.deltaY < 0 ? 1.1 : .9))); drawBlueprint(); };
+  canvas.onclick = event => { if (blueprintState.dragging || !blueprintState.graph) return; const rect = canvas.getBoundingClientRect(); const x = event.clientX - rect.left; const y = event.clientY - rect.top; let closest = null; let distance = 18; blueprintState.graph.nodes.forEach(node => { const point = blueprintCanvasPoint(node, rect.width, rect.height); const next = Math.hypot(point.x - x, point.y - y); if (next < distance) { distance = next; closest = node; } }); inspectBlueprint(closest); };
+  window.addEventListener('resize', drawBlueprint);
+}
+
+function renderAcademy() {
+  const list = $('#course-list'); if (!list) return;
+  list.innerHTML = '<h4>COURSES / LOCAL CATALOG</h4>' + academyState.catalog.map(course => { const done = course.progress.completed.length; return `<button class="course-item ${academyState.session?.course.id === course.id ? 'active' : ''}" data-course-id="${esc(course.id)}"><b>${esc(course.title)}</b><small>${esc(course.level)} / ${done}/${course.lessons.length} complete</small></button>`; }).join('');
+  list.querySelectorAll('[data-course-id]').forEach(button => button.onclick = () => loadAcademySession(button.dataset.courseId));
+  const session = academyState.session; if (!session) return;
+  $('#lesson-kicker').textContent = `${session.course.title.toUpperCase()} / ${session.lesson.kind.toUpperCase()}`; $('#lesson-title').textContent = session.lesson.title; $('#lesson-objective').textContent = session.lesson.objective; $('#tutor-prompt-text').textContent = 'What do you think the safest first step is? Build it in the workspace, run the check, then explain your reasoning below.'; $('#lesson-progress').textContent = `${session.progress.completed.length} lesson(s) complete. Next gate: ${session.next?.title || 'course complete'}.`;
+}
+
+async function loadAcademySession(courseId) {
+  try { const response = await fetch(`http://127.0.0.1:4777/api/academy/session${courseId ? `?course=${encodeURIComponent(courseId)}` : ''}`); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Tutor Mode unavailable'); academyState.session = result; renderAcademy(); }
+  catch (error) { appendLog('TUTOR', `Academy unavailable: ${error.message}`, 'warning'); }
+}
+
+async function loadAcademy() {
+  try { const response = await fetch('http://127.0.0.1:4777/api/academy'); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'course catalog unavailable'); academyState.catalog = result.courses; renderAcademy(); await loadAcademySession(academyState.catalog[0]?.id); }
+  catch (error) { appendLog('TUTOR', `Course catalog unavailable: ${error.message}. Start the local daemon to load Academy.`, 'warning'); }
+}
+
+async function completeLesson() {
+  const session = academyState.session; if (!session) return;
+  try { const response = await fetch('http://127.0.0.1:4777/api/academy/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ courseId: session.course.id, lessonId: session.lesson.id, reflection: $('#lesson-reflection').value }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'lesson gate rejected'); academyState.session = result; $('#lesson-reflection').value = ''; appendLog('TUTOR', `Lesson complete. Next: ${result.next?.title || 'course complete'}.`); renderAcademy(); }
+  catch (error) { appendLog('TUTOR', error.message, 'warning'); }
+}
+
+function bindAcademy() {
+  const view = $('#learn-view');
+  $('#learn-button').onclick = () => { const showing = view.hidden; view.hidden = !showing; $('#learn-button').classList.toggle('active', showing); if (showing) { $('#blueprint-view').hidden = true; $('#blueprint-button').classList.remove('active'); loadAcademy(); } };
+  $('#lesson-complete').onclick = completeLesson;
+  $('#lesson-hint').onclick = () => { $('#tutor-prompt-text').textContent = 'Hint: name the value first, then choose the smallest operation that proves the lesson objective. Run the lesson check before asking for the answer.'; appendLog('TUTOR', 'Progressive hint unlocked.'); };
+}
+
 function renderNode() {
   if (!state.node) return;
   const id = localStorage.getItem('aide.node.id');
@@ -460,6 +547,7 @@ async function boot() {
   $('#training-stop').onclick = () => trainingRequest('stop');
   $('#arena-button').onclick = compareModels;
   bindBlueprint();
+  bindAcademy();
   refreshTrainingStatus();
   setInterval(refreshTrainingStatus, 5000);
   loadCommunity();

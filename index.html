@@ -22,6 +22,7 @@
       <button class="activity-button" title="Source control">GIT</button>
       <button class="activity-button" title="Run and debug">RUN</button>
       <button class="activity-button" title="Model lanes">AI</button>
+      <button class="activity-button" id="learn-button" title="Tutor and Academy">LEARN</button>
       <button class="activity-button" id="blueprint-button" title="3D build blueprint">MAP</button>
       <button class="activity-button" title="Sovereign community">NODE</button>
       <span></span>
@@ -86,6 +87,10 @@
     </aside>
 
     <section class="editor-column">
+      <section id="learn-view" class="learn-view" hidden aria-label="AIDE Academy Tutor Mode">
+        <div class="learn-head"><div><div class="eyebrow">AIDE ACADEMY / TUTOR MODE</div><h2>Learn by building.</h2><p>Your tutor explains, questions, tests, and verifies. It does not take the work away from you.</p></div><div class="learn-mode">SOCRATIC / HANDS-ON</div></div>
+        <div class="learn-layout"><aside id="course-list" class="course-list"></aside><article class="lesson-card"><div class="lesson-kicker" id="lesson-kicker">CURRENT LESSON</div><h3 id="lesson-title">Loading tutor session...</h3><p id="lesson-objective"></p><div class="tutor-prompt"><b>TUTOR PROMPT</b><p id="tutor-prompt-text">Start the local daemon to load your course.</p></div><textarea id="lesson-reflection" placeholder="Explain what you learned in your own words..."></textarea><div class="lesson-actions"><button id="lesson-complete" class="primary">MARK LESSON COMPLETE</button><button id="lesson-hint" class="secondary">GIVE ME A HINT</button></div><div id="lesson-progress" class="lesson-progress"></div></article></div>
+      </section>
       <section id="blueprint-view" class="blueprint-view" hidden aria-label="Interactive build blueprint">
         <div class="blueprint-head"><div><div class="eyebrow">SYSTEM BLUEPRINT</div><h2>Build graph <span id="blueprint-count"></span></h2><p>Orbit the project. Select a node to inspect what it needs and what it produces.</p></div><div class="blueprint-actions"><button id="blueprint-refresh" class="secondary">REFRESH</button><button id="blueprint-reset" class="secondary">RESET VIEW</button></div></div>
         <div class="blueprint-toolbar"><span><i class="legend-dot source"></i>SOURCE</span><span><i class="legend-dot data"></i>DATA</span><span><i class="legend-dot build"></i>BUILD</span><span><i class="legend-dot verify"></i>VERIFY</span><span><i class="legend-dot release"></i>RELEASE</span><span class="blueprint-hint">drag orbit / wheel zoom / click node</span></div>

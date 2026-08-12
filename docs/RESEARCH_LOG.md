@@ -117,3 +117,14 @@ test, and an honest result. This is the project memory for architecture work.
   status.
 - Gate: syntax and full suite PASS. Live debuggee fixture remains required
   before claiming breakpoint/stack readiness.
+
+## 2026-08-12 — Debug Inspection And Git Mutation Boundary
+
+- Research: DAP stopped-state waterfall for threads, stackTrace, scopes, and
+  variables; VS Code Run/Debug sidebar and Source Control review-before-commit.
+- Decision: show stack/scopes only after a real stopped event; stage and commit
+  are explicit approved mutations and paths are validated before Git receives
+  them.
+- Change: stack/scopes inspection UI plus approved Git stage/commit endpoints.
+- Gate: UI audit and full suite PASS. Dedicated temporary-repository mutation
+  tests remain required before exposing commit controls in the default UI.

@@ -443,9 +443,15 @@ async function refreshDebugThreads() {
     const response = await fetch('http://127.0.0.1:4777/api/dap/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'python-debugpy', request: { command: 'threads', arguments: {} } }) });
     const result = await response.json();
     if (!response.ok || result.error) throw new Error(result.error?.format || 'debug adapter is not running');
-    const count = result.body?.threads?.length || 0;
+    const threads = result.body?.threads || []; const count = threads.length;
     const stateResponse = await fetch('http://127.0.0.1:4777/api/dap/state?id=python-debugpy'); const session = await stateResponse.json(); const stopped = session.events?.findLast(event => event.event === 'stopped');
     $('#debug-status').textContent = stopped ? `Debug stopped: ${stopped.body.reason || 'breakpoint'} / thread ${stopped.body.threadId || 'unknown'}. Threads: ${count}.` : `Debug threads: ${count}. Stack/variables populate after launch.`;
+    if (threads[0]) {
+      const stackResponse = await fetch('http://127.0.0.1:4777/api/dap/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'python-debugpy', request: { command: 'stackTrace', arguments: { threadId: threads[0].id, levels: 20 } } }) });
+      const stack = await stackResponse.json(); const frame = stack.body?.stackFrames?.[0];
+      $('#debug-details').innerHTML = frame ? `<b>CALL STACK</b><br>${esc(frame.name)}<br><span>${esc(frame.source?.path || '')}:${esc(frame.line || '')}</span>` : 'No stack frames returned.';
+      if (frame?.id) { const scopesResponse = await fetch('http://127.0.0.1:4777/api/dap/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'python-debugpy', request: { command: 'scopes', arguments: { frameId: frame.id } } }) }); const scopes = await scopesResponse.json(); $('#debug-details').insertAdjacentHTML('beforeend', `<br><b>SCOPES</b> ${esc((scopes.body?.scopes || []).map(scope => scope.name).join(', ') || 'none')}`); }
+    }
     appendLog('DAP', `Threads refreshed: ${count}.`);
   } catch (error) { appendLog('DAP', error.message, 'warning'); }
 }

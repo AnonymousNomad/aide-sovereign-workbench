@@ -145,6 +145,19 @@ const server = http.createServer(async (request, response) => {
       try { return json(response, 200, { log: await runGit(['log', '--oneline', '--decorate', '-12']) }); }
       catch (error) { return json(response, 200, { log: '', unavailable: error.message }); }
     }
+    if (request.method === 'POST' && request.url === '/api/git/stage') {
+      const input = await body(request);
+      if (input.approved !== true || !Array.isArray(input.paths) || !input.paths.length) throw new Error('approved file paths are required');
+      if (input.paths.some(item => typeof item !== 'string' || item.startsWith('/') || item.includes('..'))) throw new Error('unsafe Git path');
+      return json(response, 200, { staged: await runGit(['add', '--', ...input.paths]) });
+    }
+    if (request.method === 'POST' && request.url === '/api/git/commit') {
+      const input = await body(request);
+      if (input.approved !== true) throw new Error('explicit approval required');
+      const message = String(input.message || '').trim();
+      if (!message || message.length > 200) throw new Error('commit message is required');
+      return json(response, 200, { committed: await runGit(['commit', '-m', message]) });
+    }
     if (request.method === 'GET' && request.url === '/api/tasks') return json(response, 200, { tasks: taskManager.list(), active: taskManager.status() });
     if (request.method === 'POST' && request.url === '/api/tasks/run') return json(response, 200, taskManager.run((await body(request)).id));
     if (request.method === 'POST' && request.url === '/api/tasks/stop') return json(response, 200, taskManager.stop());

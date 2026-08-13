@@ -58,14 +58,20 @@ export class TutorManager {
     if (!match) throw new Error('lesson check is not a supported allowlisted command');
     const args = [match[2]]; if (match[3]) args.push(match[3].replace(/^['"]|['"]$/g, ''));
     const candidates = match[1] === 'python' || match[1] === 'python3'
-      ? [...new Set([this.pythonPath || match[1], match[1], 'python3'].filter(Boolean))]
-      : [match[1]];
+      ? [
+        ...(this.pythonPath ? [{ command: this.pythonPath, prefix: [] }] : []),
+        ...(process.platform === 'win32' ? [{ command: 'py', prefix: ['-3'] }] : []),
+        { command: match[1], prefix: [] },
+        { command: 'python3', prefix: [] }
+      ]
+      : [{ command: match[1], prefix: [] }];
     let lastError = null;
-    for (const interpreter of candidates) {
-      try { const output = await run(interpreter, args, { timeout: 30_000, maxBuffer: 64 * 1024 }); return this.#recordCheck(courseId, lesson, { passed: true, stdout: output.stdout, stderr: output.stderr }); }
+    for (const candidate of candidates) {
+      try { const output = await run(candidate.command, [...candidate.prefix, ...args], { timeout: 30_000, maxBuffer: 64 * 1024 }); return this.#recordCheck(courseId, lesson, { passed: true, stdout: output.stdout, stderr: output.stderr }); }
       catch (error) {
         lastError = error;
-        if (error.code !== 'ENOENT') return this.#recordCheck(courseId, lesson, { passed: false, stdout: error.stdout || '', stderr: error.stderr || error.message });
+        const unavailable = error.code === 'ENOENT' || error.code === 9009 || String(error.stderr || '').includes('Python was not found');
+        if (!unavailable) return this.#recordCheck(courseId, lesson, { passed: false, stdout: error.stdout || '', stderr: error.stderr || error.message });
       }
     }
     return this.#recordCheck(courseId, lesson, { passed: false, stdout: lastError?.stdout || '', stderr: lastError?.stderr || lastError?.message || 'no usable interpreter found' });

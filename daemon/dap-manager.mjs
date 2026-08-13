@@ -38,7 +38,8 @@ export class DapManager {
     if (!adapter) throw new Error('debug adapter is not allowlisted');
     if (this.processes.has(id)) return { id, status: 'running' };
     const command = adapter.command === '.venv/bin/python' && this.pythonPath ? this.pythonPath : path.resolve(this.workspace, adapter.command);
-    await fs.access(command).catch(() => { throw new Error(`debug adapter is unavailable: ${command}`); });
+    const pathLike = path.isAbsolute(command) || command.includes(path.sep);
+    if (pathLike) await fs.access(command).catch(() => { throw new Error(`debug adapter is unavailable: ${command}`); });
     const child = this.spawnProcess(command, adapter.args, { cwd: this.workspace, stdio: ['pipe', 'pipe', 'pipe'] });
     this.processes.set(id, child);
     child.stdout?.on('data', data => this.#consume(id, data));

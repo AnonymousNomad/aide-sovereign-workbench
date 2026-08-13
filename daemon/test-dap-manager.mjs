@@ -13,4 +13,7 @@ await manager.load();
 assert.equal(manager.status()[0].status, 'available');
 assert.deepEqual(await manager.start('python'), { id: 'python', status: 'starting', languages: ['python'], protocol: 'DAP' });
 await assert.rejects(manager.start('unknown'), /not allowlisted/);
+const pathCommandManager = new DapManager({ manifestPath: path.join(root, 'debuggers.json'), workspace: root, pythonPath: 'python3', spawnProcess: () => ({ once() {}, kill() {} }) });
+await pathCommandManager.load();
+assert.deepEqual(await pathCommandManager.start('python'), { id: 'python', status: 'starting', languages: ['python'], protocol: 'DAP' });
 console.log('dap manager test passed');

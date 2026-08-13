@@ -100,3 +100,6 @@ export class EditorGroups {
     };
   }
 }
+if (typeof window !== 'undefined') {
+  window.EditorGroups = EditorGroups;
+}

@@ -1,4 +1,4 @@
-const state = { manifest: null, node: null, selected: null, runtimeReady: false, runtimeModels: new Map(), activeFile: 'README.md', secondaryFile: null, splitEditor: false, openFiles: [], dirtyFiles: new Set(), editorStacks: new Map(), findState: { query: '', matches: [], index: 0 }, conversation: [], files: {
+const state = { manifest: null, node: null, selected: null, runtimeReady: false, runtimeModels: new Map(), activeFile: 'README.md', secondaryFile: null, splitEditor: false, editorGroups: null, openFiles: [], dirtyFiles: new Set(), editorStacks: new Map(), findState: { query: '', matches: [], index: 0 }, conversation: [], files: {
   'agent.ts': `import { ChatMessage, ModelAdapter } from './types';
 import { LocalModelRouter } from './router';
 
@@ -47,6 +47,7 @@ const patchValid = value => /^diff --git\s+\S+\s+\S+/m.test(value) && /^---\s+/m
 
 async function ensureEditorModules() {
   if (!window.UndoStack) await import('./editor/undo-stack.mjs');
+  if (!window.EditorGroups) await import('./editor/groups.mjs');
 }
 const currentStack = () => state.editorStacks.get(state.activeFile) || null;
 
@@ -206,6 +207,8 @@ async function openFile(name) {
   state.activeFile = name;
   if (!state.openFiles.includes(name)) state.openFiles.push(name);
   if (!state.editorStacks.has(name)) state.editorStacks.set(name, new UndoStack(content));
+  if (!state.editorGroups) state.editorGroups = new EditorGroups('A');
+  if (!state.editorGroups.state().groups[0].tabs.includes(name)) state.editorGroups.open(0, name);
   renderEditorText();
   document.querySelectorAll('[data-file]').forEach(button => button.classList.toggle('active', button.dataset.file === name));
   renderEditorTabs();
@@ -222,12 +225,17 @@ function renderEditorTabs() {
 
 async function toggleSplitEditor() {
   state.splitEditor = !state.splitEditor; $('#secondary-editor').hidden = !state.splitEditor;
-  if (state.splitEditor) { state.secondaryFile = state.openFiles.find(file => file !== state.activeFile) || state.openFiles[0] || 'README.md'; await openSecondaryFile(state.secondaryFile); }
+  if (state.splitEditor) {
+    const other = state.openFiles.find(file => file !== state.activeFile) || state.openFiles[0] || 'README.md';
+    if (state.editorGroups) state.editorGroups.open(state.editorGroups.state().groups.length > 1 ? 1 : 0, other);
+    await openSecondaryFile(other);
+  }
   renderEditorTabs();
 }
 
 async function openSecondaryFile(name) {
   state.secondaryFile = name; const fallback = state.files[name] || ''; try { const response = await fetch(`http://127.0.0.1:4777/api/file?path=${encodeURIComponent(name)}`); $('#secondary-code').textContent = response.ok ? (await response.json()).content : fallback; } catch { $('#secondary-code').textContent = fallback; } $('#secondary-line-numbers').textContent = $('#secondary-code').textContent.split('\n').map((_, index) => index + 1).join('\n');
+  if (state.editorGroups && state.editorGroups.state().groups.length > 1) state.editorGroups.open(1, name);
 }
 
 async function saveSession(statePatch) {

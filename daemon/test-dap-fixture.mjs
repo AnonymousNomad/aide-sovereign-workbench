@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { DapManager } from './dap-manager.mjs';
+import { checkProcessAlive } from './process-check.mjs';
 
 const root = path.resolve(process.cwd());
 const fixtureDir = path.join(root, 'fixtures', 'debuggee');
@@ -177,14 +178,8 @@ try {
     const rawPid = await fs.readFile(pidFile, 'utf8');
     const debuggeePid = Number(rawPid.trim());
     if (Number.isFinite(debuggeePid) && debuggeePid > 0) {
-      const isWindows = process.platform === 'win32';
-      const task = spawn(isWindows ? 'tasklist' : 'ps', isWindows ? ['/FI', `PID eq ${debuggeePid}`, '/NH'] : ['-p', String(debuggeePid), '-o', 'pid='], { stdio: ['ignore', 'pipe', 'pipe'] });
-      const out = await new Promise(resolve => {
-        let acc = '';
-        task.stdout.on('data', chunk => { acc += chunk; });
-        task.once('exit', () => resolve(acc));
-      });
-      orphanFree = isWindows ? !out.toLowerCase().includes('python') : out.trim() === '';
+      const processState = await checkProcessAlive(debuggeePid);
+      orphanFree = !processState.alive;
       orphanDetail = orphanFree ? 'no orphaned debuggee process' : `orphaned debuggee PID ${debuggeePid} still alive`;
     } else {
       orphanFree = false;

@@ -1,4 +1,4 @@
-const state = { manifest: null, node: null, selected: null, runtimeReady: false, activeFile: 'README.md', secondaryFile: null, splitEditor: false, openFiles: [], dirtyFiles: new Set(), files: {
+const state = { manifest: null, node: null, selected: null, runtimeReady: false, runtimeModels: new Map(), activeFile: 'README.md', secondaryFile: null, splitEditor: false, openFiles: [], dirtyFiles: new Set(), editorStacks: new Map(), findState: { query: '', matches: [], index: 0 }, conversation: [], files: {
   'agent.ts': `import { ChatMessage, ModelAdapter } from './types';
 import { LocalModelRouter } from './router';
 
@@ -45,20 +45,171 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 const patchValid = value => /^diff --git\s+\S+\s+\S+/m.test(value) && /^---\s+/m.test(value) && /^\+\+\+\s+/m.test(value) && !/^```/m.test(value);
 
+async function ensureEditorModules() {
+  if (!window.UndoStack) await import('./editor/undo-stack.mjs');
+}
+const currentStack = () => state.editorStacks.get(state.activeFile) || null;
+
+function refreshLineNumbers() {
+  $('#line-numbers').textContent = $('#code').textContent.split('\n').map((_, index) => index + 1).join('\n');
+}
+
+function updateFindCount() {
+  const { matches, index } = state.findState;
+  $('#find-count').textContent = matches.length ? `${(index % matches.length) + 1}/${matches.length}` : '0/0';
+}
+
+function renderEditorText() {
+  const stack = currentStack();
+  $('#code').textContent = stack ? stack.text() : (state.files[state.activeFile] || '');
+  refreshLineNumbers();
+  if (state.findState.query) markFind(state.findState.query, true);
+}
+
+function markFind(query, keepIndex) {
+  const text = currentStack()?.text() || '';
+  if (!query) { $('#code').textContent = text; state.findState.matches = []; updateFindCount(); return; }
+  const lower = text.toLowerCase(); const q = query.toLowerCase();
+  const matches = []; let pos = lower.indexOf(q);
+  while (pos !== -1) { matches.push(pos); pos = lower.indexOf(q, pos + q.length); }
+  state.findState.query = query;
+  state.findState.matches = matches;
+  if (!keepIndex) state.findState.index = 0;
+  updateFindCount();
+  if (!matches.length) { $('#code').textContent = text; return; }
+  const count = matches.length;
+  const idx = ((state.findState.index % count) + count) % count;
+  let html = ''; let cursor = 0;
+  matches.forEach((match, i) => {
+    html += esc(text.slice(cursor, match)) + `<mark>${esc(text.slice(match, match + q.length))}</mark>`;
+    cursor = match + q.length;
+  });
+  html += esc(text.slice(cursor));
+  $('#code').innerHTML = html;
+  [...$('#code').querySelectorAll('mark')][idx]?.classList.add('active-match');
+}
+
+function findNext(dir = 1) {
+  if (!state.findState.matches.length) return;
+  const count = state.findState.matches.length;
+  state.findState.index = ((state.findState.index + dir) % count + count) % count;
+  markFind(state.findState.query, true);
+}
+
+function replaceCurrent() {
+  const stack = currentStack();
+  if (!stack || !state.findState.query || !state.findState.matches.length) return;
+  const q = state.findState.query;
+  const count = state.findState.matches.length;
+  const idx = ((state.findState.index % count) + count) % count;
+  const start = state.findState.matches[idx];
+  const after = stack.text().slice(0, start) + $('#replace-input').value + stack.text().slice(start + q.length);
+  try { for (const op of diffOperation(stack.text(), after)) stack.apply(op); } catch (error) { appendLog('EDITOR', `Replace blocked: ${error.message}`, 'warning'); return; }
+  renderEditorText();
+  markFind(state.findState.query, true);
+  syncDirty();
+}
+
+function replaceAll() {
+  const stack = currentStack();
+  if (!stack || !state.findState.query) return;
+  const q = state.findState.query; const query = q.toLowerCase();
+  const text = stack.text(); const replacement = $('#replace-input').value;
+  let out = ''; let pos = 0; let count = 0;
+  let idx = text.toLowerCase().indexOf(query);
+  while (idx !== -1) { out += text.slice(pos, idx) + replacement; pos = idx + q.length; count++; idx = text.toLowerCase().indexOf(query, pos); }
+  out += text.slice(pos);
+  try { for (const op of diffOperation(text, out)) stack.apply(op); } catch (error) { appendLog('EDITOR', `Replace all blocked: ${error.message}`, 'warning'); return; }
+  renderEditorText();
+  markFind(state.findState.query, true);
+  appendLog('EDITOR', `Replaced ${count} occurrence(s) of "${state.findState.query}".`);
+  syncDirty();
+}
+
+async function searchWorkspace() {
+  const q = $('#find-input').value.trim();
+  const panel = $('#search-results');
+  if (!q) { panel.hidden = true; return; }
+  panel.hidden = false;
+  panel.innerHTML = '<div class="search-file">Searching workspace...</div>';
+  try {
+    const response = await fetch(`http://127.0.0.1:4777/api/search?q=${encodeURIComponent(q)}`);
+    const result = await response.json();
+    panel.innerHTML = `<div class="search-file">${result.total} match(es) across ${result.results.length} file(s) - click a hit to open.</div>` + result.results.map(file => `<div class="search-file">${esc(file.path)}</div>` + file.hits.map(hit => {
+      const idx = hit.text.toLowerCase().indexOf(q.toLowerCase());
+      const shown = idx === -1 ? esc(hit.text) : `${esc(hit.text.slice(0, idx))}<mark>${esc(hit.text.slice(idx, idx + q.length))}</mark>${esc(hit.text.slice(idx + q.length))}`;
+      return `<button data-search-file="${esc(file.path)}">${hit.line}: ${shown}</button>`;
+    }).join('')).join('');
+    panel.querySelectorAll('[data-search-file]').forEach(button => button.onclick = () => { openFile(button.dataset.searchFile); panel.hidden = true; });
+  } catch (error) { panel.innerHTML = `<div class="search-file">Search failed: ${esc(error.message)}</div>`; }
+}
+
+function undoEditor() {
+  const stack = currentStack();
+  if (!stack || !stack.canUndo) return;
+  stack.undo(); renderEditorText(); syncDirty();
+}
+function redoEditor() {
+  const stack = currentStack();
+  if (!stack || !stack.canRedo) return;
+  stack.redo(); renderEditorText(); syncDirty();
+}
+
+function syncDirty() {
+  const dirty = new Set([...state.editorStacks.entries()].filter(([, stack]) => stack.dirty).map(([file]) => file));
+  const key = [...dirty].sort().join('|');
+  if (key !== [...state.dirtyFiles].sort().join('|')) { state.dirtyFiles = dirty; renderEditorTabs(); }
+}
+
+function openFind() {
+  const bar = $('#find-bar');
+  bar.hidden = false;
+  $('#find-input').focus(); $('#find-input').select();
+}
+function closeFind() {
+  $('#find-bar').hidden = true;
+  $('#search-results').hidden = true;
+  markFind('');
+}
+
+function bindEditorShortcuts() {
+  $('#find-input').oninput = event => markFind(event.target.value);
+  $('#find-input').onkeydown = event => {
+    if (event.key === 'Enter') { event.preventDefault(); findNext(event.shiftKey ? -1 : 1); }
+    if (event.key === 'Escape') { closeFind(); $('#code').focus(); }
+  };
+  $('#replace-input').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); replaceCurrent(); } };
+  $('#replace-one').onclick = replaceCurrent;
+  $('#replace-all-file').onclick = replaceAll;
+  $('#search-workspace').onclick = searchWorkspace;
+  $('#find-close').onclick = () => { closeFind(); $('#code').focus(); };
+  document.addEventListener('keydown', event => {
+    const mod = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName);
+    if (mod && !typing && !event.shiftKey && key === 's') { event.preventDefault(); saveFile(); return; }
+    if (mod && !typing && !event.shiftKey && key === 'z') { event.preventDefault(); undoEditor(); return; }
+    if (mod && !typing && (key === 'y' || (event.shiftKey && key === 'z'))) { event.preventDefault(); redoEditor(); return; }
+    if (mod && !event.shiftKey && key === 'f') { event.preventDefault(); openFind(); return; }
+    if (mod && event.shiftKey && key === 'f') { event.preventDefault(); searchWorkspace(); }
+  });
+}
+
 async function openFile(name) {
   const text = state.files[name] || state.files['agent.ts'];
-  state.activeFile = name;
-  if (!state.openFiles.includes(name)) state.openFiles.push(name);
+  await ensureEditorModules();
+  let content = text;
   try {
     const response = await fetch(`http://127.0.0.1:4777/api/file?path=${encodeURIComponent(name)}`);
-    if (response.ok) $('#code').textContent = (await response.json()).content;
-    else $('#code').textContent = text;
-  } catch { $('#code').textContent = text; }
-  $('#line-numbers').textContent = text.split('\n').map((_, index) => index + 1).join('\n');
-  $('#line-numbers').textContent = $('#code').textContent.split('\n').map((_, index) => index + 1).join('\n');
+    if (response.ok) content = (await response.json()).content;
+  } catch { /* offline fallback below */ }
+  state.activeFile = name;
+  if (!state.openFiles.includes(name)) state.openFiles.push(name);
+  if (!state.editorStacks.has(name)) state.editorStacks.set(name, new UndoStack(content));
+  renderEditorText();
   document.querySelectorAll('[data-file]').forEach(button => button.classList.toggle('active', button.dataset.file === name));
   renderEditorTabs();
-  saveSession({ active_file: name, open_files: [name] });
+  saveSession({ active_file: name, open_files: state.openFiles });
 }
 
 function renderEditorTabs() {
@@ -84,7 +235,7 @@ async function saveSession(statePatch) {
 }
 
 async function restoreSession() {
-  try { const response = await fetch('http://127.0.0.1:4777/api/session'); const session = await response.json(); if (session.active_file) await openFile(session.active_file); } catch { await openFile('README.md'); }
+  try { const response = await fetch('http://127.0.0.1:4777/api/session'); const session = await response.json(); await openFile(session.active_file || 'README.md'); } catch { await openFile('README.md'); }
 }
 
 function renderWorkspaceTree(nodes, depth = 0) {
@@ -149,15 +300,19 @@ async function runTerminalCommand() {
 }
 
 async function saveFile() {
+  const stack = currentStack();
+  await ensureEditorModules();
   try {
     const response = await fetch('http://127.0.0.1:4777/api/file/write', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: state.activeFile, content: $('#code').textContent, approved: true })
+      body: JSON.stringify({ path: state.activeFile, content: stack ? stack.text() : $('#code').textContent, approved: true })
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'file write rejected');
+    stack?.markSaved();
+    state.dirtyFiles.delete(state.activeFile);
     appendLog('WORKSPACE', `${result.path} saved atomically after explicit approval.`);
-    state.dirtyFiles.delete(state.activeFile); renderEditorTabs();
+    renderEditorTabs();
   } catch (error) {
     appendLog('WORKSPACE', `Save blocked: ${error.message}. Start the local daemon and open a trusted workspace.`, 'warning');
   }
@@ -172,20 +327,22 @@ function renderModels() {
   select.innerHTML = '';
   state.manifest.models.forEach(model => {
     const installed = JSON.parse(localStorage.getItem(`aide.model.${model.id}`) || 'null');
-    const visibleStatus = installed ? 'imported' : model.status;
+    const runtime = state.runtimeModels.get(model.id);
+    const visibleStatus = installed ? 'imported' : (runtime?.setup_required ? 'setup-required' : (runtime?.status || model.status));
+    const artifactName = runtime?.artifact_path ? runtime.artifact_path.split(/[\\/]/).pop() : '';
     const roles = model.roles.join(' / ');
     const item = document.createElement('button');
     item.className = 'model-item';
-    item.innerHTML = `<span class="status ${visibleStatus}"></span><span>${esc(model.name)}</span><small>${esc(model.format)} | ${esc(visibleStatus)} | ${esc(roles)}</small><strong class="pack-action">${installed ? 'REPLACE' : 'IMPORT'}</strong>`;
+    item.innerHTML = `<span class="status ${visibleStatus}"></span><span>${esc(model.name)}</span><small>${esc(model.format)} | ${esc(visibleStatus)} | ${esc(roles)}${artifactName ? ` | ${esc(artifactName)}` : ''}</small><strong class="pack-action">${installed ? 'REPLACE' : 'IMPORT'}</strong>`;
     item.onclick = () => selectModel(model);
     item.querySelector('.pack-action').onclick = event => { event.stopPropagation(); importModel(model); };
     list.appendChild(item);
     const lane = document.createElement('button');
-    lane.className = `lane ${model.status}`;
-    lane.innerHTML = `<b>${esc(model.lane.toUpperCase())}</b><span>${esc(model.name)}</span><small>${esc(roles)}</small>`;
+    lane.className = `lane ${visibleStatus}`;
+    lane.innerHTML = `<b>${esc(model.lane.toUpperCase())}</b><span>${esc(model.name)}</span><small>${esc(roles)}${runtime?.setup_required ? ` | ${esc(runtime.setup_message)}` : ''}</small>`;
     lane.onclick = () => selectModel(model);
     lanes.appendChild(lane);
-    const option = document.createElement('option'); option.value = model.id; option.textContent = `${model.name} [${model.status}]`; option.disabled = model.status === 'training-only'; select.appendChild(option);
+    const option = document.createElement('option'); option.value = model.id; option.textContent = `${model.name} [${visibleStatus}]`; option.disabled = model.status === 'training-only'; select.appendChild(option);
   });
   select.onchange = () => { const model = state.manifest.models.find(item => item.id === select.value); if (model) selectModel(model); };
 }
@@ -209,14 +366,26 @@ let communityStore = { projects: [], issues: [], discussions: [], marketplace: [
   input.click();
 }
 
+async function loadRuntimeModelStatus() {
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/models/status');
+    if (!response.ok) return;
+    state.runtimeModels = new Map((await response.json()).models.map(model => [model.id, model]));
+    renderModels();
+    if (state.selected) selectModel(state.manifest.models.find(model => model.id === state.selected.id) || state.selected);
+  } catch { /* the daemon may still be starting */ }
+}
+
 function selectModel(model) {
   state.selected = model;
   state.runtimeReady = false;
+  const runtime = state.runtimeModels.get(model.id);
   if ($('#model-select')) $('#model-select').value = model.id;
   $('#selected-model').textContent = model.name;
-  $('#selected-detail').textContent = `${model.format} | ${model.status} | ${model.description}`;
+  const artifactName = runtime?.artifact_path ? runtime.artifact_path.split(/[\\/]/).pop() : '';
+  $('#selected-detail').textContent = `${model.format} | ${runtime?.status || model.status}${artifactName ? ` | ${artifactName}` : ''} | ${model.description}`;
   $('#runtime-name').textContent = model.runtime;
-  setRuntimeState('Model selected. Press START MODEL.', '');
+  setRuntimeState(runtime?.setup_required ? runtime.setup_message : 'Model selected. Press START MODEL.', runtime?.setup_required ? 'error' : '');
 }
 
 function setRuntimeState(text, kind = '') {
@@ -283,6 +452,8 @@ async function startModelHandoff() {
 async function testRuntime() {
   const model = state.selected || state.manifest.models.find(item => item.status !== 'pending');
   if (!model) return appendLog('RUNTIME', 'No configured local model endpoint.', 'warning');
+  const runtime = state.runtimeModels.get(model.id);
+  if (runtime?.setup_required) { setRuntimeState(runtime.setup_message, 'error'); return appendLog('RUNTIME', runtime.setup_message, 'warning'); }
   appendLog('RUNTIME', `Testing ${model.name} at ${model.endpoint}...`);
   try {
     const response = await fetch(`${model.endpoint}/models`);
@@ -299,6 +470,8 @@ async function testRuntime() {
 async function startRuntime() {
   const model = state.selected;
   if (!model) return appendLog('RUNTIME', 'Select a model pack first.', 'warning');
+  const runtime = state.runtimeModels.get(model.id);
+  if (runtime?.setup_required) { setRuntimeState(runtime.setup_message, 'error'); return appendLog('RUNTIME', runtime.setup_message, 'warning'); }
   if (model.status === 'pending' || model.status === 'training-only') return appendLog('RUNTIME', 'This model is not available for chat. Choose the ready coding model.', 'warning');
   state.runtimeReady = false;
   setRuntimeState('Starting model. Please wait...', 'busy');
@@ -343,13 +516,17 @@ async function sendChat() {
   input.value = '';
   try {
     const mode = $('#assistant-mode').value; const providerId = $('#provider-select').value;
+    const history = state.conversation.slice(-8);
     const response = providerId === 'local-openai-compatible'
-      ? await fetch('http://127.0.0.1:4777/api/operator', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, modelId: state.selected.id, prompt: value }) })
-      : await fetch('http://127.0.0.1:4777/api/providers/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providerId, messages: [{ role: 'user', content: value }], max_tokens: 512 }) });
+      ? await fetch('http://127.0.0.1:4777/api/operator', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, modelId: state.selected.id, prompt: value, history }) })
+      : await fetch('http://127.0.0.1:4777/api/providers/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providerId, messages: [...history, { role: 'user', content: value }], max_tokens: 512 }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'chat request failed');
     const answer = result.answer || result.choices?.[0]?.message?.content || 'The selected provider returned no text.';
+    state.conversation.push({ role: 'user', content: value }, { role: 'assistant', content: answer });
+    state.conversation = state.conversation.slice(-8);
     const last = $('#chat').lastElementChild; last.innerHTML = `<b>${esc(state.selected.name)}</b><br>${esc(answer)}`;
+    if (result.mode && mode === 'auto') last.insertAdjacentHTML('beforeend', `<small class="audit-badge">ROUTED: ${esc(result.mode.toUpperCase())}</small>`);
     if (result.audit?.id) last.insertAdjacentHTML('beforeend', `<small class="audit-badge">AUDIT ARTIFACT ${esc(result.audit.id)} / ${esc(result.audit.status)}</small>`);
     if (result.approval_required && result.proposed_tools?.length) {
       const approval = document.createElement('button'); approval.className = 'agent-approval'; approval.textContent = `APPROVE ${result.proposed_tools.length} TOOL CALL(S)`; approval.onclick = async () => { approval.disabled = true; for (const tool of result.proposed_tools) { const toolResponse = await fetch('http://127.0.0.1:4777/api/terminal/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...tool, approved: true }) }); const toolResult = await toolResponse.json(); $('#chat').insertAdjacentHTML('beforeend', `<pre class="terminal-output ${toolResponse.ok && !toolResult.code ? 'ok' : 'error'}">${esc(toolResult.stdout || toolResult.stderr || toolResult.error || `(exit ${toolResult.code})`)}</pre>`); } }; $('#chat').appendChild(approval);
@@ -632,13 +809,19 @@ function bindAcademy() {
 function bindWorkbenchNavigation() {
   $('#explorer-button').onclick = () => { document.body.classList.add('simple-mode'); $('#mode-toggle').textContent = 'ADVANCED'; $('#workspace-tree').scrollIntoView({ block: 'nearest' }); };
   $('#run-button').onclick = () => { document.querySelector('.bottom-panel').scrollIntoView({ block: 'nearest' }); $('#terminal-command').focus(); };
-  $('#ai-button').onclick = () => { document.querySelector('.agent-panel').scrollIntoView({ block: 'nearest' }); $('#input').focus(); };
+  $('#ai-button').onclick = () => { document.body.classList.toggle('mobile-agent-open'); document.querySelector('.agent-panel').scrollIntoView({ block: 'nearest' }); $('#input').focus(); };
   $('#plugins-button').onclick = () => { document.body.classList.remove('simple-mode'); $('#mode-toggle').textContent = 'SIMPLE'; $('#plugin-list').scrollIntoView({ block: 'nearest' }); };
   $('#settings-button').onclick = () => appendLog('SETTINGS', 'Settings surface is not enabled yet. No hidden configuration is being changed.', 'warning');
 }
 
 const commands = [
   { id: 'open-readme', label: 'Open README.md', run: () => openFile('README.md') },
+  { id: 'editor-undo', label: 'Editor: Undo (Ctrl+Z)', run: () => { undoEditor(); } },
+  { id: 'editor-redo', label: 'Editor: Redo (Ctrl+Y)', run: () => { redoEditor(); } },
+  { id: 'editor-find', label: 'Editor: Find (Ctrl+F)', run: () => { openFind(); } },
+  { id: 'editor-replace', label: 'Editor: Replace in file (Alt+R)', run: () => { openFind(); $('#replace-input').focus(); } },
+  { id: 'editor-save', label: 'Editor: Save active file (Ctrl+S)', run: () => { saveFile(); } },
+  { id: 'search-workspace', label: 'Search: Whole workspace (Ctrl+Shift+F)', run: () => { openFind(); searchWorkspace(); } },
   { id: 'run-tests', label: 'Tasks: Run full test suite', run: () => document.querySelector('[data-task-id="test"]')?.click() },
   { id: 'focus-chat', label: 'Assistant: Focus chat', run: () => { $('#ai-button').click(); $('#input').focus(); } },
   { id: 'show-blueprint', label: 'AIDE: Open Blueprint', run: () => $('#blueprint-button').click() },
@@ -678,6 +861,7 @@ async function boot() {
     $('#node-status').textContent = 'Node policy unavailable.';
   }
   renderModels();
+  await loadRuntimeModelStatus();
   const firstReady = state.manifest.models.find(model => model.status !== 'pending');
   if (firstReady) selectModel(firstReady);
   setRuntimeState('Choose START MODEL, then wait for the green ready message.');
@@ -724,7 +908,23 @@ async function boot() {
   setInterval(refreshTrainingStatus, 5000);
   loadCommunity();
   $('#input').onkeydown = event => { if (event.key === 'Enter') sendChat(); };
-  $('#code').oninput = () => { state.dirtyFiles.add(state.activeFile); renderEditorTabs(); };
+  bindEditorShortcuts();
+  $('#code').oninput = () => {
+    const stack = currentStack();
+    if (!stack) return;
+    const before = stack.text();
+    const after = $('#code').textContent;
+    if (before === after) return;
+    try {
+      for (const op of diffOperation(before, after)) stack.apply(op);
+    } catch (error) {
+      appendLog('EDITOR', `Undo history reset: ${error.message}`, 'warning');
+      state.editorStacks.set(state.activeFile, new UndoStack(after));
+    }
+    syncDirty();
+    refreshLineNumbers();
+    if (state.findState.query) markFind(state.findState.query, true);
+  };
   renderEditorTabs();
 }
 

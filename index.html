@@ -98,6 +98,15 @@
         <div class="blueprint-stage"><canvas id="blueprint-canvas" aria-label="Three dimensional project blueprint"></canvas><aside id="blueprint-inspector" class="blueprint-inspector"><b>SELECT A NODE</b><p>Choose a node to inspect its dependencies and next gate.</p></aside></div>
       </section>
        <div id="editor-tabs" class="tabs"></div>
+       <div id="find-bar" class="find-bar" hidden>
+        <input id="find-input" placeholder="Find in file (Ctrl+F / Enter next / Shift+Enter previous)" aria-label="Find in active file"><span id="find-count" class="find-count" aria-live="polite"></span>
+        <input id="replace-input" placeholder="Replace" aria-label="Replace in active file">
+        <button id="replace-one" class="mini" title="Replace current match">REPLACE</button>
+        <button id="replace-all-file" class="mini" title="Replace all matches in this file">REPLACE ALL</button>
+        <button id="search-workspace" class="mini" title="Search the whole workspace">SEARCH WORKSPACE</button>
+        <button id="find-close" class="mini" title="Close (Esc)">CLOSE</button>
+       </div>
+       <div id="search-results" class="search-results" hidden aria-label="Workspace search results"></div>
       <div class="breadcrumbs">src <b>/</b> agent.ts <b>/</b> AgentRuntime</div>
        <div class="editor" role="textbox" aria-label="Code editor">
         <div id="line-numbers" class="line-numbers"></div>
@@ -121,10 +130,11 @@
       <div class="runtime-row"><span class="dot green"></span><span>Local adapter</span><b id="runtime-name">OpenAI-compatible HTTP</b></div>
       <div id="collab-log" class="collab-log"><div class="empty-state">Cross-chat is idle.<br>Start a bounded review to create a research, build, and verify run.</div></div>
       <div class="agent-actions"><button id="review-button" class="primary">START BOUNDED WORKFLOW</button><button id="handoff-button" class="secondary">START MODEL HANDOFF</button><button id="connection-button" class="secondary">START / TEST RUNTIME</button></div>
-      <div class="chat-label">ASSISTANT / MODEL OPERATOR</div><div class="chat-row"><select id="assistant-mode" aria-label="Assistant mode"><option value="ask">ASK / ONE MODEL</option><option value="plan">PLAN / ONE MODEL</option><option value="agent">AGENT / ONE MODEL</option><option value="dual">DUAL / TWO MODELS</option></select><input id="input" placeholder="Ask the active local model..." aria-label="Ask the active local model"><button id="send-button">SEND</button></div>
+      <div class="chat-label">ASSISTANT / MODEL OPERATOR</div><div class="chat-row"><select id="assistant-mode" aria-label="Assistant mode"><option value="auto">AUTO / AIDE ROUTER</option><option value="ask">ASK / ONE MODEL</option><option value="plan">PLAN / ONE MODEL</option><option value="agent">AGENT / ONE MODEL</option><option value="dual">DUAL / TWO MODELS</option></select><input id="input" placeholder="Ask the active local model..." aria-label="Ask the active local model"><button id="send-button">SEND</button></div>
       <div id="chat" class="chat" aria-live="polite"></div>
     </aside>
   </main>
+  <script type="module" src="editor/undo-stack.mjs"></script>
   <script src="app.js"></script>
   <input id="model-file-input" type="file" accept=".gguf,.safetensors" hidden>
 </body>

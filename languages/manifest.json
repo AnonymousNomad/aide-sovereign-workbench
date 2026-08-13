@@ -4,7 +4,7 @@
     {
       "id": "typescript",
       "name": "TypeScript Language Server",
-      "command": "node_modules/.bin/typescript-language-server",
+      "command": "node_modules/typescript-language-server/lib/cli.mjs",
       "args": ["--stdio"],
       "languages": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
       "protocol": "LSP",

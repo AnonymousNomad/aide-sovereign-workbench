@@ -12,5 +12,8 @@ const manager = new ModelManager({ manifestPath: path.join(root, 'models', 'mani
 await manager.load();
 assert.equal(manager.status()[0].status, 'pending');
 await assert.rejects(manager.start('unknown'), /not allowlisted/);
-await assert.rejects(manager.start('safe'), /llama-server binary/);
+await assert.rejects(manager.start('safe'), /llama-server/);
+const override = new ModelManager({ manifestPath: path.join(root, 'models', 'manifest.json'), modelDir: path.join(root, 'models'), binaryPath: process.execPath, modelPath: path.join(root, 'models', 'safe.gguf'), spawnProcess: () => ({ once() {}, kill() {} }) });
+await override.load();
+assert.equal(override.status()[0].artifact_available, true);
 console.log('model manager test passed');

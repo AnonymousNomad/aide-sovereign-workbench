@@ -1,0 +1,93 @@
+(() => {
+  const out = (line) => { document.getElementById('editor-smoke-output').textContent += '\n' + line; };
+  const results = [];
+  const check = (name, value) => results.push(`${value ? 'PASS' : 'FAIL'} ${name}`);
+  const step = (label) => { document.title = `EDITOR-SMOKE-${label}`; };
+
+  const waitFor = async (predicate, label, attempts = 200) => {
+    for (let i = 0; i < attempts; i += 1) { if (predicate()) return true; await new Promise(resolve => setTimeout(resolve, 25)); }
+    check(label, false);
+    return false;
+  };
+
+  const type = async (element, text) => {
+    element.textContent = text;
+    element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+    await new Promise(resolve => setTimeout(resolve, 10));
+  };
+
+  (async () => {
+    try {
+      window.addEventListener('error', event => out(`WINDOW-ERROR ${event.message} @ ${event.filename}:${event.lineno}`));
+      window.addEventListener('unhandledrejection', event => out(`REJECTION ${String(event.reason && (event.reason.stack || event.reason))}`));
+      step('BOOT');
+      await waitFor(() => state.editorStacks && state.editorStacks.size > 0 && window.UndoStack, 'boot: undo stack module + open file');
+      if (!state.editorStacks || !state.editorStacks.size) { out('boot diagnostics: stacks empty, editor never opened'); return; }
+      check('boot: openFiles restored', state.openFiles.length >= 1);
+      const active = state.activeFile;
+      const base = $('#code').textContent;
+      check('editor: pre has content', base.length > 0);
+
+      check('modules: UndoStack exposed', typeof window.UndoStack === 'function' && typeof window.diffOperation === 'function');
+
+      step('UNDO-REDO');
+      const edited = base + '\n// smoke-edit';
+      await type($('#code'), edited);
+      check('undo: text applied', $('#code').textContent === edited);
+      check('undo: dirty marked', state.dirtyFiles.has(active));
+      undoEditor();
+      check('undo: reverted byte-exact', $('#code').textContent === base);
+      check('undo: clean at base', !state.dirtyFiles.has(active));
+      redoEditor();
+      check('undo: redo restores', $('#code').textContent === edited);
+      check('undo: dirty after redo', state.dirtyFiles.has(active));
+
+      step('FIND');
+      openFind();
+      check('find: bar opens', !$('#find-bar').hidden);
+      $('#find-input').value = 'SMOKE';
+      $('#find-input').dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: 'SMOKE' }));
+      await new Promise(resolve => setTimeout(resolve, 10));
+      check('find: marks rendered', $('#code').querySelectorAll('mark').length === 2);
+      check('find: marked text content identical', $('#code').textContent === edited);
+      findNext();
+      check('find: active match class', !!$('#code').querySelector('mark.active-match'));
+
+      step('REPLACE');
+      $('#replace-input').value = ' ##SMOKE';
+      replaceCurrent();
+      const expectedAfterReplace = base + '\n//  ##SMOKE-edit';
+      check('replace: text replaced', $('#code').textContent === expectedAfterReplace);
+      check('replace: still dirty', state.dirtyFiles.has(active));
+      $('#replace-input').value = 'X';
+      replaceAll();
+      check('replace-all: all replaced', $('#code').textContent.split('X').length >= 3);
+
+      step('SEARCH');
+      $('#find-input').value = 'Smoke';
+      await searchWorkspace();
+      await waitFor(() => !$('#search-results').hidden && $('#search-results').textContent.includes('README.md'), 'search: results listed');
+      check('search: panel open', !$('#search-results').hidden);
+
+      step('SAVE');
+      await saveFile();
+      check('save: dirty cleared', !state.dirtyFiles.has(active));
+      const stack = state.editorStacks.get(active);
+      check('save: baseline recorded', stack && !stack.dirty);
+      const onDisk = await fetch(`http://127.0.0.1:4777/api/file?path=${encodeURIComponent(active)}`).then(response => response.json()).then(result => result.content).catch(() => null);
+      check('save: written to workspace', onDisk === stack?.text());
+
+      step('PALETTE');
+      const editorCommands = commands.filter(command => command.id.startsWith('editor-') || command.id === 'search-workspace');
+      check('palette: editor commands registered', editorCommands.length === 6);
+
+      step('DONE');
+      out(results.join('\n'));
+      document.title = results.every(line => line.startsWith('PASS')) ? 'EDITOR-SMOKE-ALL-PASS' : 'EDITOR-SMOKE-FAILED';
+    } catch (error) {
+      out(`EXCEPTION ${error.stack || error}`);
+      step('EXCEPTION');
+      document.title = 'EDITOR-SMOKE-FAILED';
+    }
+  })();
+})();

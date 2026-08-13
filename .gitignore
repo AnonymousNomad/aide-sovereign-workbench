@@ -9,3 +9,5 @@ models/*.safetensors
 .env.*
 !.env.example
 community/store.local.json
+
+.aide/

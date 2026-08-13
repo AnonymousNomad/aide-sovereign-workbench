@@ -2,6 +2,7 @@ import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ModelManager } from './model-manager.mjs';
 import { CommunityStore } from '../community/store.mjs';
 import { LspManager } from './lsp-manager.mjs';
@@ -21,36 +22,44 @@ import { ProviderManager } from '../providers/manager.mjs';
 import { WorkflowManager } from './workflow.mjs';
 import { HandoffManager } from './handoff.mjs';
 
+const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
-const WORKSPACE = path.resolve(process.env.AIDE_WORKSPACE || process.cwd());
-const MODEL_DIR = path.resolve(process.env.AIDE_MODEL_DIR || path.join(WORKSPACE, 'models'));
-const MANIFEST = path.join(WORKSPACE, 'models', 'manifest.json');
-const modelManager = new ModelManager({ manifestPath: MANIFEST, modelDir: MODEL_DIR, binaryPath: process.env.AIDE_LLAMA_SERVER || '/root/runtime/llama-b10333/llama-server' });
+const AIDE_HOME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const WORKSPACE = path.resolve(process.env.AIDE_WORKSPACE || AIDE_HOME);
+const STATE_DIR = path.join(WORKSPACE, '.aide');
+const MODEL_DIR = path.resolve(process.env.AIDE_MODEL_DIR || path.join(AIDE_HOME, 'models'));
+const MANIFEST = path.join(AIDE_HOME, 'models', 'manifest.json');
+const workspaceConfig = async relative => {
+  const candidate = path.join(WORKSPACE, relative);
+  try { await fs.access(candidate); return candidate; } catch { return path.join(AIDE_HOME, relative); }
+};
+const modelManager = new ModelManager({ manifestPath: MANIFEST, modelDir: MODEL_DIR, binaryPath: process.env.AIDE_LLAMA_SERVER || path.join(AIDE_HOME, 'runtime', 'llama-server' + (process.platform === 'win32' ? '.exe' : '')), modelPath: process.env.AIDE_MODEL_PATH || '' });
 await modelManager.load().catch(() => {});
-const communityStore = new CommunityStore(path.join(WORKSPACE, 'community', 'store.json'));
+const communityStore = new CommunityStore(path.join(STATE_DIR, 'community-store.json'));
 await communityStore.load().catch(() => {});
-const lspManager = new LspManager({ manifestPath: path.join(WORKSPACE, 'languages', 'manifest.json'), workspace: WORKSPACE });
+const lspManager = new LspManager({ manifestPath: path.join(AIDE_HOME, 'languages', 'manifest.json'), workspace: WORKSPACE, home: AIDE_HOME });
 await lspManager.load().catch(() => {});
-const dapManager = new DapManager({ manifestPath: path.join(WORKSPACE, 'debuggers', 'manifest.json'), workspace: WORKSPACE, pythonPath: process.env.AIDE_PYTHON || '' });
+const dapManager = new DapManager({ manifestPath: path.join(AIDE_HOME, 'debuggers', 'manifest.json'), workspace: WORKSPACE, pythonPath: process.env.AIDE_PYTHON || '' });
 await dapManager.load().catch(() => {});
 const workspaceManager = new WorkspaceManager(WORKSPACE);
-const trainingManager = new TrainingManager({ manifestPath: path.join(WORKSPACE, 'training', 'manifest.json'), workspace: WORKSPACE });
+const trainingManager = new TrainingManager({ manifestPath: path.join(AIDE_HOME, 'training', 'manifest.json'), workspace: WORKSPACE });
 await trainingManager.load().catch(() => {});
-const replayStore = new ReplayStore(path.join(WORKSPACE, 'replays', 'store.json'));
+const replayStore = new ReplayStore(path.join(STATE_DIR, 'replays.json'));
 await replayStore.load().catch(() => {});
-const arenaManager = new ArenaManager({ modelManager, manifestPath: MANIFEST, suitePath: path.join(WORKSPACE, 'benchmarks', 'manifest.json') });
-const tutorManager = new TutorManager({ coursesDir: path.join(WORKSPACE, 'academy', 'courses'), progressPath: path.join(WORKSPACE, 'academy', 'progress.json'), pythonPath: process.env.AIDE_PYTHON || '' });
+const arenaManager = new ArenaManager({ modelManager, manifestPath: MANIFEST, suitePath: path.join(AIDE_HOME, 'benchmarks', 'manifest.json') });
+const tutorManager = new TutorManager({ coursesDir: path.join(AIDE_HOME, 'academy', 'courses'), progressPath: path.join(STATE_DIR, 'academy-progress.json'), pythonPath: process.env.AIDE_PYTHON || '' });
 await tutorManager.load().catch(() => {});
-const pluginManager = new PluginManager({ pluginsDir: path.join(WORKSPACE, 'plugins'), statePath: path.join(WORKSPACE, 'plugins', 'state.json') });
+const pluginManager = new PluginManager({ pluginsDir: path.join(WORKSPACE, 'plugins'), statePath: path.join(STATE_DIR, 'plugins.json'), presetsPath: path.join(AIDE_HOME, 'plugins', 'presets.json') });
 await pluginManager.load().catch(() => {});
 const operator = new Operator({ modelManager, workspaceManager, gitStatus: () => runGit(['status', '--short']).catch(() => '') });
-const taskManager = new TaskManager({ manifestPath: path.join(WORKSPACE, 'tasks', 'manifest.json'), workspace: WORKSPACE });
+const taskManager = new TaskManager({ manifestPath: await workspaceConfig('tasks/manifest.json'), workspace: WORKSPACE });
 await taskManager.load().catch(() => {});
-const sessionStore = new SessionStore(path.join(WORKSPACE, '.aide', 'session.json'));
+const sessionStore = new SessionStore(path.join(STATE_DIR, 'session.json'));
 await sessionStore.load().catch(() => {});
-const artifactStore = new ArtifactStore(path.join(WORKSPACE, '.aide', 'artifacts'));
-const providerManager = new ProviderManager(path.join(WORKSPACE, 'providers', 'manifest.json'));
+const artifactStore = new ArtifactStore(path.join(STATE_DIR, 'artifacts'));
+const providerManager = new ProviderManager(await workspaceConfig('providers/manifest.json'));
 await providerManager.load().catch(() => {});
 const workflowManager = new WorkflowManager({ modelManager, workspaceManager, artifactStore });
 const handoffManager = new HandoffManager({ modelManager, workspaceManager, artifactStore });
@@ -75,6 +84,19 @@ async function body(request) {
   }
   return data ? JSON.parse(data) : {};
 }
+
+const WORKSPACE_URI = pathToFileURL(path.join(WORKSPACE, 'placeholder')).href.slice(0, -'placeholder'.length);
+const WORKSPACE_PLACEHOLDER = 'file:///workspace/';
+const WORKSPACE_PLACEHOLDER_RE = /^file:\/\/\/workspace\/?/;
+const toRealUri = placeholder => WORKSPACE_PLACEHOLDER_RE.test(placeholder) ? pathToFileURL(path.join(WORKSPACE, placeholder.slice(WORKSPACE_PLACEHOLDER.length))).href : placeholder;
+const toPlaceholderUri = real => real.startsWith(WORKSPACE_URI) ? WORKSPACE_PLACEHOLDER + real.slice(WORKSPACE_URI.length) : real;
+const rewriteIncoming = message => {
+  if (!message || typeof message !== 'object') return message;
+  const params = message.params || {};
+  if (params.rootUri) params.rootUri = toRealUri(params.rootUri);
+  if (params.textDocument?.uri) params.textDocument.uri = toRealUri(params.textDocument.uri);
+  return message;
+};
 
 function runGit(args) {
   return new Promise((resolve, reject) => {
@@ -144,6 +166,28 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/file/write') {
       const input = await body(request);
       return json(response, 200, await workspaceManager.write(input.path, input.content, input.approved));
+    }
+    if (request.method === 'GET' && request.url.startsWith('/api/search?')) {
+      const params = new URL(request.url, 'http://127.0.0.1').searchParams;
+      const query = String(params.get('q') || '').trim();
+      if (!query || query.length > 200) throw new Error('search query is required');
+      const mode = params.get('icase') === '1' ? 'i' : '';
+      const results = [];
+      await (async function walk(dir) {
+        for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+          if (entry.name.startsWith('.') || ['node_modules', 'target'].includes(entry.name)) continue;
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) { if (results.length < 400) await walk(full); continue; }
+          const relative = path.relative(WORKSPACE, full).split(path.sep).join('/');
+          const stat = await fs.stat(full);
+          if (stat.size > 512 * 1024) continue;
+          const text = await fs.readFile(full, 'utf8').catch(() => '');
+          const hits = [];
+          text.split('\n').forEach((line, index) => { if (new RegExp(escapeRegExp(query), mode).test(line)) hits.push({ line: index + 1, text: line.replace(/\r$/, '').slice(0, 300) }); });
+          if (hits.length) results.push({ path: relative, hits });
+        }
+      })(WORKSPACE);
+      return json(response, 200, { query, results, total: results.reduce((sum, file) => sum + file.hits.length, 0) });
     }
     if (request.method === 'POST' && request.url === '/api/terminal/run') {
       const input = await body(request);
@@ -216,7 +260,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/api/lsp/status') {
       return json(response, 200, { servers: lspManager.status() });
     }
-    if (request.method === 'GET' && request.url === '/api/diagnostics') return json(response, 200, { diagnostics: lspManager.diagnosticsList() });
+    if (request.method === 'GET' && request.url === '/api/diagnostics') return json(response, 200, { diagnostics: lspManager.diagnosticsList().map(item => ({ ...item, uri: toPlaceholderUri(item.uri) })) });
     if (request.method === 'GET' && request.url === '/api/dap/status') {
       return json(response, 200, { adapters: dapManager.status() });
     }
@@ -252,11 +296,11 @@ const server = http.createServer(async (request, response) => {
     }
     if (request.method === 'POST' && request.url === '/api/lsp/request') {
       const input = await body(request);
-      return json(response, 200, await lspManager.request(input.id, input.message));
+      return json(response, 200, await lspManager.request(input.id, rewriteIncoming(input.message)));
     }
     if (request.method === 'POST' && request.url === '/api/lsp/notify') {
       const input = await body(request);
-      return json(response, 200, lspManager.notify(input.id, input.message));
+      return json(response, 200, lspManager.notify(input.id, rewriteIncoming(input.message)));
     }
     if (request.method === 'POST' && request.url === '/api/lsp/stop') {
       return json(response, 200, await lspManager.stop((await body(request)).id));

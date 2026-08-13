@@ -430,3 +430,31 @@ the result, and refuse unsupported completion claims.
   and raw logs.
 - Providers: live external-provider tests remain intentionally unrun without
   user credentials.
+
+## 2026-08-12 Warden Comparison
+
+- Primary source reviewed: `domdoss/Warden` README and public repository
+  architecture. Warden's useful differentiators are a single front-door
+  orchestrator, bounded conversation compaction, and role-specific delegation.
+  Its own README also explicitly warns that agents have unrestricted user-level
+  desktop, browser, email, and shell access without a sandbox.
+- Decision: do not copy unrestricted desktop/browser control, cloud-first
+  delegation, hidden durable memory, or voice/satellite scope into AIDE. AIDE's
+  approval gates, allowlists, Veritas checks, and DAP/LSP boundaries are the
+  stronger safety architecture for a developer workbench.
+- Adopted the low-risk portions: explicit `AUTO / AIDE ROUTER` mode with
+  transparent selected-mode reporting, plus an in-memory eight-message context
+  window capped per message. Conversation history is not persisted, and auto
+  routing never bypasses approval or the explicit dual-model path.
+
+## 2026-08-13 CI Permission Runtime Correction
+
+- Primary-source verification: official Node.js v22.14 CLI documentation exposes
+  `--permission` but not `--allow-net`; the local Node 26 runtime exposes both.
+  Reproduction with the official Node v22.14 Windows binary failed the plugin
+  network-capability test with `bad option: --allow-net`, matching the GitHub CI
+  failure inside `plugins/test-manager.mjs`.
+- Decision: retain the deny-by-default plugin permission model, gate
+  `network.localhost` with an explicit runtime capability check, and run the
+  full CI capability matrix on Node 26. Older supported Node runtimes still run
+  non-network plugins and fail closed with an actionable message.

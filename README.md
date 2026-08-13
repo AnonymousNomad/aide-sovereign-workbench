@@ -92,6 +92,20 @@ npm start
 
 Then open `http://127.0.0.1:4173/`. The first-run guide walks through selecting an installed model, starting the local runtime, and sending the first chat message.
 
+The source checkout does not include model weights or `llama-server`. For local
+chat, install a matching `llama-server` binary and point AIDE at a verified local
+weight file before starting it. PowerShell example:
+
+```powershell
+$env:AIDE_LLAMA_SERVER = 'C:\path\to\llama-server.exe'
+$env:AIDE_MODEL_PATH = 'C:\path\to\matching-model.gguf'
+npm start
+```
+
+`npm run doctor` reports the binary and artifact separately. A manifest entry
+marked `ready` is only a registry claim; the daemon will show `setup-required`
+until both files are present.
+
 See `runtime/README.md` and `models/manifest.json` for the adapter contract and model configuration. AIDE does not apply model-generated patches automatically.
 
 ## Desktop Architecture

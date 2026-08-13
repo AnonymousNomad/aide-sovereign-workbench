@@ -3,9 +3,10 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 export class LspManager {
-  constructor({ manifestPath, workspace, spawnProcess = spawn } = {}) {
+  constructor({ manifestPath, workspace, home = workspace, spawnProcess = spawn } = {}) {
     this.manifestPath = manifestPath;
     this.workspace = workspace;
+    this.home = home;
     this.spawnProcess = spawnProcess;
     this.servers = new Map();
     this.processes = new Map();
@@ -35,9 +36,12 @@ export class LspManager {
     const server = this.servers.get(id);
     if (!server) throw new Error('language server is not allowlisted');
     if (this.processes.has(id)) return { id, status: 'running' };
-    const command = path.resolve(this.workspace, server.command);
-    await fs.access(command).catch(() => { throw new Error(`language server is unavailable: ${command}`); });
-    const child = this.spawnProcess(command, server.args, { cwd: this.workspace, stdio: ['pipe', 'pipe', 'pipe'] });
+    const entry = path.resolve(this.home, server.command);
+    await fs.access(entry).catch(() => { throw new Error(`language server is unavailable: ${entry}`); });
+    const args = server.args || [];
+    const child = /\.(mjs|js|cjs)$/.test(entry)
+      ? this.spawnProcess(process.execPath, [entry, ...args], { cwd: this.workspace, stdio: ['pipe', 'pipe', 'pipe'] })
+      : this.spawnProcess(entry, args, { cwd: this.workspace, stdio: ['pipe', 'pipe', 'pipe'] });
     this.processes.set(id, child);
     child.stdout?.on('data', data => this.#consume(id, data));
     child.once('exit', () => this.processes.delete(id));

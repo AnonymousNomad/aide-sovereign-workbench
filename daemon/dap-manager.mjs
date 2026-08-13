@@ -27,7 +27,10 @@ export class DapManager {
       id: adapter.id,
       name: adapter.name,
       languages: adapter.languages,
-      status: this.processes.has(adapter.id) ? 'running' : adapter.status
+      protocol: adapter.protocol,
+      status: this.processes.has(adapter.id) ? 'running' : adapter.status,
+      capabilities: adapter.capabilities || {},
+      isRunning: this.processes.has(adapter.id)
     }));
   }
 

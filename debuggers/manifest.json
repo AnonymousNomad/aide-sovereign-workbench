@@ -5,10 +5,152 @@
       "id": "python-debugpy",
       "name": "Python debugpy",
       "command": ".venv/bin/python",
-      "args": ["-m", "debugpy.adapter"],
-      "languages": ["python"],
+      "args": [
+        "-m",
+        "debugpy.adapter"
+      ],
+      "languages": [
+        "python"
+      ],
       "protocol": "DAP",
-      "status": "available"
+      "status": "available",
+      "capabilities": {
+        "breakpoints": true,
+        "scopes": true,
+        "variables": true,
+        "step": true,
+        "continue": true,
+        "evaluate": true,
+        "exceptionBreakpoints": true,
+        "conditionalBreakpoints": true
+      }
+    },
+    {
+      "id": "node-inspector",
+      "name": "Node.js Inspector",
+      "command": "node",
+      "args": [
+        "--inspect-brk"
+      ],
+      "languages": [
+        "javascript",
+        "typescript",
+        "javascriptreact",
+        "typescriptreact"
+      ],
+      "protocol": "DAP",
+      "status": "available",
+      "capabilities": {
+        "breakpoints": true,
+        "scopes": true,
+        "variables": true,
+        "step": true,
+        "continue": true,
+        "evaluate": true,
+        "exceptionBreakpoints": true,
+        "conditionalBreakpoints": true
+      }
+    },
+    {
+      "id": "cppdbg",
+      "name": "C++ Debugger",
+      "command": "node",
+      "args": [
+        "node_modules/.bin/vscode-cpptools-debug"
+      ],
+      "languages": [
+        "c",
+        "cpp",
+        "cuda",
+        "objc",
+        "objective-cpp"
+      ],
+      "protocol": "DAP",
+      "status": "available",
+      "capabilities": {
+        "breakpoints": true,
+        "scopes": true,
+        "variables": true,
+        "step": true,
+        "continue": true,
+        "evaluate": true,
+        "exceptionBreakpoints": true,
+        "conditionalBreakpoints": true
+      }
+    },
+    {
+      "id": "java-debug",
+      "name": "Java Debug Adapter",
+      "command": "java",
+      "args": [
+        "-jar",
+        "java-debug-adapter-app.jar"
+      ],
+      "languages": [
+        "java"
+      ],
+      "protocol": "DAP",
+      "status": "available",
+      "capabilities": {
+        "breakpoints": true,
+        "scopes": true,
+        "variables": true,
+        "step": true,
+        "continue": true,
+        "evaluate": true,
+        "exceptionBreakpoints": true,
+        "conditionalBreakpoints": true
+      }
+    },
+    {
+      "id": "cs-debug",
+      "name": "C# Debugger (OmniSharp)",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "vsdbg"
+      ],
+      "languages": [
+        "csharp",
+        "fsharp",
+        "vb"
+      ],
+      "protocol": "DAP",
+      "status": "available",
+      "capabilities": {
+        "breakpoints": true,
+        "scopes": true,
+        "variables": true,
+        "step": true,
+        "continue": true,
+        "evaluate": true,
+        "exceptionBreakpoints": true,
+        "conditionalBreakpoints": true
+      }
+    },
+    {
+      "id": "rust-debug",
+      "name": "Rust Debugger (CodeLLDB)",
+      "command": "codeLLDB",
+      "args": [
+        "--adapter"
+      ],
+      "languages": [
+        "rust"
+      ],
+      "protocol": "DAP",
+      "status": "available",
+      "capabilities": {
+        "breakpoints": true,
+        "scopes": true,
+        "variables": true,
+        "step": true,
+        "continue": true,
+        "evaluate": true,
+        "exceptionBreakpoints": true,
+        "conditionalBreakpoints": true
+      }
     }
   ]
 }

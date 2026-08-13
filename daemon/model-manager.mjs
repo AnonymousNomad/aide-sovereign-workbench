@@ -1,12 +1,14 @@
 import { promises as fs } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 export class ModelManager {
-  constructor({ manifestPath, modelDir, binaryPath, spawnProcess = spawn } = {}) {
+  constructor({ manifestPath, modelDir, binaryPath, modelPath = '', spawnProcess = spawn } = {}) {
     this.manifestPath = manifestPath;
     this.modelDir = path.resolve(modelDir);
     this.binaryPath = binaryPath;
+    this.modelPath = modelPath;
     this.spawnProcess = spawnProcess;
     this.models = new Map();
     this.processes = new Map();
@@ -19,12 +21,28 @@ export class ModelManager {
   }
 
   status() {
-    return [...this.models.values()].map(model => ({
-      id: model.id,
-      name: model.name,
-      status: this.processes.has(model.id) ? 'running' : model.status,
-      endpoint: model.endpoint
-    }));
+    const runtimeAvailable = Boolean(this.binaryPath && existsSync(this.binaryPath));
+    return [...this.models.values()].map(model => {
+      const artifact = this.modelPath || (model.artifact_uri?.startsWith('local://')
+        ? path.resolve(this.modelDir, path.basename(model.artifact_uri.replace('local://', '')))
+        : null);
+      const artifactAvailable = Boolean(artifact && existsSync(artifact));
+      const setup = [];
+      if (!runtimeAvailable) setup.push('install llama-server and set AIDE_LLAMA_SERVER');
+      if (model.status === 'ready' && !artifactAvailable) setup.push(`set AIDE_MODEL_PATH to a GGUF file or install the model file in ${this.modelDir}`);
+      return {
+        id: model.id,
+        name: model.name,
+        status: this.processes.has(model.id) ? 'running' : model.status,
+        declared_status: model.status,
+        endpoint: model.endpoint,
+        runtime_available: runtimeAvailable,
+        artifact_available: artifactAvailable,
+        artifact_path: artifact || '',
+        setup_required: setup.length > 0 && model.status === 'ready',
+        setup_message: setup.join('; ')
+      };
+    });
   }
 
   get(id) {
@@ -56,11 +74,13 @@ export class ModelManager {
     const model = this.models.get(id);
     if (!model) throw new Error('model is not allowlisted');
     if (this.processes.has(id)) return { id, status: 'running', endpoint: model.endpoint };
-    if (!this.binaryPath) throw new Error('llama-server binary is not configured');
-    await fs.access(this.binaryPath).catch(() => { throw new Error('llama-server binary is unavailable'); });
-    const file = path.resolve(this.modelDir, path.basename(model.artifact_uri.replace('local://', '')));
-    if (!file.startsWith(`${this.modelDir}${path.sep}`)) throw new Error('model path escaped model directory');
-    await fs.access(file);
+    if (!this.binaryPath) throw new Error('Local model setup required: install llama-server and set AIDE_LLAMA_SERVER.');
+    await fs.access(this.binaryPath).catch(() => { throw new Error(`Local model setup required: llama-server was not found at ${this.binaryPath}.`); });
+    const file = this.modelPath
+      ? path.resolve(this.modelPath)
+      : path.resolve(this.modelDir, path.basename(model.artifact_uri.replace('local://', '')));
+    if (!this.modelPath && !file.startsWith(`${this.modelDir}${path.sep}`)) throw new Error('model path escaped model directory');
+    await fs.access(file).catch(() => { throw new Error(`Local model setup required: model file was not found at ${file}.`); });
     await this.stopAll();
     const endpoint = new URL(model.endpoint);
     const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable'];

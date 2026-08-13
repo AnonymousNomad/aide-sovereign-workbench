@@ -26,8 +26,13 @@ await manager.setTrust('with-net', true);
 const denied = await manager.execute('no-net', {});
 assert.equal(denied.netAllowed, false, 'plugin without network.localhost capability must be network-denied');
 assert.equal(denied.reachable, false, 'denied plugin must not reach the network');
-const granted = await manager.execute('with-net', {});
-assert.equal(granted.netAllowed, true, 'plugin with network.localhost capability must receive the network grant');
-assert.equal(granted.reachable, false, 'probe endpoint must refuse the connection');
-assert.match(String(granted.code), /ECONNREFUSED/, 'granted plugin must actually open a socket');
-console.log('plugin manager test passed (trust, execution, network deny-by-default, capability-gated network grant)');
+if (process.allowedNodeEnvironmentFlags?.has('--allow-net')) {
+  const granted = await manager.execute('with-net', {});
+  assert.equal(granted.netAllowed, true, 'plugin with network.localhost capability must receive the network grant');
+  assert.equal(granted.reachable, false, 'probe endpoint must refuse the connection');
+  assert.match(String(granted.code), /ECONNREFUSED/, 'granted plugin must actually open a socket');
+  console.log('plugin manager test passed (trust, execution, network deny-by-default, capability-gated network grant)');
+} else {
+  await assert.rejects(manager.execute('with-net', {}), /requires.*--allow-net/);
+  console.log('plugin manager test passed (trust, execution, network deny-by-default, network capability correctly gated by runtime)');
+}

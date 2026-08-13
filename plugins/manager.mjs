@@ -71,10 +71,14 @@ export class PluginManager {
     const entry = path.resolve(pluginDir, plugin.entry);
     if (!entry.startsWith(`${pluginDir}${path.sep}`)) throw new Error('plugin entry escaped its directory');
     await fs.access(entry);
+    if (!process.allowedNodeEnvironmentFlags?.has('--permission')) throw new Error('plugin execution requires Node.js with the Permission Model (Node 20+)');
     const args = ['--permission', `--allow-fs-read=${pluginDir}`];
     for (const capability of plugin.capabilities || []) {
       const grant = GRANTS[capability];
-      if (grant) args.push(grant(pluginDir));
+      if (grant) {
+        if (capability === 'network.localhost' && !process.allowedNodeEnvironmentFlags.has('--allow-net')) throw new Error('plugin capability network.localhost requires a Node.js runtime that supports --allow-net (use Node 26+)');
+        args.push(grant(pluginDir));
+      }
     }
     args.push('--no-addons', entry);
     return new Promise((resolve, reject) => {

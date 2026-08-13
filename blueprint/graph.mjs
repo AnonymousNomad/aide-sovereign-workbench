@@ -3,7 +3,8 @@ const layers = [
   { id: 'data', label: 'DATA', color: '#b277ff' },
   { id: 'build', label: 'BUILD', color: '#72ff9e' },
   { id: 'verify', label: 'VERIFY', color: '#ffc76b' },
-  { id: 'release', label: 'RELEASE', color: '#ff5fcf' }
+  { id: 'release', label: 'RELEASE', color: '#ff5fcf' },
+  { id: 'model-pack', label: 'MODEL PACK', color: '#96ffa7' }
 ];
 
 export function buildBlueprint({ entries = [], models = [], training = {} } = {}) {
@@ -28,12 +29,18 @@ export function buildBlueprint({ entries = [], models = [], training = {} } = {}
   add('training', 'TRAINING RUN', 'build', training.active ? 'active' : 'idle', training.active ? `Running ${training.active.id}` : 'No active local job', 0, -1.3, 3.6);
   link('tokenizer', 'architecture', 'configures');
   link('architecture', 'training', 'trains');
+
+  // Model pack nodes - show available/local models
   models.slice(0, 8).forEach((model, index) => {
     const id = `model:${model.id}`;
-    const status = model.status === 'pending' ? 'blocked' : model.status;
-    add(id, model.name || model.id, 'build', status, `${model.format || 'local'} | ${model.lane || 'model'} lane`, 1.1 + (index % 3) * 1.6, -1.6 + Math.floor(index / 3) * 1.1, 3.2);
+    const status = model.status === 'pending' ? (model.artifact_available ? 'ready' : 'pending') : model.status;
+    const detail = model.artifact_available
+      ? `${model.format || 'local'} | ${model.lane || 'model'} lane (ready)`
+      : `${model.format || 'local'} | ${model.lane || 'model'} lane (pending download)`;
+    add(id, model.name || model.id, 'release', status, detail, 1.1 + (index % 3) * 1.6, -1.6 + Math.floor(index / 3) * 1.1, 3.2);
     link('training', id, 'produces');
   });
+
   add('veritas', 'VERITAS GATE', 'verify', 'blocked', 'Tests, diff, secrets, and approval checks', 0, 0, 5.4);
   add('evaluation', 'EVALUATION', 'verify', 'pending', 'Held-out quality and capability checks', 1.9, 1.2, 5.4);
   link('training', 'veritas', 'checks');

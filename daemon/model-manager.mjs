@@ -27,19 +27,24 @@ export class ModelManager {
         ? path.resolve(this.modelDir, path.basename(model.artifact_uri.replace('local://', '')))
         : null);
       const artifactAvailable = Boolean(artifact && existsSync(artifact));
+      // Promote to ready if artifact exists locally and runtime is available
+      let modelStatus = model.status;
+      if (artifactAvailable && model.status !== 'ready' && runtimeAvailable) {
+        modelStatus = 'ready';
+      }
       const setup = [];
       if (!runtimeAvailable) setup.push('install llama-server and set AIDE_LLAMA_SERVER');
-      if (model.status === 'ready' && !artifactAvailable) setup.push(`set AIDE_MODEL_PATH to a GGUF file or install the model file in ${this.modelDir}`);
+      if (modelStatus === 'ready' && !artifactAvailable) setup.push(`set AIDE_MODEL_PATH to a GGUF file or install the model file in ${this.modelDir}`);
       return {
         id: model.id,
         name: model.name,
-        status: this.processes.has(model.id) ? 'running' : model.status,
-        declared_status: model.status,
+        status: this.processes.has(model.id) ? 'running' : modelStatus,
+        declared_status: modelStatus,
         endpoint: model.endpoint,
         runtime_available: runtimeAvailable,
         artifact_available: artifactAvailable,
         artifact_path: artifact || '',
-        setup_required: setup.length > 0 && model.status === 'ready',
+        setup_required: setup.length > 0 && modelStatus === 'ready',
         setup_message: setup.join('; ')
       };
     });

@@ -1,0 +1,24 @@
+import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+
+const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+const testScript = pkg.scripts.test;
+const commands = testScript.split('&&').map(part => part.trim()).filter(Boolean);
+
+const results = [];
+for (const command of commands) {
+  const [bin, ...args] = command.split(/\s+/);
+  const outcome = await new Promise(resolve => {
+    const child = spawn(bin, args, { stdio: 'inherit', shell: process.platform === 'win32' });
+    child.once('exit', code => resolve(code === 0));
+    child.once('error', error => resolve(`${error.message}`));
+  });
+  results.push({ command, ok: outcome === true, detail: outcome === true ? '' : String(outcome) });
+  if (outcome !== true) console.log(`\n[ci-run-all] FAILED: ${command}${typeof outcome === 'string' ? ` (${outcome})` : ''}\n`);
+  else console.log(`[ci-run-all] passed: ${command}`);
+}
+
+const failed = results.filter(r => !r.ok);
+console.log(`\n[ci-run-all] ${results.length - failed.length}/${results.length} test commands passed`);
+for (const f of failed) console.log(`  FAIL  ${f.command}${f.detail ? ` (${f.detail})` : ''}`);
+if (failed.length) process.exit(1);

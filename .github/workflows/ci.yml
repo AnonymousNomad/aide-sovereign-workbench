@@ -13,7 +13,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python -m pip install --quiet debugpy
       - run: npm ci
-      - run: npm test
+      - run: node scripts/ci-run-all.mjs
       - run: npm run check
       - run: npm run veritas

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { TutorManager } from './tutor-manager.mjs';
 
 const root = await mkdtemp(path.join(tmpdir(), 'aide-tutor-'));
-const tutor = new TutorManager({ coursesDir: path.join(process.cwd(), 'academy/courses'), progressPath: path.join(root, 'progress.json') });
+const tutor = new TutorManager({ coursesDir: path.join(process.cwd(), 'academy/courses'), progressPath: path.join(root, 'progress.json'), pythonPath: process.env.AIDE_PYTHON || 'python' });
 await tutor.load();
 assert.equal(tutor.catalog().length, 3);
 assert.equal(tutor.session('python-foundations').lesson.id, 'variables');

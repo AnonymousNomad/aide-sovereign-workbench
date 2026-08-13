@@ -5,6 +5,12 @@ import { spawn } from 'node:child_process';
 const CAPABILITIES = new Set(['workspace.read', 'workspace.write', 'terminal.run', 'ui.view', 'command.register', 'network.localhost']);
 const ID = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 
+const GRANTS = {
+  'workspace.write': pluginDir => `--allow-fs-write=${pluginDir}`,
+  'network.localhost': () => '--allow-net',
+  'terminal.run': () => '--allow-child-process',
+};
+
 export class PluginManager {
   constructor({ pluginsDir, statePath, presetsPath = path.join(pluginsDir, 'presets.json') }) { this.pluginsDir = pluginsDir; this.statePath = statePath; this.presetsPath = presetsPath; this.plugins = []; this.trust = {}; this.presetCatalog = []; }
 
@@ -65,8 +71,14 @@ export class PluginManager {
     const entry = path.resolve(pluginDir, plugin.entry);
     if (!entry.startsWith(`${pluginDir}${path.sep}`)) throw new Error('plugin entry escaped its directory');
     await fs.access(entry);
+    const args = ['--permission', `--allow-fs-read=${pluginDir}`];
+    for (const capability of plugin.capabilities || []) {
+      const grant = GRANTS[capability];
+      if (grant) args.push(grant(pluginDir));
+    }
+    args.push('--no-addons', entry);
     return new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, ['--experimental-permission', `--allow-fs-read=${pluginDir}`, '--no-addons', entry], { cwd: pluginDir, env: { PATH: process.env.PATH }, stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn(process.execPath, args, { cwd: pluginDir, env: { PATH: process.env.PATH }, stdio: ['pipe', 'pipe', 'pipe'] });
       let output = ''; let error = '';
       const timer = setTimeout(() => { child.kill('SIGTERM'); reject(new Error('plugin execution timed out')); }, 10_000);
       child.stdout.on('data', chunk => { output += chunk; });

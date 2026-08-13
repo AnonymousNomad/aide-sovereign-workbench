@@ -6,9 +6,10 @@ import { promisify } from 'node:util';
 const run = promisify(execFile);
 
 export class TutorManager {
-  constructor({ coursesDir, progressPath }) {
+  constructor({ coursesDir, progressPath, pythonPath = process.env.AIDE_PYTHON || '' }) {
     this.coursesDir = coursesDir;
     this.progressPath = progressPath;
+    this.pythonPath = pythonPath;
     this.courses = [];
     this.progress = {};
   }
@@ -56,7 +57,8 @@ export class TutorManager {
     const match = String(lesson.check || '').match(/^(python3?|node|git)\s+(-c|-e|--version)(?:\s+([\s\S]*))?$/);
     if (!match) throw new Error('lesson check is not a supported allowlisted command');
     const args = [match[2]]; if (match[3]) args.push(match[3].replace(/^['"]|['"]$/g, ''));
-    let result; try { const output = await run(match[1], args, { timeout: 30_000, maxBuffer: 64 * 1024 }); result = { passed: true, stdout: output.stdout, stderr: output.stderr }; } catch (error) { result = { passed: false, stdout: error.stdout || '', stderr: error.stderr || error.message }; }
+    const interpreter = (match[1] === 'python' || match[1] === 'python3') && this.pythonPath ? this.pythonPath : match[1];
+    let result; try { const output = await run(interpreter, args, { timeout: 30_000, maxBuffer: 64 * 1024 }); result = { passed: true, stdout: output.stdout, stderr: output.stderr }; } catch (error) { result = { passed: false, stdout: error.stdout || '', stderr: error.stderr || error.message }; }
     const progress = this.progress[courseId] || { completed: [], current: lessonId }; progress.last_check = { lessonId, ...result, checked_at: new Date().toISOString() }; this.progress[courseId] = progress;
     const temp = `${this.progressPath}.tmp`; await fs.writeFile(temp, JSON.stringify(this.progress, null, 2)); await fs.rename(temp, this.progressPath);
     return { lesson: lesson.id, ...result };

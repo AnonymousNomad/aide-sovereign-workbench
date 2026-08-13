@@ -338,3 +338,58 @@ the result, and refuse unsupported completion claims.
   Git endpoints all HTTP 200.
 - Result: PASS for current exposed services. Full editor, Git mutation, DAP
   fixture, and plugin execution gates remain open.
+
+## 2026-08-12 — Plugin Execution Permission Model Fix + Network Hardening
+
+- Research: Node.js Permission Model official docs and release notes (flag
+  rename `--experimental-permission` -> `--permission` in Node 24.0.0,
+  semver-major; deny-by-default fs/network/child/worker/addons/WASI/FFI/
+  inspector; `--allow-net` added in Node 25, absent in 24; `--permission-audit`
+  for grant discovery; documented as a "seat belt" that does not secure against
+  malicious code; CVE-2026-21636 UDS bypass in v25).
+- Finding (CRITICAL): plugin execution was broken on modern Node —
+  `plugins/manager.mjs` spawned children with the removed
+  `--experimental-permission` flag (`bad option` crash) and the REAL AIDE
+  ACCEPTANCE suite failed at `/api/plugins/execute` as a result.
+- Decision: use `--permission` with capability-gated grants derived ONLY from
+  the plugin manifest: default `--allow-fs-read=<pluginDir>`; `workspace.write`
+  -> `--allow-fs-write=<pluginDir>`; `network.localhost` -> `--allow-net`;
+  `terminal.run` -> `--allow-child-process`; `--no-addons` retained; trust
+  before execution and path-escape checks unchanged. Network is deny-by-default.
+- Change: `plugins/manager.mjs` args rebuilt from the declared-capability grant
+  map; `plugins/test-manager.mjs` extended with live probes proving a plugin
+  without `network.localhost` is network-denied
+  (`process.permission.has('net') === false` and fetch fails) and a plugin with
+  `network.localhost` receives the grant (socket opens, ECONNREFUSED).
+- Gate: plugin manager test PASS; REAL AIDE ACCEPTANCE PASSED; full suite PASS.
+- Note: the permission model is blast-radius reduction, not a sandbox; keep OS
+  egress control for untrusted code.
+
+## 2026-08-12 — Tutor Check Interpreter Resolution
+
+- Finding (SIGNIFICANT): `academy` lesson checks invoke `python`, which on this
+  host resolves to the Windows Store stub, so every lesson check failed and
+  `npm test` aborted at the tutor test.
+- Decision: honor a configured interpreter first (same convention as the DAP
+  manager's `AIDE_PYTHON`), falling back to `python`/`python3` as written in
+  the course manifests. This does not weaken the check — the allowlisted
+  command must still run and pass.
+- Change: `TutorManager` accepts `pythonPath` (default `process.env.AIDE_PYTHON`),
+  `check()` resolves python/python3 through it; daemon passes it through.
+- Gate: tutor manager test PASS with `AIDE_PYTHON` set; full `npm test` 26/26.
+
+## Next Research Gates
+
+- Debugging: DAP breakpoints, threads, stack, scopes, variables, stop, and
+  crash cleanup, driven by a real debuggee fixture (per skill SOP
+  aide-release-engineering).
+- Editor parity: search, undo history, split editor groups, hot-exit recovery.
+- Plugins: remaining capability RPC surface and platform execution tests.
+- Desktop: installer lifecycle smokes via GitHub Actions (Rust compile is
+  BLOCKED locally — cargo unavailable).
+- Accessibility: WCAG 2.2 AA manual + automated audit (focus visible, 24x24
+  targets, focus not obscured, keyboard traversal, screen-reader pass).
+- Benchmarks: real-repository battery with FAIL_TO_PASS/PASS_TO_PASS metrics
+  and raw logs.
+- Providers: live external-provider tests remain intentionally unrun without
+  user credentials.

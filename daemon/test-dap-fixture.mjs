@@ -177,13 +177,14 @@ try {
     const rawPid = await fs.readFile(pidFile, 'utf8');
     const debuggeePid = Number(rawPid.trim());
     if (Number.isFinite(debuggeePid) && debuggeePid > 0) {
-      const task = spawn('tasklist', ['/FI', `PID eq ${debuggeePid}`, '/NH'], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const isWindows = process.platform === 'win32';
+      const task = spawn(isWindows ? 'tasklist' : 'ps', isWindows ? ['/FI', `PID eq ${debuggeePid}`, '/NH'] : ['-p', String(debuggeePid), '-o', 'pid='], { stdio: ['ignore', 'pipe', 'pipe'] });
       const out = await new Promise(resolve => {
         let acc = '';
         task.stdout.on('data', chunk => { acc += chunk; });
         task.once('exit', () => resolve(acc));
       });
-      orphanFree = !out.toLowerCase().includes('python');
+      orphanFree = isWindows ? !out.toLowerCase().includes('python') : out.trim() === '';
       orphanDetail = orphanFree ? 'no orphaned debuggee process' : `orphaned debuggee PID ${debuggeePid} still alive`;
     } else {
       orphanFree = false;

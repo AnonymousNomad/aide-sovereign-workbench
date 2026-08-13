@@ -24,6 +24,17 @@ import { HandoffManager } from './handoff.mjs';
 
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+function matchMask(filePath, mask) {
+  if (!mask) return true;
+  const patterns = mask.split(',').map(p => p.trim()).filter(Boolean);
+  if (!patterns.length) return true;
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return patterns.some(function(pattern) {
+    const glob = esc(pattern).replace(/\*/g, '.*').replace(/\?/g, '.');
+    return new RegExp('^' + glob + '$', 'i').test(filePath);
+  });
+}
+
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
 const AIDE_HOME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -171,23 +182,36 @@ const server = http.createServer(async (request, response) => {
       const params = new URL(request.url, 'http://127.0.0.1').searchParams;
       const query = String(params.get('q') || '').trim();
       if (!query || query.length > 200) throw new Error('search query is required');
-      const mode = params.get('icase') === '1' ? 'i' : '';
+      const useRegex = params.get('regex') === '1';
+      const caseInsensitive = params.get('icase') === '1';
+      const wholeWord = params.get('word') === '1';
+      const fileMask = params.get('mask') || '';
+      const mode = caseInsensitive ? 'i' : '';
+      const pattern = useRegex ? query : escapeRegExp(query);
+      let regex;
+      try {
+        regex = new RegExp(wholeWord ? '\b' + pattern + '\b' : pattern, mode);
+      } catch (error) {
+        throw new Error('invalid search pattern: ' + error.message);
+      }
       const results = [];
+      const excludes = ['node_modules', 'target', '.git', 'dist', 'build'].filter(name => !params.get('include-' + name));
       await (async function walk(dir) {
         for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
-          if (entry.name.startsWith('.') || ['node_modules', 'target'].includes(entry.name)) continue;
+          if (entry.name.startsWith('.') || excludes.includes(entry.name)) continue;
           const full = path.join(dir, entry.name);
           if (entry.isDirectory()) { if (results.length < 400) await walk(full); continue; }
           const relative = path.relative(WORKSPACE, full).split(path.sep).join('/');
+          if (fileMask && !matchMask(relative, fileMask)) continue;
           const stat = await fs.stat(full);
           if (stat.size > 512 * 1024) continue;
           const text = await fs.readFile(full, 'utf8').catch(() => '');
           const hits = [];
-          text.split('\n').forEach((line, index) => { if (new RegExp(escapeRegExp(query), mode).test(line)) hits.push({ line: index + 1, text: line.replace(/\r$/, '').slice(0, 300) }); });
+          text.split('\n').forEach((line, index) => { if (regex.test(line)) hits.push({ line: index + 1, text: line.replace(/\r$/, '').slice(0, 300) }); });
           if (hits.length) results.push({ path: relative, hits });
         }
       })(WORKSPACE);
-      return json(response, 200, { query, results, total: results.reduce((sum, file) => sum + file.hits.length, 0) });
+      return json(response, 200, { query, results, total: results.reduce((sum, file) => sum + file.hits.length, 0), regex: useRegex, caseInsensitive, wholeWord, fileMask });
     }
     if (request.method === 'POST' && request.url === '/api/terminal/run') {
       const input = await body(request);

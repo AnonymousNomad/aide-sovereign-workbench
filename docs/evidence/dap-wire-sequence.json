@@ -1,0 +1,1135 @@
+{
+  "generated": "2026-08-13T00:50:32.436Z",
+  "tool": "aide-sovereign-workbench dap fixture test",
+  "python": "E:\\Python310\\python.exe",
+  "fixture": "fixtures/debuggee/fizz_engine.py",
+  "breakpoint_lines": {
+    "first": 24,
+    "second": 28
+  },
+  "assertions": [
+    {
+      "name": "initialize",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "setBreakpoints verified",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "setExceptionBreakpoints",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "configurationDone",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "launch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "stopped (breakpoint) at line 24",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "threads",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "stackTrace frame main@24",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "scopes Locals",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "variables engine (depth 1)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "nested variables depth 3 (items[2] = Fizz)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "next step advanced to line 25",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "second breakpoint + computed variable total=43",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "terminate request",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "terminated event",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "adapter clean exit (code 0)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no orphaned debuggee process",
+      "ok": true,
+      "detail": "no orphaned debuggee process"
+    }
+  ],
+  "transcript": [
+    {
+      "command": "initialize",
+      "arguments": {
+        "adapterID": "aide",
+        "clientID": "aide",
+        "supportsVariablePaging": false,
+        "supportsRunInTerminalRequest": false
+      },
+      "seq": 1,
+      "type": "request"
+    },
+    {
+      "seq": 1,
+      "type": "event",
+      "event": "output",
+      "body": {
+        "category": "telemetry",
+        "output": "ptvsd",
+        "data": {
+          "packageVersion": "1.8.21"
+        }
+      }
+    },
+    {
+      "seq": 2,
+      "type": "event",
+      "event": "output",
+      "body": {
+        "category": "telemetry",
+        "output": "debugpy",
+        "data": {
+          "packageVersion": "1.8.21"
+        }
+      }
+    },
+    {
+      "seq": 3,
+      "type": "event",
+      "event": "debugpySockets",
+      "body": {
+        "sockets": [
+          {
+            "host": "127.0.0.1",
+            "port": 59875,
+            "internal": false
+          }
+        ]
+      }
+    },
+    {
+      "seq": 4,
+      "type": "response",
+      "request_seq": 1,
+      "success": true,
+      "command": "initialize",
+      "body": {
+        "supportsCompletionsRequest": true,
+        "supportsConditionalBreakpoints": true,
+        "supportsConfigurationDoneRequest": true,
+        "supportsDebuggerProperties": true,
+        "supportsDelayedStackTraceLoading": true,
+        "supportsEvaluateForHovers": true,
+        "supportsExceptionInfoRequest": true,
+        "supportsExceptionOptions": true,
+        "supportsFunctionBreakpoints": true,
+        "supportsHitConditionalBreakpoints": true,
+        "supportsLogPoints": true,
+        "supportsModulesRequest": true,
+        "supportsSetExpression": true,
+        "supportsSetVariable": true,
+        "supportsValueFormattingOptions": true,
+        "supportsTerminateDebuggee": true,
+        "supportsTerminateRequest": true,
+        "supportsGotoTargetsRequest": true,
+        "supportsClipboardContext": true,
+        "exceptionBreakpointFilters": [
+          {
+            "filter": "raised",
+            "label": "Raised Exceptions",
+            "default": false,
+            "description": "Break whenever any exception is raised."
+          },
+          {
+            "filter": "uncaught",
+            "label": "Uncaught Exceptions",
+            "default": true,
+            "description": "Break when the process is exiting due to unhandled exception."
+          },
+          {
+            "filter": "userUnhandled",
+            "label": "User Uncaught Exceptions",
+            "default": false,
+            "description": "Break when exception escapes into library code."
+          }
+        ],
+        "supportsStepInTargetsRequest": true
+      }
+    },
+    {
+      "command": "launch",
+      "arguments": {
+        "request": "launch",
+        "type": "python",
+        "program": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
+        "cwd": "E:\\aide-sovereign-workbench\\fixtures\\debuggee",
+        "console": "internalConsole"
+      },
+      "seq": 2,
+      "type": "request"
+    },
+    {
+      "command": "setBreakpoints",
+      "arguments": {
+        "source": {
+          "name": "fizz_engine.py",
+          "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py"
+        },
+        "breakpoints": [
+          {
+            "line": 24
+          },
+          {
+            "line": 28
+          }
+        ]
+      },
+      "seq": 3,
+      "type": "request"
+    },
+    {
+      "seq": 5,
+      "type": "event",
+      "event": "debugpySockets",
+      "body": {
+        "sockets": [
+          {
+            "host": "127.0.0.1",
+            "port": 59875,
+            "internal": false
+          },
+          {
+            "host": "127.0.0.1",
+            "port": 59878,
+            "internal": true
+          }
+        ]
+      }
+    },
+    {
+      "seq": 6,
+      "type": "event",
+      "event": "debugpySockets",
+      "body": {
+        "sockets": [
+          {
+            "host": "127.0.0.1",
+            "port": 59875,
+            "internal": false
+          },
+          {
+            "host": "127.0.0.1",
+            "port": 59879,
+            "internal": true
+          },
+          {
+            "host": "127.0.0.1",
+            "port": 59878,
+            "internal": true
+          }
+        ]
+      }
+    },
+    {
+      "seq": 7,
+      "type": "event",
+      "event": "debugpySockets",
+      "body": {
+        "sockets": [
+          {
+            "host": "127.0.0.1",
+            "port": 59875,
+            "internal": false
+          },
+          {
+            "host": "127.0.0.1",
+            "port": 59878,
+            "internal": true
+          }
+        ]
+      }
+    },
+    {
+      "seq": 8,
+      "type": "event",
+      "event": "initialized"
+    },
+    {
+      "seq": 9,
+      "type": "response",
+      "request_seq": 3,
+      "success": true,
+      "command": "setBreakpoints",
+      "body": {
+        "breakpoints": [
+          {
+            "verified": true,
+            "id": 0,
+            "source": {
+              "name": "fizz_engine.py",
+              "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py"
+            },
+            "line": 24
+          },
+          {
+            "verified": true,
+            "id": 1,
+            "source": {
+              "name": "fizz_engine.py",
+              "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py"
+            },
+            "line": 28
+          }
+        ]
+      }
+    },
+    {
+      "command": "setExceptionBreakpoints",
+      "arguments": {
+        "filters": []
+      },
+      "seq": 4,
+      "type": "request"
+    },
+    {
+      "seq": 10,
+      "type": "response",
+      "request_seq": 4,
+      "success": true,
+      "command": "setExceptionBreakpoints"
+    },
+    {
+      "command": "configurationDone",
+      "arguments": {},
+      "seq": 5,
+      "type": "request"
+    },
+    {
+      "seq": 11,
+      "type": "response",
+      "request_seq": 5,
+      "success": true,
+      "command": "configurationDone"
+    },
+    {
+      "seq": 12,
+      "type": "response",
+      "request_seq": 2,
+      "success": true,
+      "command": "launch"
+    },
+    {
+      "seq": 13,
+      "type": "event",
+      "event": "process",
+      "body": {
+        "startMethod": "launch",
+        "isLocalProcess": true,
+        "systemProcessId": 16000,
+        "name": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
+        "pointerSize": 64
+      }
+    },
+    {
+      "seq": 14,
+      "type": "event",
+      "event": "thread",
+      "body": {
+        "reason": "started",
+        "threadId": 1
+      }
+    },
+    {
+      "seq": 15,
+      "type": "event",
+      "event": "stopped",
+      "body": {
+        "reason": "breakpoint",
+        "threadId": 1,
+        "preserveFocusHint": false,
+        "allThreadsStopped": true
+      }
+    },
+    {
+      "command": "threads",
+      "arguments": {},
+      "seq": 6,
+      "type": "request"
+    },
+    {
+      "seq": 16,
+      "type": "response",
+      "request_seq": 6,
+      "success": true,
+      "command": "threads",
+      "body": {
+        "threads": [
+          {
+            "id": 1,
+            "name": "MainThread"
+          }
+        ]
+      }
+    },
+    {
+      "command": "stackTrace",
+      "arguments": {
+        "threadId": 1,
+        "startFrame": 0,
+        "levels": 10
+      },
+      "seq": 7,
+      "type": "request"
+    },
+    {
+      "seq": 17,
+      "type": "response",
+      "request_seq": 7,
+      "success": true,
+      "command": "stackTrace",
+      "body": {
+        "stackFrames": [
+          {
+            "id": 2,
+            "name": "main",
+            "line": 24,
+            "column": 1,
+            "source": {
+              "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
+              "sourceReference": 0
+            }
+          },
+          {
+            "id": 3,
+            "name": "<module>",
+            "line": 31,
+            "column": 1,
+            "source": {
+              "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
+              "sourceReference": 0
+            }
+          }
+        ],
+        "totalFrames": 2
+      }
+    },
+    {
+      "command": "scopes",
+      "arguments": {
+        "frameId": 2
+      },
+      "seq": 8,
+      "type": "request"
+    },
+    {
+      "seq": 18,
+      "type": "event",
+      "event": "module",
+      "body": {
+        "reason": "new",
+        "module": {
+          "id": 0,
+          "name": "__main__",
+          "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py"
+        }
+      }
+    },
+    {
+      "seq": 19,
+      "type": "event",
+      "event": "module",
+      "body": {
+        "reason": "new",
+        "module": {
+          "id": 1,
+          "name": "runpy",
+          "path": "E:\\Python310\\Lib\\runpy.py"
+        }
+      }
+    },
+    {
+      "seq": 20,
+      "type": "response",
+      "request_seq": 8,
+      "success": true,
+      "command": "scopes",
+      "body": {
+        "scopes": [
+          {
+            "name": "Locals",
+            "variablesReference": 4,
+            "expensive": false,
+            "presentationHint": "locals",
+            "source": {}
+          },
+          {
+            "name": "Globals",
+            "variablesReference": 5,
+            "expensive": false,
+            "source": {}
+          }
+        ]
+      }
+    },
+    {
+      "command": "variables",
+      "arguments": {
+        "variablesReference": 4
+      },
+      "seq": 9,
+      "type": "request"
+    },
+    {
+      "seq": 21,
+      "type": "response",
+      "request_seq": 9,
+      "success": true,
+      "command": "variables",
+      "body": {
+        "variables": [
+          {
+            "name": "engine",
+            "value": "{'name': 'fizz-engine', 'items': ['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', 'Fizz', '13', '14', 'FizzBuzz'], 'nested': {'meta': {...}}}",
+            "type": "dict",
+            "evaluateName": "engine",
+            "variablesReference": 6
+          }
+        ]
+      }
+    },
+    {
+      "command": "variables",
+      "arguments": {
+        "variablesReference": 6
+      },
+      "seq": 10,
+      "type": "request"
+    },
+    {
+      "seq": 22,
+      "type": "response",
+      "request_seq": 10,
+      "success": true,
+      "command": "variables",
+      "body": {
+        "variables": [
+          {
+            "name": "special variables",
+            "value": "",
+            "type": "",
+            "variablesReference": 7
+          },
+          {
+            "name": "function variables",
+            "value": "",
+            "type": "",
+            "variablesReference": 8
+          },
+          {
+            "name": "'name'",
+            "value": "'fizz-engine'",
+            "type": "str",
+            "evaluateName": "engine['name']",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "'items'",
+            "value": "['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', 'Fizz', '13', '14', 'FizzBuzz']",
+            "type": "list",
+            "evaluateName": "engine['items']",
+            "variablesReference": 9
+          },
+          {
+            "name": "'nested'",
+            "value": "{'meta': {'depth': 3, 'active': True}}",
+            "type": "dict",
+            "evaluateName": "engine['nested']",
+            "variablesReference": 10
+          },
+          {
+            "name": "len()",
+            "value": "3",
+            "type": "int",
+            "evaluateName": "len(engine)",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "readOnly"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "command": "variables",
+      "arguments": {
+        "variablesReference": 9
+      },
+      "seq": 11,
+      "type": "request"
+    },
+    {
+      "seq": 23,
+      "type": "response",
+      "request_seq": 11,
+      "success": true,
+      "command": "variables",
+      "body": {
+        "variables": [
+          {
+            "name": "special variables",
+            "value": "",
+            "type": "",
+            "variablesReference": 11
+          },
+          {
+            "name": "function variables",
+            "value": "",
+            "type": "",
+            "variablesReference": 12
+          },
+          {
+            "name": "00",
+            "value": "'1'",
+            "type": "str",
+            "evaluateName": "engine['items'][0]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "01",
+            "value": "'2'",
+            "type": "str",
+            "evaluateName": "engine['items'][1]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "02",
+            "value": "'Fizz'",
+            "type": "str",
+            "evaluateName": "engine['items'][2]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "03",
+            "value": "'4'",
+            "type": "str",
+            "evaluateName": "engine['items'][3]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "04",
+            "value": "'Buzz'",
+            "type": "str",
+            "evaluateName": "engine['items'][4]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "05",
+            "value": "'Fizz'",
+            "type": "str",
+            "evaluateName": "engine['items'][5]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "06",
+            "value": "'7'",
+            "type": "str",
+            "evaluateName": "engine['items'][6]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "07",
+            "value": "'8'",
+            "type": "str",
+            "evaluateName": "engine['items'][7]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "08",
+            "value": "'Fizz'",
+            "type": "str",
+            "evaluateName": "engine['items'][8]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "09",
+            "value": "'Buzz'",
+            "type": "str",
+            "evaluateName": "engine['items'][9]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "10",
+            "value": "'11'",
+            "type": "str",
+            "evaluateName": "engine['items'][10]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "11",
+            "value": "'Fizz'",
+            "type": "str",
+            "evaluateName": "engine['items'][11]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "12",
+            "value": "'13'",
+            "type": "str",
+            "evaluateName": "engine['items'][12]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "13",
+            "value": "'14'",
+            "type": "str",
+            "evaluateName": "engine['items'][13]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "14",
+            "value": "'FizzBuzz'",
+            "type": "str",
+            "evaluateName": "engine['items'][14]",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "rawString"
+              ]
+            }
+          },
+          {
+            "name": "len()",
+            "value": "15",
+            "type": "int",
+            "evaluateName": "len(engine['items'])",
+            "variablesReference": 0,
+            "presentationHint": {
+              "attributes": [
+                "readOnly"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "command": "next",
+      "arguments": {
+        "threadId": 1
+      },
+      "seq": 12,
+      "type": "request"
+    },
+    {
+      "seq": 24,
+      "type": "response",
+      "request_seq": 12,
+      "success": true,
+      "command": "next"
+    },
+    {
+      "seq": 25,
+      "type": "event",
+      "event": "continued",
+      "body": {
+        "threadId": 1,
+        "allThreadsContinued": true
+      }
+    },
+    {
+      "seq": 26,
+      "type": "event",
+      "event": "stopped",
+      "body": {
+        "reason": "step",
+        "threadId": 1,
+        "preserveFocusHint": false,
+        "allThreadsStopped": true
+      }
+    },
+    {
+      "command": "stackTrace",
+      "arguments": {
+        "threadId": 1,
+        "startFrame": 0,
+        "levels": 5
+      },
+      "seq": 13,
+      "type": "request"
+    },
+    {
+      "seq": 27,
+      "type": "response",
+      "request_seq": 13,
+      "success": true,
+      "command": "stackTrace",
+      "body": {
+        "stackFrames": [
+          {
+            "id": 2,
+            "name": "main",
+            "line": 25,
+            "column": 1,
+            "source": {
+              "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
+              "sourceReference": 0
+            }
+          },
+          {
+            "id": 3,
+            "name": "<module>",
+            "line": 31,
+            "column": 1,
+            "source": {
+              "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
+              "sourceReference": 0
+            }
+          }
+        ],
+        "totalFrames": 2
+      }
+    },
+    {
+      "command": "continue",
+      "arguments": {
+        "threadId": 1
+      },
+      "seq": 14,
+      "type": "request"
+    },
+    {
+      "seq": 28,
+      "type": "response",
+      "request_seq": 14,
+      "success": true,
+      "command": "continue",
+      "body": {
+        "allThreadsContinued": true
+      }
+    },
+    {
+      "seq": 29,
+      "type": "event",
+      "event": "continued",
+      "body": {
+        "threadId": 1,
+        "allThreadsContinued": true
+      }
+    },
+    {
+      "seq": 30,
+      "type": "event",
+      "event": "stopped",
+      "body": {
+        "reason": "breakpoint",
+        "threadId": 1,
+        "preserveFocusHint": false,
+        "allThreadsStopped": true
+      }
+    },
+    {
+      "command": "stackTrace",
+      "arguments": {
+        "threadId": 1,
+        "startFrame": 0,
+        "levels": 5
+      },
+      "seq": 15,
+      "type": "request"
+    },
+    {
+      "seq": 31,
+      "type": "response",
+      "request_seq": 15,
+      "success": true,
+      "command": "stackTrace",
+      "body": {
+        "stackFrames": [
+          {
+            "id": 2,
+            "name": "main",
+            "line": 28,
+            "column": 1,
+            "source": {
+              "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
+              "sourceReference": 0
+            }
+          },
+          {
+            "id": 3,
+            "name": "<module>",
+            "line": 31,
+            "column": 1,
+            "source": {
+              "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
+              "sourceReference": 0
+            }
+          }
+        ],
+        "totalFrames": 2
+      }
+    },
+    {
+      "command": "scopes",
+      "arguments": {
+        "frameId": 2
+      },
+      "seq": 16,
+      "type": "request"
+    },
+    {
+      "seq": 32,
+      "type": "response",
+      "request_seq": 16,
+      "success": true,
+      "command": "scopes",
+      "body": {
+        "scopes": [
+          {
+            "name": "Locals",
+            "variablesReference": 4,
+            "expensive": false,
+            "presentationHint": "locals",
+            "source": {}
+          },
+          {
+            "name": "Globals",
+            "variablesReference": 5,
+            "expensive": false,
+            "source": {}
+          }
+        ]
+      }
+    },
+    {
+      "command": "variables",
+      "arguments": {
+        "variablesReference": 4
+      },
+      "seq": 17,
+      "type": "request"
+    },
+    {
+      "seq": 33,
+      "type": "response",
+      "request_seq": 17,
+      "success": true,
+      "command": "variables",
+      "body": {
+        "variables": [
+          {
+            "name": "engine",
+            "value": "{'name': 'fizz-engine', 'items': ['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', 'Fizz', '13', '14', 'FizzBuzz'], 'nested': {'meta': {...}}}",
+            "type": "dict",
+            "evaluateName": "engine",
+            "variablesReference": 6
+          },
+          {
+            "name": "fh",
+            "value": "<_io.TextIOWrapper name='E:\\\\aide-sovereign-workbench\\\\fixtures\\\\debuggee\\\\debuggee.pid' mode='w' encoding='cp1252'>",
+            "type": "TextIOWrapper",
+            "evaluateName": "fh",
+            "variablesReference": 13
+          },
+          {
+            "name": "report",
+            "value": "{'ok': True, 'total': 43, 'engine': {'name': 'fizz-engine', 'items': [...], 'nested': {...}}}",
+            "type": "dict",
+            "evaluateName": "report",
+            "variablesReference": 14
+          },
+          {
+            "name": "total",
+            "value": "43",
+            "type": "int",
+            "evaluateName": "total",
+            "variablesReference": 0
+          }
+        ]
+      }
+    },
+    {
+      "command": "terminate",
+      "arguments": {},
+      "seq": 18,
+      "type": "request"
+    },
+    {
+      "seq": 34,
+      "type": "event",
+      "event": "exited",
+      "body": {
+        "exitCode": 0
+      }
+    },
+    {
+      "seq": 35,
+      "type": "event",
+      "event": "terminated"
+    },
+    {
+      "seq": 36,
+      "type": "event",
+      "event": "debugpySockets",
+      "body": {
+        "sockets": [
+          {
+            "host": "127.0.0.1",
+            "port": 59875,
+            "internal": false
+          }
+        ]
+      }
+    },
+    {
+      "seq": 37,
+      "type": "response",
+      "request_seq": 18,
+      "success": true,
+      "command": "terminate"
+    },
+    {
+      "command": "disconnect",
+      "arguments": {
+        "terminateDebuggee": true
+      },
+      "seq": 19,
+      "type": "request"
+    },
+    {
+      "seq": 38,
+      "type": "response",
+      "request_seq": 19,
+      "success": true,
+      "command": "disconnect"
+    },
+    {
+      "seq": 39,
+      "type": "event",
+      "event": "debugpySockets",
+      "body": {
+        "sockets": [
+          {
+            "host": "127.0.0.1",
+            "port": 59875,
+            "internal": false
+          }
+        ]
+      }
+    }
+  ]
+}

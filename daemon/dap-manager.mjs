@@ -3,11 +3,12 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 export class DapManager {
-  constructor({ manifestPath, workspace, pythonPath = '', spawnProcess = spawn } = {}) {
+  constructor({ manifestPath, workspace, pythonPath = '', spawnProcess = spawn, transcript = null } = {}) {
     this.manifestPath = manifestPath;
     this.workspace = workspace;
     this.spawnProcess = spawnProcess;
     this.pythonPath = pythonPath;
+    this.transcript = transcript;
     this.adapters = new Map();
     this.processes = new Map();
     this.pending = new Map();
@@ -50,9 +51,10 @@ export class DapManager {
     if (!child) return Promise.reject(new Error('debug adapter is not running'));
     const seq = request.seq ?? this.nextSeq++;
     const payload = JSON.stringify({ ...request, seq, type: 'request' });
+    if (this.transcript) this.transcript.push(JSON.parse(payload));
     child.stdin.write(`Content-Length: ${Buffer.byteLength(payload)}\r\n\r\n${payload}`);
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(`${id}:${seq}`); reject(new Error('DAP request timed out')); }, 15000);
+      const timer = setTimeout(() => { this.pending.delete(`${id}:${seq}`); reject(new Error(`DAP request timed out: ${request.command || 'unknown'}`)); }, 15000);
       this.pending.set(`${id}:${seq}`, { resolve, reject, timer });
     });
   }
@@ -69,6 +71,7 @@ export class DapManager {
       const raw = buffer.slice(start, start + length); buffer = buffer.slice(start + length);
       try {
         const message = JSON.parse(raw);
+        if (this.transcript) this.transcript.push(message);
         if (message.type === 'event') {
           const events = this.events.get(id) || [];
           events.push({ event: message.event, body: message.body || {} });

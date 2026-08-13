@@ -378,6 +378,43 @@ the result, and refuse unsupported completion claims.
   `check()` resolves python/python3 through it; daemon passes it through.
 - Gate: tutor manager test PASS with `AIDE_PYTHON` set; full `npm test` 26/26.
 
+## 2026-08-12 — DAP Fixture Completeness (real debuggee)
+
+- Research: debugpy 1.8.21 adapter source (installed at
+  E:\Python310\Lib\site-packages\debugpy) — two empirical findings:
+  - `initialized` is NOT sent after `initialize`; it is sent during handling
+    of `launch`/`attach` (`clients.py` line 279).
+  - The `launch` response is DEFERRED: `clients.py` line 282
+    `return messaging.NO_RESPONSE  # will respond on "configurationDone"`.
+    A client that awaits the launch response before `configurationDone`
+    hangs forever (observed on the wire: frames 1-8, initialized last, no
+    response). Correct order: initialize -> launch (fire) -> setBreakpoints
+    -> setExceptionBreakpoints -> configurationDone -> launch response +
+    initialized arrive -> stopped.
+  - The adapter process is long-lived: it exits only when the client closes
+    the channel (stdin EOF). Closing the DAP channel after `terminated` is
+    required for a clean adapter exit (code 0) and no orphaned processes.
+- Finding: pydevd reports reason `breakpoint` (not `step`) when a `next`
+  lands in a comprehension frame on the same physical line as a breakpoint;
+  the fixture's breakpoint line was made a single frame-free statement
+  (`sum(map(len, map(str, ...)))`).
+- Decision + change: `fixtures/debuggee/fizz_engine.py` real program
+  (breakpoints at two deterministic lines, nested dict/list values,
+  self-reporting debuggee PID file); `daemon/test-dap-fixture.mjs` full
+  lifecycle test — initialize/launch/setBreakpoints(verified)/setException-
+  Breakpoints/configurationDone/stopped(breakpoint)/threads/stackTrace
+  (main@line)/scopes(Locals)/variables (engine, depth 3 items[2]='Fizz')/
+  next (reason step, line+1, threadId stable)/continue (second breakpoint,
+  computed total=43)/terminate/terminated/clean adapter exit (code 0)/
+  no orphaned debuggee (tasklist PID check). DapManager gained an optional
+  `transcript` array (DAP audit trail) and timeout errors now name the
+  request command. Raw wire sequence recorded to
+  `docs/evidence/dap-wire-sequence.json` (26 KB, 17 assertions).
+- Gate: full `npm test` 27/27 PASS. Debugpy added to the dev Python
+  (E:\Python310) for the fixture; tests skip loudly when debugpy is absent.
+- Note for skill: debugpy defers launch response to configurationDone and
+  sends initialized after launch — recorded in the fixture test comments.
+
 ## Next Research Gates
 
 - Debugging: DAP breakpoints, threads, stack, scopes, variables, stop, and

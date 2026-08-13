@@ -61,8 +61,9 @@ export class TutorManager {
       ? [
         ...(this.pythonPath ? [{ command: this.pythonPath, prefix: [] }] : []),
         ...(process.platform === 'win32' ? [{ command: 'py', prefix: ['-3'] }] : []),
+        ...(process.platform !== 'win32' ? [{ command: 'python3', prefix: [] }] : []),
         { command: match[1], prefix: [] },
-        { command: 'python3', prefix: [] }
+        ...(process.platform === 'win32' ? [{ command: 'python3', prefix: [] }] : [])
       ]
       : [{ command: match[1], prefix: [] }];
     let lastError = null;

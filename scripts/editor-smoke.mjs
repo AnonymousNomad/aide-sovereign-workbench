@@ -1,12 +1,46 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createServer } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
 
-const edge = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+async function canExecute(file) {
+  try {
+    await access(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveBrowser() {
+  if (process.env.AIDE_BROWSER && await canExecute(process.env.AIDE_BROWSER)) return process.env.AIDE_BROWSER;
+  const names = process.platform === 'win32'
+    ? [
+        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+        'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+      ]
+    : ['microsoft-edge', 'google-chrome-stable', 'google-chrome', 'chromium', 'chromium-browser'];
+  const pathDirs = String(process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const name of names) {
+    if (path.isAbsolute(name) && await canExecute(name)) return name;
+    for (const directory of pathDirs) {
+      const candidate = path.join(directory, name);
+      if (await canExecute(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+
+const browser = await resolveBrowser();
+if (!browser) {
+  console.log('editor smoke e2e skipped: no supported headless browser found');
+  process.exit(0);
+}
+
 const root = process.cwd();
 const workspace = await mkdtemp(path.join(tmpdir(), 'aide-smoke-'));
 await writeFile(path.join(workspace, 'README.md'), '# Smoke workspace\n');
@@ -38,7 +72,7 @@ try {
 
   const dom = await new Promise((resolve, reject) => {
     const profile = path.join(tmpdir(), `aide-edge-${Date.now()}`);
-    const child = spawn(edge, ['--headless=new', '--disable-gpu', '--no-first-run', `--user-data-dir=${profile}`, '--virtual-time-budget=15000', '--dump-dom', 'http://127.0.0.1:4173/index.html'], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+    const child = spawn(browser, ['--headless=new', '--disable-gpu', '--no-first-run', `--user-data-dir=${profile}`, '--virtual-time-budget=15000', '--dump-dom', 'http://127.0.0.1:4173/index.html'], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
     let output = '';
     child.stdout.on('data', chunk => { output += chunk; });
     child.on('close', code => resolve(output));

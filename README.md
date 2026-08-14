@@ -16,6 +16,41 @@ pipeline_tag: text-generation
 > local operator workflows, Git review, tasks, plugins, and reproducible audit
 > artifacts.
 
+## Veritas: Evidence Gates For AI Coding
+
+AI coding tools can generate changes faster than teams can review them. AIDE's
+Veritas harness makes every coding claim prove itself with deterministic checks,
+an evidence ledger, and a developer credo that prefers abstention over false
+certainty.
+
+```bash
+npm run veritas -- --report
+```
+
+Example output:
+
+```text
+Status: verified
+Evidence: 100% observed, 90% required (sufficient)
+
+Evidence Ledger
+- path-boundary: pass
+- secret-scan: pass
+- manifest-validation: pass
+- compile: pass
+- tests: pass
+- git-diff: pass
+```
+
+Use stricter 98% gates for publishing, security, payment, or identity work:
+
+```bash
+npm run veritas -- --report --task-class security-or-publish
+```
+
+See `docs/VERITAS_HARNESS.md` for the credo, CLI, GitHub Action example, and
+product thesis.
+
 [![CI](https://github.com/AnonymousNomad/aide-sovereign-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/AnonymousNomad/aide-sovereign-workbench/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/AnonymousNomad/aide-sovereign-workbench)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/AnonymousNomad/aide-sovereign-workbench?include_prereleases)](https://github.com/AnonymousNomad/aide-sovereign-workbench/releases)
@@ -119,6 +154,9 @@ See `runtime/README.md` and `models/manifest.json` for the adapter contract and 
 `harness/credo.md` contains AIDE Engineering Standards: evidence over confidence, explicit approvals, reversible changes, and honest capability reporting. It is mandatory harness context for every model role, alongside the role-specific SOP cards in `harness/sops.json`. `harness/veritas.mjs` uses calibrated task thresholds: 90% for ordinary explanation/code-change evidence and 98% for security, publishing, payment, and identity operations. These are evidence gates, not promises of universal model accuracy; failed gates produce abstention.
 
 `npm run veritas` executes the real local gate before a release or verified answer: compile checks, tests, Git whitespace checks, manifest validation, path boundaries, and secret scanning. It is intentionally allowlisted and does not execute arbitrary model-generated commands.
+
+See `docs/VERITAS_HARNESS.md` for the developer credo, evidence classes, CLI
+report mode, and the trust-focused product thesis behind Veritas.
 
 The Community Hub provides an offline cache for projects, issues, discussions, and marketplace metadata. Sync remains disabled until an encrypted transport is explicitly configured.
 

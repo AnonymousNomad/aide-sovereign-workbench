@@ -11,13 +11,8 @@ const ALLOWED_COMMANDS = Object.freeze({
 function command(name, cwd) {
   const entry = ALLOWED_COMMANDS[name];
   if (!entry) throw new Error(`command is not allowlisted: ${name}`);
-  const executable = process.platform === 'win32' && entry[0] === 'npm' ? 'npm.cmd' : entry[0];
-  const command = process.platform === 'win32' && executable.endsWith('.cmd') ? (process.env.ComSpec || 'cmd.exe') : executable;
-  const args = process.platform === 'win32' && executable.endsWith('.cmd')
-    ? ['/d', '/s', '/c', [executable, ...entry[1]].join(' ')]
-    : entry[1];
   return new Promise(resolve => {
-    execFile(command, args, { cwd, timeout: 120000, maxBuffer: 512 * 1024 }, (error, stdout, stderr) => {
+    execFile(entry[0], entry[1], { cwd, timeout: 120000, maxBuffer: 512 * 1024 }, (error, stdout, stderr) => {
       resolve({
         name,
         passed: !error,
@@ -59,6 +54,20 @@ async function manifestCheck(workspace) {
   return { name: 'manifest-validation', passed: errors.length === 0, errors };
 }
 
+async function gitDiffCheck(workspace) {
+  try {
+    await fs.stat(path.join(workspace, '.git'));
+  } catch {
+    return {
+      name: 'git-diff',
+      passed: true,
+      skipped: true,
+      reason: 'workspace is not a Git repository'
+    };
+  }
+  return command('git-diff', workspace);
+}
+
 function boundaryCheck(workspace, changedFiles = []) {
   const root = path.resolve(workspace) + path.sep;
   const invalid = changedFiles.filter(file => !path.resolve(workspace, file).startsWith(root));
@@ -67,7 +76,8 @@ function boundaryCheck(workspace, changedFiles = []) {
 
 export async function runVeritasChecks({ workspace, changedFiles = [] } = {}) {
   const results = [boundaryCheck(workspace, changedFiles), await secretScan(workspace), await manifestCheck(workspace)];
-  for (const name of ['compile', 'tests', 'git-diff']) results.push(await command(name, workspace));
+  for (const name of ['compile', 'tests']) results.push(await command(name, workspace));
+  results.push(await gitDiffCheck(workspace));
   return {
     passed: results.every(result => result.passed),
     checks: Object.fromEntries(results.map(result => [result.name, result.passed])),

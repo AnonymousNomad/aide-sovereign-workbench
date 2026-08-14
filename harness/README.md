@@ -38,4 +38,29 @@ See `orchestrator.mjs` and `policy.json` for the executable contract.
 
 Run `npm run veritas` from a workspace to execute the allowlisted compile, test, Git diff, manifest, secret, and path-boundary checks. The orchestrator also rejects malformed or fenced model patches before verification. A model verdict never overrides a failed execution check. The orchestrator accepts this runner as `verificationRunner` and blocks the final status until it passes.
 
-The engineering standards and research basis are documented in `credo-research.md`. The product uses technical language rather than fictional quotations, personas, or branding.
+For a developer-facing report, run:
+
+```bash
+npm run veritas -- --report
+```
+
+For stricter release, security, payment, publishing, or identity work, choose a
+98% evidence class:
+
+```bash
+npm run veritas -- --report --task-class security-or-publish
+```
+
+To create a report artifact for CI or PR comments:
+
+```bash
+npm run veritas -- --report --output artifacts/veritas.md
+```
+
+The report maps failed checks back to the developer credo so the user sees the
+reason for abstention, not just a red build. `harness/credo-map.json` contains
+the machine-readable oath-to-control mapping.
+
+The engineering standards and research basis are documented in `credo-research.md`.
+The product uses technical language rather than fictional quotations, personas,
+or branding.

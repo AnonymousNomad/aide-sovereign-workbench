@@ -4,10 +4,9 @@ desktop/target/
 models/*.gguf
 models/*.safetensors
 *.log
+artifacts/veritas.md
 .DS_Store
 .env
 .env.*
 !.env.example
 community/store.local.json
-
-.aide/

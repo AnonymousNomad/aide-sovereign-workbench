@@ -19,9 +19,17 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 18:39 full aggregate recovered: `npm test` passed every listed gate, including real Edge editor smoke, REAL AIDE ACCEPTANCE, DAP 17/17, Git API, plugin capability tests, and daemon E2E. Veritas is the remaining local evidence check.
-- Next: run Veritas report, commit/push the smoke-harness repair and evidence journal, then trigger the GitHub desktop matrix for Tauri compile, installer artifacts, and lifecycle evidence.
+- 2026-08-15 18:41 pushed verified checkpoint `223f50f` to `origin/main` after `npm test` and Veritas both passed. The smoke harness now has a 15-second daemon readiness gate with diagnostics. GitHub desktop CI remains the next proof for Cargo/Tauri installer and lifecycle behavior.
+- Next: trigger or observe the GitHub desktop matrix, then complete install/launch/upgrade/uninstall evidence before calling the desktop release production-ready.
 
+---
+
+## [2026-08-15 18:41] Actor: codex
+**Type:** verified push
+**Status:** pushed
+**Summary:** Pushed the clean aggregate and Veritas checkpoint to GitHub.
+**Details:** Commit `223f50f` (`Harden daemon smoke readiness`) is now on `origin/main`. Before the push, `npm test` passed all gates and `npm run veritas -- --report` returned `Status: verified` with `100% observed` evidence. The push was accepted; GitHub again reported the existing direct-push PR/status-rule bypass and one moderate Dependabot advisory. The nondeterministic DAP transcript and known local artifacts remain unstaged.
+**Next:** use GitHub desktop CI to prove Tauri compilation, installer artifact generation, and lifecycle smoke behavior; local Cargo remains unavailable.
 ---
 
 ## [2026-08-15 18:39] Actor: codex

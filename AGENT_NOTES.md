@@ -19,8 +19,17 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- Next: close the remaining Daily-Driver gap: hot-exit recovery and session restore parity before desktop packaging; terminal/task UX and Git panel parity are now implemented and contract/API verified.
+- Next: perform the final Gate 1 aggregate run when the Edge runtime is available, then close packaging/release verification; terminal/task UX, Git panel parity, and hot-exit recovery are implemented and targeted-verified.
 
+---
+
+## [2026-08-15 01:12] Actor: codex
+**Type:** Gate 1 checkpoint
+**Status:** verified
+**Summary:** Implemented and verified hot-exit recovery for unsaved editor buffers.
+**Details:** Session state now persists bounded workspace-relative dirty buffers (maximum 512 KiB per file and 4 MiB total), sanitizes paths, writes atomically, and restores buffers as dirty undo history against the current on-disk baseline. Recovery never writes files automatically and logs the recovered buffer count. `session/test-store.mjs`, `editor/test-groups.mjs`, `scripts/hot-exit-contract.mjs`, `scripts/ui-audit.mjs` (108/108), syntax checks, and `scripts/acceptance-real.mjs` pass. The test-only hot-exit contract is included in the aggregate `npm test` sequence. Untracked `.aide/`, corrupt model copy, and `styles.css.wrongfile` remain intentionally untouched.
+**Files:** `app.js`, `session/store.mjs`, `session/test-store.mjs`, `scripts/hot-exit-contract.mjs`, `package.json`, `AGENT_NOTES.md`
+**Next:** push this checkpoint; then run the remaining aggregate gates and move to packaging/release engineering once the Edge headless environment is repaired.
 ---
 
 ## [2026-08-15 00:34] Actor: codex

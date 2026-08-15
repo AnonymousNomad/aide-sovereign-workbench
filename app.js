@@ -160,6 +160,7 @@ function syncDirty() {
   const dirty = new Set([...state.editorStacks.entries()].filter(([, stack]) => stack.dirty).map(([file]) => file));
   const key = [...dirty].sort().join('|');
   if (key !== [...state.dirtyFiles].sort().join('|')) { state.dirtyFiles = dirty; renderEditorTabs(); }
+  saveSession({ active_file: state.activeFile, open_files: state.openFiles, buffers: Object.fromEntries([...state.editorStacks.entries()].filter(([, stack]) => stack.dirty).map(([file, stack]) => [file, stack.text()])) });
 }
 
 function openFind() {
@@ -212,7 +213,7 @@ async function openFile(name) {
   renderEditorText();
   document.querySelectorAll('[data-file]').forEach(button => button.classList.toggle('active', button.dataset.file === name));
   renderEditorTabs();
-  saveSession({ active_file: name, open_files: state.openFiles });
+  saveSession({ active_file: name, open_files: state.openFiles, buffers: Object.fromEntries([...state.editorStacks.entries()].filter(([, stack]) => stack.dirty).map(([file, stack]) => [file, stack.text()])) });
 }
 
 function renderEditorTabs() {
@@ -243,7 +244,23 @@ async function saveSession(statePatch) {
 }
 
 async function restoreSession() {
-  try { const response = await fetch('http://127.0.0.1:4777/api/session'); const session = await response.json(); await openFile(session.active_file || 'README.md'); } catch { await openFile('README.md'); }
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/session');
+    const session = await response.json();
+    const files = (session.open_files || []).filter(file => typeof file === 'string' && file && !file.split(/[\\/]+/).includes('..')).slice(0, 32);
+    const openFiles = files.length ? files : [session.active_file || 'README.md'];
+    for (const file of openFiles) await openFile(file);
+    for (const [file, recovered] of Object.entries(session.buffers || {})) {
+      if (!state.editorStacks.has(file) || typeof recovered !== 'string') continue;
+      const stack = state.editorStacks.get(file);
+      for (const operation of diffOperation(stack.text(), recovered)) stack.apply(operation);
+    }
+    state.activeFile = openFiles.includes(session.active_file) ? session.active_file : openFiles[0];
+    await openFile(state.activeFile);
+    syncDirty();
+    const recoveredFiles = Object.keys(session.buffers || {}).filter(file => state.editorStacks.get(file)?.dirty);
+    if (recoveredFiles.length) appendLog('SESSION', `Recovered ${recoveredFiles.length} unsaved buffer${recoveredFiles.length === 1 ? '' : 's'} without writing to disk.`);
+  } catch { await openFile('README.md'); }
 }
 
 function renderWorkspaceTree(nodes, depth = 0) {
@@ -399,9 +416,8 @@ async function saveFile() {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'file write rejected');
     stack?.markSaved();
-    state.dirtyFiles.delete(state.activeFile);
     appendLog('WORKSPACE', `${result.path} saved atomically after explicit approval.`);
-    renderEditorTabs();
+    syncDirty();
   } catch (error) {
     appendLog('WORKSPACE', `Save blocked: ${error.message}. Start the local daemon and open a trusted workspace.`, 'warning');
   }

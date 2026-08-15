@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import { execFile } from 'node:child_process';
 import { DapManager } from './dap-manager.mjs';
 import { checkProcessAlive } from './process-check.mjs';
 
@@ -11,7 +13,18 @@ const fixture = path.join(fixtureDir, 'fizz_engine.py');
 const pidFile = path.join(fixtureDir, 'debuggee.pid');
 const evidenceDir = path.join(root, 'docs', 'evidence');
 
-const python = process.env.AIDE_PYTHON || 'python';
+const run = promisify(execFile);
+const resolvePython = async () => {
+  if (process.env.AIDE_PYTHON) return process.env.AIDE_PYTHON;
+  if (process.platform === 'win32') {
+    try {
+      const result = await run('py', ['-3.10', '-E', '-c', 'import sys; print(sys.executable)']);
+      if (result.stdout.trim()) return result.stdout.trim();
+    } catch { /* fall through to PATH python */ }
+  }
+  return 'python';
+};
+const python = await resolvePython();
 
 const pythonReady = await new Promise(resolve => {
   const probe = spawn(python, ['-c', 'import debugpy'], { stdio: 'ignore' });

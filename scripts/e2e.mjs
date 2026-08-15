@@ -1,10 +1,22 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
-const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: process.cwd(), env: { ...process.env, AIDE_WORKSPACE: process.cwd(), AIDE_DAEMON_PORT: '4879' }, stdio: 'ignore' });
+const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: process.cwd(), env: { ...process.env, AIDE_WORKSPACE: process.cwd(), AIDE_DAEMON_PORT: '4879' }, stdio: ['ignore', 'ignore', 'pipe'] });
+let daemonExit = null;
+let daemonError = null;
+let daemonStderr = '';
+daemon.stderr.on('data', chunk => { daemonStderr = `${daemonStderr}${chunk}`.slice(-4000); });
+daemon.once('error', error => { daemonError = `daemon spawn error: ${error.message}`; });
+daemon.once('exit', (code, signal) => { daemonExit = `daemon exited before readiness (code=${code}, signal=${signal || 'none'})`; });
 try {
   let response;
-  for (let i = 0; i < 20; i += 1) { try { response = await fetch('http://127.0.0.1:4879/health'); if (response.ok) break; } catch {} await delay(50); }
+  let daemonReady = false;
+  for (let i = 0; i < 150; i += 1) {
+    try { response = await fetch('http://127.0.0.1:4879/health'); if (response.ok) { daemonReady = true; break; } } catch {}
+    if (daemonError || daemonExit) break;
+    await delay(100);
+  }
+  assert.equal(daemonReady, true, daemonError || daemonExit || `daemon did not become ready within 15 seconds${daemonStderr ? `: ${daemonStderr.trim()}` : ''}`);
   assert.equal(response?.status, 200);
   for (const endpoint of ['/api/models/status', '/api/providers', '/api/community', '/api/training/status', '/api/replays', '/api/workspace/tree', '/api/blueprint', '/api/academy', '/api/plugins', '/api/plugins/presets', '/api/tasks', '/api/session', '/api/artifacts']) { const result = await fetch(`http://127.0.0.1:4879${endpoint}`); assert.equal(result.status, 200, endpoint); }
   const ready = await fetch('http://127.0.0.1:4879/api/model/ready?id=qwen-coder-1.5b-q4');

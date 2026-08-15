@@ -23,6 +23,15 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 
 ---
 
+## [2026-08-15 00:04] Actor: codex
+**Type:** release checkpoint
+**Status:** verified
+**Summary:** Pushed the production-readiness gate work to GitHub after rebasing onto the remote and removing a historical credential from the journal.
+**Details:** Local commit `682d0dc` was rebased onto remote commit `c70eead`, resolving package/test-script and browser-harness conflicts while preserving the remote Veritas additions. GitHub push protection correctly blocked the first rebased push because an old Hugging Face credential had been recorded in `AGENT_NOTES.md`; the journal entry is now redacted, the amended commit is `2e48db3`, and `origin/main` points to that commit. The push was accepted; GitHub reports the repository’s expected `verify` status/PR rule and one moderate Dependabot vulnerability. The Edge headless environment remains blocked: even a standalone `data:` DOM probe hung without output, while the AIDE editor smoke had passed earlier when the browser was responsive. Untracked `.aide/`, `models/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf.corrupt`, and `styles.css.wrongfile` were intentionally left untouched.
+**Files:** `AGENT_NOTES.md` — redacted historical credential and recorded release checkpoint; GitHub `origin/main` — updated to `2e48db3`
+**Next:** rotate/revoke the previously exposed Hugging Face credential; then continue Gate 1 Daily-Driver work with terminal/task UX, Git parity, LSP/DAP fixture completeness, and hot-exit recovery. Treat Edge headless as an environment gate until its runtime is repaired.
+---
+
 ## [2026-08-14 23:29] Actor: codex
 **Type:** checkpoint
 **Status:** verified

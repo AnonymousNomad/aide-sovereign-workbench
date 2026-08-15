@@ -62,7 +62,7 @@ const parsed = parseVeritasArgs([
 ]);
 assert.equal(parsed.format, 'report');
 assert.equal(parsed.taskClass, 'security-or-publish');
-assert.match(parsed.output, /artifacts\/veritas\.md$/);
+assert.match(parsed.output.replaceAll('\\', '/'), /artifacts\/veritas\.md$/);
 
 assert.throws(() => parseVeritasArgs(['--task-class', 'unknown']), /unknown task class/);
 assert.throws(() => parseVeritasArgs(['--workspace']), /requires a value/);

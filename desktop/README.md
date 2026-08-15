@@ -13,6 +13,8 @@ Tauri is the intended shell because it can provide a smaller offline desktop pac
 
 The Tauri CLI is now pinned in the root package and the Rust project lives in `desktop/`. `desktop/prepare.mjs` stages only approved frontend assets, avoiding `node_modules` and build artifacts. Use `npm run desktop:dev` after installing platform prerequisites, or `npm run desktop:build` for a release build. A compiled binary is not claimed until that command succeeds on the target platform.
 
+The core desktop package includes the model manifest but does not bundle GGUF weights. For a local weight-inclusive pack, set `AIDE_INCLUDE_MODEL_WEIGHTS=1` before `desktop:prepare` or `desktop:build`; this is intentionally not used by the release CI workflow.
+
 ## Shell Acceptance Gates
 
 - Launches without network access.

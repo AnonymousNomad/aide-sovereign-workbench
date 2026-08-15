@@ -91,14 +91,14 @@ try {
     child.on('error', reject);
     setTimeout(() => { child.kill(); }, 30000);
   });
-  let browser = await dumpDom();
-  let dom = browser.output;
+  let browserResult = await dumpDom();
+  let dom = browserResult.output;
   if (!/<title[\s>]/i.test(dom) && !dom.includes('editor-smoke-output')) {
     await delay(500);
-    browser = await dumpDom();
-    dom = browser.output;
+    browserResult = await dumpDom();
+    dom = browserResult.output;
   }
-  assert.ok(dom, `Edge returned no DOM (exit=${browser.code})${browser.errorOutput ? `: ${browser.errorOutput.trim()}` : ''}`);
+  assert.ok(dom, `Edge returned no DOM (exit=${browserResult.code})${browserResult.errorOutput ? `: ${browserResult.errorOutput.trim()}` : ''}`);
 
   const titleElement = dom.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const text = titleElement?.[1] || '';

@@ -2,9 +2,12 @@ import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
+const NPM = process.platform === 'win32'
+  ? [process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm']]
+  : ['npm', []];
 const ALLOWED_COMMANDS = Object.freeze({
-  compile: ['npm', ['run', 'check']],
-  tests: ['npm', ['test']],
+  compile: [NPM[0], [...NPM[1], 'run', 'check']],
+  tests: [NPM[0], [...NPM[1], 'test']],
   'git-diff': ['git', ['diff', '--check']]
 });
 

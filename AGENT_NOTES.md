@@ -19,8 +19,27 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- Next: perform the final Gate 1 aggregate run when the Edge runtime is available, then close packaging/release verification; terminal/task UX, Git panel parity, and hot-exit recovery are implemented and targeted-verified.
+- 2026-08-15 15:39 release gate retest: `npm run check` and `npm run desktop:verify` passed, but the latest aggregate `npm test` and Veritas attempt were blocked by a real debugpy DAP fixture timeout during `initialize`; the earlier full aggregate pass remains valid evidence for the unchanged DAP path, but the current retest is not a clean release result.
+- Next: obtain one clean DAP fixture and aggregate run under stable process capacity, then rerun Veritas before committing; after that use the GitHub desktop matrix to prove Rust compilation, installer artifacts, and lifecycle behavior.
 
+---
+
+## [2026-08-15 15:39] Actor: codex
+**Type:** verification incident
+**Status:** blocked-by-environment
+**Summary:** The packaging changes passed their targeted checks, but the latest aggregate release retest hit a debugpy startup timeout.
+**Details:** `npm run check` passed and `npm run desktop:verify` passed, including the core-package no-GGUF assertion. The aggregate `npm test` passed every gate through the DAP manager test, then the real debugpy fixture timed out at `initialize`; an isolated fixture retry exceeded its 120-second bound without producing a pass. Veritas therefore returned `abstain-needs-evidence` with only the tests check failing. No model, training, or unrelated process was stopped, and no claim of current full-suite verification is made. The generated DAP transcript contains nondeterministic timestamp/port/PID changes and remains unstaged.
+**Files:** `AGENT_NOTES.md` only for this incident record; no product rollback performed.
+**Next:** rerun the isolated DAP fixture once the Windows process launcher/debugpy capacity is stable, then rerun the aggregate and Veritas. Do not push a verified release claim until that evidence is clean.
+---
+
+## [2026-08-15 12:56] Actor: codex
+**Type:** release-engineering checkpoint
+**Status:** verified
+**Summary:** Closed the local packaging evidence gate and hardened the GitHub desktop build workflow.
+**Details:** Reconfirmed the previously completed aggregate `npm test` and Veritas report (`verified`, 100% observed evidence). Direct SHA-256 verification matched the three local model packs exactly against `models/manifest.json`: SmolLM2 `48AB3034D0DD401FBC721EB1DF3217902FEE7DAB9078992D66431F09B7750201`, Qwen 0.5B `1D9614638D18024D0FBB36575A15F1302A3ADF044DF10345688EC4F6E1C4FF32`, and Qwen 1.5B `CC324AF070C2ECBFD324A30884D2F951A7FF756ABA85CB811A6EC436933BB046`. `npm run desktop:verify` passed after changing desktop preparation to copy the manifest and support files without GGUF weights by default; a weight-inclusive local pack remains explicit via `AIDE_INCLUDE_MODEL_WEIGHTS=1`. Added a cross-platform bundle-artifact smoke and wired desktop CI to run preparation verification and the smoke after `tauri build`. Cargo is unavailable on this machine, so no local installer claim was made.
+**Files:** `.github/workflows/desktop.yml`, `desktop/README.md`, `desktop/prepare.mjs`, `desktop/verify-prepare.mjs`, `scripts/desktop-artifact-smoke.mjs`, `package.json`, `AGENT_NOTES.md`; prior Windows Veritas/editor-smoke fixes remain in the same pending release commit.
+**Next:** run final diff review and syntax/Veritas checks, commit only intentional tracked files, push to `origin/main`, and rely on GitHub’s desktop matrix for the Tauri installer gate.
 ---
 
 ## [2026-08-15 01:12] Actor: codex

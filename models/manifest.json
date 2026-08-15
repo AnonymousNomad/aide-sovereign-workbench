@@ -92,8 +92,12 @@
       "id": "smollm2-360m-q8",
       "name": "SmolLM2 360M Instruct",
       "lane": "research",
-      "status": "pending",
-      "roles": ["research", "chat", "fast"],
+      "status": "ready",
+      "roles": [
+        "research",
+        "chat",
+        "fast"
+      ],
       "format": "GGUF",
       "runtime": "OpenAI-compatible HTTP",
       "endpoint": "http://127.0.0.1:8082/v1",
@@ -110,8 +114,11 @@
       "id": "qwen-coder-0.5b-q4",
       "name": "Qwen2.5-Coder 0.5B Instruct",
       "lane": "fast",
-      "status": "pending",
-      "roles": ["fast", "autocomplete"],
+      "status": "ready",
+      "roles": [
+        "fast",
+        "autocomplete"
+      ],
       "format": "GGUF",
       "runtime": "OpenAI-compatible HTTP",
       "endpoint": "http://127.0.0.1:8083/v1",
@@ -129,16 +136,22 @@
       "name": "Qwen2.5-Coder 1.5B Instruct",
       "lane": "build",
       "status": "ready",
-      "roles": ["build", "verify"],
+      "roles": [
+        "build",
+        "verify"
+      ],
       "format": "GGUF",
       "runtime": "OpenAI-compatible HTTP",
       "endpoint": "http://127.0.0.1:8081/v1",
       "model": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
-      "artifact_uri": "local:///root/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+      "artifact_uri": "local://model-pack/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
       "source_revision": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF@main",
       "parameters": 1540000000,
       "context_tokens": 4096,
-      "metrics": {"runtime_health": "verified", "coding_smoke": "passed"},
+      "metrics": {
+        "runtime_health": "verified",
+        "coding_smoke": "passed"
+      },
       "description": "Primary local coding model. Verified on this device.",
       "system_prompt": "You are the build lane. Produce a minimal unified diff only. Never invent files or claim tests passed."
     },
@@ -147,7 +160,11 @@
       "name": "IBM Granite 3.3 2B Instruct",
       "lane": "reasoning",
       "status": "pending",
-      "roles": ["reason", "chat", "structured-output"],
+      "roles": [
+        "reason",
+        "chat",
+        "structured-output"
+      ],
       "format": "GGUF pending verification",
       "runtime": "OpenAI-compatible HTTP",
       "endpoint": "http://127.0.0.1:8084/v1",
@@ -164,7 +181,11 @@
       "name": "SmolLM2 1.7B Instruct",
       "lane": "general-chat",
       "status": "pending",
-      "roles": ["chat", "reason", "fast"],
+      "roles": [
+        "chat",
+        "reason",
+        "fast"
+      ],
       "format": "GGUF pending verification",
       "runtime": "OpenAI-compatible HTTP",
       "endpoint": "http://127.0.0.1:8085/v1",
@@ -181,7 +202,11 @@
       "name": "Microsoft Phi-3.5 Mini Instruct",
       "lane": "general-reasoning",
       "status": "pending",
-      "roles": ["chat", "reason", "multilingual"],
+      "roles": [
+        "chat",
+        "reason",
+        "multilingual"
+      ],
       "format": "GGUF pending verification",
       "runtime": "OpenAI-compatible HTTP",
       "endpoint": "http://127.0.0.1:8086/v1",

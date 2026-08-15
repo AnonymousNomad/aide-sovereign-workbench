@@ -347,13 +347,16 @@ function renderModels() {
     list.appendChild(item);
     const lane = document.createElement('button');
     lane.className = `lane ${visibleStatus}`;
-    lane.innerHTML = `<b>${esc(model.lane.toUpperCase())}</b><span>${esc(model.name)}</span><small>${esc(roles)}${runtime?.setup_required ? ` | ${esc(runtime.setup_message)}` : ''}</small>`;
+    const runtimeNote = runtime?.conflict_message || runtime?.setup_message || '';
+    lane.innerHTML = `<b>${esc(model.lane.toUpperCase())}</b><span>${esc(model.name)}</span><small>${esc(roles)}${runtimeNote ? ` | ${esc(runtimeNote)}` : ''}</small>`;
     lane.onclick = () => selectModel(model);
     lanes.appendChild(lane);
     const option = document.createElement('option'); option.value = model.id; option.textContent = `${model.name} [${visibleStatus}]`; option.disabled = model.status === 'training-only'; select.appendChild(option);
   });
   select.onchange = () => { const model = state.manifest.models.find(item => item.id === select.value); if (model) selectModel(model); };
 }
+
+let communityStore = { projects: [], issues: [], discussions: [], marketplace: [] };
 
 async function importModel(model) {
   const input = $('#model-file-input');
@@ -368,9 +371,7 @@ async function importModel(model) {
     appendLog('MODEL PACK', `${model.name} imported locally. SHA-256: ${hash}. Runtime attachment is still required before inference.`);
     renderModels();
     selectModel(model);
-};
-
-let communityStore = { projects: [], issues: [], discussions: [], marketplace: [] };
+  };
   input.click();
 }
 
@@ -384,16 +385,93 @@ async function loadRuntimeModelStatus() {
   } catch { /* the daemon may still be starting */ }
 }
 
+function modelStartRank(model) {
+  const order = ['smollm2-360m-q8', 'qwen-coder-0.5b-q4', 'qwen-coder-1.5b-q4'];
+  const known = order.indexOf(model.id);
+  if (known >= 0) return known;
+  return 100 + Number(model.parameters || 0);
+}
+
+function runnableModels(excludeIds = new Set()) {
+  return (state.manifest?.models || [])
+    .filter(model => !excludeIds.has(model.id))
+    .filter(model => ['ready', 'experimental'].includes(model.status))
+    .filter(model => {
+      const runtime = state.runtimeModels.get(model.id);
+      return !runtime?.setup_required && runtime?.status !== 'conflict';
+    })
+    .sort((a, b) => modelStartRank(a) - modelStartRank(b));
+}
+
+async function probeReadyModel(model) {
+  const response = await fetch(`http://127.0.0.1:4777/api/model/ready?id=${encodeURIComponent(model.id)}`);
+  const result = await response.json();
+  const existing = state.runtimeModels.get(model.id) || {};
+  const next = { ...existing, id: model.id, ready: result.ready === true, status: result.status || existing.status || model.status };
+  if (result.status === 'conflict') {
+    next.status = 'conflict';
+    next.conflict_message = result.error || `Port conflict for ${model.name}.`;
+    next.served_models = result.served_models || [];
+  } else {
+    delete next.conflict_message;
+  }
+  state.runtimeModels.set(model.id, next);
+  return result;
+}
+
+function conflictAdvice(model, message) {
+  const port = (() => {
+    try { return new URL(model.endpoint).port; } catch { return ''; }
+  })();
+  const prefix = message || `Port ${port || 'for this model'} is occupied by another runtime.`;
+  return `${prefix} AIDE will not stop unrelated processes. Choose another model, or free port ${port || 'the configured port'} outside AIDE and try again.`;
+}
+
+async function selectBestModel({ excludeIds = new Set(), announce = false } = {}) {
+  const candidates = runnableModels(excludeIds);
+  let firstStartable = null;
+  for (const model of candidates) {
+    try {
+      const result = await probeReadyModel(model);
+      if (result.ready) {
+        selectModel(model);
+        if (announce) appendLog('RUNTIME', `Selected verified running model: ${model.name}.`, 'approved');
+        renderModels();
+        return model;
+      }
+      if (result.status === 'conflict') {
+        appendLog('RUNTIME', conflictAdvice(model, result.error), 'warning');
+      } else if (!firstStartable) {
+        firstStartable = model;
+      }
+    } catch {
+      if (!firstStartable) firstStartable = model;
+    }
+  }
+  if (firstStartable) {
+    selectModel(firstStartable);
+    if (announce) appendLog('RUNTIME', `Selected fastest available local model: ${firstStartable.name}. Press START MODEL to load it.`, 'warning');
+  }
+  renderModels();
+  return firstStartable;
+}
+
 function selectModel(model) {
   state.selected = model;
-  state.runtimeReady = false;
   const runtime = state.runtimeModels.get(model.id);
+  state.runtimeReady = runtime?.status === 'running';
   if ($('#model-select')) $('#model-select').value = model.id;
   $('#selected-model').textContent = model.name;
   const artifactName = runtime?.artifact_path ? runtime.artifact_path.split(/[\\/]/).pop() : '';
   $('#selected-detail').textContent = `${model.format} | ${runtime?.status || model.status}${artifactName ? ` | ${artifactName}` : ''} | ${model.description}`;
   $('#runtime-name').textContent = model.runtime;
-  setRuntimeState(runtime?.setup_required ? runtime.setup_message : 'Model selected. Press START MODEL.', runtime?.setup_required ? 'error' : '');
+  setRuntimeState(
+    runtime?.setup_required ? runtime.setup_message
+      : runtime?.status === 'conflict' ? conflictAdvice(model, runtime.conflict_message)
+        : state.runtimeReady ? 'Model ready. You can chat now.'
+          : 'Model selected. Press START MODEL.',
+    runtime?.setup_required || runtime?.status === 'conflict' ? 'error' : state.runtimeReady ? 'ready' : ''
+  );
 }
 
 function setRuntimeState(text, kind = '') {
@@ -418,9 +496,9 @@ function appendChatLane(role, text, type = '') {
 }
 
 async function requestLocal(model, messages) {
-  const response = await fetch(`${model.endpoint}/chat/completions`, {
+  const response = await fetch('http://127.0.0.1:4777/api/chat', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: model.model, messages, temperature: model.temperature, max_tokens: model.max_tokens })
+    body: JSON.stringify({ modelId: model.id, messages })
   });
   if (!response.ok) throw new Error(`runtime returned HTTP ${response.status}`);
   const data = await response.json();
@@ -462,16 +540,23 @@ async function testRuntime() {
   if (!model) return appendLog('RUNTIME', 'No configured local model endpoint.', 'warning');
   const runtime = state.runtimeModels.get(model.id);
   if (runtime?.setup_required) { setRuntimeState(runtime.setup_message, 'error'); return appendLog('RUNTIME', runtime.setup_message, 'warning'); }
-  appendLog('RUNTIME', `Testing ${model.name} at ${model.endpoint}...`);
+  appendLog('RUNTIME', `Testing ${model.name} through the local daemon...`);
   try {
-    const response = await fetch(`${model.endpoint}/models`);
-    state.runtimeReady = response.ok;
-    setRuntimeState(response.ok ? 'Model ready. You can chat now.' : `Runtime returned HTTP ${response.status}.`, response.ok ? 'ready' : 'error');
-    appendLog('RUNTIME', response.ok ? 'Local runtime reachable. Model is ready for chat.' : `Runtime returned HTTP ${response.status}.`, response.ok ? 'approved' : 'warning');
+    const result = await probeReadyModel(model);
+    state.runtimeReady = result.ready;
+    if (result.status === 'conflict') {
+      const message = conflictAdvice(model, result.error);
+      setRuntimeState(message, 'error');
+      appendLog('RUNTIME', message, 'warning');
+      await selectBestModel({ excludeIds: new Set([model.id]), announce: true });
+      return;
+    }
+    setRuntimeState(result.ready ? 'Model ready. You can chat now.' : 'Model is not running yet. Press START MODEL.', result.ready ? 'ready' : 'error');
+    appendLog('RUNTIME', result.ready ? 'Local runtime reachable through daemon. Model is ready for chat.' : (result.error || 'Model server is not listening yet.'), result.ready ? 'approved' : 'warning');
   } catch (error) {
     state.runtimeReady = false;
     setRuntimeState('Model is not ready yet. Start it and wait.', 'error');
-    appendLog('RUNTIME', 'Offline shell is healthy, but no local HTTP runtime is reachable. This is expected until the adapter is started.', 'warning');
+    appendLog('RUNTIME', `Daemon health check failed: ${error.message}. Start AIDE with node scripts/start.mjs.`, 'warning');
   }
 }
 
@@ -490,15 +575,32 @@ async function startRuntime() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'runtime start failed');
-    appendLog('RUNTIME', `${model.name} is starting at ${result.endpoint}. Waiting for readiness...`);
-    for (let attempt = 0; attempt < 30; attempt += 1) {
+    appendLog('RUNTIME', `${model.name} is starting. Waiting for the daemon readiness signal...`);
+    let conflictError = null;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      try { const ready = await fetch(`${model.endpoint}/models`); if (ready.ok) { state.runtimeReady = true; setRuntimeState('Model ready. You can chat now.', 'ready'); appendLog('RUNTIME', 'Model is ready for chat.', 'approved'); break; } } catch { /* keep waiting */ }
+      try {
+        const detail = await probeReadyModel(model);
+        if (detail.ready) {
+          state.runtimeReady = true;
+          await loadRuntimeModelStatus();
+          setRuntimeState('Model ready. You can chat now.', 'ready');
+          appendLog('RUNTIME', 'Model is ready for chat.', 'approved');
+          break;
+        }
+        if (detail.status === 'conflict') {
+          conflictError = new Error(detail.error || 'runtime port conflict');
+          break;
+        }
+      } catch { /* keep waiting */ }
     }
+    if (conflictError) throw conflictError;
     if (!state.runtimeReady) setRuntimeState('Model did not become ready. Check the runtime status.', 'error');
   } catch (error) {
-    setRuntimeState(`Could not start model: ${error.message}`, 'error');
-    appendLog('RUNTIME', `Local daemon unavailable: ${error.message}. Start daemon/server.mjs first.`, 'warning');
+    const message = /port|serving|occupied/i.test(error.message) ? conflictAdvice(model, error.message) : `Could not start model: ${error.message}`;
+    setRuntimeState(message, 'error');
+    appendLog('RUNTIME', message, 'warning');
+    await selectBestModel({ excludeIds: new Set([model.id]), announce: true });
   } finally { $('#start-selected').disabled = false; }
 }
 
@@ -510,7 +612,7 @@ function closeLaunchGuide() {
 function bindLaunchGuide() {
   const guide = $('#launch-guide');
   if (localStorage.getItem('aide.launch.version') !== '2') guide.hidden = false;
-  $('#launch-start').onclick = async () => { const model = state.manifest.models.find(item => item.id === 'qwen-coder-1.5b-q4') || state.manifest.models.find(item => item.status === 'ready'); if (model) selectModel(model); closeLaunchGuide(); await startRuntime(); };
+  $('#launch-start').onclick = async () => { await selectBestModel({ announce: true }); closeLaunchGuide(); await startRuntime(); };
   $('#launch-learn').onclick = () => { closeLaunchGuide(); $('#learn-button').click(); };
 }
 
@@ -524,9 +626,9 @@ async function sendChat() {
   input.value = '';
   try {
     const mode = $('#assistant-mode').value; const providerId = $('#provider-select').value;
-    const history = state.conversation.slice(-8);
+    const history = state.conversation.slice(-4);
     const response = providerId === 'local-openai-compatible'
-      ? await fetch('http://127.0.0.1:4777/api/operator', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, modelId: state.selected.id, prompt: value, history }) })
+      ? await fetch('http://127.0.0.1:4777/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelId: state.selected.id, messages: [...history, { role: 'user', content: value }], max_tokens: 180, timeout_ms: 120000 }) })
       : await fetch('http://127.0.0.1:4777/api/providers/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providerId, messages: [...history, { role: 'user', content: value }], max_tokens: 512 }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'chat request failed');
@@ -762,7 +864,17 @@ async function loadBlueprint() {
 
 function bindBlueprint() {
   const canvas = $('#blueprint-canvas'); const view = $('#blueprint-view');
-  $('#blueprint-button').onclick = () => { const showing = view.hidden; view.hidden = !showing; $('#blueprint-button').classList.toggle('active', showing); if (showing) { $('#learn-view').hidden = true; $('#learn-button').classList.remove('active'); loadBlueprint(); requestAnimationFrame(drawBlueprint); } };
+  $('#blueprint-button').onclick = () => {
+    const showing = view.hidden;
+    if (showing) {
+      setWorkbenchView('map');
+      loadBlueprint();
+      requestAnimationFrame(drawBlueprint);
+    } else {
+      setWorkbenchView('chat');
+      $('#input').focus();
+    }
+  };
   $('#blueprint-refresh').onclick = loadBlueprint;
   $('#blueprint-reset').onclick = () => { blueprintState.yaw = -.45; blueprintState.pitch = .28; blueprintState.zoom = 1; blueprintState.panX = 0; blueprintState.panY = 0; drawBlueprint(); };
   canvas.onpointerdown = event => { blueprintState.dragging = false; blueprintState.lastX = event.clientX; blueprintState.lastY = event.clientY; canvas.setPointerCapture(event.pointerId); };
@@ -807,7 +919,16 @@ async function checkLesson() {
 
 function bindAcademy() {
   const view = $('#learn-view');
-  $('#learn-button').onclick = () => { const showing = view.hidden; view.hidden = !showing; $('#learn-button').classList.toggle('active', showing); if (showing) { $('#blueprint-view').hidden = true; $('#blueprint-button').classList.remove('active'); loadAcademy(); } };
+  $('#learn-button').onclick = () => {
+    const showing = view.hidden;
+    if (showing) {
+      setWorkbenchView('learn');
+      loadAcademy();
+    } else {
+      setWorkbenchView('chat');
+      $('#input').focus();
+    }
+  };
   $('#lesson-complete').onclick = completeLesson;
   $('#lesson-check').onclick = checkLesson;
   $('#lesson-hint').onclick = () => { $('#tutor-prompt-text').textContent = 'Hint: name the value first, then choose the smallest operation that proves the lesson objective. Run the lesson check before asking for the answer.'; appendLog('TUTOR', 'Progressive hint unlocked.'); };
@@ -815,11 +936,27 @@ function bindAcademy() {
 }
 
 function bindWorkbenchNavigation() {
-  $('#explorer-button').onclick = () => { document.body.classList.add('simple-mode'); $('#mode-toggle').textContent = 'ADVANCED'; $('#workspace-tree').scrollIntoView({ block: 'nearest' }); };
-  $('#run-button').onclick = () => { document.querySelector('.bottom-panel').scrollIntoView({ block: 'nearest' }); $('#terminal-command').focus(); };
-  $('#ai-button').onclick = () => { document.body.classList.toggle('mobile-agent-open'); document.querySelector('.agent-panel').scrollIntoView({ block: 'nearest' }); $('#input').focus(); };
-  $('#plugins-button').onclick = () => { document.body.classList.remove('simple-mode'); $('#mode-toggle').textContent = 'SIMPLE'; $('#plugin-list').scrollIntoView({ block: 'nearest' }); };
+  $('#explorer-button').onclick = () => { setWorkbenchView('editor'); $('#mode-toggle').textContent = 'ADVANCED'; $('#workspace-tree').scrollIntoView({ block: 'nearest' }); };
+  $('#run-button').onclick = () => { setWorkbenchView('run'); document.querySelector('.bottom-panel')?.scrollIntoView({ block: 'nearest' }); $('#terminal-command').focus(); };
+  $('#ai-button').onclick = () => { setWorkbenchView('chat'); document.querySelector('.agent-panel').scrollIntoView({ block: 'nearest' }); $('#input').focus(); };
+  $('#plugins-button').onclick = () => { document.body.classList.remove('simple-mode', 'workbench-view-editor', 'workbench-view-run', 'workbench-view-learn', 'workbench-view-map'); $('#mode-toggle').textContent = 'SIMPLE'; setActivityButton('plugins-button'); console.log('VIEW: PLUGINS'); $('#plugin-list').scrollIntoView({ block: 'nearest' }); };
   $('#settings-button').onclick = () => appendLog('SETTINGS', 'Settings surface is not enabled yet. No hidden configuration is being changed.', 'warning');
+}
+
+function setWorkbenchView(view) {
+  const viewClasses = ['workbench-view-editor', 'workbench-view-run', 'workbench-view-learn', 'workbench-view-map'];
+  document.body.classList.add('simple-mode');
+  document.body.classList.remove(...viewClasses);
+  $('#learn-view').hidden = view !== 'learn';
+  $('#blueprint-view').hidden = view !== 'map';
+  if (view !== 'chat') document.body.classList.add(`workbench-view-${view}`);
+  const activityId = { chat: 'ai-button', editor: 'explorer-button', run: 'run-button', learn: 'learn-button', map: 'blueprint-button' }[view];
+  if (activityId) setActivityButton(activityId);
+  console.log(`VIEW: ${String(view).toUpperCase()}`);
+}
+
+function setActivityButton(activeId) {
+  document.querySelectorAll('.activity-button').forEach(button => button.classList.toggle('active', button.id === activeId));
 }
 
 const commands = [
@@ -870,9 +1007,8 @@ async function boot() {
   }
   renderModels();
   await loadRuntimeModelStatus();
-  const firstReady = state.manifest.models.find(model => model.status !== 'pending');
-  if (firstReady) selectModel(firstReady);
-  setRuntimeState('Choose START MODEL, then wait for the green ready message.');
+  await selectBestModel();
+  if (!state.selected) setRuntimeState('Choose START MODEL, then wait for the green ready message.');
   $('#start-selected').onclick = startRuntime;
   $('#test-selected').onclick = testRuntime;
   $('#connection-button').onclick = startRuntime;

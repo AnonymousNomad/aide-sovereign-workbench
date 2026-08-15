@@ -17,11 +17,23 @@ await writeFile(path.join(workspace, 'plugins', 'real-plugin', 'index.mjs'), "le
 await writeFile(path.join(workspace, 'academy', 'courses', 'real.json'), JSON.stringify({ id: 'real-course', title: 'Real Course', level: 'beginner', lessons: [{ id: 'one', title: 'One', kind: 'exercise', objective: 'Test one', check: 'node' }] }));
 await writeFile(path.join(workspace, 'providers', 'manifest.json'), JSON.stringify({ providers: [{ id: 'local', name: 'Local', kind: 'openai-compatible', endpoint: 'http://127.0.0.1:1/v1', model: 'local', offline: true }] }));
 await run('git', ['init', '-q'], { cwd: workspace }); await run('git', ['config', 'user.name', 'AIDE Acceptance'], { cwd: workspace }); await run('git', ['config', 'user.email', 'acceptance@aide.invalid'], { cwd: workspace }); await run('git', ['add', '.'], { cwd: workspace }); await run('git', ['commit', '-qm', 'base'], { cwd: workspace });
-const port = '4893'; const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: process.cwd(), env: { ...process.env, AIDE_WORKSPACE: workspace, AIDE_DAEMON_PORT: port }, stdio: 'ignore' });
+const port = '4893'; const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: process.cwd(), env: { ...process.env, AIDE_WORKSPACE: workspace, AIDE_DAEMON_PORT: port }, stdio: ['ignore', 'ignore', 'pipe'] });
+let daemonExit = null;
+let daemonError = null;
+let daemonStderr = '';
+daemon.stderr.on('data', chunk => { daemonStderr = `${daemonStderr}${chunk}`.slice(-4000); });
+daemon.once('error', error => { daemonError = `daemon spawn error: ${error.message}`; });
+daemon.once('exit', (code, signal) => { daemonExit = `daemon exited before readiness (code=${code}, signal=${signal || 'none'})`; });
 const url = pathPart => `http://127.0.0.1:${port}${pathPart}`;
 const request = async (pathPart, options) => { const response = await fetch(url(pathPart), options); const body = await response.json().catch(() => ({})); return { response, body }; };
 try {
-  for (let i = 0; i < 40; i += 1) { try { if ((await fetch(url('/health'))).ok) break; } catch {} await new Promise(resolve => setTimeout(resolve, 50)); }
+  let ready = false;
+  for (let i = 0; i < 150; i += 1) {
+    try { if ((await fetch(url('/health'))).ok) { ready = true; break; } } catch {}
+    if (daemonExit) break;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.equal(ready, true, daemonError || daemonExit || `daemon did not become ready within 15 seconds${daemonStderr ? `: ${daemonStderr.trim()}` : ''}`);
   assert.equal((await request('/health')).response.status, 200);
   assert.ok((await request('/api/workspace/tree')).body.tree.some(item => item.name === 'README.md'));
   assert.equal((await request('/api/file/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: 'README.md', content: 'blocked', approved: false }) })).response.status, 500);
@@ -35,7 +47,7 @@ try {
   const lspInit = await request('/api/lsp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'initialize', params: { processId: null, rootUri: 'file:///workspace', capabilities: lspCapabilities } } }) }); assert.equal(lspInit.response.status, 200); assert.ok(lspInit.body.result, JSON.stringify(lspInit.body));
   await request('/api/lsp/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'initialized', params: {} } }) });
   const lspOpen = await request('/api/lsp/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/didOpen', params: { textDocument: { uri: 'file:///workspace/sample.ts', languageId: 'typescript', version: 1, text: "const message = 'task';\nmessage.\n" } } } }) }); assert.equal(lspOpen.response.status, 200);
-  const completion = await request('/api/lsp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/completion', params: { textDocument: { uri: 'file:///workspace/sample.ts' }, position: { line: 1, character: 8 } } } }) }); assert.equal(completion.response.status, 200); assert.ok((completion.body.result?.items || completion.body.result || []).length > 0, JSON.stringify(completion.body));
+  const completion = await request('/api/lsp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/completion', params: { textDocument: { uri: 'file:///workspace/sample.ts' }, position: { line: 1, character: 8 } } } }) }); assert.equal(completion.response.status, 200, JSON.stringify(completion.body)); assert.ok((completion.body.result?.items || completion.body.result || []).length > 0, JSON.stringify(completion.body));
   assert.equal((await request('/api/lsp/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript' }) })).response.status, 200);
   const task = await request('/api/tasks/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'real-task' }) }); assert.equal(task.response.status, 200); let taskStatus; for (let i = 0; i < 20; i += 1) { await new Promise(resolve => setTimeout(resolve, 100)); taskStatus = (await request('/api/tasks/status')).body; if (taskStatus.status !== 'running') break; } assert.equal(taskStatus.status, 'passed'); assert.match(taskStatus.stdout, /task-ok/);
   assert.equal((await request('/api/git/stage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paths: ['README.md'], approved: true }) })).response.status, 200);

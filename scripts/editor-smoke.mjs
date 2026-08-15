@@ -44,7 +44,13 @@ if (!browser) {
 const root = process.cwd();
 const workspace = await mkdtemp(path.join(tmpdir(), 'aide-smoke-'));
 await writeFile(path.join(workspace, 'README.md'), '# Smoke workspace\n');
-const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: root, env: { ...process.env, AIDE_WORKSPACE: workspace, AIDE_DAEMON_PORT: '4777' }, stdio: 'ignore' });
+const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: root, env: { ...process.env, AIDE_WORKSPACE: workspace, AIDE_DAEMON_PORT: '4777' }, stdio: ['ignore', 'ignore', 'pipe'] });
+let daemonExit = null;
+let daemonError = null;
+let daemonStderr = '';
+daemon.stderr.on('data', chunk => { daemonStderr = `${daemonStderr}${chunk}`.slice(-4000); });
+daemon.once('error', error => { daemonError = `daemon spawn error: ${error.message}`; });
+daemon.once('exit', (code, signal) => { daemonExit = `daemon exited before readiness (code=${code}, signal=${signal || 'none'})`; });
 
 const runner = await readFile(path.join(root, 'scripts', 'editor-smoke.html'), 'utf8');
 const index = await readFile(path.join(root, 'index.html'), 'utf8');
@@ -67,20 +73,35 @@ await new Promise(resolve => staticServer.listen(4173, '127.0.0.1', resolve));
 
 try {
   let ok = false;
-  for (let i = 0; i < 40; i += 1) { try { const health = await fetch('http://127.0.0.1:4777/health'); if (health.ok) { ok = true; break; } } catch {} await delay(50); }
-  assert.equal(ok, true, 'daemon did not come up');
+  for (let i = 0; i < 150; i += 1) {
+    try { const health = await fetch('http://127.0.0.1:4777/health'); if (health.ok) { ok = true; break; } } catch {}
+    if (daemonError || daemonExit) break;
+    await delay(100);
+  }
+  assert.equal(ok, true, daemonError || daemonExit || `daemon did not come up within 15 seconds${daemonStderr ? `: ${daemonStderr.trim()}` : ''}`);
 
-  const dom = await new Promise((resolve, reject) => {
+  const dumpDom = () => new Promise((resolve, reject) => {
     const profile = path.join(tmpdir(), `aide-edge-${Date.now()}`);
-    const child = spawn(browser, ['--headless=new', '--disable-gpu', '--no-first-run', `--user-data-dir=${profile}`, '--virtual-time-budget=15000', '--dump-dom', 'http://127.0.0.1:4173/index.html'], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+    const child = spawn(browser, ['--headless=new', '--disable-gpu', '--no-first-run', `--user-data-dir=${profile}`, '--virtual-time-budget=15000', '--dump-dom', 'http://127.0.0.1:4173/index.html'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let output = '';
+    let errorOutput = '';
     child.stdout.on('data', chunk => { output += chunk; });
-    child.on('close', code => resolve(output));
+    child.stderr?.on('data', chunk => { errorOutput += chunk; });
+    child.on('close', code => resolve({ output, code, errorOutput }));
     child.on('error', reject);
     setTimeout(() => { child.kill(); }, 30000);
   });
+  let browser = await dumpDom();
+  let dom = browser.output;
+  if (!/<title[\s>]/i.test(dom) && !dom.includes('editor-smoke-output')) {
+    await delay(500);
+    browser = await dumpDom();
+    dom = browser.output;
+  }
+  assert.ok(dom, `Edge returned no DOM (exit=${browser.code})${browser.errorOutput ? `: ${browser.errorOutput.trim()}` : ''}`);
 
-  const text = dom.split('<title>')[1].split('</title>')[0]?.split('>').pop() || dom.match(/<title>[^<]*<\/title>/)?.[0] || '';
+  const titleElement = dom.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const text = titleElement?.[1] || '';
   const results = dom.match(/<div id="editor-smoke-output"[^>]*>([\s\S]*?)<\/div>/)?.[1] || dom.match(/EDITOR-SMOKE-[A-Z-]+/)?.[0] || '';
   const title = (text.match(/EDITOR-SMOKE-[A-Z-]+/) || ['EDITOR-SMOKE-UNKNOWN'])[0];
   console.log(`smoke title: ${title}`);

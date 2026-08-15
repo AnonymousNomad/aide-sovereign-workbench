@@ -20,6 +20,9 @@
     try {
       window.addEventListener('error', event => out(`WINDOW-ERROR ${event.message} @ ${event.filename}:${event.lineno}`));
       window.addEventListener('unhandledrejection', event => out(`REJECTION ${String(event.reason && (event.reason.stack || event.reason))}`));
+      const viewLogs = [];
+      const originalLog = console.log;
+      console.log = (...args) => { if (String(args[0] || '').startsWith('VIEW:')) viewLogs.push(String(args[0])); originalLog(...args); };
       step('BOOT');
       await waitFor(() => state.editorStacks && state.editorStacks.size > 0 && window.UndoStack, 'boot: undo stack module + open file');
       if (!state.editorStacks || !state.editorStacks.size) { out('boot diagnostics: stacks empty, editor never opened'); return; }
@@ -27,6 +30,32 @@
       const active = state.activeFile;
       const base = $('#code').textContent;
       check('editor: pre has content', base.length > 0);
+
+      step('VIEWS');
+      const htmlStyle = getComputedStyle(document.documentElement);
+      const bodyStyle = getComputedStyle(document.body);
+      check('views: root height locked', htmlStyle.height === `${innerHeight}px` && bodyStyle.height === `${innerHeight}px`);
+      check('views: root overflow locked', htmlStyle.overflow === 'hidden' && bodyStyle.overflow === 'hidden');
+      $('#learn-button').click();
+      await waitFor(() => !$('#learn-view').hidden, 'views: learn opens');
+      check('views: learn overlay visible', !$('#learn-view').hidden);
+      check('views: learn editor chrome hidden', getComputedStyle($('.editor')).display === 'none');
+      check('views: learn activity active', $('#learn-button').classList.contains('active'));
+      $('#blueprint-button').click();
+      await waitFor(() => !$('#blueprint-view').hidden && $('#learn-view').hidden, 'views: map opens');
+      check('views: map overlay visible', !$('#blueprint-view').hidden);
+      check('views: map editor chrome hidden', getComputedStyle($('.editor')).display === 'none');
+      check('views: map activity active', $('#blueprint-button').classList.contains('active'));
+      $('#run-button').click();
+      await waitFor(() => $('#blueprint-view').hidden && $('#learn-view').hidden && getComputedStyle($('.editor')).display !== 'none', 'views: run restores editor');
+      check('views: run closes overlays', $('#blueprint-view').hidden && $('#learn-view').hidden);
+      check('views: run editor chrome visible', getComputedStyle($('.editor')).display !== 'none');
+      check('views: run terminal visible', getComputedStyle($('.bottom-panel')).display !== 'none');
+      check('views: run activity active', $('#run-button').classList.contains('active'));
+      $('#explorer-button').click();
+      await waitFor(() => getComputedStyle($('.editor')).display !== 'none', 'views: exp restores editor');
+      check('views: exp activity active', $('#explorer-button').classList.contains('active'));
+      check('views: console logs emitted', ['VIEW: LEARN', 'VIEW: MAP', 'VIEW: RUN', 'VIEW: EDITOR'].every(item => viewLogs.includes(item)));
 
       check('modules: UndoStack exposed', typeof window.UndoStack === 'function' && typeof window.diffOperation === 'function');
 

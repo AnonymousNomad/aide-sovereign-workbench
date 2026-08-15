@@ -2,6 +2,7 @@ import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ModelManager } from './model-manager.mjs';
 import { CommunityStore } from '../community/store.mjs';
@@ -46,7 +47,7 @@ const workspaceConfig = async relative => {
   const candidate = path.join(WORKSPACE, relative);
   try { await fs.access(candidate); return candidate; } catch { return path.join(AIDE_HOME, relative); }
 };
-const modelManager = new ModelManager({ manifestPath: MANIFEST, modelDir: MODEL_DIR, binaryPath: process.env.AIDE_LLAMA_SERVER || path.join(AIDE_HOME, 'runtime', 'llama-server' + (process.platform === 'win32' ? '.exe' : '')), modelPath: process.env.AIDE_MODEL_PATH || '' });
+const modelManager = new ModelManager({ manifestPath: MANIFEST, modelDir: MODEL_DIR, binaryPath: process.env.AIDE_LLAMA_SERVER || path.join(AIDE_HOME, 'runtime', 'llama-server' + (process.platform === 'win32' ? '.exe' : '')), modelPath: process.env.AIDE_MODEL_PATH || '', pythonServer: true });
 await modelManager.load().catch(() => {});
 const communityStore = new CommunityStore(path.join(STATE_DIR, 'community-store.json'));
 await communityStore.load().catch(() => {});
@@ -87,11 +88,15 @@ function json(response, status, body) {
   response.end(payload);
 }
 
+function errorStatus(error) {
+  return /Local model setup required|model file was not found|llama-server was not found/i.test(error?.message || '') ? 503 : 500;
+}
+
 async function body(request) {
   let data = '';
   for await (const chunk of request) {
     data += chunk;
-    if (Buffer.byteLength(data) > 16 * 1024) throw new Error('request too large');
+    if (Buffer.byteLength(data) > 5 * 1024 * 1024) throw new Error('request too large');
   }
   return data ? JSON.parse(data) : {};
 }
@@ -140,6 +145,29 @@ const server = http.createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url === '/api/blueprint') {
       return json(response, 200, buildBlueprint({ entries: await workspaceSummary(), models: modelManager.status(), training: trainingManager.status() }));
+    }
+    if (request.method === 'GET' && request.url === '/api/models') {
+      const manifest = JSON.parse(await fs.readFile('models/manifest.json', 'utf8'));
+      return json(response, 200, { models: manifest.models });
+    }
+    if (request.method === 'POST' && request.url === '/api/model/start') {
+      const input = await body(request);
+      const modelId = input.id;
+      const model = modelManager.get(modelId);
+      if (!model) throw new Error('model not allowlisted');
+      return json(response, 200, await modelManager.start(modelId));
+    }
+    if (request.method === 'POST' && request.url === '/api/model/stop') {
+      const input = await body(request);
+      const modelId = input.id;
+      return json(response, 200, modelManager.stop(modelId));
+    }
+    if (request.method === 'GET' && request.url === '/api/model/status') {
+      return json(response, 200, modelManager.status());
+    }
+    if (request.method === 'GET' && request.url.startsWith('/api/model/ready?')) {
+      const id = new URL(request.url, 'http://127.0.0.1').searchParams.get('id');
+      return json(response, 200, await modelManager.isReady(id));
     }
     if (request.method === 'GET' && request.url === '/api/academy') return json(response, 200, { courses: tutorManager.catalog() });
     if (request.method === 'GET' && request.url === '/api/plugins') return json(response, 200, { api_version: '1', plugins: pluginManager.list() });
@@ -190,7 +218,7 @@ const server = http.createServer(async (request, response) => {
       const pattern = useRegex ? query : escapeRegExp(query);
       let regex;
       try {
-        regex = new RegExp(wholeWord ? '\b' + pattern + '\b' : pattern, mode);
+        regex = new RegExp(wholeWord ? '\\b' + pattern + '\\b' : pattern, mode);
       } catch (error) {
         throw new Error('invalid search pattern: ' + error.message);
       }
@@ -216,9 +244,23 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/terminal/run') {
       const input = await body(request);
       if (input.approved !== true) throw new Error('explicit approval required');
-      const allowed = new Set(['node', 'npm', 'npx', 'git', 'python', 'python3', 'cargo', 'rustc']);
-      if (!allowed.has(input.program) || !Array.isArray(input.args) || input.args.length > 24) throw new Error('terminal command is not allowlisted');
-      const result = await new Promise(resolve => execFile(input.program, input.args.map(String), { cwd: WORKSPACE, timeout: 30_000, maxBuffer: 512 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, NODE_PATH: process.env.NODE_PATH } }, (error, stdout, stderr) => resolve({ code: error?.code ?? 0, stdout, stderr })));
+      const program = String(input.program || '').toLowerCase();
+      const args = Array.isArray(input.args) ? input.args.map(String) : [];
+      if (args.length > 24) throw new Error('terminal command has too many arguments');
+      if (program === 'echo') return json(response, 200, { code: 0, stdout: `${args.join(' ')}${os.EOL}`, stderr: '' });
+      if (program === 'pwd') return json(response, 200, { code: 0, stdout: `${WORKSPACE}${os.EOL}`, stderr: '' });
+      if (program === 'ls' || program === 'dir') {
+        const target = args[0] ? workspaceManager.resolve(args[0]) : WORKSPACE;
+        const entries = await fs.readdir(target, { withFileTypes: true });
+        return json(response, 200, { code: 0, stdout: entries.map(entry => `${entry.isDirectory() ? '<DIR>' : '     '} ${entry.name}`).join(os.EOL) + os.EOL, stderr: '' });
+      }
+      if (program === 'cat' || program === 'type') {
+        if (!args[0]) throw new Error(`${program} requires a workspace-relative file path`);
+        return json(response, 200, { code: 0, stdout: await workspaceManager.read(args[0]), stderr: '' });
+      }
+      const allowed = new Set(['node', 'npm', 'npx', 'git', 'py', 'python', 'python3', 'cargo', 'rustc']);
+      if (!allowed.has(program)) throw new Error('terminal command is not allowlisted');
+      const result = await new Promise(resolve => execFile(program, args, { cwd: WORKSPACE, timeout: 30_000, maxBuffer: 512 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, NODE_PATH: process.env.NODE_PATH } }, (error, stdout, stderr) => resolve({ code: error?.code ?? 0, stdout, stderr })));
       return json(response, 200, result);
     }
     if (request.method === 'POST' && request.url === '/api/patch/apply') {
@@ -267,7 +309,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/providers/chat') { const input = await body(request); return json(response, 200, await providerManager.chat(input.providerId, input.messages || [], input)); }
     if (request.method === 'POST' && request.url === '/api/chat') {
       const input = await body(request);
-      return json(response, 200, await modelManager.chat(input.modelId, input.messages || []));
+      return json(response, 200, await modelManager.chat(input.modelId, input.messages || [], input));
     }
     if (request.method === 'POST' && request.url === '/api/operator') {
       const input = await body(request); const result = await operator.run(input);
@@ -351,7 +393,7 @@ const server = http.createServer(async (request, response) => {
     return json(response, 404, { error: 'not found' });
   } catch (error) {
     console.error(`[aide] ${request.method} ${request.url}: ${error.message}`);
-    return json(response, 500, { error: error.message || 'local daemon error' });
+    return json(response, errorStatus(error), { error: error.message || 'local daemon error' });
   }
 });
 

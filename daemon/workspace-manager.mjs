@@ -8,7 +8,7 @@ export class WorkspaceManager {
   resolve(relativePath) {
     if (!relativePath || path.isAbsolute(relativePath)) throw new Error('workspace-relative path required');
     const target = path.resolve(this.workspace, relativePath);
-    if (!target.startsWith(`${this.workspace}${path.sep}`)) throw new Error('path escaped workspace');
+    if (target !== this.workspace && !target.startsWith(`${this.workspace}${path.sep}`)) throw new Error('path escaped workspace');
     return target;
   }
 

@@ -19,9 +19,42 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 17:13 pushed checkpoint `faa72b7` to `origin/main`. GitHub accepted the direct push but reported the repository's existing PR/status-rule bypass and one moderate Dependabot advisory. The DAP initialize timeout remains unresolved; no production-ready claim is made.
-- Next: obtain one clean DAP fixture and aggregate run under stable process capacity, then rerun Veritas; trigger the GitHub desktop matrix for Tauri compile, installer artifact, and lifecycle evidence.
+- 2026-08-15 18:39 full aggregate recovered: `npm test` passed every listed gate, including real Edge editor smoke, REAL AIDE ACCEPTANCE, DAP 17/17, Git API, plugin capability tests, and daemon E2E. Veritas is the remaining local evidence check.
+- Next: run Veritas report, commit/push the smoke-harness repair and evidence journal, then trigger the GitHub desktop matrix for Tauri compile, installer artifacts, and lifecycle evidence.
 
+---
+
+## [2026-08-15 18:39] Actor: codex
+**Type:** aggregate verification
+**Status:** verified
+**Summary:** Full AIDE regression suite passed after the DAP and Edge transient failures recovered.
+**Details:** `npm test` passed all listed commands: base smoke, UI/view/Git/task/hot-exit contracts, real Edge editor smoke (`EDITOR-SMOKE-ALL-PASS`), real acceptance, universal harness, Veritas unit test, model/community/LSP/DAP/process/workspace/training/replay/policy/blueprint/operator/workflow/handoff/tutor/plugin/task/session/editor/artifact/provider/Git/benchmark/arena/capsule tests, and daemon E2E. The DAP fixture passed 17/17 with clean adapter exit and no orphaned debuggee.
+**Next:** run `npm run veritas -- --report`; then commit and push the smoke readiness repair and verification evidence.
+---
+
+## [2026-08-15 18:37] Actor: codex
+**Type:** browser verification recovery
+**Status:** verified
+**Summary:** Recovered the Edge editor smoke gate after a transient renderer failure.
+**Details:** A standalone retry of `node scripts/editor-smoke.mjs` passed `EDITOR-SMOKE-ALL-PASS`, covering boot/session restore, EXP/RUN/LEARN/MAP view transitions, fixed viewport, undo/redo, find/replace, save round-trip, and command palette checks. The preceding no-DOM failure emitted only Edge renderer task-provider errors and did not reproduce on the fresh retry.
+**Next:** rerun the full aggregate suite and Veritas.
+---
+
+## [2026-08-15 17:59] Actor: codex
+**Type:** test-harness repair
+**Status:** verified
+**Summary:** Hardened the base smoke test after a real aggregate run exposed a daemon startup race.
+**Details:** The smoke harness previously polled the temporary daemon for only 20 × 50ms and discarded startup diagnostics. It now uses a bounded 15-second readiness window, captures child stderr/exit state, and emits an actionable failure if `/health` never becomes available. The repaired `node tests/smoke.mjs` passes. This change does not alter the product daemon behavior.
+**Files:** `tests/smoke.mjs`, `AGENT_NOTES.md`
+**Next:** rerun the full `npm test` aggregate and Veritas.
+---
+
+## [2026-08-15 17:57] Actor: codex
+**Type:** verification recovery
+**Status:** verified
+**Summary:** Recovered the real debugpy fixture gate after transient process-capacity timeouts.
+**Details:** The isolated `daemon/test-dap-fixture.mjs` completed successfully with 17/17 assertions. It verified the full DAP lifecycle: initialize, breakpoint verification, exception breakpoints, configuration, launch, stopped state, threads, stack, scopes, nested variables, stepping, continue, computed total, terminate/disconnect, clean adapter exit, and no orphaned debuggee. No model, training, or unrelated process was stopped.
+**Next:** run `npm test`, then `npm run veritas -- --report`; only a clean pair closes the current release evidence blocker.
 ---
 
 ## [2026-08-15 17:13] Actor: codex

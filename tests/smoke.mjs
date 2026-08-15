@@ -31,19 +31,25 @@ const port = 4877;
 const daemon = spawn(process.execPath, [path.join(root, 'daemon/server.mjs')], {
   cwd: root,
   env: { ...process.env, AIDE_DAEMON_PORT: String(port), AIDE_WORKSPACE: root },
-  stdio: 'ignore'
+  stdio: ['ignore', 'ignore', 'pipe']
 });
+let childExit = null;
+let childError = '';
+daemon.stderr?.on('data', chunk => { childError += String(chunk); });
+daemon.once('error', error => { childError += `${error.message}\n`; });
+daemon.once('exit', (code, signal) => { childExit = `code=${code} signal=${signal}`; });
 try {
   let health;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 150; attempt += 1) {
     try {
       health = await fetch(`http://127.0.0.1:${port}/health`);
       break;
     } catch {
-      await delay(50);
+      await delay(100);
     }
   }
-  assert.equal(health?.status, 200, 'daemon health endpoint');
+  if (!health) throw new Error(`daemon health endpoint did not become ready within 15s${childExit ? ` (${childExit})` : ''}${childError ? `: ${childError.trim()}` : ''}`);
+  assert.equal(health.status, 200, 'daemon health endpoint');
   const healthBody = await health.json();
   assert.equal(healthBody.ok, true);
   const workspace = await fetch(`http://127.0.0.1:${port}/api/workspace`);

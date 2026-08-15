@@ -123,6 +123,36 @@ function runGit(args) {
   });
 }
 
+function parseGitStatus(raw) {
+  const records = raw.split('\0').filter(Boolean);
+  const header = records.shift() || '';
+  const branchMatch = /^##\s+([^\.\s]+)(?:\.\.([^\s]+))?(?:\s+\[([^\]]+)\])?/.exec(header);
+  const tracking = branchMatch?.[2] || '';
+  const counts = branchMatch?.[3] || '';
+  const ahead = Number(/ahead (\d+)/.exec(counts)?.[1] || 0);
+  const behind = Number(/behind (\d+)/.exec(counts)?.[1] || 0);
+  const files = records.filter(record => record.length >= 3).map(record => {
+    const index = record[0];
+    const worktree = record[1];
+    const rawPath = record.slice(3);
+    const rename = rawPath.lastIndexOf(' -> ');
+    return {
+      path: rename >= 0 ? rawPath.slice(rename + 4) : rawPath,
+      original_path: rename >= 0 ? rawPath.slice(0, rename) : '',
+      index,
+      worktree,
+      kind: index !== ' ' ? index : worktree
+    };
+  });
+  return { branch: branchMatch?.[1] || '', tracking, ahead, behind, files, raw: records.join('\0') };
+}
+
+async function gitStatusSummary() {
+  const raw = await runGit(['status', '--porcelain=v1', '-z', '--branch']);
+  const summary = parseGitStatus(raw);
+  return { ...summary, status: await runGit(['status', '--short']) };
+}
+
 async function workspaceSummary() {
   const entries = await fs.readdir(WORKSPACE, { withFileTypes: true });
   return entries.filter(entry => !entry.name.startsWith('.')).slice(0, 200).map(entry => ({
@@ -269,13 +299,17 @@ const server = http.createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url === '/api/git/status') {
       try {
-        return json(response, 200, { workspace: WORKSPACE, status: await runGit(['status', '--short']) });
+        return json(response, 200, { workspace: WORKSPACE, ...(await gitStatusSummary()) });
       } catch (error) {
         return json(response, 200, { workspace: WORKSPACE, status: '', unavailable: error.message });
       }
     }
-    if (request.method === 'GET' && request.url === '/api/git/diff') {
-      try { return json(response, 200, { diff: await runGit(['diff', '--no-ext-diff', '--', '.']) }); }
+    if (request.method === 'GET' && request.url.startsWith('/api/git/diff')) {
+      try {
+        const diffPath = new URL(request.url, `http://${HOST}:${PORT}`).searchParams.get('path') || '.';
+        if (path.isAbsolute(diffPath) || diffPath.includes('..')) throw new Error('unsafe Git path');
+        return json(response, 200, { path: diffPath === '.' ? '' : diffPath, diff: await runGit(['diff', '--no-ext-diff', '--', diffPath]) });
+      }
       catch (error) { return json(response, 200, { diff: '', unavailable: error.message }); }
     }
     if (request.method === 'GET' && request.url === '/api/git/log') {

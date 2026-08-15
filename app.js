@@ -277,13 +277,94 @@ async function loadPlugins() {
 }
 
 async function loadGitStatus() {
-  try { const response = await fetch('http://127.0.0.1:4777/api/git/status'); const result = await response.json(); $('#git-status').textContent = result.unavailable ? `Git unavailable: ${result.unavailable}` : (result.status || 'Working tree clean.'); }
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/git/status');
+    const result = await response.json();
+    if (!response.ok || result.unavailable) throw new Error(result.unavailable || 'Git status unavailable');
+    const files = result.files || [];
+    $('#git-status').innerHTML = files.length
+      ? `<div class="git-summary">${esc(result.branch || 'detached')} · ${files.length} change${files.length === 1 ? '' : 's'}</div>` + files.map(file => `<div class="git-row"><span class="git-kind">${esc(file.kind || ' ')}</span><span class="git-file" title="${esc(file.path)}">${esc(file.path)}</span><button class="git-row-action" data-git-diff="${esc(file.path)}">DIFF</button><button class="git-row-action" data-git-stage="${esc(file.path)}">STAGE</button></div>`).join('')
+      : '<div class="git-summary">Working tree clean.</div>';
+    $('#git-status').querySelectorAll('[data-git-diff]').forEach(button => button.onclick = () => showGitDiff(button.dataset.gitDiff));
+    $('#git-status').querySelectorAll('[data-git-stage]').forEach(button => button.onclick = () => stageGit([button.dataset.gitStage]));
+  }
   catch (error) { $('#git-status').textContent = `Git unavailable: ${error.message}`; }
 }
 
+async function stageGit(paths) {
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/git/stage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paths, approved: true }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Git stage rejected');
+    appendLog('GIT', `Staged ${paths.join(', ')} locally.`);
+    await loadGitStatus();
+  } catch (error) { appendLog('GIT', `Stage blocked: ${error.message}`, 'warning'); }
+}
+
+async function commitGit() {
+  const input = $('#git-commit-message');
+  const message = input.value.trim();
+  if (!message) { appendLog('GIT', 'Commit blocked: enter a local commit message.', 'warning'); input.focus(); return; }
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/git/commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, approved: true }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Git commit rejected');
+    input.value = '';
+    appendLog('GIT', `Local commit created: ${(result.committed || '').trim().split(/\s+/).slice(-1)[0] || 'recorded'}.`);
+    await loadGitStatus();
+  } catch (error) { appendLog('GIT', `Commit blocked: ${error.message}`, 'warning'); }
+}
+
 async function loadTasks() {
-  try { const response = await fetch('http://127.0.0.1:4777/api/tasks'); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'task registry unavailable'); $('#task-list').innerHTML = result.tasks.map(task => `<button class="task-item" data-task-id="${esc(task.id)}"><span>▶</span>${esc(task.label)}</button>`).join(''); $('#task-list').querySelectorAll('[data-task-id]').forEach(button => button.onclick = async () => { button.disabled = true; const run = await fetch('http://127.0.0.1:4777/api/tasks/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: button.dataset.taskId }) }); const data = await run.json(); $('#terminal').insertAdjacentHTML('beforeend', `<p class="muted">task ${esc(data.id || button.dataset.taskId)}: ${esc(data.status || data.error)}</p>`); }); }
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/tasks');
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'task registry unavailable');
+    $('#task-list').innerHTML = result.tasks.map(task => `<button class="task-item" data-task-id="${esc(task.id)}"><span>▶</span>${esc(task.label)}</button>`).join('');
+    $('#task-list').querySelectorAll('[data-task-id]').forEach(button => button.onclick = () => runTask(button));
+    $('#task-stop').onclick = stopTask;
+  }
   catch (error) { $('#task-list').innerHTML = `<span class="muted">${esc(error.message)}</span>`; }
+}
+
+async function runTask(button) {
+  const id = button.dataset.taskId;
+  button.disabled = true;
+  button.dataset.originalLabel = button.textContent;
+  button.textContent = 'RUNNING…';
+  $('#task-status').textContent = `${id} / RUNNING`;
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/tasks/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    const started = await response.json();
+    if (!response.ok) throw new Error(started.error || 'task rejected');
+    for (let attempt = 0; attempt < 600; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      const statusResponse = await fetch('http://127.0.0.1:4777/api/tasks/status');
+      const status = await statusResponse.json();
+      $('#task-status').textContent = `${id} / ${String(status.status || 'unknown').toUpperCase()}`;
+      if (status.status !== 'running') {
+        const output = `${status.stdout || ''}${status.stderr || ''}`.trim();
+        $('#terminal').insertAdjacentHTML('beforeend', `<p class="muted">task ${esc(status.id || id)}: ${esc(status.status || 'finished')}</p>${output ? `<pre class="terminal-output ${status.status === 'passed' ? 'ok' : 'error'}">${esc(output)}</pre>` : ''}`);
+        return;
+      }
+    }
+    throw new Error('task status polling timed out after 150 seconds');
+  } catch (error) {
+    $('#task-status').textContent = `${id} / ERROR`;
+    $('#terminal').insertAdjacentHTML('beforeend', `<pre class="terminal-output error">task ${esc(id)}: ${esc(error.message)}</pre>`);
+  } finally {
+    button.disabled = false;
+    button.textContent = button.dataset.originalLabel || id;
+  }
+}
+
+async function stopTask() {
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/tasks/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'task stop rejected');
+    $('#task-status').textContent = `${result.id || 'task'} / STOPPING`;
+  } catch (error) { appendLog('TASKS', `Stop blocked: ${error.message}`, 'warning'); }
 }
 
 async function loadDiagnostics() {
@@ -291,8 +372,8 @@ async function loadDiagnostics() {
   catch { /* diagnostics are optional until an LSP is active */ }
 }
 
-async function showGitDiff() {
-  try { const response = await fetch('http://127.0.0.1:4777/api/git/diff'); const result = await response.json(); $('#terminal').insertAdjacentHTML('beforeend', `<pre class="terminal-output">${esc(result.diff || result.unavailable || 'No changes.')}</pre>`); document.querySelector('.bottom-panel').scrollIntoView({ block: 'nearest' }); }
+async function showGitDiff(filePath = '') {
+  try { const query = filePath ? `?path=${encodeURIComponent(filePath)}` : ''; const response = await fetch(`http://127.0.0.1:4777/api/git/diff${query}`); const result = await response.json(); $('#terminal').insertAdjacentHTML('beforeend', `<pre class="terminal-output">${esc(result.diff || result.unavailable || 'No changes.')}</pre>`); document.querySelector('.bottom-panel').scrollIntoView({ block: 'nearest' }); }
   catch (error) { appendLog('GIT', error.message, 'warning'); }
 }
 
@@ -1015,12 +1096,15 @@ async function boot() {
   $('#mode-toggle').onclick = () => { document.body.classList.toggle('simple-mode'); $('#mode-toggle').textContent = document.body.classList.contains('simple-mode') ? 'ADVANCED' : 'SIMPLE'; };
   bindLaunchGuide();
   restoreSession();
-  loadWorkspaceTree();
-  loadPlugins();
-  loadProviders();
-  $('#git-refresh').onclick = loadGitStatus;
-  $('#git-diff').onclick = showGitDiff;
-  loadGitStatus();
+   loadWorkspaceTree();
+   loadPlugins();
+   loadProviders();
+   $('#git-refresh').onclick = loadGitStatus;
+   $('#git-diff').onclick = showGitDiff;
+   $('#git-stage-all').onclick = async () => { const paths = [...document.querySelectorAll('[data-git-stage]')].map(button => button.dataset.gitStage); if (paths.length) await stageGit(paths); else appendLog('GIT', 'Nothing to stage.'); };
+   $('#git-commit').onclick = commitGit;
+   $('#git-commit-message').onkeydown = event => { if (event.key === 'Enter') commitGit(); };
+   loadGitStatus();
   loadTasks();
   loadDiagnostics();
   setInterval(loadDiagnostics, 3000);

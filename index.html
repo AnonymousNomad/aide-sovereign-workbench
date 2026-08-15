@@ -39,9 +39,12 @@
        <div class="section-heading divider">SOURCE CONTROL</div>
        <button id="git-refresh" class="secondary" style="width:100%;padding:6px">REFRESH CHANGES</button>
        <button id="git-diff" class="secondary" style="width:100%;margin-top:5px;padding:6px">REVIEW DIFF</button>
+       <button id="git-stage-all" class="secondary" style="width:100%;margin-top:5px;padding:6px">STAGE ALL</button>
+       <div class="git-commit-row"><input id="git-commit-message" class="git-commit-message" placeholder="Local commit message" aria-label="Git commit message"><button id="git-commit" class="secondary">COMMIT</button></div>
        <div id="git-status" class="git-status">Checking repository...</div>
        <div class="section-heading divider">TASKS</div>
        <div id="task-list" class="task-list"><span class="muted">Loading tasks...</span></div>
+       <div class="task-actions"><button id="task-stop" class="secondary">STOP ACTIVE</button><span id="task-status">IDLE</span></div>
        <div class="section-heading divider">MODEL LANES <button class="quiet-button">+</button></div>
        <div id="model-list" class="model-list"></div>
        <div class="section-heading divider">OFFLINE PLUGINS</div>

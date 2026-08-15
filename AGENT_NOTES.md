@@ -19,8 +19,17 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- Next: close the remaining Daily-Driver gaps: terminal/task UX, Git panel parity, and hot-exit recovery before desktop packaging; the LSP/DAP fixture gate is now verified.
+- Next: close the remaining Daily-Driver gap: hot-exit recovery and session restore parity before desktop packaging; terminal/task UX and Git panel parity are now implemented and contract/API verified.
 
+---
+
+## [2026-08-15 00:34] Actor: codex
+**Type:** Gate 1 implementation checkpoint
+**Status:** verified
+**Summary:** Implemented the served Git and task Daily-Driver surfaces.
+**Details:** Phase 4 audit found the Git API existed but the served UI exposed only refresh/review, with no staging or commit controls. Added structured `git status --porcelain=v1 -z --branch` parsing, branch/file metadata, path-scoped diff, per-file DIFF/STAGE, STAGE ALL, and explicit local COMMIT controls. Phase 3 audit found task buttons remained disabled after launch and never displayed completion output. Added bounded status polling, pass/fail output rendering, button recovery, status text, and STOP ACTIVE. Real acceptance now verifies Git status and path-scoped diff; `scripts/git-ui-contract.mjs`, `scripts/task-ui-contract.mjs`, `scripts/ui-audit.mjs` (108/108), app/server syntax checks, and the real acceptance suite pass.
+**Files:** `daemon/server.mjs`, `app.js`, `index.html`, `styles.css`, `scripts/acceptance-real.mjs`, `scripts/git-ui-contract.mjs`, `scripts/task-ui-contract.mjs`, `package.json`, `AGENT_NOTES.md`
+**Next:** push this checkpoint, then implement hot-exit recovery/session restore acceptance and test it through the editor/browser harness when Edge is available.
 ---
 
 ## [2026-08-15 00:20] Actor: codex

@@ -19,8 +19,18 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 23:05 preflight.3 result: Linux/macOS desktop jobs passed, but Windows lifecycle smoke remained in progress after bundle smoke passed. Hardened the script with 180-second installer timeouts, shallow known install-path lookup instead of recursive Program Files scanning, and progress logging; PowerShell syntax passes. A replacement preflight is required.
-- Next: commit/push the lifecycle hang repair and trigger `v0.1.0-preflight.4`; inspect the Windows lifecycle step result.
+- 2026-08-15 23:30 preflight.4 result: Linux/macOS desktop jobs passed and Windows build plus bundle smoke passed, but Windows lifecycle smoke failed when the installer process reached its 180-second timeout. The latest repair quotes MSI and log paths for `Start-Process` argument handling and bounds/logs the MSI uninstall path. PowerShell parser validation passes; a replacement preflight is required.
+- Next: commit/push the quoted-MSI lifecycle repair and trigger `v0.1.0-preflight.5`; inspect the Windows lifecycle step result.
+
+---
+
+## [2026-08-15 23:30] Actor: codex
+**Type:** lifecycle-gate repair
+**Status:** syntax-verified
+**Summary:** Repaired the Windows installer lifecycle smoke after preflight.4 timed out during installer execution.
+**Details:** Run `31927964263` passed the Linux/macOS jobs and Windows build plus bundle smoke, then failed in the Windows lifecycle step at the configured 180-second installer timeout. The lifecycle script now quotes MSI and verbose-log paths before passing them to `Start-Process`, logs installer invocation, quotes the uninstall log path, and bounds the direct MSI uninstall with the same timeout. The current script passes PowerShell parser validation. The hosted failure is retained as evidence that the lifecycle gate is not yet green.
+**Files:** `scripts/desktop-lifecycle-smoke.ps1`, `AGENT_NOTES.md`
+**Next:** commit/push and trigger `v0.1.0-preflight.5`; do not claim production installer readiness until the Windows lifecycle step passes.
 
 ---
 

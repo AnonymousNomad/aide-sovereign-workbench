@@ -47,11 +47,14 @@ function Find-InstalledExe {
 
 function Invoke-Installer {
   param([string]$Mode)
+  Write-Host "desktop lifecycle smoke: invoking $Mode installer"
   if ($installerKind -eq 'msi') {
+    $installerArg = '"' + $installer + '"'
+    $logArg = '"' + $installLog + '"'
     $arguments = if ($Mode -eq 'uninstall') {
-      @('/x', $installer, '/qn', '/norestart', '/L*v', $installLog)
+      @('/x', $installerArg, '/qn', '/norestart', '/L*v', $logArg)
     } else {
-      @('/i', $installer, '/qn', '/norestart', '/L*v', $installLog, 'REINSTALL=ALL', 'REINSTALLMODE=amus')
+      @('/i', $installerArg, '/qn', '/norestart', '/L*v', $logArg, 'REINSTALL=ALL', 'REINSTALLMODE=amus')
     }
     $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -PassThru
   } else {
@@ -84,7 +87,10 @@ if (-not (Find-InstalledExe)) { throw 'same-build reinstall removed the installe
 
 $entry = @(Get-UninstallEntries) | Select-Object -First 1
 if ($entry -and $entry.PSChildName -match '^\{[0-9A-F-]+\}$' -and $installerKind -eq 'msi') {
-  $uninstall = Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/x', $entry.PSChildName, '/qn', '/norestart', '/L*v', (Join-Path $env:TEMP 'aide-desktop-msi-uninstall.log')) -Wait -PassThru
+  Write-Host 'desktop lifecycle smoke: uninstalling MSI product'
+  $uninstallLog = '"' + (Join-Path $env:TEMP 'aide-desktop-msi-uninstall.log') + '"'
+  $uninstall = Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/x', $entry.PSChildName, '/qn', '/norestart', '/L*v', $uninstallLog) -PassThru
+  if (-not $uninstall.WaitForExit(180000)) { $uninstall.Kill(); throw 'uninstall exceeded the 180-second timeout' }
   if ($uninstall.ExitCode -notin @(0, 3010)) { throw "uninstall failed with exit code $($uninstall.ExitCode)" }
 } else {
   Invoke-Installer 'uninstall'

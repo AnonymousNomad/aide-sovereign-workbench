@@ -26,6 +26,10 @@ the result, and refuse unsupported completion claims.
   manager tests passed. Real Edge smoke was attempted but returned no DOM and
   emitted renderer task-provider errors before page evaluation; it is not
   counted as browser acceptance.
+- Follow-up verification: `node scripts/acceptance-real.mjs` passed the real
+  daemon path for workspace, write, patch, terminal, LSP completion, task, Git,
+  session, plugin, Academy, Blueprint, provider, artifact, and search. This is
+  backend evidence only; the browser gate remains open.
 
 ## 2026-08-12 — Workbench Reset
 

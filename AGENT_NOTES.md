@@ -19,8 +19,18 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-16 03:56 Gate 1 editor launch slice: the root workbench now starts in `simple-mode workbench-view-editor`, so EXP/editor, explorer, terminal, and activity navigation are visible by default while AI remains available through the AI activity button. `node scripts/view-switch-contract.mjs`, `node --check app.js`, UI audit 108/108, editor-groups, session-store, and workspace-manager contracts pass. Real Edge acceptance remains blocked by `Edge returned no DOM`/renderer errors before page evaluation, so no browser acceptance claim is made.
-- Next: push the recorded launch-state checkpoint, then implement the next Gate 1 slice: visible editor baseline acceptance for open/edit/save and find/replace once the Edge harness is available.
+- 2026-08-16 04:02 Gate 1 editor slice: the root workbench now starts in `simple-mode workbench-view-editor`, and the real daemon acceptance path passes workspace, write, patch, terminal, LSP completion, task, Git, session, plugin, Academy, Blueprint, provider, artifact, and search flows. UI audit 108/108, editor-groups, session-store, workspace-manager, and view-switch contracts also pass. Real Edge acceptance remains blocked by `Edge returned no DOM`/renderer errors before page evaluation, so no browser acceptance claim is made.
+- Next: repair or replace the Edge browser harness, then capture real open/edit/save/find/replace/terminal/browser evidence before calling Gate 1 complete.
+
+---
+
+## [2026-08-16 04:02] Actor: codex
+**Type:** Gate 1 real acceptance
+**Status:** verified
+**Summary:** Ran the real daemon-backed AIDE acceptance flow after restoring the editor as the default launch view.
+**Details:** `node scripts/acceptance-real.mjs` passed: `workspace, write, patch, terminal, LSP completion, task, Git, session, plugin, Academy, Blueprint, provider, artifact, search`. This verifies backend/workbench boundaries but does not replace browser DOM acceptance; the Edge harness still exits before DOM output.
+**Files:** `AGENT_NOTES.md`
+**Next:** repair or replace the Edge harness, then capture browser evidence for open/edit/save/find/replace/terminal behavior.
 
 ---
 

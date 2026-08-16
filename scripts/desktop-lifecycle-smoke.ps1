@@ -30,10 +30,17 @@ function Find-InstalledExe {
       if (Test-Path -LiteralPath $candidate) { return [PSCustomObject]@{ Exe = $candidate; Entry = $entry } }
     }
   }
-  $roots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+  $roots = @(
+    $env:LOCALAPPDATA,
+    (Join-Path $env:LOCALAPPDATA 'Programs'),
+    $env:ProgramFiles,
+    ${env:ProgramFiles(x86)}
+  ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
   foreach ($root in $roots) {
-    $candidate = Get-ChildItem -LiteralPath $root -Recurse -File -Filter $appExeName -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($candidate) { return [PSCustomObject]@{ Exe = $candidate.FullName; Entry = ($entries | Select-Object -First 1) } }
+    foreach ($directory in @($root, (Join-Path $root $productName), (Join-Path $root 'AIDE Sovereign Workbench'))) {
+      $candidate = Join-Path $directory $appExeName
+      if (Test-Path -LiteralPath $candidate) { return [PSCustomObject]@{ Exe = $candidate; Entry = ($entries | Select-Object -First 1) } }
+    }
   }
   return $null
 }
@@ -46,22 +53,26 @@ function Invoke-Installer {
     } else {
       @('/i', $installer, '/qn', '/norestart', '/L*v', $installLog, 'REINSTALL=ALL', 'REINSTALLMODE=amus')
     }
-    $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -PassThru
+    $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -PassThru
   } else {
     $arguments = if ($Mode -eq 'uninstall') { @('/S') } else { @('/S') }
-    $process = Start-Process -FilePath $installer -ArgumentList $arguments -Wait -PassThru
+    $process = Start-Process -FilePath $installer -ArgumentList $arguments -PassThru
   }
+  if (-not $process.WaitForExit(180000)) { $process.Kill(); throw "$Mode installer exceeded the 180-second timeout" }
   if ($process.ExitCode -notin @(0, 3010)) { throw "$Mode installer failed with exit code $($process.ExitCode)" }
 }
 
-Write-Host "desktop lifecycle smoke: installing $installer"
+Write-Host "desktop lifecycle smoke: installing $installer ($installerKind)"
 Invoke-Installer 'install'
+Write-Host 'desktop lifecycle smoke: locating installed executable'
 $installed = Find-InstalledExe
 if (-not $installed) { throw "installed $productName executable was not found" }
 
+Write-Host "desktop lifecycle smoke: launching $($installed.Exe)"
 $app = Start-Process -FilePath $installed.Exe -PassThru
 Start-Sleep -Seconds 5
 if ($app.HasExited) { throw "installed application exited during launch with code $($app.ExitCode)" }
+Write-Host 'desktop lifecycle smoke: checking daemon health'
 $health = Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:4777/health' -TimeoutSec 15
 if ($health.StatusCode -ne 200) { throw "installed daemon health returned HTTP $($health.StatusCode)" }
 if (-not $app.CloseMainWindow()) { $app.Kill() }

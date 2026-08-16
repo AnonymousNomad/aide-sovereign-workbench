@@ -19,9 +19,26 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 22:39 added a Windows-only installer lifecycle smoke to `.github/workflows/desktop.yml`: MSI/NSIS install, launch, daemon health, graceful close, same-build reinstall/upgrade probe, uninstall, and cleanup. The PowerShell script parses successfully locally; the next tagged desktop run must prove it on the hosted Windows runner.
-- Next: commit/push the lifecycle gate and trigger a new preflight tag; treat the Windows job result as the authoritative installer evidence.
+- 2026-08-15 23:05 preflight.3 result: Linux/macOS desktop jobs passed, but Windows lifecycle smoke remained in progress after bundle smoke passed. Hardened the script with 180-second installer timeouts, shallow known install-path lookup instead of recursive Program Files scanning, and progress logging; PowerShell syntax passes. A replacement preflight is required.
+- Next: commit/push the lifecycle hang repair and trigger `v0.1.0-preflight.4`; inspect the Windows lifecycle step result.
 
+---
+
+## [2026-08-15 23:05] Actor: codex
+**Type:** lifecycle-gate repair
+**Status:** syntax-verified
+**Summary:** Hardened the Windows installer lifecycle smoke after preflight.3 hung.
+**Details:** In run `31927098882`, Linux and macOS jobs passed and the Windows build plus bundle smoke passed, but the lifecycle step remained in progress. The likely unbounded operation was the fallback recursive scan of `Program Files`; the script now uses registry plus shallow known install paths, bounds installer processes to 180 seconds, and logs install/locate/launch/health phases. PowerShell parser validation passed locally. The stuck run is not counted as lifecycle evidence.
+**Files:** `scripts/desktop-lifecycle-smoke.ps1`, `AGENT_NOTES.md`
+**Next:** commit/push and trigger preflight.4.
+---
+
+## [2026-08-15 22:45] Actor: codex
+**Type:** lifecycle-gate push
+**Status:** pushed
+**Summary:** Pushed the Windows installer lifecycle gate and triggered its hosted preflight run.
+**Details:** Commit `0a45b4c` is on `origin/main`; annotated tag `v0.1.0-preflight.3` was pushed to trigger `.github/workflows/desktop.yml`. The workflow now includes the PowerShell lifecycle smoke on Windows after bundle generation. This is a non-production preflight; no installer claim is made until the run passes.
+**Next:** inspect the hosted desktop matrix and fix any lifecycle failure revealed by the Windows runner.
 ---
 
 ## [2026-08-15 22:39] Actor: codex

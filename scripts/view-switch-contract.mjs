@@ -10,6 +10,7 @@ const [index, app, styles, manager] = await Promise.all([
 
 assert.match(index, /<link rel="stylesheet" href="styles\.css">/);
 assert.match(index, /<script src="app\.js"><\/script>/);
+assert.match(index, /<body class="simple-mode workbench-view-editor">/);
 assert.match(app, /function setWorkbenchView\(view\)/);
 assert.match(app, /setWorkbenchView\('editor'\)/);
 assert.match(app, /setWorkbenchView\('run'\)/);

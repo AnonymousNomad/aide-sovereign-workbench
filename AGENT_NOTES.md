@@ -19,8 +19,18 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-16 03:02 preflight.7 result: Linux/macOS desktop jobs passed and Windows build plus bundle smoke passed, but the lifecycle script again exited in about one second before installer invocation. The next repair removes the `Path.GetFullPath`/pipeline preamble, uses explicit string candidates from the script root and working directory, logs startup/candidates, and selects the first existing directory with a simple loop. A replacement preflight is required.
-- Next: commit/push the simplified bundle-root preamble and trigger `v0.1.0-preflight.8`; inspect the Windows lifecycle step output.
+- 2026-08-16 03:53 Gate 1 editor launch slice: the root workbench now starts in `simple-mode workbench-view-editor`, so EXP/editor, explorer, terminal, and activity navigation are visible by default while AI remains available through the AI activity button. `scripts/view-switch-contract.mjs` and `node --check app.js` pass. Real Edge acceptance remains blocked by `Edge returned no DOM`/renderer errors before page evaluation, so no browser acceptance claim is made.
+- Next: commit/push this launch-state repair, then implement the next Gate 1 slice: visible editor baseline acceptance for open/edit/save and find/replace once the Edge harness is available.
+
+---
+
+## [2026-08-16 03:53] Actor: codex
+**Type:** Gate 1 editor launch repair
+**Status:** contract-verified
+**Summary:** Restored the daily-driver editor as the default AIDE launch view.
+**Details:** Changed `index.html` from `simple-mode` to `simple-mode workbench-view-editor`; the existing CSS view contract therefore exposes the explorer/editor/terminal/activity shell on first load while retaining the AI panel and explicit AI navigation. Added an assertion to `scripts/view-switch-contract.mjs`. `node scripts/view-switch-contract.mjs`, `node --check app.js`, and `git diff --check` pass. `node scripts/editor-smoke.mjs` could not evaluate the DOM because Edge exited without DOM output and emitted renderer task-provider errors; this is recorded as an environment blocker, not counted as acceptance.
+**Files:** `index.html`, `scripts/view-switch-contract.mjs`, `AGENT_NOTES.md`
+**Next:** commit/push, then continue Gate 1 with visible editor open/edit/save and find/replace acceptance.
 
 ---
 

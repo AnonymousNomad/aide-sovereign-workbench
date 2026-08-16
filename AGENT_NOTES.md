@@ -19,8 +19,18 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 23:50 preflight.5 result: Linux/macOS desktop jobs passed and Windows build plus bundle smoke passed, but the lifecycle script exited in about two seconds before reaching installer invocation. The public GitHub job log is admin-restricted, so the next repair resolves and prints the bundle root/files, validates the directory, and selects only the actual MSI or NSIS installer artifact. A replacement preflight is required.
-- Next: commit/push the installer-discovery diagnostics and trigger `v0.1.0-preflight.6`; inspect the Windows lifecycle step result.
+- 2026-08-16 00:16 preflight.6 result: Linux/macOS desktop jobs passed and Windows build plus bundle smoke passed, but the lifecycle script again exited in about two seconds before reaching installer invocation. The failure is now most likely bundle-root resolution/selection. The next repair checks both `desktop/target/release/bundle` and root `target/release/bundle` layouts, prints all candidate paths, then lists and selects installer artifacts. A replacement preflight is required.
+- Next: commit/push the Tauri bundle-root compatibility repair and trigger `v0.1.0-preflight.7`; inspect the Windows lifecycle step result.
+
+---
+
+## [2026-08-16 00:16] Actor: codex
+**Type:** lifecycle-gate diagnosis and repair
+**Status:** syntax-pending
+**Summary:** Investigated preflight.6's repeated early Windows lifecycle failure and broadened bundle-root resolution.
+**Details:** Run `31929821351` passed the Linux/macOS jobs and Windows build plus bundle smoke. The Windows lifecycle step failed from `5:53:51` to `5:53:53`, again before the installer timeout or the launch/health phases. The script now checks the configured `desktop/target/release/bundle` path plus root `target/release/bundle` variants, prints all candidates, validates the selected directory, and retains explicit bundle-file diagnostics and MSI/NSIS selection.
+**Files:** `scripts/desktop-lifecycle-smoke.ps1`, `AGENT_NOTES.md`
+**Next:** run PowerShell parser validation, commit/push, tag `v0.1.0-preflight.7`, and use the hosted output to determine whether the installer can execute.
 
 ---
 

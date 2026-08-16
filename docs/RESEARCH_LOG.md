@@ -8,6 +8,25 @@ test, and an honest result. This is the project memory for architecture work.
 **This is the Way:** research, decide, implement surgically, test live, record
 the result, and refuse unsupported completion claims.
 
+## 2026-08-16 — Editor-Default Gate 1 Slice
+
+- Research basis: the AIDE Phase 3 editor SOP requires a real workspace tree,
+  open/edit/save path, find/replace, terminal, and session-backed editor state;
+  the Phase 2 layout contract requires EXP/RUN to restore the editor shell.
+- Gap found: the served root page started with `simple-mode` only, and the
+  model-first CSS lock therefore hid the explorer, editor, terminal, and
+  activity bar until a navigation click added `workbench-view-editor`.
+- Decision: make EXP/editor the default launch state while keeping the AI lane
+  available through the explicit AI activity button. This is a reversible,
+  narrow change and does not re-enable hidden experimental surfaces.
+- Change: `index.html` now starts with `simple-mode workbench-view-editor`;
+  `scripts/view-switch-contract.mjs` asserts that launch contract.
+- Verification: view-switch/runtime contract passed; `node --check app.js`
+  passed; UI audit passed 108/108; editor groups, session store, and workspace
+  manager tests passed. Real Edge smoke was attempted but returned no DOM and
+  emitted renderer task-provider errors before page evaluation; it is not
+  counted as browser acceptance.
+
 ## 2026-08-12 — Workbench Reset
 
 - Research: VS Code UX containers, extension host, agents, harnesses, trust and

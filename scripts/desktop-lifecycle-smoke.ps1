@@ -1,0 +1,90 @@
+$ErrorActionPreference = 'Stop'
+
+$bundleRoot = Join-Path $PSScriptRoot '..\desktop\target\release\bundle'
+$msi = Get-ChildItem -LiteralPath $bundleRoot -Recurse -File -Filter '*.msi' | Select-Object -First 1
+$nsis = Get-ChildItem -LiteralPath $bundleRoot -Recurse -File -Filter '*.exe' | Where-Object { $_.Name -notmatch 'AIDE Sovereign Workbench\.exe' } | Select-Object -First 1
+if (-not $msi -and -not $nsis) { throw "no Windows installer found under $bundleRoot" }
+
+$installer = if ($msi) { $msi.FullName } else { $nsis.FullName }
+$installerKind = if ($msi) { 'msi' } else { 'nsis' }
+$productName = 'AIDE Sovereign Workbench'
+$appExeName = "$productName.exe"
+$installLog = Join-Path $env:TEMP 'aide-desktop-msi-install.log'
+
+function Get-UninstallEntries {
+  $roots = @(
+    'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+    'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+    'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+  )
+  foreach ($root in $roots) {
+    Get-ItemProperty -Path $root -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq $productName }
+  }
+}
+
+function Find-InstalledExe {
+  $entries = @(Get-UninstallEntries)
+  foreach ($entry in $entries) {
+    if ($entry.InstallLocation) {
+      $candidate = Join-Path $entry.InstallLocation $appExeName
+      if (Test-Path -LiteralPath $candidate) { return [PSCustomObject]@{ Exe = $candidate; Entry = $entry } }
+    }
+  }
+  $roots = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+  foreach ($root in $roots) {
+    $candidate = Get-ChildItem -LiteralPath $root -Recurse -File -Filter $appExeName -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($candidate) { return [PSCustomObject]@{ Exe = $candidate.FullName; Entry = ($entries | Select-Object -First 1) } }
+  }
+  return $null
+}
+
+function Invoke-Installer {
+  param([string]$Mode)
+  if ($installerKind -eq 'msi') {
+    $arguments = if ($Mode -eq 'uninstall') {
+      @('/x', $installer, '/qn', '/norestart', '/L*v', $installLog)
+    } else {
+      @('/i', $installer, '/qn', '/norestart', '/L*v', $installLog, 'REINSTALL=ALL', 'REINSTALLMODE=amus')
+    }
+    $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -PassThru
+  } else {
+    $arguments = if ($Mode -eq 'uninstall') { @('/S') } else { @('/S') }
+    $process = Start-Process -FilePath $installer -ArgumentList $arguments -Wait -PassThru
+  }
+  if ($process.ExitCode -notin @(0, 3010)) { throw "$Mode installer failed with exit code $($process.ExitCode)" }
+}
+
+Write-Host "desktop lifecycle smoke: installing $installer"
+Invoke-Installer 'install'
+$installed = Find-InstalledExe
+if (-not $installed) { throw "installed $productName executable was not found" }
+
+$app = Start-Process -FilePath $installed.Exe -PassThru
+Start-Sleep -Seconds 5
+if ($app.HasExited) { throw "installed application exited during launch with code $($app.ExitCode)" }
+$health = Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:4777/health' -TimeoutSec 15
+if ($health.StatusCode -ne 200) { throw "installed daemon health returned HTTP $($health.StatusCode)" }
+if (-not $app.CloseMainWindow()) { $app.Kill() }
+if (-not $app.WaitForExit(15000)) { $app.Kill(); $app.WaitForExit() }
+
+Write-Host 'desktop lifecycle smoke: same-build reinstall/upgrade probe'
+Invoke-Installer 'upgrade'
+if (-not (Find-InstalledExe)) { throw 'same-build reinstall removed the installed executable' }
+
+$entry = @(Get-UninstallEntries) | Select-Object -First 1
+if ($entry -and $entry.PSChildName -match '^\{[0-9A-F-]+\}$' -and $installerKind -eq 'msi') {
+  $uninstall = Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/x', $entry.PSChildName, '/qn', '/norestart', '/L*v', (Join-Path $env:TEMP 'aide-desktop-msi-uninstall.log')) -Wait -PassThru
+  if ($uninstall.ExitCode -notin @(0, 3010)) { throw "uninstall failed with exit code $($uninstall.ExitCode)" }
+} else {
+  Invoke-Installer 'uninstall'
+}
+
+Start-Sleep -Seconds 2
+if (Find-InstalledExe) { throw 'installed application remains after uninstall' }
+try {
+  Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:4777/health' -TimeoutSec 3 | Out-Null
+  throw 'daemon remained reachable after desktop uninstall'
+} catch [System.Net.WebException] {
+  # Expected: the shell-owned daemon is gone after the application closes.
+}
+Write-Host 'desktop lifecycle smoke passed: install, launch, health, close, reinstall, uninstall, cleanup'

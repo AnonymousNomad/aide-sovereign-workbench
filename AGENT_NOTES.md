@@ -19,9 +19,18 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 22:29 desktop matrix passed: GitHub Actions run `31925549157` succeeded for Ubuntu x64, macOS ARM64, and Windows x64. Artifact smoke passed and uploaded three platform bundles; artifact sizes were approximately 396 MB Linux, 64 MB macOS, and 58 MB Windows. This proves hosted compilation/bundle generation, not install/launch/upgrade/uninstall behavior.
-- Next: record/push this matrix evidence, then add a Windows installer lifecycle smoke to the desktop workflow before any production-ready desktop claim.
+- 2026-08-15 22:39 added a Windows-only installer lifecycle smoke to `.github/workflows/desktop.yml`: MSI/NSIS install, launch, daemon health, graceful close, same-build reinstall/upgrade probe, uninstall, and cleanup. The PowerShell script parses successfully locally; the next tagged desktop run must prove it on the hosted Windows runner.
+- Next: commit/push the lifecycle gate and trigger a new preflight tag; treat the Windows job result as the authoritative installer evidence.
 
+---
+
+## [2026-08-15 22:39] Actor: codex
+**Type:** lifecycle-gate implementation
+**Status:** syntax-verified
+**Summary:** Added the remaining Windows desktop lifecycle gate to CI.
+**Details:** Added `scripts/desktop-lifecycle-smoke.ps1` and wired it after the Windows bundle smoke. On the ephemeral runner it selects the MSI when available (otherwise NSIS), installs silently, locates the installed executable, launches it, verifies `http://127.0.0.1:4777/health`, closes the shell, repeats a same-build reinstall/upgrade probe, uninstalls, and verifies the executable and daemon are gone. PowerShell parser validation passed locally. Actual installer lifecycle execution remains pending hosted CI.
+**Files:** `scripts/desktop-lifecycle-smoke.ps1`, `.github/workflows/desktop.yml`, `AGENT_NOTES.md`
+**Next:** commit/push, tag a new preflight build, and inspect the Windows lifecycle result.
 ---
 
 ## [2026-08-15 22:29] Actor: codex

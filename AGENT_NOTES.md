@@ -19,9 +19,25 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 21:05 local release evidence recovered: `npm run veritas -- --report` returned `Status: verified`, `100% observed` evidence, and all six ledger checks passed after the aggregate timeout was expanded.
-- Next: commit/push the Linux browser and Veritas timeout fixes, confirm GitHub verify turns green, then trigger the desktop Tauri matrix.
+- 2026-08-15 21:41 remote CI gate passed: GitHub Actions run `31923169836` for `17f64d8` completed `success`. The Linux browser and Veritas timeout repairs are now proven in the hosted environment. Existing release tags are `v0.1.0-preflight` and `v0.1.0-rc.1`; the next desktop gate requires a new tag or manual workflow dispatch.
+- Next: record/push this CI-success checkpoint, then trigger a new preflight desktop tag and inspect the Tauri matrix/artifacts.
 
+---
+
+## [2026-08-15 21:41] Actor: codex
+**Type:** remote verification
+**Status:** verified
+**Summary:** GitHub hosted CI passed after the browser and Veritas gate repairs.
+**Details:** GitHub Actions run `31923169836` for commit `17f64d8` completed successfully. This proves the hosted `npm ci`, Python/debugpy setup, aggregate suite, compile gate, Veritas gate, and report upload path. Existing tags are `v0.1.0-preflight` and `v0.1.0-rc.1`; no desktop matrix has run for this checkpoint because the desktop workflow is tag/manual-dispatch only.
+**Next:** push the journal record, create a new preflight tag on the verified commit, and inspect the desktop matrix. Do not call the installer production-ready until install/launch/upgrade/uninstall evidence exists.
+---
+
+## [2026-08-15 21:06] Actor: codex
+**Type:** verified push
+**Status:** pushed
+**Summary:** Pushed the clean local release-evidence repairs to GitHub.
+**Details:** Commit `17f64d8` (`Stabilize CI browser and Veritas gates`) is on `origin/main`. Local Veritas had returned `verified` with 100% observed evidence before the push. GitHub again accepted the direct push while reporting the existing PR/status-rule bypass and one moderate Dependabot advisory.
+**Next:** inspect the new GitHub verify run, then trigger the desktop Tauri matrix after CI is green.
 ---
 
 ## [2026-08-15 21:05] Actor: codex

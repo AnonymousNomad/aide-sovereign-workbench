@@ -19,9 +19,25 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 19:17 remote CI diagnosis: GitHub Actions run `31915397716` for `eed9d3f` failed inside `node scripts/ci-run-all.mjs`; public metadata exposed only exit code 1, while log download requires repository admin rights. Added GitHub step-summary output to `ci-run-all.mjs` so the next run records the exact failing command and result in check metadata.
-- Next: push the CI observability fix, inspect the next run's summary, repair any remote-only test failure, then trigger the desktop matrix.
+- 2026-08-15 19:51 remote run `31920011630` for `7b54f24` still failed in `ci-run-all`; GitHub check metadata did not expose the step-summary body. Added a GitHub `::error` annotation containing each failed aggregate command so the next public check annotations identify the exact remote failure.
+- Next: push the annotation fix, inspect the next check annotations, repair the remote-only test failure, then trigger the desktop matrix.
 
+---
+
+## [2026-08-15 19:51] Actor: codex
+**Type:** CI diagnostics iteration
+**Status:** in-progress
+**Summary:** The first CI summary instrumentation was insufficient through the public check API.
+**Details:** GitHub run `31920011630` for `7b54f24` completed with the same `ci-run-all` failure. The public check output remained empty even though the runner wrote `GITHUB_STEP_SUMMARY`; annotations exposed only generic process-exit messages. Updated `scripts/ci-run-all.mjs` to emit a GitHub `::error` annotation with the exact failed command and captured detail for each failed aggregate command.
+**Next:** syntax-check, commit, push, and inspect the next run's annotations.
+---
+
+## [2026-08-15 19:44] Actor: codex
+**Type:** CI diagnostics push
+**Status:** pushed
+**Summary:** Pushed the remote CI observability fix.
+**Details:** Commit `7b54f24` (`Expose aggregate CI failure summaries`) is on `origin/main`. `scripts/ci-run-all.mjs` syntax-checks successfully and now writes a per-command aggregate summary to `GITHUB_STEP_SUMMARY` on GitHub Actions, without changing local command execution. The push was accepted with the repository's existing PR/status-rule bypass notice and one moderate Dependabot advisory.
+**Next:** inspect the new GitHub run for `7b54f24`, then fix the exact remote-only failure before desktop packaging claims.
 ---
 
 ## [2026-08-15 19:17] Actor: codex

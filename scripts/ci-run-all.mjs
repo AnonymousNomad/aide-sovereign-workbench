@@ -20,7 +20,14 @@ for (const command of commands) {
 
 const failed = results.filter(r => !r.ok);
 console.log(`\n[ci-run-all] ${results.length - failed.length}/${results.length} test commands passed`);
-for (const f of failed) console.log(`  FAIL  ${f.command}${f.detail ? ` (${f.detail})` : ''}`);
+for (const f of failed) {
+  const detail = `${f.command}${f.detail ? ` (${f.detail})` : ''}`;
+  console.log(`  FAIL  ${detail}`);
+  if (process.env.GITHUB_ACTIONS) {
+    const escaped = detail.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+    console.log(`::error title=AIDE aggregate failure::${escaped}`);
+  }
+}
 if (process.env.GITHUB_STEP_SUMMARY) {
   const lines = [
     '## AIDE aggregate CI results',

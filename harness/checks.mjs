@@ -5,6 +5,7 @@ import path from 'node:path';
 const NPM = process.platform === 'win32'
   ? [process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm']]
   : ['npm', []];
+const COMMAND_TIMEOUTS = Object.freeze({ compile: 120_000, tests: 300_000, 'git-diff': 120_000 });
 const ALLOWED_COMMANDS = Object.freeze({
   compile: [NPM[0], [...NPM[1], 'run', 'check']],
   tests: [NPM[0], [...NPM[1], 'test']],
@@ -15,7 +16,7 @@ function command(name, cwd) {
   const entry = ALLOWED_COMMANDS[name];
   if (!entry) throw new Error(`command is not allowlisted: ${name}`);
   return new Promise(resolve => {
-    execFile(entry[0], entry[1], { cwd, timeout: 120000, maxBuffer: 512 * 1024 }, (error, stdout, stderr) => {
+    execFile(entry[0], entry[1], { cwd, timeout: COMMAND_TIMEOUTS[name], maxBuffer: 512 * 1024 }, (error, stdout, stderr) => {
       resolve({
         name,
         passed: !error,

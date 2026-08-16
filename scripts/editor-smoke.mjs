@@ -82,7 +82,10 @@ try {
 
   const dumpDom = () => new Promise((resolve, reject) => {
     const profile = path.join(tmpdir(), `aide-edge-${Date.now()}`);
-    const child = spawn(browser, ['--headless=new', '--disable-gpu', '--no-first-run', `--user-data-dir=${profile}`, '--virtual-time-budget=15000', '--dump-dom', 'http://127.0.0.1:4173/index.html'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const browserArgs = ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-dev-shm-usage'];
+    if (process.platform === 'linux') browserArgs.push('--no-sandbox');
+    browserArgs.push(`--user-data-dir=${profile}`, '--virtual-time-budget=15000', '--dump-dom', 'http://127.0.0.1:4173/index.html');
+    const child = spawn(browser, browserArgs, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let output = '';
     let errorOutput = '';
     child.stdout.on('data', chunk => { output += chunk; });

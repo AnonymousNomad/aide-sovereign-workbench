@@ -19,9 +19,35 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 19:51 remote run `31920011630` for `7b54f24` still failed in `ci-run-all`; GitHub check metadata did not expose the step-summary body. Added a GitHub `::error` annotation containing each failed aggregate command so the next public check annotations identify the exact remote failure.
-- Next: push the annotation fix, inspect the next check annotations, repair the remote-only test failure, then trigger the desktop matrix.
+- 2026-08-15 21:05 local release evidence recovered: `npm run veritas -- --report` returned `Status: verified`, `100% observed` evidence, and all six ledger checks passed after the aggregate timeout was expanded.
+- Next: commit/push the Linux browser and Veritas timeout fixes, confirm GitHub verify turns green, then trigger the desktop Tauri matrix.
 
+---
+
+## [2026-08-15 21:05] Actor: codex
+**Type:** release evidence recovery
+**Status:** verified
+**Summary:** Veritas passed after the aggregate-test timeout was corrected.
+**Details:** `npm run veritas -- --report` completed successfully in 170 seconds and returned `Status: verified` with `100% observed` evidence. The ledger passed path-boundary, secret-scan, manifest-validation, compile, tests, and Git-diff checks. The embedded aggregate now has a 300-second timeout; the Linux browser harness has CI-safe headless flags. The direct aggregate had already passed all product gates immediately before this report.
+**Next:** commit and push the browser/Veritas harness repairs, then inspect the GitHub verify run.
+---
+
+## [2026-08-15 21:02] Actor: codex
+**Type:** verification harness repair
+**Status:** pending-retest
+**Summary:** Fixed a second deterministic Veritas blocker: the aggregate test timeout was shorter than the observed suite runtime.
+**Details:** The direct aggregate `npm test` passed after the Linux browser fix, but a direct inspection of `runVeritasChecks()` showed its `tests` result failing after the child reached provider tests because `execFile` was bounded at 120 seconds. The timeout is now 300 seconds for the aggregate test only; compile and Git-diff checks remain 120 seconds. This prevents a slow, still-progressing verification run from being mislabeled as a test failure.
+**Files:** `harness/checks.mjs`, `AGENT_NOTES.md`
+**Next:** rerun `npm run veritas -- --report` and push only after it returns `verified`.
+---
+
+## [2026-08-15 20:33] Actor: codex
+**Type:** remote CI repair
+**Status:** verified-local
+**Summary:** Fixed the remote Linux browser smoke invocation identified by GitHub annotations.
+**Details:** Public check annotations for run `31920490057` identified `node scripts/editor-smoke.mjs` as the failing aggregate command. The browser harness now adds `--no-sandbox` and `--disable-dev-shm-usage` on Linux, plus `--no-default-browser-check` for deterministic headless startup. Windows local `node scripts/editor-smoke.mjs` passed `EDITOR-SMOKE-ALL-PASS` after the change.
+**Files:** `scripts/editor-smoke.mjs`, `AGENT_NOTES.md`
+**Next:** rerun the full local aggregate and Veritas, then push and inspect the GitHub verify result.
 ---
 
 ## [2026-08-15 19:51] Actor: codex

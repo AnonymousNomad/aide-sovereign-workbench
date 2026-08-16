@@ -19,9 +19,25 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 21:41 remote CI gate passed: GitHub Actions run `31923169836` for `17f64d8` completed `success`. The Linux browser and Veritas timeout repairs are now proven in the hosted environment. Existing release tags are `v0.1.0-preflight` and `v0.1.0-rc.1`; the next desktop gate requires a new tag or manual workflow dispatch.
-- Next: record/push this CI-success checkpoint, then trigger a new preflight desktop tag and inspect the Tauri matrix/artifacts.
+- 2026-08-15 22:29 desktop matrix passed: GitHub Actions run `31925549157` succeeded for Ubuntu x64, macOS ARM64, and Windows x64. Artifact smoke passed and uploaded three platform bundles; artifact sizes were approximately 396 MB Linux, 64 MB macOS, and 58 MB Windows. This proves hosted compilation/bundle generation, not install/launch/upgrade/uninstall behavior.
+- Next: record/push this matrix evidence, then add a Windows installer lifecycle smoke to the desktop workflow before any production-ready desktop claim.
 
+---
+
+## [2026-08-15 22:29] Actor: codex
+**Type:** desktop matrix verification
+**Status:** verified-build
+**Summary:** The tagged desktop build completed successfully on all three hosted platforms.
+**Details:** GitHub Actions run `31925549157` passed Linux `x86_64-unknown-linux-gnu`, macOS `aarch64-apple-darwin`, and Windows `x86_64-pc-windows-msvc` jobs. The new bundle-artifact smoke passed, and artifacts were uploaded: approximately 396 MB Linux, 64 MB macOS, and 58 MB Windows compressed artifacts. This is a build/bundle result only; the release roadmap's install, launch, upgrade, uninstall, and crash-recovery gate remains open.
+**Next:** add and run a Windows installer lifecycle smoke in the desktop workflow.
+---
+
+## [2026-08-15 22:06] Actor: codex
+**Type:** desktop preflight trigger
+**Status:** pushed
+**Summary:** Triggered the GitHub desktop packaging matrix with a non-production preflight tag.
+**Details:** Created and pushed annotated tag `v0.1.0-preflight.2`, pointing at the hosted-CI-verified release line. This tag triggers the existing desktop workflow for Linux, macOS, and Windows. It is explicitly a preflight tag; no installer or lifecycle claim is made until the matrix completes and artifacts are inspected.
+**Next:** inspect the desktop workflow run and its platform results.
 ---
 
 ## [2026-08-15 21:41] Actor: codex

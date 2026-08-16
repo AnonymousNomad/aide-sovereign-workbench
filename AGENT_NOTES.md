@@ -19,8 +19,18 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-16 00:16 preflight.6 result: Linux/macOS desktop jobs passed and Windows build plus bundle smoke passed, but the lifecycle script again exited in about two seconds before reaching installer invocation. The failure is now most likely bundle-root resolution/selection. The next repair checks both `desktop/target/release/bundle` and root `target/release/bundle` layouts, prints all candidate paths, then lists and selects installer artifacts. A replacement preflight is required.
-- Next: commit/push the Tauri bundle-root compatibility repair and trigger `v0.1.0-preflight.7`; inspect the Windows lifecycle step result.
+- 2026-08-16 03:02 preflight.7 result: Linux/macOS desktop jobs passed and Windows build plus bundle smoke passed, but the lifecycle script again exited in about one second before installer invocation. The next repair removes the `Path.GetFullPath`/pipeline preamble, uses explicit string candidates from the script root and working directory, logs startup/candidates, and selects the first existing directory with a simple loop. A replacement preflight is required.
+- Next: commit/push the simplified bundle-root preamble and trigger `v0.1.0-preflight.8`; inspect the Windows lifecycle step output.
+
+---
+
+## [2026-08-16 03:02] Actor: codex
+**Type:** lifecycle-gate diagnosis and repair
+**Status:** syntax-pending
+**Summary:** Simplified the Windows lifecycle script preamble after preflight.7 still failed before installer discovery output.
+**Details:** Run `31935484439` passed macOS and Linux and reached the Windows lifecycle step after build and bundle smoke, but the step failed from `8:08:51` to `8:08:52`. The script now logs its starting directory and script root, builds plain string candidates for both `desktop/target/release/bundle` and `target/release/bundle`, and uses an explicit `foreach` plus `Test-Path` instead of `Path.GetFullPath` and a pipeline. The public check-run output contains no step text; job logs remain admin-restricted.
+**Files:** `scripts/desktop-lifecycle-smoke.ps1`, `AGENT_NOTES.md`
+**Next:** run the local parser if the PowerShell launcher recovers, otherwise rely on hosted syntax/execution evidence; commit/push, tag `v0.1.0-preflight.8`, and inspect the lifecycle output.
 
 ---
 

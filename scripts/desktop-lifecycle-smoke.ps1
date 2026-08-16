@@ -1,13 +1,17 @@
 $ErrorActionPreference = 'Stop'
 
+Write-Host "desktop lifecycle smoke: starting from $((Get-Location).Path); script root $PSScriptRoot"
 $bundleCandidates = @(
   (Join-Path $PSScriptRoot '..\desktop\target\release\bundle'),
-  (Join-Path (Get-Location) 'desktop\target\release\bundle'),
+  (Join-Path ((Get-Location).Path) 'desktop\target\release\bundle'),
   (Join-Path $PSScriptRoot '..\target\release\bundle'),
-  (Join-Path (Get-Location) 'target\release\bundle')
-) | ForEach-Object { [System.IO.Path]::GetFullPath($_) } | Select-Object -Unique
-$bundleRoot = $bundleCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | Select-Object -First 1
+  (Join-Path ((Get-Location).Path) 'target\release\bundle')
+)
 Write-Host "desktop lifecycle smoke: bundle candidates $($bundleCandidates -join '; ')"
+$bundleRoot = $null
+foreach ($candidate in $bundleCandidates) {
+  if (Test-Path -LiteralPath $candidate -PathType Container) { $bundleRoot = $candidate; break }
+}
 if (-not $bundleRoot) { throw "desktop bundle directory is missing; checked: $($bundleCandidates -join ', ')" }
 $bundleFiles = @(Get-ChildItem -LiteralPath $bundleRoot -Recurse -File)
 Write-Host "desktop lifecycle smoke: bundle root $bundleRoot"

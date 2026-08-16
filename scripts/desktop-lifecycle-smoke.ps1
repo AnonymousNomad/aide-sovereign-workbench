@@ -1,9 +1,18 @@
 $ErrorActionPreference = 'Stop'
 
-$bundleRoot = Join-Path $PSScriptRoot '..\desktop\target\release\bundle'
-$msi = Get-ChildItem -LiteralPath $bundleRoot -Recurse -File -Filter '*.msi' | Select-Object -First 1
-$nsis = Get-ChildItem -LiteralPath $bundleRoot -Recurse -File -Filter '*.exe' | Where-Object { $_.Name -notmatch 'AIDE Sovereign Workbench\.exe' } | Select-Object -First 1
-if (-not $msi -and -not $nsis) { throw "no Windows installer found under $bundleRoot" }
+$bundleRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\desktop\target\release\bundle'))
+if (-not (Test-Path -LiteralPath $bundleRoot -PathType Container)) { throw "desktop bundle directory is missing: $bundleRoot" }
+$bundleFiles = @(Get-ChildItem -LiteralPath $bundleRoot -Recurse -File)
+Write-Host "desktop lifecycle smoke: bundle root $bundleRoot"
+Write-Host 'desktop lifecycle smoke: bundle files'
+$bundleFiles | ForEach-Object { Write-Host " - $($_.FullName)" }
+$msi = $bundleFiles | Where-Object { $_.Extension -ieq '.msi' } | Select-Object -First 1
+$nsis = $bundleFiles | Where-Object {
+  $_.Extension -ieq '.exe' -and
+  $_.FullName -match '(?i)\\nsis\\' -and
+  $_.Name -notmatch '(?i)(uninstall|AIDE Sovereign Workbench\.exe$)'
+} | Select-Object -First 1
+if (-not $msi -and -not $nsis) { throw "no Windows installer found under $bundleRoot; bundle files: $($bundleFiles.Name -join ', ')" }
 
 $installer = if ($msi) { $msi.FullName } else { $nsis.FullName }
 $installerKind = if ($msi) { 'msi' } else { 'nsis' }

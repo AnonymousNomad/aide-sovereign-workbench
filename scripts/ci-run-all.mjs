@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 
 const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const testScript = pkg.scripts.test;
@@ -21,4 +21,16 @@ for (const command of commands) {
 const failed = results.filter(r => !r.ok);
 console.log(`\n[ci-run-all] ${results.length - failed.length}/${results.length} test commands passed`);
 for (const f of failed) console.log(`  FAIL  ${f.command}${f.detail ? ` (${f.detail})` : ''}`);
+if (process.env.GITHUB_STEP_SUMMARY) {
+  const lines = [
+    '## AIDE aggregate CI results',
+    '',
+    `- Passed: **${results.length - failed.length}/${results.length}**`,
+    `- Failed: **${failed.length}**`,
+    '',
+    ...results.map(result => `- ${result.ok ? 'PASS' : 'FAIL'} \`${result.command}\`${result.detail ? ` — ${result.detail}` : ''}`),
+    ''
+  ];
+  await appendFile(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+}
 if (failed.length) process.exit(1);

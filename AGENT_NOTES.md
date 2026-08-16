@@ -19,9 +19,18 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 - Frontend stabilized again on 2026-08-14 01:41: prior `simple-mode` CSS had a later `CORE WORKBENCH OVERRIDE` that re-shown explorer/editor/terminal; root `styles.css` now ends with a `MODEL-FIRST LOCK` so the served UI hides launch guide, activity bar, explorer, editor/terminal/statusbar, command button, advanced toggle, model handoff, connection duplicate, and assistant-mode selector. Visible core is model controls, lane/status, bounded workflow lane, and chat. Root `app.js` normal local chat now uses raw `/api/chat` instead of `/api/operator`; `/api/operator` remains for heavier contextual workflows.
 - styles.css mangled-units concern: RESOLVED — checked both root styles.css (30,757 B) and Desktop/frontend/styles.css (19,021 B); no mangled units found (pattern `:\s*\d+x[;,\s}]` clean in both).
 - Current live state at 2026-08-14 23:29: the active training run and unrelated qwen35 server remain protected/untouched. The real-browser harness and temporary-daemon acceptance are now verified; live model inference was not restarted under training load.
-- 2026-08-15 18:41 pushed verified checkpoint `223f50f` to `origin/main` after `npm test` and Veritas both passed. The smoke harness now has a 15-second daemon readiness gate with diagnostics. GitHub desktop CI remains the next proof for Cargo/Tauri installer and lifecycle behavior.
-- Next: trigger or observe the GitHub desktop matrix, then complete install/launch/upgrade/uninstall evidence before calling the desktop release production-ready.
+- 2026-08-15 19:17 remote CI diagnosis: GitHub Actions run `31915397716` for `eed9d3f` failed inside `node scripts/ci-run-all.mjs`; public metadata exposed only exit code 1, while log download requires repository admin rights. Added GitHub step-summary output to `ci-run-all.mjs` so the next run records the exact failing command and result in check metadata.
+- Next: push the CI observability fix, inspect the next run's summary, repair any remote-only test failure, then trigger the desktop matrix.
 
+---
+
+## [2026-08-15 19:17] Actor: codex
+**Type:** CI diagnosis
+**Status:** in-progress
+**Summary:** Investigated the first remote CI failure after local verification passed.
+**Details:** The public GitHub API shows run `31915397716` for `eed9d3f` completed with `verify` failure at `node scripts/ci-run-all.mjs`; `npm ci` succeeded, but the aggregate step exited 1. Public check metadata exposes only generic failure annotations and the log-download endpoint requires repository admin rights. Added `GITHUB_STEP_SUMMARY` reporting to `scripts/ci-run-all.mjs`, preserving normal local behavior while making each command's pass/fail result visible in the next remote check.
+**Files:** `scripts/ci-run-all.mjs`, `AGENT_NOTES.md`
+**Next:** syntax-check, commit, push, and inspect the next GitHub CI summary.
 ---
 
 ## [2026-08-15 18:41] Actor: codex

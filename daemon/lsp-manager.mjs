@@ -90,9 +90,16 @@ export class LspManager {
     this[`buffer_${id}`] = buffer;
   }
 
+  clearDiagnostics(uri) { this.diagnostics.delete(uri); }
+
   async stop(id) {
     const child = this.processes.get(id);
     if (!child) return { id, status: 'stopped' };
+    try {
+      await this.request(id, { method: 'shutdown' });
+      this.notify(id, { method: 'exit' });
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch { /* server may already be gone; kill below */ }
     child.kill('SIGTERM');
     this.processes.delete(id);
     return { id, status: 'stopped' };

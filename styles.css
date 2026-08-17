@@ -1069,3 +1069,36 @@ body.simple-mode.workbench-view-run .editor-column>.bottom-panel{
     overflow-y:auto!important;
   }
 }
+
+.window-bar {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #8be9fd;
+  background: rgba(0,0,0,.35);
+  border-bottom: 1px solid #333;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.window-pad {
+  pointer-events: none;
+}
+.find-option, .find-mask {
+  margin-left: 6px;
+}
+.find-option {
+  font-size: 11px;
+  color: #aaa;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.find-mask {
+  width: 64px;
+  font-size: 11px;
+  padding: 2px 4px;
+  background: #1e1e1e;
+  color: #ddd;
+  border: 1px solid #333;
+}
+

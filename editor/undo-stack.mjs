@@ -47,7 +47,23 @@ export class UndoStack {
     this.ops.length = this.position;
     this.ops.push(operation);
     this.position++;
+    if (this.ops.length > 200) this.#foldOldest();
     return operation;
+  }
+
+  #foldOldest() {
+    const foldCount = this.ops.length - 200;
+    let base = this.base;
+    for (let i = 0; i < foldCount; i++) {
+      const op = this.ops[i];
+      base = op.type === 'insert'
+        ? base.slice(0, op.start) + op.text + base.slice(op.start)
+        : base.slice(0, op.start) + base.slice(op.start + op.length);
+    }
+    this.base = base;
+    this.ops = this.ops.slice(foldCount);
+    this.position -= foldCount;
+    this.baseline = Math.max(0, this.baseline - foldCount);
   }
 
   undo() {

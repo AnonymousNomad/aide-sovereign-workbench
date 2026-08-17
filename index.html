@@ -101,21 +101,27 @@
         <div class="blueprint-stage"><canvas id="blueprint-canvas" aria-label="Three dimensional project blueprint"></canvas><aside id="blueprint-inspector" class="blueprint-inspector"><b>SELECT A NODE</b><p>Choose a node to inspect its dependencies and next gate.</p></aside></div>
       </section>
        <div id="editor-tabs" class="tabs"></div>
-       <div id="find-bar" class="find-bar" hidden>
-        <input id="find-input" placeholder="Find in file (Ctrl+F / Enter next / Shift+Enter previous)" aria-label="Find in active file"><span id="find-count" class="find-count" aria-live="polite"></span>
-        <input id="replace-input" placeholder="Replace" aria-label="Replace in active file">
-        <button id="replace-one" class="mini" title="Replace current match">REPLACE</button>
-        <button id="replace-all-file" class="mini" title="Replace all matches in this file">REPLACE ALL</button>
-        <button id="search-workspace" class="mini" title="Search the whole workspace">SEARCH WORKSPACE</button>
-        <button id="find-close" class="mini" title="Close (Esc)">CLOSE</button>
-       </div>
+        <div id="find-bar" class="find-bar" hidden>
+         <input id="find-input" placeholder="Find in file (Ctrl+F / Enter next / Shift+Enter previous)" aria-label="Find in active file"><span id="find-count" class="find-count" aria-live="polite"></span>
+         <input id="replace-input" placeholder="Replace" aria-label="Replace in active file">
+         <button id="replace-one" class="mini" title="Replace current match">REPLACE</button>
+         <button id="replace-all-file" class="mini" title="Replace all matches in this file">REPLACE ALL</button>
+         <button id="search-workspace" class="mini" title="Search the whole workspace">SEARCH WORKSPACE</button>
+         <button id="replace-all-workspace" class="mini" title="Replace all matches in the workspace (approved action)" hidden>REPLACE IN WORKSPACE</button>
+         <label class="find-option"><input id="find-icase" type="checkbox">Aa</label>
+         <label class="find-option"><input id="find-regex" type="checkbox">.*</label>
+         <label class="find-option"><input id="find-word" type="checkbox">\bword\b</label>
+         <input id="find-mask" class="find-mask" placeholder="*.js" aria-label="File mask for workspace search">
+         <button id="find-close" class="mini" title="Close (Esc)">CLOSE</button>
+        </div>
        <div id="search-results" class="search-results" hidden aria-label="Workspace search results"></div>
       <div class="breadcrumbs">src <b>/</b> agent.ts <b>/</b> AgentRuntime</div>
-       <div class="editor" role="textbox" aria-label="Code editor">
-        <div id="line-numbers" class="line-numbers"></div>
-        <pre id="code" contenteditable="true" spellcheck="false"></pre>
-       </div>
-       <div id="secondary-editor" class="editor secondary-editor" hidden role="textbox" aria-label="Secondary code editor"><div id="secondary-line-numbers" class="line-numbers"></div><pre id="secondary-code"></pre></div>
+        <div class="editor" role="textbox" aria-label="Code editor">
+         <div id="line-numbers" class="line-numbers"></div>
+         <pre id="code" contenteditable="true" spellcheck="false"></pre>
+        </div>
+        <div id="window-bar" class="window-bar" hidden></div>
+        <div id="secondary-editor" class="editor secondary-editor" hidden role="textbox" aria-label="Secondary code editor"><div id="secondary-line-numbers" class="line-numbers"></div><pre id="secondary-code" contenteditable="true" spellcheck="false"></pre><button id="save-secondary-file" class="tab save-tab" hidden>SAVE SECONDARY</button></div>
       <div class="bottom-panel">
          <div class="panel-tabs"><b>TERMINAL</b><button id="problems-tab">PROBLEMS <em id="problem-count">0</em></button><span>OUTPUT</span><span>CHAT</span><span>COMMUNITY</span></div>
          <div id="terminal" class="terminal"><p><b>~/workspace $</b> aide runtime status</p><p class="muted">network: disabled | writes: approval required | coordinator: bounded</p><p class="ok">ready: local workbench connected</p></div><div id="problems-list" class="problems-list" hidden></div><div class="terminal-input"><span>›</span><input id="terminal-command" placeholder="Run an approved command, e.g. npm test" aria-label="Terminal command"><button id="terminal-run">RUN</button></div>

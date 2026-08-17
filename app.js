@@ -1,4 +1,4 @@
-const state = { manifest: null, node: null, selected: null, runtimeReady: false, runtimeModels: new Map(), activeFile: 'README.md', secondaryFile: null, splitEditor: false, editorGroups: null, openFiles: [], dirtyFiles: new Set(), editorStacks: new Map(), findState: { query: '', matches: [], index: 0 }, conversation: [], files: {
+const state = { manifest: null, node: null, selected: null, runtimeReady: false, runtimeModels: new Map(), activeFile: 'README.md', secondaryFile: null, splitEditor: false, editorGroups: null, openFiles: [], dirtyFiles: new Set(), editorStacks: new Map(), secondaryStack: null, findState: { query: '', matches: [], index: 0 }, findHistory: {}, carets: {}, windowed: null, lspVersions: {}, conversation: [], files: {
   'agent.ts': `import { ChatMessage, ModelAdapter } from './types';
 import { LocalModelRouter } from './router';
 
@@ -50,6 +50,99 @@ async function ensureEditorModules() {
   if (!window.EditorGroups) await import('./editor/groups.mjs');
 }
 const currentStack = () => state.editorStacks.get(state.activeFile) || null;
+const WINDOW_LINES = 40;
+
+function getCaretOffset() {
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return null;
+  const start = selection.getRangeAt(0).startContainer;
+  if (start.nodeType !== Node.TEXT_NODE) return null;
+  const walker = document.createTreeWalker($('#code'), NodeFilter.SHOW_TEXT);
+  let pos = 0, node;
+  while ((node = walker.nextNode())) {
+    if (node === start) return pos + Math.min(selection.getRangeAt(0).startOffset, node.data.length);
+    pos += node.data.length;
+  }
+  return null;
+}
+
+function setCaretOffset(offset) {
+  if (offset === null || offset === undefined) return;
+  const walker = document.createTreeWalker($('#code'), NodeFilter.SHOW_TEXT);
+  let pos = 0, node;
+  while ((node = walker.nextNode())) {
+    const length = node.data.length;
+    if (offset <= pos + length) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.setStart(node, Math.min(offset - pos, length));
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return;
+    }
+    pos += length;
+  }
+}
+
+function caretPosition() {
+  const stack = currentStack();
+  const text = stack ? stack.text() : $('#code').textContent;
+  const offset = getCaretOffset() ?? text.length;
+  const prefix = text.slice(0, offset);
+  const line = prefix.split('\n').length - 1;
+  const lastNewline = prefix.lastIndexOf('\n');
+  return { line, character: offset - (lastNewline + 1) };
+}
+
+function lineHeightOf() {
+  return parseFloat(getComputedStyle($('#code')).lineHeight) || 20;
+}
+
+function windowPrefix() {
+  const lines = state.windowed.text.split('\n');
+  return lines.slice(0, state.windowed.top).join('\n').length + (state.windowed.top ? 1 : 0);
+}
+
+function renderWindow() {
+  const w = state.windowed;
+  const lines = w.text.split('\n');
+  const L = lineHeightOf();
+  const maxTop = Math.max(0, lines.length - WINDOW_LINES);
+  w.top = Math.max(0, Math.min(w.top, maxTop));
+  const slice = lines.slice(w.top, w.top + WINDOW_LINES);
+  $('#code').textContent = slice.join('\n');
+  const pad = document.createElement('div');
+  pad.className = 'window-pad';
+  pad.contentEditable = 'false';
+  pad.style.height = Math.max(0, lines.length - (w.top + WINDOW_LINES)) * L + 'px';
+  $('#code').appendChild(pad);
+  $('#line-numbers').textContent = slice.map((_, index) => w.top + index + 1).join('\n');
+  $('#window-bar').textContent = `LARGE FILE: lines ${w.top + 1}-${w.top + WINDOW_LINES} of ${lines.length} — scroll to browse; edits apply to the whole file.`;
+  $('#window-bar').hidden = false;
+  $('#code').scrollTop = w.top * L;
+}
+
+function enterWindowed(file, text) {
+  state.windowed = { file, text, top: 0 };
+  const code = $('#code');
+  code.classList.add('windowed');
+  code.style.maxHeight = '55vh';
+  code.style.overflowY = 'auto';
+  code.style.lineHeight = '20px';
+  renderWindow();
+}
+
+function exitWindowed() {
+  if (!state.windowed) return;
+  state.windowed = null;
+  const code = $('#code');
+  code.classList.remove('windowed');
+  code.style.maxHeight = '';
+  code.style.overflowY = '';
+  code.style.lineHeight = '';
+  $('#window-bar').hidden = true;
+}
 
 function refreshLineNumbers() {
   $('#line-numbers').textContent = $('#code').textContent.split('\n').map((_, index) => index + 1).join('\n');
@@ -62,30 +155,77 @@ function updateFindCount() {
 
 function renderEditorText() {
   const stack = currentStack();
-  $('#code').textContent = stack ? stack.text() : (state.files[state.activeFile] || '');
-  refreshLineNumbers();
+  const text = stack ? stack.text() : (state.files[state.activeFile] || '');
+  const caret = getCaretOffset();
+  if (state.windowed && state.windowed.file === state.activeFile) {
+    state.windowed.text = text;
+    renderWindow();
+  } else {
+    if (state.windowed) exitWindowed();
+    $('#code').textContent = text;
+    refreshLineNumbers();
+  }
   if (state.findState.query) markFind(state.findState.query, true);
+  setCaretOffset(caret);
 }
 
 function markFind(query, keepIndex) {
-  const text = currentStack()?.text() || '';
-  if (!query) { $('#code').textContent = text; state.findState.matches = []; updateFindCount(); return; }
-  const lower = text.toLowerCase(); const q = query.toLowerCase();
+  const full = currentStack()?.text() || '';
+  if (!query) {
+    if (state.windowed && state.windowed.file === state.activeFile) renderWindow();
+    else { $('#code').textContent = full; refreshLineNumbers(); }
+    state.findState.matches = []; updateFindCount(); return;
+  }
+  const lower = full.toLowerCase(); const q = query.toLowerCase();
   const matches = []; let pos = lower.indexOf(q);
   while (pos !== -1) { matches.push(pos); pos = lower.indexOf(q, pos + q.length); }
   state.findState.query = query;
   state.findState.matches = matches;
   if (!keepIndex) state.findState.index = 0;
   updateFindCount();
-  if (!matches.length) { $('#code').textContent = text; return; }
+  if (state.windowed && state.windowed.file === state.activeFile) {
+    const count = matches.length;
+    if (count) {
+      const idx = ((state.findState.index % count) + count) % count;
+      const matchLine = full.slice(0, matches[idx]).split('\n').length - 1;
+      if (matchLine < state.windowed.top || matchLine >= state.windowed.top + WINDOW_LINES) {
+        state.windowed.top = Math.max(0, matchLine - 5);
+        renderWindow();
+      }
+    }
+    const prefix = windowPrefix();
+    const text = $('#code').textContent;
+    const L = lineHeightOf();
+    const start = prefix, end = prefix + text.length;
+    let html = ''; let cursor = 0;
+    const visible = matches.filter(match => match >= start && match < end);
+    const count2 = visible.length;
+    const idx2 = ((state.findState.index % count) + count) % count;
+    const activeLocal = visible.findIndex(match => match === matches[idx2]);
+    visible.forEach((match, i) => {
+      html += esc(text.slice(cursor, match - start)) + `<mark>${esc(text.slice(match, match + q.length))}</mark>`;
+      cursor = match - start + q.length;
+    });
+    html += esc(text.slice(cursor));
+    $('#code').innerHTML = html;
+    const pad = document.createElement('div');
+    pad.className = 'window-pad';
+    pad.contentEditable = 'false';
+    pad.style.height = Math.max(0, (full.split('\n').length - (state.windowed.top + WINDOW_LINES))) * L + 'px';
+    $('#code').appendChild(pad);
+    [...$('#code').querySelectorAll('mark')][activeLocal]?.classList.add('active-match');
+    $('#code').scrollTop = state.windowed.top * L;
+    return;
+  }
+  if (!matches.length) { $('#code').textContent = full; refreshLineNumbers(); return; }
   const count = matches.length;
   const idx = ((state.findState.index % count) + count) % count;
   let html = ''; let cursor = 0;
   matches.forEach((match, i) => {
-    html += esc(text.slice(cursor, match)) + `<mark>${esc(text.slice(match, match + q.length))}</mark>`;
+    html += esc(full.slice(cursor, match)) + `<mark>${esc(full.slice(match, match + q.length))}</mark>`;
     cursor = match + q.length;
   });
-  html += esc(text.slice(cursor));
+  html += esc(full.slice(cursor));
   $('#code').innerHTML = html;
   [...$('#code').querySelectorAll('mark')][idx]?.classList.add('active-match');
 }
@@ -95,6 +235,7 @@ function findNext(dir = 1) {
   const count = state.findState.matches.length;
   state.findState.index = ((state.findState.index + dir) % count + count) % count;
   markFind(state.findState.query, true);
+  $('#code').querySelector('mark.active-match')?.scrollIntoView({ block: 'nearest' });
 }
 
 function replaceCurrent() {
@@ -130,12 +271,14 @@ function replaceAll() {
 async function searchWorkspace() {
   const q = $('#find-input').value.trim();
   const panel = $('#search-results');
-  if (!q) { panel.hidden = true; return; }
+  if (!q) { panel.hidden = true; $('#replace-all-workspace').hidden = true; return; }
   panel.hidden = false;
   panel.innerHTML = '<div class="search-file">Searching workspace...</div>';
+  const options = searchOptions();
   try {
-    const response = await fetch(`http://127.0.0.1:4777/api/search?q=${encodeURIComponent(q)}`);
+    const response = await fetch(`http://127.0.0.1:4777/api/search?q=${encodeURIComponent(q)}&${options}`);
     const result = await response.json();
+    $('#replace-all-workspace').hidden = false;
     panel.innerHTML = `<div class="search-file">${result.total} match(es) across ${result.results.length} file(s) - click a hit to open.</div>` + result.results.map(file => `<div class="search-file">${esc(file.path)}</div>` + file.hits.map(hit => {
       const idx = hit.text.toLowerCase().indexOf(q.toLowerCase());
       const shown = idx === -1 ? esc(hit.text) : `${esc(hit.text.slice(0, idx))}<mark>${esc(hit.text.slice(idx, idx + q.length))}</mark>${esc(hit.text.slice(idx + q.length))}`;
@@ -143,6 +286,41 @@ async function searchWorkspace() {
     }).join('')).join('');
     panel.querySelectorAll('[data-search-file]').forEach(button => button.onclick = () => { openFile(button.dataset.searchFile); panel.hidden = true; });
   } catch (error) { panel.innerHTML = `<div class="search-file">Search failed: ${esc(error.message)}</div>`; }
+}
+
+function searchOptions() {
+  const parts = [];
+  if ($('#find-icase').checked) parts.push('icase=1');
+  if ($('#find-regex').checked) parts.push('regex=1');
+  if ($('#find-word').checked) parts.push('word=1');
+  const mask = $('#find-mask').value.trim();
+  if (mask) parts.push(`mask=${encodeURIComponent(mask)}`);
+  return parts.join('&');
+}
+
+async function replaceInWorkspace() {
+  const q = $('#find-input').value.trim();
+  if (!q) return;
+  if (!window.confirm(`Replace ALL occurrences of "${q}" across the workspace? This rewrites files on disk.`)) return;
+  const replacement = $('#replace-input').value;
+  const options = { query: q, replacement, approved: true };
+  if ($('#find-icase').checked) options.icase = true;
+  if ($('#find-regex').checked) options.regex = true;
+  if ($('#find-word').checked) options.word = true;
+  const mask = $('#find-mask').value.trim();
+  if (mask) options.mask = mask;
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/search/replace', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(options) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error?.message || 'replace failed');
+    appendLog('EDITOR', `Workspace replace: ${result.files_changed} file(s), ${result.occurrences} occurrence(s).`);
+    state.findState.query = '';
+    $('#find-input').value = '';
+    $('#replace-all-workspace').hidden = true;
+    $('#search-results').hidden = true;
+    markFind('');
+    loadWorkspaceTree();
+  } catch (error) { appendLog('EDITOR', `Workspace replace blocked: ${error.message}`, 'warning'); }
 }
 
 function undoEditor() {
@@ -166,16 +344,18 @@ function syncDirty() {
 function openFind() {
   const bar = $('#find-bar');
   bar.hidden = false;
+  if (state.findHistory[state.activeFile]) { state.findState.query = state.findHistory[state.activeFile]; $('#find-input').value = state.findState.query; }
   $('#find-input').focus(); $('#find-input').select();
 }
 function closeFind() {
   $('#find-bar').hidden = true;
   $('#search-results').hidden = true;
+  $('#replace-all-workspace').hidden = true;
   markFind('');
 }
 
 function bindEditorShortcuts() {
-  $('#find-input').oninput = event => markFind(event.target.value);
+  $('#find-input').oninput = event => { state.findHistory[state.activeFile] = event.target.value; markFind(event.target.value); };
   $('#find-input').onkeydown = event => {
     if (event.key === 'Enter') { event.preventDefault(); findNext(event.shiftKey ? -1 : 1); }
     if (event.key === 'Escape') { closeFind(); $('#code').focus(); }
@@ -184,6 +364,7 @@ function bindEditorShortcuts() {
   $('#replace-one').onclick = replaceCurrent;
   $('#replace-all-file').onclick = replaceAll;
   $('#search-workspace').onclick = searchWorkspace;
+  $('#replace-all-workspace').onclick = replaceInWorkspace;
   $('#find-close').onclick = () => { closeFind(); $('#code').focus(); };
   document.addEventListener('keydown', event => {
     const mod = event.ctrlKey || event.metaKey;
@@ -200,26 +381,52 @@ function bindEditorShortcuts() {
 async function openFile(name) {
   const text = state.files[name] || state.files['agent.ts'];
   await ensureEditorModules();
-  let content = text;
+  let content = text; let tooLarge = false; let fileSize = 0;
   try {
     const response = await fetch(`http://127.0.0.1:4777/api/file?path=${encodeURIComponent(name)}`);
-    if (response.ok) content = (await response.json()).content;
+    if (response.ok) {
+      const payload = await response.json();
+      tooLarge = payload.too_large === true;
+      fileSize = payload.size || 0;
+      content = tooLarge ? '' : payload.content;
+    }
   } catch { /* offline fallback below */ }
   state.activeFile = name;
   if (!state.openFiles.includes(name)) state.openFiles.push(name);
   if (!state.editorStacks.has(name)) state.editorStacks.set(name, new UndoStack(content));
   if (!state.editorGroups) state.editorGroups = new EditorGroups('A');
   if (!state.editorGroups.state().groups[0].tabs.includes(name)) state.editorGroups.open(0, name);
+  if (tooLarge) {
+    enterWindowed(name, state.editorStacks.get(name).text());
+  } else if (state.windowed) {
+    exitWindowed();
+  }
+  if (state.findHistory[name]) { state.findState.query = state.findHistory[name]; $('#find-input').value = state.findState.query; }
   renderEditorText();
   document.querySelectorAll('[data-file]').forEach(button => button.classList.toggle('active', button.dataset.file === name));
   renderEditorTabs();
+  appendLog('EDITOR', `FILE_OPEN: ${name}${tooLarge ? ` (large file, windowed view, ${Math.round(fileSize / 1024)} KiB)` : ''}`);
   saveSession({ active_file: name, open_files: state.openFiles, buffers: Object.fromEntries([...state.editorStacks.entries()].filter(([, stack]) => stack.dirty).map(([file, stack]) => [file, stack.text()])) });
 }
 
 function renderEditorTabs() {
   $('#editor-tabs').innerHTML = state.openFiles.map(file => `<button class="tab ${state.activeFile === file ? 'active' : ''}" data-editor-tab="${esc(file)}">${esc(file.split('/').pop())}${state.dirtyFiles.has(file) ? ' *' : ''}<span data-close-tab="${esc(file)}">×</span></button>`).join('') + '<button class="tab-add">+</button><button id="split-editor" class="tab">SPLIT</button><button id="save-file" class="tab save-tab">SAVE APPROVED FILE</button>';
   $('#editor-tabs').querySelectorAll('[data-editor-tab]').forEach(button => button.onclick = event => { if (event.target.dataset.closeTab) return; openFile(button.dataset.editorTab); });
-  $('#editor-tabs').querySelectorAll('[data-close-tab]').forEach(button => button.onclick = event => { event.stopPropagation(); state.openFiles = state.openFiles.filter(file => file !== button.dataset.closeTab); if (state.activeFile === button.dataset.closeTab) openFile(state.openFiles.at(-1) || 'README.md'); else renderEditorTabs(); });
+  $('#editor-tabs').querySelectorAll('[data-close-tab]').forEach(button => button.onclick = async event => {
+    event.stopPropagation();
+    const file = button.dataset.closeTab;
+    if (state.dirtyFiles.has(file) && !window.confirm(`Close ${file}? Unsaved changes will be lost.`)) return;
+    state.openFiles = state.openFiles.filter(open => open !== file);
+    state.editorStacks.delete(file);
+    state.editorGroups?.closeTab(file);
+    if (state.findHistory[file]) delete state.findHistory[file];
+    try {
+      await fetch('http://127.0.0.1:4777/api/lsp/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/didClose', params: { textDocument: { uri: `file:///workspace/${file}` } } } }) });
+      await fetch(`http://127.0.0.1:4777/api/diagnostics?clear=${encodeURIComponent(`file:///workspace/${file}`)}`);
+    } catch { /* LSP may be off */ }
+    if (state.activeFile === file) openFile(state.openFiles.at(-1) || 'README.md');
+    else renderEditorTabs();
+  });
   $('#save-file').onclick = saveFile;
   $('#split-editor').onclick = toggleSplitEditor;
 }
@@ -230,17 +437,62 @@ async function toggleSplitEditor() {
     const other = state.openFiles.find(file => file !== state.activeFile) || state.openFiles[0] || 'README.md';
     if (state.editorGroups) state.editorGroups.open(state.editorGroups.state().groups.length > 1 ? 1 : 0, other);
     await openSecondaryFile(other);
+  } else {
+    state.secondaryStack = null;
+    state.secondaryDirtyFile = null;
+    state.secondaryFile = null;
+    if (state.editorGroups && state.editorGroups.state().groups.length > 1) state.editorGroups.closeGroup(1);
   }
   renderEditorTabs();
 }
 
 async function openSecondaryFile(name) {
-  state.secondaryFile = name; const fallback = state.files[name] || ''; try { const response = await fetch(`http://127.0.0.1:4777/api/file?path=${encodeURIComponent(name)}`); $('#secondary-code').textContent = response.ok ? (await response.json()).content : fallback; } catch { $('#secondary-code').textContent = fallback; } $('#secondary-line-numbers').textContent = $('#secondary-code').textContent.split('\n').map((_, index) => index + 1).join('\n');
+  state.secondaryFile = name;
+  const fallback = state.files[name] || '';
+  let content = fallback;
+  try {
+    const response = await fetch(`http://127.0.0.1:4777/api/file?path=${encodeURIComponent(name)}`);
+    if (response.ok) {
+      const payload = await response.json();
+      if (payload.too_large !== true) content = payload.content;
+    }
+  } catch { /* offline fallback */ }
+  if (!state.secondaryStack || state.secondaryDirtyFile !== name) {
+    state.secondaryStack = new UndoStack(content);
+    state.secondaryDirtyFile = name;
+  }
+  renderSecondary();
+  $('#save-secondary-file').hidden = false;
   if (state.editorGroups && state.editorGroups.state().groups.length > 1) state.editorGroups.open(1, name);
 }
 
+function renderSecondary() {
+  const text = state.secondaryStack?.text() ?? '';
+  $('#secondary-code').textContent = text;
+  $('#secondary-line-numbers').textContent = text.split('\n').map((_, index) => index + 1).join('\n');
+  $('#save-secondary-file').textContent = (state.secondaryStack?.dirty ? 'SAVE SECONDARY *' : 'SAVE SECONDARY');
+}
+
+async function saveSecondaryFile() {
+  if (!state.secondaryStack || !state.secondaryDirtyFile) return;
+  try {
+    const response = await fetch('http://127.0.0.1:4777/api/file/write', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: state.secondaryDirtyFile, content: state.secondaryStack.text(), approved: true })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'file write rejected');
+    state.secondaryStack.markSaved();
+    renderSecondary();
+    appendLog('WORKSPACE', `${result.path} saved atomically after explicit approval.`);
+  } catch (error) {
+    appendLog('WORKSPACE', `Secondary save blocked: ${error.message}`, 'warning');
+  }
+}
+
 async function saveSession(statePatch) {
-  try { await fetch('http://127.0.0.1:4777/api/session', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(statePatch) }); } catch { /* session persistence is best effort while daemon starts */ }
+  const patch = { ...statePatch, split_editor: state.splitEditor, secondary_file: state.secondaryFile, groups: state.splitEditor && state.editorGroups ? state.editorGroups.state() : undefined };
+  try { await fetch('http://127.0.0.1:4777/api/session', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch), keepalive: true }); } catch { /* session persistence is best effort while daemon starts */ }
 }
 
 async function restoreSession() {
@@ -258,6 +510,20 @@ async function restoreSession() {
     state.activeFile = openFiles.includes(session.active_file) ? session.active_file : openFiles[0];
     await openFile(state.activeFile);
     syncDirty();
+    if (session.split_editor) {
+      state.splitEditor = true;
+      $('#secondary-editor').hidden = false;
+      const other = session.secondary_file || openFiles[0] || 'README.md';
+      await openSecondaryFile(other);
+      if (session.groups?.groups?.length > 1) {
+        const groups = session.groups.groups;
+        state.editorGroups = new EditorGroups('A');
+        for (let index = 1; index < groups.length; index++) state.editorGroups.split(groups[index].active || groups[index].tabs?.[0] || null);
+        state.editorGroups.activate(state.activeFile);
+      }
+      renderEditorTabs();
+    }
+    appendLog('BOOT', `Recovered ${Object.keys(session.buffers || {}).length} unsaved buffer(s)`);
     const recoveredFiles = Object.keys(session.buffers || {}).filter(file => state.editorStacks.get(file)?.dirty);
     if (recoveredFiles.length) appendLog('SESSION', `Recovered ${recoveredFiles.length} unsaved buffer${recoveredFiles.length === 1 ? '' : 's'} without writing to disk.`);
   } catch { await openFile('README.md'); }
@@ -421,6 +687,7 @@ async function saveFile() {
   } catch (error) {
     appendLog('WORKSPACE', `Save blocked: ${error.message}. Start the local daemon and open a trusted workspace.`, 'warning');
   }
+  if (state.secondaryStack?.dirty && state.secondaryDirtyFile) await saveSecondaryFile();
 }
 
 function renderModels() {
@@ -822,7 +1089,7 @@ async function checkActiveFile() {
     const uri = `file:///workspace/${state.activeFile}`;
     const open = await fetch('http://127.0.0.1:4777/api/lsp/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/didOpen', params: { textDocument: { uri, languageId: 'typescript', version: 1, text: content } } } }) });
     if (!open.ok) throw new Error('LSP is not running');
-    const response = await fetch('http://127.0.0.1:4777/api/lsp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/completion', params: { textDocument: { uri }, position: { line: 0, character: 0 } } } }) });
+    const response = await fetch('http://127.0.0.1:4777/api/lsp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/completion', params: { textDocument: { uri }, position: caretPosition() } } }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error?.message || 'completion request failed');
     const count = result.result?.items?.length ?? result.result?.length ?? 0;
@@ -832,7 +1099,7 @@ async function checkActiveFile() {
 
 async function lspAction(action) {
   const uri = `file:///workspace/${state.activeFile}`;
-  const base = { textDocument: { uri }, position: { line: 0, character: 0 } };
+  const base = { textDocument: { uri }, position: caretPosition() };
   const requests = {
     hover: { method: 'textDocument/hover', params: base },
     definition: { method: 'textDocument/definition', params: base },
@@ -1166,9 +1433,39 @@ async function boot() {
       state.editorStacks.set(state.activeFile, new UndoStack(after));
     }
     syncDirty();
-    refreshLineNumbers();
-    if (state.findState.query) markFind(state.findState.query, true);
+    renderEditorText();
+    clearTimeout(state.lspTimers?.didChange);
+    state.lspTimers = state.lspTimers || {};
+    state.lspTimers.didChange = setTimeout(() => {
+      const uri = `file:///workspace/${state.activeFile}`;
+      const version = (state.lspVersions[state.activeFile] || 0) + 1;
+      state.lspVersions[state.activeFile] = version;
+      fetch('http://127.0.0.1:4777/api/lsp/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript', message: { method: 'textDocument/didChange', params: { textDocument: { uri, version }, contentChanges: [{ text: stack.text() }] } } }) }).catch(() => {});
+    }, 250);
   };
+  $('#secondary-code').oninput = () => {
+    if (!state.secondaryStack || !state.secondaryDirtyFile) return;
+    const before = state.secondaryStack.text();
+    const after = $('#secondary-code').textContent;
+    if (before === after) return;
+    try { for (const op of diffOperation(before, after)) state.secondaryStack.apply(op); }
+    catch (error) { appendLog('EDITOR', `Secondary undo history reset: ${error.message}`, 'warning'); state.secondaryStack = new UndoStack(after); }
+    renderSecondary();
+  };
+  $('#save-secondary-file').onclick = saveSecondaryFile;
+  $('#code').addEventListener('scroll', () => {
+    if (!state.windowed || state.windowed.file !== state.activeFile) return;
+    clearTimeout(state.lspTimers?.scroll);
+    state.lspTimers = state.lspTimers || {};
+    state.lspTimers.scroll = setTimeout(() => {
+      const top = Math.max(0, Math.round($('#code').scrollTop / lineHeightOf()));
+      if (top !== state.windowed.top) { state.windowed.top = top; renderEditorText(); }
+    }, 80);
+  });
+  window.addEventListener('pagehide', () => {
+    saveSession({});
+    fetch('http://127.0.0.1:4777/api/lsp/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'typescript' }), keepalive: true }).catch(() => {});
+  });
   renderEditorTabs();
 }
 

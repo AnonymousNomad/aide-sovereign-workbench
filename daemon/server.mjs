@@ -230,7 +230,11 @@ const server = http.createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url.startsWith('/api/file?')) {
       const relativePath = new URL(request.url, 'http://127.0.0.1').searchParams.get('path');
-      return json(response, 200, { path: relativePath, content: await workspaceManager.read(relativePath) });
+      const absolute = workspaceManager.resolve(relativePath);
+      const stat = await fs.stat(absolute).catch(() => null);
+      if (!stat) throw new Error(`file not found: ${relativePath}`);
+      if (stat.size > 1024 * 1024) return json(response, 200, { path: relativePath, too_large: true, size: stat.size });
+      return json(response, 200, { path: relativePath, content: await workspaceManager.read(relativePath), size: stat.size });
     }
     if (request.method === 'POST' && request.url === '/api/file/write') {
       const input = await body(request);
@@ -270,6 +274,44 @@ const server = http.createServer(async (request, response) => {
         }
       })(WORKSPACE);
       return json(response, 200, { query, results, total: results.reduce((sum, file) => sum + file.hits.length, 0), regex: useRegex, caseInsensitive, wholeWord, fileMask });
+    }
+    if (request.method === 'POST' && request.url === '/api/search/replace') {
+      const input = await body(request);
+      const query = String(input.query || '').trim();
+      if (!query || query.length > 200) throw new Error('search query is required');
+      if (input.approved !== true) throw new Error('explicit approval required for workspace replace');
+      const replacement = String(input.replacement ?? '');
+      const useRegex = input.regex === true;
+      const caseInsensitive = input.icase === true;
+      const wholeWord = input.word === true;
+      const fileMask = input.mask || '';
+      const mode = caseInsensitive ? 'i' : '';
+      const pattern = useRegex ? query : escapeRegExp(query);
+      let regex;
+      try { regex = new RegExp(wholeWord ? '\\b' + pattern + '\\b' : pattern, mode); } catch (error) { throw new Error('invalid search pattern: ' + error.message); }
+      const excludes = ['node_modules', 'target', '.git', 'dist', 'build'];
+      const globalPattern = new RegExp(useRegex ? query : escapeRegExp(query), caseInsensitive ? 'gi' : 'g');
+      let filesChanged = 0; let occurrences = 0;
+      await (async function walk(dir) {
+        for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+          if (entry.name.startsWith('.') || excludes.includes(entry.name)) continue;
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) { if (occurrences < 20000) await walk(full); continue; }
+          const relative = path.relative(WORKSPACE, full).split(path.sep).join('/');
+          if (fileMask && !matchMask(relative, fileMask)) continue;
+          const stat = await fs.stat(full);
+          if (stat.size > 512 * 1024) continue;
+          let text = await fs.readFile(full, 'utf8').catch(() => null);
+          if (text === null) continue;
+          if (!regex.test(text)) continue;
+          const changed = text.replace(globalPattern, replacement);
+          if (changed === text) continue;
+          const count = (text.match(globalPattern) || []).length;
+          await workspaceManager.write(relative, changed, true);
+          filesChanged++; occurrences += count;
+        }
+      })(WORKSPACE);
+      return json(response, 200, { files_changed: filesChanged, occurrences });
     }
     if (request.method === 'POST' && request.url === '/api/terminal/run') {
       const input = await body(request);
@@ -361,6 +403,11 @@ const server = http.createServer(async (request, response) => {
       return json(response, 200, { servers: lspManager.status() });
     }
     if (request.method === 'GET' && request.url === '/api/diagnostics') return json(response, 200, { diagnostics: lspManager.diagnosticsList().map(item => ({ ...item, uri: toPlaceholderUri(item.uri) })) });
+    if (request.method === 'GET' && request.url.startsWith('/api/diagnostics?clear=')) {
+      const uri = new URL(request.url, 'http://127.0.0.1').searchParams.get('clear');
+      lspManager.clearDiagnostics(uri);
+      return json(response, 200, { cleared: uri });
+    }
     if (request.method === 'GET' && request.url === '/api/dap/status') {
       return json(response, 200, { adapters: dapManager.status() });
     }

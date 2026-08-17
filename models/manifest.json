@@ -142,7 +142,7 @@
       ],
       "format": "GGUF",
       "runtime": "OpenAI-compatible HTTP",
-      "endpoint": "http://127.0.0.1:8081/v1",
+      "endpoint": "http://127.0.0.1:8087/v1",
       "model": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
       "artifact_uri": "local://model-pack/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
       "source_revision": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF@main",

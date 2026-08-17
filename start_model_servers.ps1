@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $Models = @(
-    @{ Name = "qwen-coder-1.5b-q4"; File = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"; Port = 8081; Ctx = 4096 },
+    @{ Name = "qwen-coder-1.5b-q4"; File = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"; Port = 8087; Ctx = 4096 },
     @{ Name = "smollm2-360m-q8";    File = "smollm2-360m-instruct-q8_0.gguf";        Port = 8082; Ctx = 2048 },
     @{ Name = "qwen-coder-0.5b-q4"; File = "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf"; Port = 8083; Ctx = 4096 }
 )

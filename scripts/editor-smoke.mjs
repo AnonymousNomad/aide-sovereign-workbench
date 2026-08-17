@@ -80,9 +80,9 @@ try {
   }
   assert.equal(ok, true, daemonError || daemonExit || `daemon did not come up within 15 seconds${daemonStderr ? `: ${daemonStderr.trim()}` : ''}`);
 
-  const dumpDom = () => new Promise((resolve, reject) => {
+  const dumpDom = (headlessMode) => new Promise((resolve, reject) => {
     const profile = path.join(tmpdir(), `aide-edge-${Date.now()}`);
-    const browserArgs = ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-dev-shm-usage'];
+    const browserArgs = [headlessMode, '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-dev-shm-usage', '--disable-extensions', '--disable-background-networking', '--disable-sync'];
     if (process.platform === 'linux') browserArgs.push('--no-sandbox');
     browserArgs.push(`--user-data-dir=${profile}`, '--virtual-time-budget=15000', '--dump-dom', 'http://127.0.0.1:4173/index.html');
     const child = spawn(browser, browserArgs, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
@@ -94,11 +94,11 @@ try {
     child.on('error', reject);
     setTimeout(() => { child.kill(); }, 30000);
   });
-  let browserResult = await dumpDom();
+  let browserResult = await dumpDom('--headless=new');
   let dom = browserResult.output;
   if (!/<title[\s>]/i.test(dom) && !dom.includes('editor-smoke-output')) {
     await delay(500);
-    browserResult = await dumpDom();
+    browserResult = await dumpDom('--headless');
     dom = browserResult.output;
   }
   assert.ok(dom, `Edge returned no DOM (exit=${browserResult.code})${browserResult.errorOutput ? `: ${browserResult.errorOutput.trim()}` : ''}`);

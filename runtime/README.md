@@ -18,7 +18,7 @@ The official Qwen GGUF repository is Apache-2.0 and provides a Q4_K_M file of ap
 
 ```bash
 llama-server -hf Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M \
-  --host 127.0.0.1 --port 8081 --ctx-size 32768
+  --host 127.0.0.1 --port 8087 --ctx-size 32768
 ```
 
 For a fully offline run, download the exact GGUF first, verify its SHA-256, then replace `-hf ...` with the local file path.

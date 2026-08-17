@@ -18,6 +18,7 @@ export class ModelManager {
     this.pythonProbe = null;
     this.models = new Map();
     this.processes = new Map();
+    this.warmed = new Set();
   }
 
   probePython() {
@@ -205,7 +206,7 @@ export class ModelManager {
     while (Date.now() < deadline) {
       try {
         const result = await this.verifyEndpointModel(id, 5000);
-        if (result.ready) return true;
+        if (result.ready && (await this.warmup(id))) return true;
         if (result.status === 'conflict') throw new Error(result.error);
       } catch (error) {
         if (error.message?.includes('is serving')) throw error;
@@ -215,9 +216,32 @@ export class ModelManager {
     throw new Error(`${model.name} did not become ready within ${timeoutMs}ms`);
   }
 
+  async warmup(id) {
+    const model = this.models.get(id);
+    if (!model || this.warmed.has(id)) return true;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await fetch(`${model.endpoint}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: model.model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1, temperature: 0 }),
+          signal: AbortSignal.timeout(10_000)
+        });
+        if (response.ok) { this.warmed.add(id); return true; }
+      } catch { /* server still loading context; retry */ }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    return false;
+  }
+
   async isReady(id, timeoutMs = 5000) {
     try {
-      return await this.verifyEndpointModel(id, timeoutMs);
+      const verified = await this.verifyEndpointModel(id, timeoutMs);
+      if (!verified.ready) return verified;
+      if (!(await this.warmup(id))) {
+        return { id, ready: false, status: 'warming', endpoint: verified.endpoint, error: 'model is serving metadata but not yet ready to generate (warming up)' };
+      }
+      return verified;
     } catch (error) {
       const model = this.models.get(id);
       if (!model) throw new Error('model is not allowlisted');

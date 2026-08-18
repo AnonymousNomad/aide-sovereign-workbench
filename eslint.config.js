@@ -7,6 +7,7 @@ export default tseslint.config(
       'node_modules/',
       'desktop/',
       'dist/',
+      'browser/dist/',
       'models/',
       'coverage/',
       '**/*.mjs',

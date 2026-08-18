@@ -1,0 +1,151 @@
+:root {
+  --bg: #1e1e1e;
+  --bg-panel: #252526;
+  --bg-active: #37373d;
+  --fg: #cccccc;
+  --fg-dim: #858585;
+  --accent: #0e639c;
+  --border: #3c3c3c;
+  --mono: 'Cascadia Code', Consolas, 'Courier New', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 13px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.title-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  background: #323233;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.title-bar .title {
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+
+.title-bar .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+}
+
+.title-bar .status-dot.ok {
+  background: #89d185;
+}
+
+.title-bar .status-dot.err {
+  background: #f14c4c;
+}
+
+.workbench {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.activity-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 48px;
+  padding: 4px 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.activity-bar button {
+  height: 48px;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 11px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.activity-bar button:hover {
+  color: var(--fg);
+}
+
+.activity-bar button.active {
+  color: var(--fg);
+  border-left-color: var(--accent);
+}
+
+.main-column {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+}
+
+.editor-column {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.view-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--bg);
+  padding: 16px;
+  display: none;
+}
+
+.view-overlay.active {
+  display: block;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 22px;
+  padding: 0 10px;
+  background: var(--accent);
+  color: #ffffff;
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.status-bar .item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-bar .spacer {
+  flex: 1 1 auto;
+}

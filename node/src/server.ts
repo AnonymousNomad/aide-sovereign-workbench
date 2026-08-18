@@ -11,6 +11,8 @@ import { HealthResponse, type HealthResponseT } from '../../common/contracts/hea
 import { WorkspaceListResponse } from '../../common/contracts/workspace.ts';
 import { WorkspaceService } from './services/workspace.ts';
 import { routeForFileRead, routeForFileWrite, routeForSearch, routeForSearchReplace } from './routes/fs.ts';
+import { routeForSessionGet, routeForSessionPut } from './routes/session.ts';
+import { SessionStore } from './services/session-store.ts';
 
 export class RouteError extends Error {
   readonly code: ErrorCode;
@@ -199,7 +201,9 @@ export async function main(): Promise<void> {
     .route(routeForFileRead(fsService))
     .route(routeForFileWrite(fsService))
     .route(routeForSearch(fsService))
-    .route(routeForSearchReplace(fsService));
+    .route(routeForSearchReplace(fsService))
+    .route(routeForSessionGet(new SessionStore(workspace)))
+    .route(routeForSessionPut(new SessionStore(workspace)));
   await server.listen(port);
   server.logger.info('arch daemon listening', { port, workspace });
 }

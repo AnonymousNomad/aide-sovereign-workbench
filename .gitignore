@@ -15,3 +15,6 @@ community/store.local.json
 models/*.corrupt
 styles.css.wrongfile
 
+
+browser/dist/
+

@@ -9,6 +9,8 @@ import { Logger } from './services/logger.ts';
 import { ProcessManager } from './services/process-manager.ts';
 import { HealthResponse, type HealthResponseT } from '../../common/contracts/health.ts';
 import { WorkspaceListResponse } from '../../common/contracts/workspace.ts';
+import { WorkspaceService } from './services/workspace.ts';
+import { routeForFileRead, routeForFileWrite, routeForSearch, routeForSearchReplace } from './routes/fs.ts';
 
 export class RouteError extends Error {
   readonly code: ErrorCode;
@@ -190,9 +192,14 @@ export async function main(): Promise<void> {
   const version = process.env.AIDE_VERSION || 'dev';
   const port = Number(process.env.AIDE_ARCH_PORT || 4778);
   const server = new ArchServer(workspace, path.join(workspace, '.aide', 'logs', 'arch-daemon.log'));
+  const fsService = new WorkspaceService(workspace);
   server
     .route(makeHealthRoute(workspace, version))
-    .route(routeForWorkspaceList(workspace));
+    .route(routeForWorkspaceList(workspace))
+    .route(routeForFileRead(fsService))
+    .route(routeForFileWrite(fsService))
+    .route(routeForSearch(fsService))
+    .route(routeForSearchReplace(fsService));
   await server.listen(port);
   server.logger.info('arch daemon listening', { port, workspace });
 }

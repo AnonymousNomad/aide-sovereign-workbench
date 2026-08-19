@@ -39,7 +39,11 @@ export class ApiError extends Error {
 }
 
 export async function call<T>(path: string, opts: { query?: unknown; body?: unknown; method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; schema: ZodType<T> }): Promise<T> {
-  const url = opts.query ? `${path}?${new URLSearchParams(opts.query as Record<string, string>).toString()}` : path;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries((opts.query ?? {}) as Record<string, unknown>)) {
+    if (value !== undefined) params.append(key, String(value));
+  }
+  const url = params.size > 0 ? `${path}?${params.toString()}` : path;
   const method = opts.method ?? (opts.body !== undefined ? 'POST' : 'GET');
   const init: RequestInit = {
     method,

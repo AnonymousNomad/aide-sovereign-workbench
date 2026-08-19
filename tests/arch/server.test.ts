@@ -1,7 +1,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import type http from 'node:http';
-import { ArchServer, makeHealthRoute } from '../../node/src/server.ts';
+import { ArchServer } from '../../node/src/server.ts';
+import { buildRoutes } from '../../node/src/openapi.ts';
 import { Envelope } from '../../common/errors.ts';
 import { HealthResponse } from '../../common/contracts/health.ts';
 import { WorkspaceListResponse } from '../../common/contracts/workspace.ts';
@@ -15,7 +16,8 @@ let base: string;
 
 before(async () => {
   server = new ArchServer(workspace, path.join(workspace, '.aide', 'logs', 'arch-test.log'));
-  server.route(makeHealthRoute(workspace, 'test'));
+  const routes = await buildRoutes(workspace, 'test');
+  for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');

@@ -32,5 +32,23 @@ export default tseslint.config(
         }
       ]
     }
+  },
+  {
+    files: ['browser/**/*.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'fetch',
+          message: 'browser code must fetch through services/egress.ts (offline guard, localhost-only)'
+        }
+      ]
+    }
+  },
+  {
+    files: ['browser/src/services/egress.ts'],
+    rules: {
+      'no-restricted-globals': 'off'
+    }
   }
 );

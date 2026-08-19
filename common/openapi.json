@@ -1,0 +1,612 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AIDE Arch Daemon API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/file": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "too_large": {
+                      "type": "boolean"
+                    },
+                    "size": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "content",
+                    "too_large",
+                    "size"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/file/write": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "bytes": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "bytes"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "approved": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "path",
+                  "content",
+                  "approved"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "uptimeMs": {
+                      "type": "number"
+                    },
+                    "workspace": {
+                      "type": "string"
+                    },
+                    "freeMemoryMB": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "uptimeMs",
+                    "workspace",
+                    "freeMemoryMB"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "regex": {
+                      "type": "boolean"
+                    },
+                    "caseInsensitive": {
+                      "type": "boolean"
+                    },
+                    "wholeWord": {
+                      "type": "boolean"
+                    },
+                    "fileMask": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "hits": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "line": {
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "line",
+                                "text"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "hits"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "query",
+                    "total",
+                    "regex",
+                    "caseInsensitive",
+                    "wholeWord",
+                    "fileMask",
+                    "results"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "icase",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ]
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mask",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "regex",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ]
+            }
+          },
+          {
+            "name": "word",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/search/replace": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "files_changed": {
+                      "type": "number"
+                    },
+                    "occurrences": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "files_changed",
+                    "occurrences"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "replacement": {
+                    "type": "string"
+                  },
+                  "approved": {
+                    "type": "boolean"
+                  },
+                  "regex": {
+                    "type": "boolean"
+                  },
+                  "icase": {
+                    "type": "boolean"
+                  },
+                  "word": {
+                    "type": "boolean"
+                  },
+                  "mask": {
+                    "type": "string"
+                  },
+                  "include": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query",
+                  "replacement",
+                  "approved"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/session": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "number",
+                      "const": 1
+                    },
+                    "activeTab": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "tabs": {
+                      "default": [],
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uri": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "splitId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "dirty": {
+                            "type": "boolean"
+                          },
+                          "viewState": {}
+                        },
+                        "required": [
+                          "uri"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splits": {
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "tabs"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "number",
+                      "const": 1
+                    },
+                    "activeTab": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "tabs": {
+                      "default": [],
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "uri": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "splitId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "dirty": {
+                            "type": "boolean"
+                          },
+                          "viewState": {}
+                        },
+                        "required": [
+                          "uri"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "splits": {
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "tabs"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "activeTab": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "tabs": {
+                    "default": [],
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "splitId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "dirty": {
+                          "type": "boolean"
+                        },
+                        "viewState": {}
+                      },
+                      "required": [
+                        "uri"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "splits": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": [
+                  "version",
+                  "tabs"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspace": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace": {
+                      "type": "string"
+                    },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "file",
+                              "directory"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "kind"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "workspace",
+                    "entries"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

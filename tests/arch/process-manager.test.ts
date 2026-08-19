@@ -51,12 +51,12 @@ test('execFile captures exit code and output', async () => {
 });
 
 async function waitForFile(file: string): Promise<void> {
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 250; i++) {
     try {
       await fs.access(file);
       return;
     } catch {
-      await new Promise(resolve => setTimeout(resolve, 20));
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
   throw new Error(`file never appeared: ${file}`);

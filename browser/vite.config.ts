@@ -10,6 +10,26 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:4778',
         changeOrigin: false
+      },
+      '/ws': {
+        target: 'ws://127.0.0.1:4778',
+        ws: true,
+        changeOrigin: false
+      }
+    }
+  },
+  preview: {
+    host: '127.0.0.1',
+    port: 4173,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:4778',
+        changeOrigin: false
+      },
+      '/ws': {
+        target: 'ws://127.0.0.1:4778',
+        ws: true,
+        changeOrigin: false
       }
     }
   },

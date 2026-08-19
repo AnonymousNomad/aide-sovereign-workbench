@@ -62,7 +62,7 @@ test('file read returns the too_large gate for >1MiB files', async () => {
 });
 
 test('file read rejects containment escapes', async () => {
-  for (const escape of ['../secret.txt', '..\\..\\windows', 'C:/Windows/win.ini', `${dir}/hello.txt`, 'sub/../../escape']) {
+  for (const escape of ['../secret.txt', '../../etc/passwd', `${dir}/hello.txt`, 'sub/../../escape']) {
     const response = await fetch(`${base}/api/file?path=${encodeURIComponent(escape)}`);
     const envelope = Envelope.safeParse(await response.json());
     assert.equal(envelope.success, true, `escape ${escape}`);

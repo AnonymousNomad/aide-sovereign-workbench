@@ -50,7 +50,7 @@ export class DapManager {
     return { id, status: 'starting', languages: adapter.languages, protocol: 'DAP' };
   }
 
-  request(id, request) {
+  request(id, request, timeoutMs = 15000) {
     const child = this.processes.get(id);
     if (!child) return Promise.reject(new Error('debug adapter is not running'));
     const seq = request.seq ?? this.nextSeq++;
@@ -58,7 +58,7 @@ export class DapManager {
     if (this.transcript) this.transcript.push(JSON.parse(payload));
     child.stdin.write(`Content-Length: ${Buffer.byteLength(payload)}\r\n\r\n${payload}`);
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(`${id}:${seq}`); reject(new Error(`DAP request timed out: ${request.command || 'unknown'}`)); }, 15000);
+      const timer = setTimeout(() => { this.pending.delete(`${id}:${seq}`); reject(new Error(`DAP request timed out: ${request.command || 'unknown'}`)); }, timeoutMs);
       this.pending.set(`${id}:${seq}`, { resolve, reject, timer });
     });
   }

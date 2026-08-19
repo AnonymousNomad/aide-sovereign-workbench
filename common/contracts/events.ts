@@ -54,3 +54,10 @@ export const EventEnvelope = z
     data: z.unknown()
   })
   .strict();
+
+export type LogEventT = z.infer<typeof LogEvent>;
+export type ModelStatusEventT = z.infer<typeof ModelStatusEvent>;
+export type MarkerT = z.infer<typeof Marker>;
+export type DiagnosticsEventT = z.infer<typeof DiagnosticsEvent>;
+export type TrainingProgressEventT = z.infer<typeof TrainingProgressEvent>;
+export type EventEnvelopeT = z.infer<typeof EventEnvelope>;

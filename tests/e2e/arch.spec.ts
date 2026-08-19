@@ -89,3 +89,18 @@ test('session restore rebuilds tabs after reload', async ({ page, request }) => 
   await page.goto('/');
   await expect(page.locator('.group-tabbar .tab', { hasText: scratch })).toBeVisible();
 });
+
+test('ws event bus drops to err and reconnects to ok after a connection failure', async ({ page }) => {
+  let failures = 0;
+  await page.routeWebSocket('**/ws', ws => {
+    if (failures++ < 2) {
+      void ws.close();
+    } else {
+      void ws.connectToServer();
+    }
+  });
+  await page.goto('/');
+  await expect(page.locator('#status-dot')).toHaveClass(/err/, { timeout: 15000 });
+  await expect(page.locator('#status-dot')).toHaveClass(/ok/, { timeout: 20000 });
+  await expect(page.locator('#status-bar')).toContainText(/daemon|ready/);
+});

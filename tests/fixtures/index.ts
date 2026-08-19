@@ -3,6 +3,7 @@ import type { HealthResponseT } from '../../common/contracts/health.ts';
 import type { WorkspaceListResponseT } from '../../common/contracts/workspace.ts';
 import type { SearchResponseT, SearchReplaceResponseT } from '../../common/contracts/search.ts';
 import type { SessionFileT } from '../../common/contracts/session.ts';
+import type { LogEventT, ModelStatusEventT, DiagnosticsEventT, TrainingProgressEventT } from '../../common/contracts/events.ts';
 
 export const healthFixtures = {
   healthy: {
@@ -91,4 +92,33 @@ export const sessionFixtures = {
     ],
     splits: ['g1', 'g2']
   } satisfies SessionFileT
+};
+
+export const eventFixtures = {
+  log: {
+    ok: { level: 'info', message: 'request ok', method: 'GET', path: '/api/health', ms: 12 } satisfies LogEventT,
+    warn: { level: 'warn', message: 'route not found', method: 'GET', path: '/api/nope', code: 'NOT_FOUND' } satisfies LogEventT,
+    invalid: { level: 'bogus', message: 'x' } as unknown as LogEventT
+  },
+  model: {
+    ok: { id: 'smollm2-360m', status: 'ready', detail: 'warmup done' } satisfies ModelStatusEventT,
+    loading: { id: 'qwen-1.5b', status: 'loading' } satisfies ModelStatusEventT,
+    invalid: { id: 'x', status: 'gone' } as unknown as ModelStatusEventT
+  },
+  diagnostics: {
+    ok: {
+      uri: 'file:///src/a.ts',
+      markers: [
+        { severity: 8, message: 'cannot find name "a"', startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 },
+        { severity: 2, message: 'unused variable', startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 4 }
+      ]
+    } satisfies DiagnosticsEventT,
+    empty: { uri: 'file:///src/a.ts', markers: [] } satisfies DiagnosticsEventT,
+    invalid: { uri: 'file:///src/a.ts', markers: [{ severity: 99, message: 'x', startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }] } as unknown as DiagnosticsEventT
+  },
+  training: {
+    ok: { job: 'veritas-01', step: 1200, loss: 2.341, status: 'running', epoch: 3 } satisfies TrainingProgressEventT,
+    done: { job: 'veritas-01', step: 5000, status: 'done' } satisfies TrainingProgressEventT,
+    invalid: { job: 'veritas-01', step: -1, status: 'running' } as unknown as TrainingProgressEventT
+  }
 };

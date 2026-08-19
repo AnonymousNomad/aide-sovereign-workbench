@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-19T16:49:39.756Z",
+  "generated": "2026-08-19T17:16:44.985Z",
   "tool": "aide-sovereign-workbench dap fixture test",
   "python": "E:\\Python310\\python.exe",
   "fixture": "fixtures/debuggee/fizz_engine.py",
@@ -138,7 +138,7 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 54014,
+            "port": 65330,
             "internal": false
           }
         ]
@@ -232,12 +232,12 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 54014,
+            "port": 65330,
             "internal": false
           },
           {
             "host": "127.0.0.1",
-            "port": 54017,
+            "port": 65334,
             "internal": true
           }
         ]
@@ -251,17 +251,17 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 54014,
+            "port": 65330,
             "internal": false
           },
           {
             "host": "127.0.0.1",
-            "port": 54018,
+            "port": 65335,
             "internal": true
           },
           {
             "host": "127.0.0.1",
-            "port": 54017,
+            "port": 65334,
             "internal": true
           }
         ]
@@ -275,12 +275,12 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 54014,
+            "port": 65330,
             "internal": false
           },
           {
             "host": "127.0.0.1",
-            "port": 54017,
+            "port": 65334,
             "internal": true
           }
         ]
@@ -362,7 +362,7 @@
       "body": {
         "startMethod": "launch",
         "isLocalProcess": true,
-        "systemProcessId": 18184,
+        "systemProcessId": 18104,
         "name": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
         "pointerSize": 64
       }
@@ -1089,7 +1089,7 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 54014,
+            "port": 65330,
             "internal": false
           }
         ]
@@ -1125,7 +1125,7 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 54014,
+            "port": 65330,
             "internal": false
           }
         ]

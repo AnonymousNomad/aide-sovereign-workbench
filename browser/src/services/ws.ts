@@ -22,7 +22,6 @@ export function connectEvents(wsUrl: string, opts: EventBusOptions = {}): EventB
   let connected = false;
 
   function setStatus(value: boolean): void {
-    if (connected === value) return;
     connected = value;
     opts.onStatus?.(value);
   }

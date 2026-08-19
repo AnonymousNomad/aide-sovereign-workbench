@@ -3,7 +3,10 @@ import { Envelope } from '../../../common/errors.ts';
 import {
   FileReadQuery,
   FileReadResponse,
-  type FileReadResponseT
+  type FileReadResponseT,
+  FileWriteRequest,
+  FileWriteResponse,
+  type FileWriteResponseT
 } from '../../../common/contracts/file.ts';
 import { HealthResponse, type HealthResponseT } from '../../../common/contracts/health.ts';
 import {
@@ -60,6 +63,11 @@ export const api = {
     const query = FileReadQuery.safeParse({ path });
     if (!query.success) throw new ApiError('BAD_REQUEST', 'invalid file path');
     return call('/api/file', { query: query.data, schema: FileReadResponse });
+  },
+  fileWrite(path: string, content: string): Promise<FileWriteResponseT> {
+    const body = FileWriteRequest.safeParse({ path, content, approved: true });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid write request');
+    return call('/api/file', { body: body.data, schema: FileWriteResponse });
   },
   sessionGet(): Promise<SessionFileT> {
     return call('/api/session', { schema: SessionFile });

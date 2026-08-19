@@ -17,4 +17,9 @@ styles.css.wrongfile
 
 
 browser/dist/
+build-out.txt
+check-out.txt
+vite-out.txt
+daemon-out.txt
+dom*.txt
 

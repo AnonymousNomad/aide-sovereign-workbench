@@ -115,6 +115,90 @@ body {
   background: var(--bg);
 }
 
+.tab-bar {
+  display: flex;
+  align-items: stretch;
+  height: 32px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex: 0 0 auto;
+}
+
+.tab-bar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tab-bar .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+}
+
+.tab-bar .tab:hover {
+  background: var(--bg-active);
+}
+
+.tab-bar .tab.active {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.tab-bar .tab.dirty::after {
+  content: '\25cf';
+  color: var(--fg-dim);
+  font-size: 10px;
+}
+
+.tab-bar .tab-close {
+  margin-left: 2px;
+  color: var(--fg-dim);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.tab-bar .tab-close:hover {
+  color: var(--fg);
+}
+
+.editor-root {
+  position: absolute;
+  inset: 32px 0 0 0;
+}
+
+.file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-list button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.file-list button:hover {
+  background: var(--bg-active);
+}
+
 .view-overlay {
   position: absolute;
   inset: 0;

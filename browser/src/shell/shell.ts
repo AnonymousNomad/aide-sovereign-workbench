@@ -13,6 +13,9 @@ export interface Shell {
   statusDot: HTMLElement;
   statusBar: HTMLElement;
   editorColumn: HTMLElement;
+  tabBar: HTMLElement;
+  editorRoot: HTMLElement;
+  mapView: HTMLElement;
 }
 
 export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
@@ -25,6 +28,8 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
       <nav class="activity-bar" id="activity-bar"></nav>
       <main class="main-column">
         <div class="editor-column" id="editor-column">
+          <div class="tab-bar" id="tab-bar"></div>
+          <div class="editor-root" id="editor-root"></div>
           <section class="view-overlay active" data-view="learn"><h2>LEARN</h2></section>
           <section class="view-overlay" data-view="map"><h2>MAP</h2></section>
           <section class="view-overlay" data-view="exp"><h2>EXP</h2></section>
@@ -63,10 +68,13 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
   const statusDot = app.querySelector<HTMLElement>('#status-dot');
   const statusBar = app.querySelector<HTMLElement>('#status-bar');
   const editorColumn = app.querySelector<HTMLElement>('#editor-column');
+  const tabBar = app.querySelector<HTMLElement>('#tab-bar');
+  const editorRoot = app.querySelector<HTMLElement>('#editor-root');
+  const mapView = app.querySelector<HTMLElement>('[data-view="map"]');
   const title = app.querySelector<HTMLElement>('#title');
-  if (statusDot === null || statusBar === null || editorColumn === null || title === null) throw new Error('shell mount failed');
+  if (statusDot === null || statusBar === null || editorColumn === null || tabBar === null || editorRoot === null || mapView === null || title === null) throw new Error('shell mount failed');
 
   window.addEventListener('unload', () => unbind());
 
-  return { title, statusDot, statusBar, editorColumn };
+  return { title, statusDot, statusBar, editorColumn, tabBar, editorRoot, mapView };
 }

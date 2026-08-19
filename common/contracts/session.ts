@@ -6,6 +6,7 @@ export const SessionTab = z
   .object({
     uri: z.string().min(1),
     splitId: z.string().min(1).optional(),
+    dirty: z.boolean().optional(),
     viewState: z.unknown().optional()
   })
   .strict();

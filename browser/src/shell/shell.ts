@@ -16,6 +16,8 @@ export interface Shell {
   tabBar: HTMLElement;
   editorRoot: HTMLElement;
   mapView: HTMLElement;
+  mapFiles: HTMLElement;
+  searchPanel: HTMLElement;
 }
 
 export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
@@ -31,7 +33,11 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
           <div class="tab-bar" id="tab-bar"></div>
           <div class="editor-root" id="editor-root"></div>
           <section class="view-overlay active" data-view="learn"><h2>LEARN</h2></section>
-          <section class="view-overlay" data-view="map"><h2>MAP</h2></section>
+          <section class="view-overlay" data-view="map">
+            <h2>MAP</h2>
+            <div class="map-files" id="map-files"></div>
+            <div class="search-panel" id="search-panel"></div>
+          </section>
           <section class="view-overlay" data-view="exp"><h2>EXP</h2></section>
           <section class="view-overlay" data-view="run"><h2>RUN</h2></section>
         </div>
@@ -71,10 +77,12 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
   const tabBar = app.querySelector<HTMLElement>('#tab-bar');
   const editorRoot = app.querySelector<HTMLElement>('#editor-root');
   const mapView = app.querySelector<HTMLElement>('[data-view="map"]');
+  const mapFiles = app.querySelector<HTMLElement>('#map-files');
+  const searchPanel = app.querySelector<HTMLElement>('#search-panel');
   const title = app.querySelector<HTMLElement>('#title');
-  if (statusDot === null || statusBar === null || editorColumn === null || tabBar === null || editorRoot === null || mapView === null || title === null) throw new Error('shell mount failed');
+  if (statusDot === null || statusBar === null || editorColumn === null || tabBar === null || editorRoot === null || mapView === null || mapFiles === null || searchPanel === null || title === null) throw new Error('shell mount failed');
 
   window.addEventListener('unload', () => unbind());
 
-  return { title, statusDot, statusBar, editorColumn, tabBar, editorRoot, mapView };
+  return { title, statusDot, statusBar, editorColumn, tabBar, editorRoot, mapView, mapFiles, searchPanel };
 }

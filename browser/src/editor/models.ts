@@ -67,6 +67,16 @@ export function markClean(relPath: string): void {
   }
 }
 
+export function reloadClean(relPath: string, content: string): boolean {
+  const model = models.get(relPath);
+  const m = meta.get(relPath);
+  if (model === undefined || m === undefined) return false;
+  if (m.dirty) return false;
+  model.setValue(content);
+  for (const fn of dirtyListeners) fn();
+  return true;
+}
+
 export function isDirty(relPath: string): boolean {
   return meta.get(relPath)?.dirty ?? false;
 }

@@ -16,7 +16,7 @@ export function createView(container: HTMLElement, relPath: string, model: monac
     model,
     theme: 'vs-dark',
     fontSize: 13,
-    fontFamily: "'Cascadia Code', Consolas, 'Courier New', monospace",
+    fontFamily: "'Cascadia Mono', Consolas, 'Courier New', monospace",
     automaticLayout: true,
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
@@ -57,4 +57,13 @@ export function disposeAllViews(): void {
 export function focusView(relPath: string): void {
   const view = [...views.values()].find(v => v.relPath === relPath);
   view?.editor.focus();
+}
+
+export function revealLine(relPath: string, line: number): void {
+  const view = [...views.values()].find(v => v.relPath === relPath);
+  if (view === undefined) return;
+  const position = { lineNumber: line, column: 1 };
+  view.editor.setPosition(position);
+  view.editor.revealLineInCenter(line);
+  view.editor.focus();
 }

@@ -1,3 +1,10 @@
+@font-face {
+  font-family: 'Cascadia Mono';
+  src: url('./assets/fonts/CascadiaMono.ttf') format('truetype');
+  font-display: block;
+  font-weight: 400;
+}
+
 :root {
   --bg: #1e1e1e;
   --bg-panel: #252526;
@@ -6,7 +13,7 @@
   --fg-dim: #858585;
   --accent: #0e639c;
   --border: #3c3c3c;
-  --mono: 'Cascadia Code', Consolas, 'Courier New', monospace;
+  --mono: 'Cascadia Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
 }
 
 * {
@@ -197,6 +204,137 @@ body {
 
 .file-list button:hover {
   background: var(--bg-active);
+}
+
+.map-files {
+  margin-bottom: 16px;
+}
+
+.search-panel {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.search-form {
+  display: flex;
+  gap: 6px;
+}
+
+.search-form input,
+.search-replace input,
+.search-mask {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg);
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+.search-form button,
+.search-replace button {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.search-form button:hover,
+.search-replace button:not(:disabled):hover {
+  background: var(--bg-active);
+}
+
+.search-replace button:disabled {
+  color: var(--fg-dim);
+  cursor: default;
+}
+
+.search-opts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.search-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.search-opt input {
+  accent-color: var(--accent);
+}
+
+.search-mask {
+  flex: 0 1 140px;
+}
+
+.search-replace {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.search-summary {
+  color: var(--fg-dim);
+  font-size: 11px;
+  padding: 2px 0 6px;
+}
+
+.search-file {
+  color: var(--fg);
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 3px 0 1px;
+}
+
+.search-hit {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 11px;
+  font-family: var(--mono);
+  cursor: pointer;
+}
+
+.search-hit:hover {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+
+.search-hit .search-line {
+  flex: 0 0 34px;
+  color: var(--accent);
+}
+
+.search-hit .search-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .view-overlay {

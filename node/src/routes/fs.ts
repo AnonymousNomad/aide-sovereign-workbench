@@ -36,7 +36,10 @@ function matchMask(filePath: string, mask: string): boolean {
     .filter(Boolean);
   if (!patterns.length) return true;
   return patterns.some(pattern => {
-    const glob = escapeRegExp(pattern).replace(/\*/g, '.*').replace(/\?/g, '.');
+    const glob = pattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.');
     return new RegExp(`^${glob}$`, 'i').test(filePath);
   });
 }

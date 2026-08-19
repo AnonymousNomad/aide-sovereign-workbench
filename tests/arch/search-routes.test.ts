@@ -18,6 +18,7 @@ let base: string;
 before(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-search-'));
   await fs.writeFile(path.join(dir, 'a.txt'), 'DONE alpha\nkeep this\nDONE beta\n', 'utf8');
+  await fs.writeFile(path.join(dir, 'b.ts'), 'keep from b.ts\n', 'utf8');
   await fs.mkdir(path.join(dir, 'node_modules'));
   await fs.writeFile(path.join(dir, 'node_modules', 'skip.txt'), 'DONE in node_modules\n', 'utf8');
   await fs.mkdir(path.join(dir, '.hidden'));
@@ -76,9 +77,28 @@ test('search honors whole-word and case flags', async () => {
   assert.equal(payload.data.total, 2);
 });
 
-test('search accepts a file mask', async () => {
-  const result = await search('keep');
-  assert.equal(result.total, 1);
+test('search honors glob file masks', async () => {
+  const unmasked = await search('keep');
+  assert.equal(unmasked.total, 2);
+  assert.deepEqual(unmasked.results.map(r => r.path).sort(), ['a.txt', 'b.ts']);
+  const txt = await fetch(`${base}/api/search?q=keep&mask=${encodeURIComponent('*.txt')}`);
+  const envelope = Envelope.safeParse(await txt.json());
+  assert.equal(envelope.success, true);
+  if (!envelope.success || !envelope.data.ok) return;
+  const payload = SearchResponse.safeParse(envelope.data.data);
+  assert.equal(payload.success, true);
+  if (!payload.success) return;
+  assert.equal(payload.data.total, 1);
+  assert.deepEqual(payload.data.results.map(r => r.path), ['a.txt']);
+  const question = await fetch(`${base}/api/search?q=keep&mask=${encodeURIComponent('*.t?')}`);
+  const env2 = Envelope.safeParse(await question.json());
+  assert.equal(env2.success, true);
+  if (!env2.success || !env2.data.ok) return;
+  const payload2 = SearchResponse.safeParse(env2.data.data);
+  assert.equal(payload2.success, true);
+  if (!payload2.success) return;
+  assert.equal(payload2.data.total, 1);
+  assert.deepEqual(payload2.data.results.map(r => r.path), ['b.ts']);
 });
 
 test('search replace requires approval', async () => {

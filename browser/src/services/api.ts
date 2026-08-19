@@ -8,6 +8,14 @@ import {
   FileWriteResponse,
   type FileWriteResponseT
 } from '../../../common/contracts/file.ts';
+import {
+  SearchQuery,
+  SearchResponse,
+  type SearchResponseT,
+  SearchReplaceRequest,
+  SearchReplaceResponse,
+  type SearchReplaceResponseT
+} from '../../../common/contracts/search.ts';
 import { HealthResponse, type HealthResponseT } from '../../../common/contracts/health.ts';
 import {
   WorkspaceListResponse,
@@ -68,6 +76,17 @@ export const api = {
     const body = FileWriteRequest.safeParse({ path, content, approved: true });
     if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid write request');
     return call('/api/file', { body: body.data, schema: FileWriteResponse });
+  },
+  search(q: string, opts: { regex?: boolean; icase?: boolean; word?: boolean; mask?: string } = {}): Promise<SearchResponseT> {
+    const flag = (value: boolean | undefined): string | undefined => (value === undefined ? undefined : value ? '1' : '0');
+    const query = SearchQuery.safeParse({ q, regex: flag(opts.regex), icase: flag(opts.icase), word: flag(opts.word), mask: opts.mask });
+    if (!query.success) throw new ApiError('BAD_REQUEST', 'invalid search query');
+    return call('/api/search', { query: query.data, schema: SearchResponse });
+  },
+  searchReplace(req: { query: string; replacement: string; regex?: boolean; icase?: boolean; word?: boolean; mask?: string }): Promise<SearchReplaceResponseT> {
+    const body = SearchReplaceRequest.safeParse({ ...req, approved: true });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid replace request');
+    return call('/api/search/replace', { body: body.data, schema: SearchReplaceResponse });
   },
   sessionGet(): Promise<SessionFileT> {
     return call('/api/session', { schema: SessionFile });

@@ -8,6 +8,7 @@ import { SessionService } from './services/session.ts';
 import { createShell } from './shell/shell.ts';
 import { showToast } from './ui/toast.ts';
 import { createEditorHost, type EditorHost } from './editor/host.ts';
+import { createSearchPanel } from './editor/search.ts';
 import { openPaths, onDirtyChange, isDirty } from './editor/models.ts';
 
 self.MonacoEnvironment = {
@@ -56,6 +57,7 @@ async function boot(): Promise<void> {
     onToast: (code, message) => showToast(shell.statusBar, code, message)
   });
   onDirtyChange(() => renderTabBar(shell.tabBar, host));
+  createSearchPanel(shell.searchPanel, { host, onToast: (code, message) => showToast(shell.statusBar, code, message) });
 
   try {
     const health = await api.health();
@@ -95,7 +97,7 @@ async function boot(): Promise<void> {
       item.appendChild(button);
       list.appendChild(item);
     }
-    shell.mapView.replaceChildren(list);
+    shell.mapFiles.replaceChildren(list);
   } catch (error) {
     showToast(shell.statusBar, 'INTERNAL', error instanceof Error ? error.message : 'workspace unavailable');
   }

@@ -7,7 +7,7 @@ import type { SessionFileT } from '../../../common/contracts/session.ts';
 import type { SessionService } from '../services/session.ts';
 import { api } from '../services/api.ts';
 import { openModel, disposeModel, markClean, isDirty, openPaths, metaFor } from './models.ts';
-import { createView, disposeViewFor, focusView, restoreViewState, saveViewState } from './views.ts';
+import { createView, disposeViewFor, focusView, restoreViewState, saveViewState, revealLine } from './views.ts';
 import { applyEol, restoreBom } from './text-io.ts';
 import type { LspBridge } from './lsp-bridge.ts';
 
@@ -18,7 +18,7 @@ export interface EditorHostOptions {
 }
 
 export interface EditorHost {
-  open(relPath: string): Promise<void>;
+  open(relPath: string, line?: number): Promise<void>;
   activate(relPath: string): void;
   save(relPath: string): Promise<boolean>;
   saveAll(): Promise<void>;
@@ -38,7 +38,7 @@ export function createEditorHost(
   const confirmDirty = opts.confirmDirty ?? (() => true);
   const notify = (): void => opts.onTabChange?.();
 
-  async function open(relPath: string): Promise<void> {
+  async function open(relPath: string, line?: number): Promise<void> {
     let file: FileReadResponseT;
     try {
       file = await api.fileRead(relPath);
@@ -61,6 +61,7 @@ export function createEditorHost(
     markClean(relPath);
     lsp.onOpen(relPath, model.getLanguageId());
     notify();
+    if (line !== undefined) revealLine(relPath, line);
   }
 
   function activate(relPath: string): void {

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-19T15:55:04.440Z",
+  "generated": "2026-08-19T16:49:39.756Z",
   "tool": "aide-sovereign-workbench dap fixture test",
   "python": "E:\\Python310\\python.exe",
   "fixture": "fixtures/debuggee/fizz_engine.py",
@@ -131,6 +131,20 @@
       }
     },
     {
+      "seq": 3,
+      "type": "event",
+      "event": "debugpySockets",
+      "body": {
+        "sockets": [
+          {
+            "host": "127.0.0.1",
+            "port": 54014,
+            "internal": false
+          }
+        ]
+      }
+    },
+    {
       "seq": 4,
       "type": "response",
       "request_seq": 1,
@@ -180,20 +194,6 @@
       }
     },
     {
-      "seq": 3,
-      "type": "event",
-      "event": "debugpySockets",
-      "body": {
-        "sockets": [
-          {
-            "host": "127.0.0.1",
-            "port": 64534,
-            "internal": false
-          }
-        ]
-      }
-    },
-    {
       "command": "launch",
       "arguments": {
         "request": "launch",
@@ -232,12 +232,12 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 64534,
+            "port": 54014,
             "internal": false
           },
           {
             "host": "127.0.0.1",
-            "port": 64537,
+            "port": 54017,
             "internal": true
           }
         ]
@@ -251,17 +251,17 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 64534,
+            "port": 54014,
             "internal": false
           },
           {
             "host": "127.0.0.1",
-            "port": 64538,
+            "port": 54018,
             "internal": true
           },
           {
             "host": "127.0.0.1",
-            "port": 64537,
+            "port": 54017,
             "internal": true
           }
         ]
@@ -275,12 +275,12 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 64534,
+            "port": 54014,
             "internal": false
           },
           {
             "host": "127.0.0.1",
-            "port": 64537,
+            "port": 54017,
             "internal": true
           }
         ]
@@ -362,7 +362,7 @@
       "body": {
         "startMethod": "launch",
         "isLocalProcess": true,
-        "systemProcessId": 11180,
+        "systemProcessId": 18184,
         "name": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
         "pointerSize": 64
       }
@@ -1089,7 +1089,7 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 64534,
+            "port": 54014,
             "internal": false
           }
         ]
@@ -1125,7 +1125,7 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 64534,
+            "port": 54014,
             "internal": false
           }
         ]

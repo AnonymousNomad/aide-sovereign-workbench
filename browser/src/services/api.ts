@@ -80,7 +80,7 @@ export const api = {
   fileWrite(path: string, content: string): Promise<FileWriteResponseT> {
     const body = FileWriteRequest.safeParse({ path, content, approved: true });
     if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid write request');
-    return call('/api/file', { body: body.data, schema: FileWriteResponse });
+    return call('/api/file/write', { body: body.data, schema: FileWriteResponse });
   },
   search(q: string, opts: { regex?: boolean; icase?: boolean; word?: boolean; mask?: string } = {}): Promise<SearchResponseT> {
     const flag = (value: boolean | undefined): string | undefined => (value === undefined ? undefined : value ? '1' : '0');

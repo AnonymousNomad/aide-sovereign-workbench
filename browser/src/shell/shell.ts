@@ -41,7 +41,7 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
         </div>
       </main>
     </div>
-    <div class="status-bar">
+    <div class="status-bar" id="status-bar">
       <span class="item" id="status-left">starting…</span>
       <span class="spacer"></span>
       <span class="item" id="status-right"></span>
@@ -56,7 +56,9 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
     button.type = 'button';
     button.dataset.activity = activity.id;
     button.textContent = activity.label;
-    button.addEventListener('click', () => store.set(prev => ({ ...prev, activity: activity.id })));
+    button.addEventListener('click', () => {
+      store.set(prev => ({ ...prev, activity: prev.activity === activity.id ? 'editor' : activity.id }));
+    });
     bar.appendChild(button);
   }
 

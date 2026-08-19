@@ -10,7 +10,8 @@ import { showToast } from './ui/toast.ts';
 import { createEditorHost, type EditorHost } from './editor/host.ts';
 import { createGroups } from './editor/groups.ts';
 import { createSearchPanel } from './editor/search.ts';
-import { onDirtyChange, isDirty } from './editor/models.ts';
+import { onDirtyChange, isDirty, openPaths } from './editor/models.ts';
+import { connectEvents } from './services/ws.ts';
 
 self.MonacoEnvironment = {
   getWorker(_workerId: string, label: string): Worker {
@@ -63,7 +64,7 @@ async function boot(): Promise<void> {
     confirmDirty: relPath => window.confirm(`${relPath} has unsaved changes. Close anyway?`),
     onTabChange: () => {
       renderAllTabs(host);
-      session.set(() => host.captureSession());
+      if (openPaths().length > 0) session.set(() => host.captureSession());
       const active = host.activePath();
       shell.statusBar.textContent = active === null ? 'ready' : `${active}${isDirty(active) ? ' \u25cf' : ''}`;
     },
@@ -72,6 +73,16 @@ async function boot(): Promise<void> {
   onDirtyChange(() => renderAllTabs(host));
   groups.onGroupsChange(() => renderAllTabs(host));
   createSearchPanel(shell.searchPanel, { host, onToast: (code, message) => showToast(shell.statusBar, code, message) });
+
+  const events = connectEvents(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`, {
+    onStatus: connected => {
+      shell.statusDot.className = connected ? 'status-dot ok' : 'status-dot err';
+    }
+  });
+  events.subscribe('log', data => {
+    const event = data as { level?: string; message?: string; path?: string };
+    if (event.level === 'error') showToast(shell.statusBar, 'INTERNAL', `daemon: ${event.message ?? 'error'}${event.path ? ` (${event.path})` : ''}`);
+  });
 
   try {
     const health = await api.health();
@@ -119,6 +130,7 @@ async function boot(): Promise<void> {
   window.addEventListener('pagehide', () => {
     session.set(() => host.captureSession());
     void session.flush();
+    events.dispose();
   });
 }
 

@@ -245,9 +245,13 @@ export function createEditorHost(
     for (const [splitId, tabsList] of bySplit) {
       const group = groups.groupFor(splitId);
       if (group === undefined) continue;
-      for (const tab of tabsList) {
+for (const tab of tabsList) {
         const relPath = uriToRelPath(tab.uri);
-        await readInto(group, relPath, tab.viewState as monaco.editor.ICodeEditorViewState | undefined);
+        try {
+          await readInto(group, relPath, tab.viewState as monaco.editor.ICodeEditorViewState | undefined);
+        } catch {
+          // one unreadable tab must not kill the whole restore
+        }
       }
     }
     if (session.activeTab !== undefined) {
@@ -282,5 +286,5 @@ function relPathToUri(relPath: string): string {
 }
 
 function uriToRelPath(uri: string): string {
-  return decodeURIComponent(uri.replace(/^file:\/\//, '')).replace(/\//g, '\\');
+  return decodeURIComponent(uri.replace(/^file:\/\//, '').replace(/^\//, '')).replace(/\//g, '\\');
 }

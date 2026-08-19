@@ -22,4 +22,6 @@ check-out.txt
 vite-out.txt
 daemon-out.txt
 dom*.txt
+test-results/
+playwright-report/
 

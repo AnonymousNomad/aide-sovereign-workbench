@@ -2,7 +2,7 @@ import type { HealthResponseT } from '../../../common/contracts/health.ts';
 import type { WorkspaceListResponseT } from '../../../common/contracts/workspace.ts';
 import type { SessionFileT } from '../../../common/contracts/session.ts';
 
-export type Activity = 'learn' | 'map' | 'exp' | 'run';
+export type Activity = 'editor' | 'learn' | 'map' | 'exp' | 'run';
 
 export interface AppState {
   booted: boolean;
@@ -15,7 +15,7 @@ export interface AppState {
 
 export const INITIAL_STATE: AppState = {
   booted: false,
-  activity: 'learn',
+  activity: 'editor',
   health: null,
   workspace: null,
   session: { version: 1, tabs: [] },

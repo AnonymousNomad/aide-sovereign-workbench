@@ -4,7 +4,7 @@ import { mock } from 'node:test';
 import { ApiError, api } from '../../browser/src/services/api.ts';
 import { egressFetch } from '../../browser/src/services/egress.ts';
 import { ok, fail } from '../../common/errors.ts';
-import { healthFixtures, fileReadFixtures, searchFixtures, searchReplaceFixtures, sessionFixtures } from '../fixtures/index.ts';
+import { healthFixtures, fileReadFixtures, fileWriteFixtures, searchFixtures, searchReplaceFixtures, sessionFixtures } from '../fixtures/index.ts';
 
 function mockFetch(payload: unknown, status = 200): { seen: { url: string; method: string }[] } {
   const seen: { url: string; method: string }[] = [];
@@ -73,6 +73,14 @@ test('api.fileRead surfaces the too_large flag from the fixture', async () => {
   const file = await api.fileRead('big.bin');
   assert.equal(file.too_large, true);
   assert.equal(file.content, null);
+  mock.restoreAll();
+});
+
+test('api.fileWrite POSTs to /api/file/write (route path, not /api/file)', async () => {
+  const { seen } = mockFetch(ok(fileWriteFixtures.writeNormal));
+  await api.fileWrite('a.ts', 'export const a = 1;\n');
+  assert.equal(seen[0]?.method, 'POST');
+  assert.equal(seen[0]?.url, '/api/file/write');
   mock.restoreAll();
 });
 

@@ -38,10 +38,11 @@ export class ApiError extends Error {
   }
 }
 
-export async function call<T>(path: string, opts: { query?: unknown; body?: unknown; schema: ZodType<T> }): Promise<T> {
+export async function call<T>(path: string, opts: { query?: unknown; body?: unknown; method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; schema: ZodType<T> }): Promise<T> {
   const url = opts.query ? `${path}?${new URLSearchParams(opts.query as Record<string, string>).toString()}` : path;
+  const method = opts.method ?? (opts.body !== undefined ? 'POST' : 'GET');
   const init: RequestInit = {
-    method: opts.body !== undefined ? 'POST' : 'GET',
+    method,
     headers: { 'content-type': 'application/json' }
   };
   if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
@@ -92,6 +93,6 @@ export const api = {
     return call('/api/session', { schema: SessionFile });
   },
   sessionPut(session: SessionFileT): Promise<SessionFileT> {
-    return call('/api/session', { body: session, schema: SessionFile });
+    return call('/api/session', { method: 'PUT', body: session, schema: SessionFile });
   }
 };

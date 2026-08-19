@@ -8,8 +8,9 @@ import { SessionService } from './services/session.ts';
 import { createShell } from './shell/shell.ts';
 import { showToast } from './ui/toast.ts';
 import { createEditorHost, type EditorHost } from './editor/host.ts';
+import { createGroups } from './editor/groups.ts';
 import { createSearchPanel } from './editor/search.ts';
-import { openPaths, onDirtyChange, isDirty } from './editor/models.ts';
+import { onDirtyChange, isDirty } from './editor/models.ts';
 
 self.MonacoEnvironment = {
   getWorker(_workerId: string, label: string): Worker {
@@ -18,9 +19,9 @@ self.MonacoEnvironment = {
   }
 };
 
-function renderTabBar(tabBar: HTMLElement, host: EditorHost): void {
+function renderTabBar(tabBar: HTMLElement, groupId: string, host: EditorHost): void {
   tabBar.textContent = '';
-  const paths = openPaths();
+  const paths = host.tabsIn(groupId);
   for (const relPath of paths) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -40,23 +41,36 @@ function renderTabBar(tabBar: HTMLElement, host: EditorHost): void {
   }
 }
 
+function renderAllTabs(host: EditorHost): void {
+  for (const group of host.groups()) renderTabBar(group.tabBar, group.id, host);
+}
+
 async function boot(): Promise<void> {
   const app = document.getElementById('app');
   if (app === null) throw new Error('#app missing');
   const store = new Store(INITIAL_STATE);
   const shell = createShell(app, store);
   const session = new SessionService();
-  const host = createEditorHost(shell.editorRoot, session, {
+  const groups = createGroups(shell.editorRoot, {
+    onSplit: direction => {
+      void host.split(direction);
+    },
+    onCloseGroup: () => {
+      void host.closeGroup();
+    }
+  });
+  const host = createEditorHost(groups, session, {
     confirmDirty: relPath => window.confirm(`${relPath} has unsaved changes. Close anyway?`),
     onTabChange: () => {
-      renderTabBar(shell.tabBar, host);
+      renderAllTabs(host);
       session.set(() => host.captureSession());
       const active = host.activePath();
       shell.statusBar.textContent = active === null ? 'ready' : `${active}${isDirty(active) ? ' \u25cf' : ''}`;
     },
     onToast: (code, message) => showToast(shell.statusBar, code, message)
   });
-  onDirtyChange(() => renderTabBar(shell.tabBar, host));
+  onDirtyChange(() => renderAllTabs(host));
+  groups.onGroupsChange(() => renderAllTabs(host));
   createSearchPanel(shell.searchPanel, { host, onToast: (code, message) => showToast(shell.statusBar, code, message) });
 
   try {
@@ -74,12 +88,12 @@ async function boot(): Promise<void> {
 
   try {
     await session.restore();
-    await host.restoreSession(session.current, relPath => host.open(relPath));
+    await host.restoreSession(session.current);
     store.set(prev => ({ ...prev, session: session.current }));
   } catch {
     // restore is best-effort
   }
-  renderTabBar(shell.tabBar, host);
+  renderAllTabs(host);
 
   try {
     const workspace = await api.workspaceList();

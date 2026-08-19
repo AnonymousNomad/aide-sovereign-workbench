@@ -11,6 +11,8 @@ export const SessionTab = z
   })
   .strict();
 
+export type SessionTabT = z.infer<typeof SessionTab>;
+
 export const SessionFile = z
   .object({
     version: z.literal(SESSION_VERSION),

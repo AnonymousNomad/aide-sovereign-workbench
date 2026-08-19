@@ -2,7 +2,6 @@ import type { SearchResponseT } from '../../../common/contracts/search.ts';
 import { api } from '../services/api.ts';
 import type { EditorHost } from './host.ts';
 import { openPaths, isDirty, reloadClean } from './models.ts';
-import { revealLine } from './views.ts';
 
 export interface SearchPanelDeps {
   host: EditorHost;
@@ -182,7 +181,7 @@ export function createSearchPanel(container: HTMLElement, deps: SearchPanelDeps)
         try {
           const file = await api.fileRead(relPath);
           if (file.too_large || file.content === null) continue;
-          if (reloadClean(relPath, file.content)) revealLine(relPath, 1);
+          reloadClean(relPath, file.content);
         } catch {
           skipped.push(relPath);
         }

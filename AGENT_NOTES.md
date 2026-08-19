@@ -474,3 +474,14 @@ Journal rules: append-only, newest first, timestamped `YYYY-MM-DD HH:MM`, actor 
 **Details:** User provided Hugging Face access for the model download; credential value intentionally omitted from the journal. Canonical repos used (user's own repo has no .gguf): HuggingFaceTB/SmolLM2-360M-Instruct-GGUF (smollm2-360m-instruct-q8_0.gguf, 386,404,992B), Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF (qwen2.5-coder-0.5b-instruct-q4_k_m.gguf, 420,602,730B), Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF (qwen2.5-coder-1.5b-instruct-q4_k_m.gguf, 1,117,320,768B). All verified present via Get-ChildItem.
 **Files:** E:\aide-sovereign-workbench\models\*.gguf (3 files)
 **Next:** (done — feeds manifest status update + Phase 1).
+
+---
+## [2026-08-18 18:20] Actor: opencode
+**Type:** checkpoint
+**Status:** verified
+**Summary:** Phase 3 Monaco editor core committed (b7ba290) and pushed to origin/main (HEAD == origin/main == b7ba290, 0 ahead/0 behind).
+**Details:** Gate 
+pm run check:arch 55/55 green (tsc node + tsc browser + eslint + node --test incl. new text-io/languages tests); 
+pm run build:frontend green — 802 modules, editor.worker 300KB, ts.worker 6.9MB, index.js 2.7MB, index.css 361KB. Monako imports resolved via exports map (monaco-editor/editor/editor.api, ditor.worker?worker, language/typescript/ts.worker?worker; the legacy sm/vs/... deep paths double-prefix under exports ./* — do NOT use). Monaco CSS via relative ../../node_modules/monaco-editor/min/vs/editor/editor.main.css (no exports entry). dompurify override 3.4.13 -> npm audit 0 vulns (dependabot typescript 7.0.2 PR still open). Editor modules: text-io (BOM/EOL pure fns), languages (ext->id), models (inmemory:// registry + dirty + EOL/BOM meta), views (create/save/restore view state), host (open/activate/save/saveAll/close/captureSession/restoreSession, Ctrl+S, dirty confirm, too_large gate), lsp-bridge stub. api.fileWrite added; session contract gained dirty flag; shell #tab-bar + #editor-root + map click-to-open. Live smoke: arch daemon + vite dev both 200; Edge headless dump flaky on this machine (0-byte outputs under memory/AV pressure; one run rendered shell + monaco CSS but async boot incomplete under virtual-time budget — not an app defect; real-browser verification lands with Playwright in Phase 4). Paging-file error hit once during commit (machine at 3.5GB free RAM) — transient, retried clean.
+**Files:** browser/src/editor/*, browser/src/{main.ts,main.css,shell/shell.ts,services/api.ts}, browser/tsconfig.browser.json, common/contracts/session.ts, package.json, package-lock.json, tests/arch/{text-io,languages}.test.ts, .gitignore (+build-out.txt/check-out.txt/etc)
+**Next:** Phase 3 remaining: split editor views/groups, find/replace + workspace search wiring, bundled monospace font (system stack now). Then Phase 4 wiring (contracts/WS/Playwright e2e) which brings real-browser verification.

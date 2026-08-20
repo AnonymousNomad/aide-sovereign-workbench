@@ -40,10 +40,11 @@ flowchart LR
 
 ## What Works Today
 
-Continuously verified against the real daemon and real browser: **168 architecture tests, 14 end-to-end browser tests, and a 10/10 doctor preflight**. Test counts are re-measured before every release; nothing in this list is claimed without a passing gate.
+Continuously verified against the real daemon and real browser: **188 architecture tests, 17 end-to-end browser tests, and a 10/10 doctor preflight**. Test counts are re-measured before every release; nothing in this list is claimed without a passing gate.
 
 - **Editor** — workspace tree, tabs, dirty state, find/replace, split editor groups, session recovery.
 - **Local AI models** — chat through an OpenAI-compatible loopback runtime; GGUF ingestion with SHA-256 verification and memory-fit checks against the local GPU/RAM. Weights are never bundled in the repository; they are downloaded separately and verified.
+- **Model handoff** — every model that can chat (local GGUF servers and cloud providers alike) is one route with its own context window; a health-gated picker binds a model per conversation, the daemon fits your full history to the new model's window (system prompt preserved, newest turns kept), failed routes fall back to the next healthy model with an explicit notice, and every answer is labeled with the model that produced it.
 - **Language intelligence** — LSP client for TypeScript: diagnostics as editor markers, completion, hover, go-to-definition.
 - **Debugging foundation** — DAP client for Python (debugpy): session tracking, breakpoints, stack/scope inspection. A full debuggee-fixture battery remains a release gate.
 - **Git** — status, diff review, staging, commit, branches, history — all local, via the git CLI.
@@ -84,7 +85,7 @@ Open `http://127.0.0.1:4173/`. The first-run guide walks through model selection
 ## Tests
 
 ```bash
-npm run check:arch   # TypeScript checks (node + browser), ESLint, 168 tests
+npm run check:arch   # TypeScript checks (node + browser), ESLint, 188 tests
 npm run build:frontend
 npm run test:e2e     # 14 Playwright browser tests against the real daemon
 ```

@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "project": "aide-sovereign-workbench",
   "offline_default": true,
   "liquid_models_included": false,
@@ -108,7 +108,10 @@
       "context_tokens": 2048,
       "metrics": null,
       "description": "Fast general-purpose model; optional pack.",
-      "system_prompt": "You are the fast research lane. Organize supplied evidence and questions. Do not invent sources or edit files."
+      "system_prompt": "You are the fast research lane. Organize supplied evidence and questions. Do not invent sources or edit files.",
+      "providerType": "local",
+      "chatTemplate": "gguf-metadata",
+      "gguf_max_context": 8192
     },
     {
       "id": "qwen-coder-0.5b-q4",
@@ -129,7 +132,10 @@
       "context_tokens": 4096,
       "metrics": null,
       "description": "Fast code completion and lightweight edits; optional pack.",
-      "system_prompt": "You are the fast coding lane. Return concise completion or a minimal patch. Never claim tests passed."
+      "system_prompt": "You are the fast coding lane. Return concise completion or a minimal patch. Never claim tests passed.",
+      "providerType": "local",
+      "chatTemplate": "gguf-metadata",
+      "gguf_max_context": 32768
     },
     {
       "id": "qwen-coder-1.5b-q4",
@@ -153,7 +159,10 @@
         "coding_smoke": "passed"
       },
       "description": "Primary local coding model. Verified on this device.",
-      "system_prompt": "You are the build lane. Produce a minimal unified diff only. Never invent files or claim tests passed."
+      "system_prompt": "You are the build lane. Produce a minimal unified diff only. Never invent files or claim tests passed.",
+      "providerType": "local",
+      "chatTemplate": "gguf-metadata",
+      "gguf_max_context": 32768
     },
     {
       "id": "granite-3.3-2b-instruct",
@@ -174,7 +183,10 @@
       "parameters": 2000000000,
       "context_tokens": 131072,
       "metrics": null,
-      "description": "Optional reasoning candidate. Not downloaded or runtime-verified."
+      "description": "Optional reasoning candidate. Not downloaded or runtime-verified.",
+      "providerType": "local",
+      "chatTemplate": "gguf-metadata",
+      "gguf_max_context": null
     },
     {
       "id": "smollm2-1.7b-instruct",
@@ -195,7 +207,10 @@
       "parameters": 1700000000,
       "context_tokens": 8192,
       "metrics": null,
-      "description": "Optional compact assistant. Not downloaded or runtime-verified."
+      "description": "Optional compact assistant. Not downloaded or runtime-verified.",
+      "providerType": "local",
+      "chatTemplate": "gguf-metadata",
+      "gguf_max_context": null
     },
     {
       "id": "phi-3.5-mini-instruct",
@@ -216,7 +231,10 @@
       "parameters": 3800000000,
       "context_tokens": 131072,
       "metrics": null,
-      "description": "Optional multilingual candidate. Not downloaded or runtime-verified."
+      "description": "Optional multilingual candidate. Not downloaded or runtime-verified.",
+      "providerType": "local",
+      "chatTemplate": "gguf-metadata",
+      "gguf_max_context": null
     }
   ]
 }

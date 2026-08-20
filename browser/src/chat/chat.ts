@@ -4,6 +4,7 @@
 import { api } from '../services/api.ts';
 import { egressFetch } from '../services/egress.ts';
 import type { ChatMessageT } from '../../../common/contracts/chat.ts';
+import type { RouteEntryT } from '../../../common/contracts/routing.ts';
 
 export interface ChatPanelOptions {
   onToast?: (code: string, message: string) => void;
@@ -13,16 +14,25 @@ export interface ChatPanel {
   refreshModels(): Promise<void>;
 }
 
+const STATUS_ORDER: Record<string, number> = { ready: 0, starting: 1, unverified: 2, down: 3 };
+
+function routeLabel(route: RouteEntryT): string {
+  const status = route.status === 'down' ? ' (down)' : route.status === 'starting' ? ' (starting)' : '';
+  return `${route.displayName} · ${route.providerType}${status}`;
+}
+
 export function createChatPanel(container: HTMLElement, opts: ChatPanelOptions = {}): ChatPanel {
   container.innerHTML = `
     <div class="chat-panel">
       <div class="chat-toolbar">
         <label class="chat-model-label">Model</label>
         <select id="chat-model" class="chat-model-select"></select>
+        <span id="chat-meter" class="chat-meter"></span>
       </div>
+      <div id="chat-banner" class="chat-banner"></div>
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-input-row">
-        <textarea id="chat-input" class="chat-input" rows="2" placeholder="Ask the local model…"></textarea>
+        <textarea id="chat-input" class="chat-input" rows="2" placeholder="Ask the model…"></textarea>
         <button type="button" id="chat-send" class="chat-send">Send</button>
         <button type="button" id="chat-stop" class="chat-stop hidden">Stop</button>
       </div>
@@ -33,36 +43,77 @@ export function createChatPanel(container: HTMLElement, opts: ChatPanelOptions =
   const inputEl = container.querySelector<HTMLTextAreaElement>('#chat-input');
   const sendBtnEl = container.querySelector<HTMLButtonElement>('#chat-send');
   const stopBtnEl = container.querySelector<HTMLButtonElement>('#chat-stop');
-  if (modelSelectEl === null || messagesEl === null || inputEl === null || sendBtnEl === null || stopBtnEl === null) throw new Error('chat panel mount failed');
+  const bannerEl = container.querySelector<HTMLElement>('#chat-banner');
+  const meterEl = container.querySelector<HTMLElement>('#chat-meter');
+  if (modelSelectEl === null || messagesEl === null || inputEl === null || sendBtnEl === null || stopBtnEl === null || bannerEl === null || meterEl === null) throw new Error('chat panel mount failed');
   const modelSelect: HTMLSelectElement = modelSelectEl;
   const messages: HTMLElement = messagesEl;
   const input: HTMLTextAreaElement = inputEl;
   const sendButton: HTMLButtonElement = sendBtnEl;
   const stopButton: HTMLButtonElement = stopBtnEl;
+  const banner: HTMLElement = bannerEl;
+  const meter: HTMLElement = meterEl;
 
+  let routes: RouteEntryT[] = [];
+  let boundModelId = '';
   let conversationId: string | undefined;
   let history: ChatMessageT[] = [];
   let streaming = false;
   let controller: AbortController | null = null;
 
+  function orderedRoutes(): RouteEntryT[] {
+    return [...routes].sort((a, b) => STATUS_ORDER[a.status]! - STATUS_ORDER[b.status]! || a.displayName.localeCompare(b.displayName));
+  }
+
+  function routeById(id: string): RouteEntryT | undefined {
+    return routes.find(route => route.id === id);
+  }
+
   async function refreshModels(): Promise<void> {
     try {
-      const status = await api.modelsStatus();
-      const current = modelSelect.value;
+      routes = (await api.routes()).routes;
+      const current = boundModelId;
       modelSelect.textContent = '';
-      for (const model of status.models) {
+      for (const route of orderedRoutes()) {
         const option = document.createElement('option');
-        option.value = model.id;
-        option.textContent = `${model.name} (${model.status})`;
+        option.value = route.id;
+        option.textContent = routeLabel(route);
         modelSelect.appendChild(option);
       }
-      if (current.length > 0 && [...modelSelect.options].some(option => option.value === current)) {
+      if (current.length > 0 && routeById(current) !== undefined) {
         modelSelect.value = current;
-      } else if (modelSelect.options.length > 0 && modelSelect.value.length === 0) {
-        modelSelect.selectedIndex = 0;
+      } else {
+        const ready = orderedRoutes().find(route => route.status === 'ready');
+        modelSelect.value = ready?.id ?? (modelSelect.options.length > 0 ? modelSelect.options[0]!.value : '');
       }
+      boundModelId = modelSelect.value;
+      void refreshMeter();
     } catch {
-      // models unavailable; picker stays empty
+      // routes unavailable; picker stays empty
+    }
+  }
+
+  async function refreshMeter(): Promise<void> {
+    const route = routeById(boundModelId);
+    if (route === undefined || history.length === 0) {
+      meter.textContent = '';
+      return;
+    }
+    try {
+      const fit = await api.fit(history, route.contextLength);
+      meter.textContent = `~${fit.estimatedTokens} of ${route.contextLength} tokens (approx)`;
+    } catch {
+      meter.textContent = '';
+    }
+  }
+
+  function restoreBinding(storedModelId: string): void {
+    const candidates = [storedModelId, `local:${storedModelId}`];
+    let route = candidates.map(routeById).find(entry => entry !== undefined);
+    if (route === undefined) route = orderedRoutes().find(entry => entry.status === 'ready');
+    if (route !== undefined) {
+      boundModelId = route.id;
+      modelSelect.value = route.id;
     }
   }
 
@@ -73,6 +124,7 @@ export function createChatPanel(container: HTMLElement, opts: ChatPanelOptions =
       if (latest !== undefined) {
         conversationId = latest.id;
         history = latest.messages;
+        restoreBinding(latest.modelId);
         renderAll();
       }
     } catch {
@@ -85,13 +137,34 @@ export function createChatPanel(container: HTMLElement, opts: ChatPanelOptions =
     for (const message of history) {
       const row = document.createElement('div');
       row.className = `chat-message ${message.role}`;
+      const labelRow = document.createElement('div');
+      labelRow.className = 'chat-message-label-row';
       const label = document.createElement('div');
       label.className = 'chat-message-label';
-      label.textContent = message.role === 'user' ? 'you' : modelSelect.value || 'assistant';
+      label.textContent = message.role === 'user' ? 'you' : routeById(boundModelId)?.displayName ?? 'assistant';
+      labelRow.appendChild(label);
+      if (message.role === 'assistant') {
+        const reask = document.createElement('button');
+        reask.type = 'button';
+        reask.className = 'chat-reask';
+        reask.textContent = 're-ask';
+        reask.title = `Re-ask this turn with ${routeById(boundModelId)?.displayName ?? 'the current model'}`;
+        reask.disabled = streaming;
+        reask.addEventListener('click', () => {
+          if (streaming) return;
+          const index = history.indexOf(message);
+          if (index >= 0) {
+            history.splice(index);
+            renderAll();
+            void send();
+          }
+        });
+        labelRow.appendChild(reask);
+      }
       const body = document.createElement('div');
       body.className = 'chat-message-body';
       body.textContent = message.content;
-      row.appendChild(label);
+      row.appendChild(labelRow);
       row.appendChild(body);
       messages.appendChild(row);
     }
@@ -104,12 +177,22 @@ export function createChatPanel(container: HTMLElement, opts: ChatPanelOptions =
     stopButton.classList.toggle('hidden', !value);
   }
 
+  function showBanner(text: string): void {
+    banner.textContent = text;
+    banner.classList.add('visible');
+  }
+
+  function hideBanner(): void {
+    banner.textContent = '';
+    banner.classList.remove('visible');
+  }
+
   async function persistConversation(): Promise<void> {
     if (history.length === 0) return;
     try {
       const title = history.find(message => message.role === 'user')?.content.slice(0, 60) ?? 'conversation';
       const request: { id?: string; modelId: string; title: string; messages: ChatMessageT[] } = {
-        modelId: modelSelect.value,
+        modelId: boundModelId,
         title,
         messages: history
       };
@@ -123,17 +206,23 @@ export function createChatPanel(container: HTMLElement, opts: ChatPanelOptions =
 
   async function send(): Promise<void> {
     const content = input.value.trim();
-    if (content.length === 0 || streaming || modelSelect.value.length === 0) return;
-    input.value = '';
-    history.push({ role: 'user', content });
+    if (content.length === 0 && history[history.length - 1]?.role !== 'user') return;
+    if (streaming || boundModelId.length === 0) return;
+    if (content.length > 0) {
+      input.value = '';
+      history.push({ role: 'user', content });
+    }
     history.push({ role: 'assistant', content: '' });
     renderAll();
     setStreaming(true);
     const assistant = history[history.length - 1]!;
-    const modelId = modelSelect.value;
+    const modelId = boundModelId;
     controller = new AbortController();
     try {
-      const response = await egressFetch(`/api/chat/stream?modelId=${encodeURIComponent(modelId)}&prompt=${encodeURIComponent(content)}`, {
+      const response = await egressFetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ modelId, messages: history }),
         signal: controller.signal
       });
       if (!response.ok) throw new Error(`daemon returned HTTP ${response.status}`);
@@ -152,12 +241,30 @@ export function createChatPanel(container: HTMLElement, opts: ChatPanelOptions =
           const raw = line.slice(5).trim();
           if (raw.length === 0) continue;
           try {
-            const payload = JSON.parse(raw) as { delta?: string; done?: boolean; error?: string };
+            const payload = JSON.parse(raw) as { delta?: string; done?: boolean; error?: string; modelId?: string; usedApprox?: number; dropped?: number; truncatedSystem?: boolean };
             if (payload.error !== undefined) {
               opts.onToast?.('INTERNAL', `model: ${payload.error}`);
             } else if (payload.delta !== undefined) {
               assistant.content += payload.delta;
               renderAll();
+            } else if (payload.done === true) {
+              const used = payload.usedApprox;
+              const dropped = payload.dropped;
+              const truncated = payload.truncatedSystem === true;
+              const route = routeById(payload.modelId ?? boundModelId);
+              if (used !== undefined && route !== undefined) {
+                meter.textContent = `~${used} of ${route.contextLength} tokens (approx)`;
+              }
+              if (payload.modelId !== undefined && payload.modelId !== modelId) {
+                const fellTo = routeById(payload.modelId);
+                const fellFrom = routeById(modelId);
+                showBanner(`${fellFrom?.displayName ?? modelId} is down — this answer came from ${fellTo?.displayName ?? payload.modelId}`);
+              }
+              if (truncated) {
+                opts.onToast?.('INTERNAL', 'model: the system prompt did not fit the model context and was truncated');
+              } else if (dropped !== undefined && dropped > 0) {
+                showBanner(`the model window fits the most recent turns; ${dropped} older turn(s) were not sent to ${route?.displayName ?? 'the model'}`);
+              }
             }
           } catch {
             // skip malformed events
@@ -179,10 +286,25 @@ export function createChatPanel(container: HTMLElement, opts: ChatPanelOptions =
     } finally {
       setStreaming(false);
       controller = null;
+      hideBanner();
       renderAll();
       void persistConversation();
+      void refreshMeter();
     }
   }
+
+  modelSelect.addEventListener('change', () => {
+    const previous = boundModelId;
+    const next = modelSelect.value;
+    if (next === previous) return;
+    const from = routeById(previous);
+    const to = routeById(next);
+    boundModelId = next;
+    if (from !== undefined && to !== undefined && to.contextLength < from.contextLength) {
+      showBanner(`switching from ${from.displayName} (${from.contextLength} ctx) to ${to.displayName} (${to.contextLength} ctx) — the most recent turns will be kept, older ones are not sent`);
+    }
+    void refreshMeter();
+  });
 
   sendButton.addEventListener('click', () => void send());
   input.addEventListener('keydown', event => {

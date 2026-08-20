@@ -535,6 +535,50 @@ body {
   background: #8b2f2f;
 }
 
+.chat-banner {
+  flex: 0 0 auto;
+  background: var(--accent-soft, rgba(88, 116, 204, 0.18));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  display: none;
+}
+
+.chat-banner.visible {
+  display: block;
+}
+
+.chat-meter {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.chat-reask {
+  margin-left: 8px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.chat-message-label-row {
+  display: flex;
+  align-items: center;
+}
+
+.chat-fallback-badge {
+  font-size: 10px;
+  color: var(--dim);
+  margin-left: 6px;
+}
+
 .hidden {
   display: none;
 }

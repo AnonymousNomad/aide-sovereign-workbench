@@ -1,11 +1,12 @@
 import type { Route } from '../server.ts';
 import { RouteError } from '../server.ts';
-import { ModelRuntimeError, type ModelRuntime } from '../services/model-runtime.ts';
+import { RouterError, type ModelRouter } from '../services/model-router.ts';
 import type { ChatStore } from '../services/chat-store.ts';
+import type { ChatRequestT, ChatStreamRequestT } from '../../../common/contracts/chat.ts';
 import {
   ChatRequest,
   ChatResponse,
-  ChatStreamQuery,
+  ChatStreamRequest,
   ChatStreamDelta,
   ChatStreamDone,
   ChatStreamError,
@@ -15,21 +16,22 @@ import {
 } from '../../../common/contracts/chat.ts';
 
 function toRouteError(error: unknown): RouteError {
-  if (error instanceof ModelRuntimeError) return new RouteError(error.code, error.message);
+  if (error instanceof RouterError) return new RouteError(error.code, error.message);
   if (error instanceof Error && error.name === 'AbortError') return new RouteError('TIMEOUT', 'chat stream aborted');
   return new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'chat failed');
 }
 
-export function routeForChat(manager: ModelRuntime): Route {
+export function routeForChat(router: ModelRouter): Route {
   return {
     method: 'POST',
     path: '/api/chat',
     body: ChatRequest,
     response: ChatResponse,
     handler: async ({ body }) => {
-      const request = body as { modelId: string; messages: { role: string; content: string }[]; options?: { maxTokens?: number; temperature?: number } };
+      const request = body as ChatRequestT;
       try {
-        return await manager.chat(request.modelId, request.messages, request.options ?? {});
+        const result = await router.chat(request.modelId, request.messages, request.options ?? {});
+        return { text: result.text, modelId: result.modelId, tokens: result.tokens, timingMs: result.timingMs };
       } catch (error) {
         throw toRouteError(error);
       }
@@ -37,14 +39,15 @@ export function routeForChat(manager: ModelRuntime): Route {
   };
 }
 
-export function routeForChatStream(manager: ModelRuntime): Route {  return {
-    method: 'GET',
+export function routeForChatStream(router: ModelRouter): Route {
+  return {
+    method: 'POST',
     path: '/api/chat/stream',
-    query: ChatStreamQuery,
+    body: ChatStreamRequest,
     response: ChatStreamDone,
-    handler: () => ({ done: true as const, modelId: '' }),
-    stream: async ({ query }, res) => {
-      const request = query as unknown as { modelId: string; prompt: string };
+    handler: () => ({ done: true as const, modelId: '', usedApprox: 0, dropped: 0, truncatedSystem: false }),
+    stream: async ({ body }, res) => {
+      const request = body as ChatStreamRequestT;
       res.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
@@ -61,11 +64,18 @@ export function routeForChatStream(manager: ModelRuntime): Route {  return {
         res.write(`data: ${JSON.stringify(payload)}\n\n`);
       };
       try {
-        await manager.chatStream(request.modelId, request.prompt, delta => {
+        const result = await router.chatStream(request.modelId, request.messages, delta => {
           const parsed = ChatStreamDelta.safeParse({ delta });
           if (parsed.success) write(parsed.data);
         }, controller.signal);
-        write({ done: true, modelId: request.modelId });
+        const done = ChatStreamDone.safeParse({
+          done: true,
+          modelId: result.modelId,
+          usedApprox: result.usedApprox,
+          dropped: result.dropped,
+          truncatedSystem: result.truncatedSystem
+        });
+        if (done.success) write(done.data);
       } catch (error) {
         if (!aborted) {
           const parsed = ChatStreamError.safeParse({ error: error instanceof Error ? error.message : 'stream failed' });

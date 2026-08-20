@@ -53,6 +53,16 @@ import {
   type ModelStatusResponseT
 } from '../../../common/contracts/models.ts';
 import {
+  RoutesResponse,
+  RouteRequest,
+  RouteResponse,
+  FitRequest,
+  FitResponse,
+  type RoutesResponseT,
+  type RouteResponseT,
+  type FitResponseT
+} from '../../../common/contracts/routing.ts';
+import {
   ChatResponse,
   type ChatResponseT,
   ChatHistoryResponse,
@@ -189,6 +199,19 @@ export const api = {
   },
   modelsStatus(): Promise<ModelStatusResponseT> {
     return call('/api/models/status', { schema: ModelStatusResponse });
+  },
+  routes(): Promise<RoutesResponseT> {
+    return call('/api/models/routes', { schema: RoutesResponse });
+  },
+  route(role: string): Promise<RouteResponseT> {
+    const body = RouteRequest.safeParse({ role });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid route request');
+    return call('/api/models/route', { body: body.data, schema: RouteResponse });
+  },
+  fit(messages: ChatMessageT[], contextLength: number): Promise<FitResponseT> {
+    const body = FitRequest.safeParse({ messages, contextLength });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid fit request');
+    return call('/api/models/fit', { body: body.data, schema: FitResponse });
   },
   chat(modelId: string, messages: ChatMessageT[]): Promise<ChatResponseT> {
     return call('/api/chat', { body: { modelId, messages }, schema: ChatResponse });

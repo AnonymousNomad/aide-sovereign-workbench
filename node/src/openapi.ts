@@ -8,6 +8,7 @@ import { WorkspaceListResponse } from '../../common/contracts/workspace.ts';
 import { routeForFileRead, routeForFileWrite, routeForSearch, routeForSearchReplace } from './routes/fs.ts';
 import { routeForSessionGet, routeForSessionPut } from './routes/session.ts';
 import { routeForModelStatus, routeForModelStart, routeForModelStop, routeForModelIngest } from './routes/models.ts';
+import { routeForRoutes, routeForRoute, routeForFit } from './routes/routing.ts';
 import { routeForChat, routeForChatStream, routeForChatHistory, routeForChatHistorySave } from './routes/chat.ts';
 import { ChatStore } from './services/chat-store.ts';
 import { routeForLspStatus, routeForLspStart, routeForLspOpen, routeForLspClose, routeForLspChange, routeForLspCompletion, routeForLspHover, routeForLspDefinition, lspDiagnosticsToMarkers } from './routes/lsp.ts';
@@ -26,6 +27,7 @@ import {
   routeForDapDisconnect
 } from './routes/dap.ts';
 import { routeForProvidersList, routeForProviderConnect, routeForProviderDisconnect, routeForProviderImport } from './routes/providers.ts';
+import { ModelRouter } from './services/model-router.ts';
 import { ProviderService } from './services/providers.ts';
 import { CredentialStore } from './services/credentials.ts';
 import { SessionStore } from './services/session-store.ts';
@@ -178,6 +180,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
       credentials: new CredentialStore(workspace),
       logger: options.logger
     });
+  const modelRouter = new ModelRouter(modelRuntime, providerService);
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -191,8 +194,11 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForModelStart(modelRuntime),
     routeForModelStop(modelRuntime),
     routeForModelIngest(modelRuntime),
-    routeForChat(modelRuntime),
-    routeForChatStream(modelRuntime),
+    routeForRoutes(modelRouter),
+    routeForRoute(modelRouter),
+    routeForFit(),
+    routeForChat(modelRouter),
+    routeForChatStream(modelRouter),
     routeForChatHistory(chatStore),
     routeForChatHistorySave(chatStore),
     routeForProvidersList(providerService),

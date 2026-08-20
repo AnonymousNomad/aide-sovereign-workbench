@@ -92,8 +92,12 @@ test('POST /api/chat on an unstarted model returns NOT_READY', async () => {
   assert.equal(envelope.data.error.code, 'NOT_READY');
 });
 
-test('GET /api/chat/stream on an unstarted model emits a validated error event', async () => {
-  const response = await fetch(`${base}/api/chat/stream?modelId=qwen-coder-1.5b-q4&prompt=hello`);
+test('POST /api/chat/stream on an unstarted model emits a validated error event', async () => {
+  const response = await fetch(`${base}/api/chat/stream`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ modelId: 'qwen-coder-1.5b-q4', messages: [{ role: 'user', content: 'hello' }] })
+  });
   assert.equal(response.status, 200);
   assert.ok(response.headers.get('content-type')?.includes('text/event-stream'));
   const text = await response.text();

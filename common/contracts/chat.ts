@@ -31,10 +31,10 @@ export const ChatResponse = z
   })
   .strict();
 
-export const ChatStreamQuery = z
+export const ChatStreamRequest = z
   .object({
     modelId: z.string().min(1),
-    prompt: z.string().min(1).max(4000)
+    messages: z.array(ChatMessage).min(1)
   })
   .strict();
 
@@ -47,7 +47,10 @@ export const ChatStreamDelta = z
 export const ChatStreamDone = z
   .object({
     done: z.literal(true),
-    modelId: z.string().min(1)
+    modelId: z.string().min(1),
+    usedApprox: z.number().int().nonnegative(),
+    dropped: z.number().int().nonnegative(),
+    truncatedSystem: z.boolean()
   })
   .strict();
 
@@ -92,6 +95,7 @@ export const ChatHistorySaveResponse = z
 export type ChatMessageT = z.infer<typeof ChatMessage>;
 export type ChatRequestT = z.infer<typeof ChatRequest>;
 export type ChatResponseT = z.infer<typeof ChatResponse>;
+export type ChatStreamRequestT = z.infer<typeof ChatStreamRequest>;
 export type ChatStreamDeltaT = z.infer<typeof ChatStreamDelta>;
 export type ChatStreamDoneT = z.infer<typeof ChatStreamDone>;
 export type ChatHistoryConversationT = z.infer<typeof ChatHistoryConversation>;

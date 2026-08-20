@@ -179,6 +179,64 @@ test('exp chat panel lists models and surfaces not-ready honestly', async ({ pag
   expect(pageErrors, 'chat panel must not throw page errors').toEqual([]);
 });
 
+test('exp chat panel binds per conversation and shows the down-switch banner', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', err => pageErrors.push(String(err)));
+  await page.goto('/');
+  await page.locator('[data-activity="exp"]').click();
+  await expect(page.locator('#chat-model')).toBeVisible();
+  await expect(page.locator('#chat-model option').first()).toBeAttached({ timeout: 30000 });
+  const firstValue = await page.locator('#chat-model').inputValue();
+  expect(firstValue.length).toBeGreaterThan(0);
+  const bigCtxValue = await page.locator('#chat-model option', { hasText: 'SmolLM2 1.7B' }).first().getAttribute('value');
+  expect(bigCtxValue).not.toBeNull();
+  await page.locator('#chat-model').selectOption(bigCtxValue!);
+  const bound = await page.locator('#chat-model').inputValue();
+  expect(bound).toContain('smollm2-1.7b-instruct');
+  const smallCtxValue = await page.locator('#chat-model option', { hasText: 'SmolLM2 360M' }).first().getAttribute('value');
+  expect(smallCtxValue).not.toBeNull();
+  await page.locator('#chat-model').selectOption(smallCtxValue!);
+  await expect(page.locator('#chat-banner')).toContainText(/switching from .* \(8192 ctx\) to .* \(2048 ctx\)/, { timeout: 10000 });
+  expect(pageErrors, 'chat panel must not throw page errors').toEqual([]);
+});
+
+test('route endpoint reports not-ready honestly when no model is running', async ({ page }) => {
+  await page.goto('/');
+  const envelope = await page.evaluate(async () => {
+    const response = await fetch('/api/models/route', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ role: 'chat' })
+    });
+    return response.json();
+  });
+  expect(envelope).toHaveProperty('ok', false);
+  expect(envelope.error.code).toBe('NOT_READY');
+  expect(envelope.error.message).toMatch(/start this model/);
+});
+
+test('fit endpoint estimates tokens and reports dropped turns', async ({ page }) => {
+  await page.goto('/');
+  const fit = await page.evaluate(async () => {
+    const messages = [
+      { role: 'user', content: 'first question' },
+      { role: 'assistant', content: 'first answer' },
+      { role: 'user', content: 'second question' }
+    ];
+    const response = await fetch('/api/models/fit', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages, contextLength: 2048 })
+    });
+    return response.json();
+  });
+  expect(fit.ok).toBe(true);
+  expect(fit.data.estimatedTokens).toBeGreaterThan(0);
+  expect(fit.data.dropped).toBe(0);
+  expect(fit.data.overflow).toBe(false);
+  expect(fit.data.messages.length).toBe(3);
+});
+
 test('lsp go-to-definition jumps the cursor to the declaration', async ({ page }) => {
   await fs.writeFile(defATsPath, 'function widget(): number { return 7; }\nconst w = widget();\n', 'utf8');
   await page.goto('/');

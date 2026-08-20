@@ -207,6 +207,10 @@ export class ModelRuntime {
     return this.models.get(id);
   }
 
+  list(): ModelEntry[] {
+    return [...this.models.values()];
+  }
+
   private expectedModelIds(model: ModelEntry): string[] {
     const values = [
       model.id,
@@ -427,7 +431,13 @@ export class ModelRuntime {
     return result;
   }
 
-  async chatStream(id: string, prompt: string, onDelta: (delta: string) => void, signal: AbortSignal): Promise<void> {
+  async chatStream(
+    id: string,
+    messages: Array<{ role: string; content: string }>,
+    onDelta: (delta: string) => void,
+    signal: AbortSignal,
+    options: { maxTokens?: number; temperature?: number } = {}
+  ): Promise<void> {
     const model = this.models.get(id);
     if (!model) throw new ModelRuntimeError('CHILD_FAILED', 'model is not allowlisted');
     if (!this.processes.has(id)) throw new ModelRuntimeError('NOT_READY', 'start this model before chatting');
@@ -438,9 +448,9 @@ export class ModelRuntime {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: model.model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-        max_tokens: 512,
+        messages,
+        temperature: options.temperature ?? 0.2,
+        max_tokens: Math.min(options.maxTokens ?? 512, 512),
         stream: true
       }),
       signal

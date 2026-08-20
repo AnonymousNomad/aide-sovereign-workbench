@@ -35,6 +35,7 @@ before(async () => {
 
 after(async () => {
   await server.logger.flush();
+  httpServer.closeAllConnections();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
   await fs.rm(dir, { recursive: true, force: true });
 });

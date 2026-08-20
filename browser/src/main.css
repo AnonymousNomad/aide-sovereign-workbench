@@ -538,3 +538,172 @@ body {
 .hidden {
   display: none;
 }
+
+.providers-panel-root {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.providers-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
+}
+
+.providers-title {
+  font-size: 12px;
+  color: var(--fg);
+  margin: 8px 0 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.providers-note {
+  font-size: 11px;
+  color: var(--dim);
+  margin: 0;
+}
+
+.providers-note code {
+  font-family: inherit;
+  background: var(--panel);
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.provider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.provider-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #777;
+  flex: 0 0 auto;
+}
+
+.provider-dot.connected {
+  background: #4caf50;
+}
+
+.provider-dot.invalid_key {
+  background: #e6a23c;
+}
+
+.provider-dot.unreachable {
+  background: #e06c75;
+}
+
+.provider-dot.checking {
+  background: #61afef;
+}
+
+.provider-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.provider-status {
+  font-size: 11px;
+  color: var(--dim);
+  flex: 1 1 auto;
+}
+
+.provider-action,
+.provider-confirm,
+.provider-cancel {
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.provider-cancel {
+  background: #555;
+}
+
+.provider-action:disabled,
+.provider-confirm:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.provider-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.provider-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.provider-key,
+.provider-base,
+.provider-model {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  max-width: 420px;
+}
+
+.provider-approve {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--fg);
+}
+
+.provider-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.provider-result {
+  font-size: 11px;
+  color: var(--dim);
+  min-height: 12px;
+}
+
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.import-file {
+  font-size: 11px;
+  color: var(--fg);
+}
+
+.import-status {
+  font-size: 11px;
+  color: var(--dim);
+}

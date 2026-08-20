@@ -16,9 +16,12 @@ const defATs = 'e2e-def-a.ts';
 const defATsPath = path.join(repoRoot, defATs);
 const defBTs = 'e2e-def-b.ts';
 const defBTsPath = path.join(repoRoot, defBTs);
+const chatgptExport = 'e2e-chatgpt-export.json';
+const chatgptExportPath = path.join(repoRoot, chatgptExport);
+const chatHistoryPath = path.join(repoRoot, '.aide', 'chat-history.json');
 
 async function removeScratchFiles(): Promise<void> {
-  for (const p of [scratchPath, brokenTsPath, completeTsPath, hoverTsPath, defATsPath, defBTsPath]) {
+  for (const p of [scratchPath, brokenTsPath, completeTsPath, hoverTsPath, defATsPath, defBTsPath, chatgptExportPath, chatHistoryPath]) {
     await fs.rm(p, { force: true });
   }
 }
@@ -153,7 +156,7 @@ test('lsp hover shows type information for a ts symbol', async ({ page }) => {
   await expect(page.locator('.group-editor .monaco-editor')).toBeVisible();
   await expect(page.locator('#lsp-status')).toContainText('running', { timeout: 60000 });
   const line = page.locator('.group-editor .view-line').first();
-  await line.waitFor({ state: 'visible' });
+  await expect.poll(async () => (await line.boundingBox()) !== null, { timeout: 30000 }).toBe(true);
   const box = await line.boundingBox();
   assert.ok(box, 'first view line must have a bounding box');
   await page.mouse.move(box.x + 75, box.y + box.height / 2);
@@ -194,4 +197,46 @@ test('lsp go-to-definition jumps the cursor to the declaration', async ({ page }
   await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('F12');
   await expect(page.locator('.monaco-alert').first()).toContainText('Found 1 symbol', { timeout: 30000 });
+});
+
+test('providers panel lists built-in providers and renders connect forms', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', err => pageErrors.push(String(err)));
+  await page.goto('/');
+  await page.locator('[data-activity="exp"]').click();
+  await expect(page.locator('.provider-row')).toHaveCount(6, { timeout: 30000 });
+  await expect(page.locator('.provider-row').first()).toContainText('OpenAI');
+  await page.locator('.provider-row').first().locator('.provider-action').click();
+  await expect(page.locator('.provider-row').first().locator('.provider-form')).toBeVisible();
+  await expect(page.locator('.provider-row').first().locator('.provider-key')).toBeVisible();
+  await expect(page.locator('.provider-row').first().locator('.provider-base')).toHaveValue(/api\.openai\.com/);
+  await expect(page.locator('.provider-row').first().locator('.provider-approve')).toHaveClass(/hidden/);
+  await page.locator('.provider-row').first().locator('.provider-cancel').click();
+  await expect(page.locator('.provider-row').first().locator('.provider-action')).toHaveText('Connect');
+  expect(pageErrors, 'providers panel must not throw page errors').toEqual([]);
+});
+
+test('imports a chatgpt export into local history', async ({ page }) => {
+  await fs.writeFile(
+    chatgptExportPath,
+    JSON.stringify({
+      conversations: [
+        {
+          id: 'conv-e2e-1',
+          title: 'e2e import',
+          create_time: 1700000000,
+          current_node: 'n2',
+          mapping: {
+            n1: { message: { author: { role: 'user' }, content: { content_type: 'text', parts: ['hello'] } }, parent: null },
+            n2: { message: { author: { role: 'assistant' }, content: { content_type: 'text', parts: ['hi there'] } }, parent: 'n1' }
+          }
+        }
+      ]
+    }),
+    'utf8'
+  );
+  await page.goto('/');
+  await page.locator('[data-activity="exp"]').click();
+  await page.locator('#import-file').setInputFiles(chatgptExportPath);
+  await expect(page.locator('#import-status')).toContainText('imported 1 chat(s)', { timeout: 30000 });
 });

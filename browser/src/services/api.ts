@@ -62,6 +62,20 @@ import {
   type ChatMessageT
 } from '../../../common/contracts/chat.ts';
 import { egressFetch } from './egress.ts';
+import {
+  ProviderListResponse,
+  ProviderConnectRequest,
+  ProviderConnectResponse,
+  ProviderDisconnectRequest,
+  ProviderDisconnectResponse,
+  ProviderImportRequest,
+  ProviderImportResponse,
+  type ProviderListResponseT,
+  type ProviderConnectRequestT,
+  type ProviderConnectResponseT,
+  type ProviderDisconnectResponseT,
+  type ProviderImportResponseT
+} from '../../../common/contracts/providers.ts';
 
 export class ApiError extends Error {
   readonly code: string;
@@ -186,5 +200,23 @@ export const api = {
     const body = ChatHistorySaveRequest.safeParse(conversation);
     if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid chat history save');
     return call('/api/chat/history', { body: body.data, schema: ChatHistorySaveResponse });
+  },
+  providers(): Promise<ProviderListResponseT> {
+    return call('/api/providers', { schema: ProviderListResponse });
+  },
+  providerConnect(request: ProviderConnectRequestT): Promise<ProviderConnectResponseT> {
+    const body = ProviderConnectRequest.safeParse(request);
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid provider connect request');
+    return call('/api/providers/connect', { body: body.data, schema: ProviderConnectResponse });
+  },
+  providerDisconnect(providerId: string): Promise<ProviderDisconnectResponseT> {
+    const body = ProviderDisconnectRequest.safeParse({ providerId });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid provider disconnect request');
+    return call('/api/providers/disconnect', { body: body.data, schema: ProviderDisconnectResponse });
+  },
+  providerImport(format: 'chatgpt' | 'claude', payload: string): Promise<ProviderImportResponseT> {
+    const body = ProviderImportRequest.safeParse({ format, payload });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid import request');
+    return call('/api/providers/import', { body: body.data, schema: ProviderImportResponse });
   }
 };

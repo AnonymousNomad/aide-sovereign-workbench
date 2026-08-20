@@ -40,14 +40,14 @@ export class ChatStore {
     return this.conversations.find(conversation => conversation.id === id);
   }
 
-  async save(conversation: Omit<ChatConversation, 'id' | 'updatedAt'> & { id?: string }): Promise<ChatConversation> {
+  async save(conversation: Omit<ChatConversation, 'id' | 'updatedAt'> & { id?: string; updatedAt?: number }): Promise<ChatConversation> {
     await this.load();
     const existing = conversation.id === undefined ? undefined : this.get(conversation.id);
     if (existing !== undefined) {
       existing.modelId = conversation.modelId;
       existing.title = conversation.title;
       existing.messages = conversation.messages;
-      existing.updatedAt = Date.now();
+      existing.updatedAt = conversation.updatedAt ?? Date.now();
       await this.persist();
       return existing;
     }
@@ -56,7 +56,7 @@ export class ChatStore {
       modelId: conversation.modelId,
       title: conversation.title,
       messages: conversation.messages,
-      updatedAt: Date.now()
+      updatedAt: conversation.updatedAt ?? Date.now()
     };
     this.conversations.push(entry);
     this.conversations = this.conversations.slice(-200);

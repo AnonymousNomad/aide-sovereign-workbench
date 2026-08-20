@@ -15,6 +15,7 @@ import { onDirtyChange, isDirty, openPaths } from './editor/models.ts';
 import { ArchLspBridge, applyDiagnostics } from './editor/lsp-bridge.ts';
 import { registerLspProviders } from './editor/lsp-providers.ts';
 import { createChatPanel } from './chat/chat.ts';
+import { createProvidersPanel } from './providers/providers.ts';
 import type { DiagnosticsEventT } from '../../common/contracts/events.ts';
 import type { LspStatusEventT } from '../../common/contracts/lsp.ts';
 import { connectEvents } from './services/ws.ts';
@@ -92,6 +93,7 @@ async function boot(): Promise<void> {
   createSearchPanel(shell.searchPanel, { host, onToast: (code, message) => showToast(shell.statusRight, code, message) });
   const chatPanel = createChatPanel(shell.chatPanel, { onToast: (code, message) => showToast(shell.statusRight, code, message) });
   void chatPanel.refreshModels();
+  createProvidersPanel(shell.providersPanel, { onToast: (code, message) => showToast(shell.statusRight, code, message) });
 
   const events = connectEvents(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`, {
     onStatus: connected => {

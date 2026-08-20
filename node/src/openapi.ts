@@ -25,6 +25,9 @@ import {
   routeForDapVariables,
   routeForDapDisconnect
 } from './routes/dap.ts';
+import { routeForProvidersList, routeForProviderConnect, routeForProviderDisconnect, routeForProviderImport } from './routes/providers.ts';
+import { ProviderService } from './services/providers.ts';
+import { CredentialStore } from './services/credentials.ts';
 import { SessionStore } from './services/session-store.ts';
 import { WorkspaceService } from './services/workspace.ts';
 import { LspManager } from './services/lsp.ts';
@@ -42,6 +45,7 @@ export interface BuildRoutesOptions {
   lspManager?: LspManager;
   dapManager?: DapManager;
   modelRuntime?: ModelRuntime;
+  providerService?: ProviderService;
 }
 
 export function lspEntryPath(repoRoot: string): string {
@@ -168,6 +172,12 @@ export async function buildRoutes(workspace: string, version: string, options: B
   const dapManager = options.dapManager ?? (await createDapManager(repoRoot, workspace, options));
   const modelRuntime = options.modelRuntime ?? (await createModelRuntime(repoRoot, workspace, options));
   const chatStore = new ChatStore(workspace);
+  const providerService =
+    options.providerService ??
+    new ProviderService(workspace, {
+      credentials: new CredentialStore(workspace),
+      logger: options.logger
+    });
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -185,6 +195,10 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForChatStream(modelRuntime),
     routeForChatHistory(chatStore),
     routeForChatHistorySave(chatStore),
+    routeForProvidersList(providerService),
+    routeForProviderConnect(providerService),
+    routeForProviderDisconnect(providerService),
+    routeForProviderImport(chatStore),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

@@ -23,6 +23,15 @@ function isLocalHost(host) {
 const callSite = /(?:fetch|WebSocket|EventSource)\s*\(\s*["'](wss?|https?):\/\/([^"'\s/]+)/g;
 const wsLiteral = /wss?:\/\/([^"'\s/]+)/g;
 
+const providerHosts = [
+  'api.openai.com',
+  'api.anthropic.com',
+  'generativelanguage.googleapis.com',
+  'api.mistral.ai',
+  'api.groq.com',
+  'openrouter.ai'
+];
+
 try {
   const files = await walk(distPath);
   if (files.length === 0) {
@@ -51,6 +60,12 @@ try {
   if (problems.length > 0) {
     console.error('[egress-audit] FAIL: remote network call-sites found in the built bundle:');
     for (const problem of problems) console.error(`  - ${problem}`);
+    process.exit(1);
+  }
+  const leakedProviders = [...remoteHosts].filter(host => providerHosts.includes(host));
+  if (leakedProviders.length > 0) {
+    console.error('[egress-audit] FAIL: provider host URLs leaked into the browser bundle (registry must stay daemon-side):');
+    for (const host of leakedProviders) console.error(`  - ${host}`);
     process.exit(1);
   }
   console.log(`[egress-audit] PASS: no remote fetch/WebSocket/EventSource call-sites or ws/wss literals in ${files.length} files.`);

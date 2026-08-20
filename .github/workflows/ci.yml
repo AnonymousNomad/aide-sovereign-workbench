@@ -27,15 +27,20 @@ jobs:
       - name: architecture tests (bounded)
         timeout-minutes: 20
         run: |
-          timeout 900 node --test --test-concurrency=3 --test-timeout=90000 "tests/arch/*.test.ts"
+          set +e
+          timeout -k 30 900 node --test --test-concurrency=3 --test-timeout=90000 "tests/arch/*.test.ts" > /tmp/arch-out.txt 2>&1
           status=$?
           echo "node --test exit=$status"
+          echo "=== output tail ==="
+          tail -60 /tmp/arch-out.txt
+          echo "=== end tail ==="
           if [ $status -ne 0 ]; then
-            leftover=$(ps -eo pid,ppid,etime,cmd | grep -E "node|python|typescript-language-server|debugpy" | grep -v grep | head -30 | tr '\n' ';')
-            echo "::error::LEFTOVER_PROCESSES: $leftover"
+            echo "::error::ARCH_TAIL1: $(tail -c 3000 /tmp/arch-out.txt | tr '\n' ';' | head -c 2950)"
+            echo "::error::ARCH_TAIL2: $(tail -c 6000 /tmp/arch-out.txt | head -c 3000 | tr '\n' ';' | head -c 2950)"
+            echo "::error::ARCH_PS: $(ps -eo pid,ppid,etime,cmd | head -40 | tr '\n' ';' | head -c 2950)"
             exit 1
           fi
-          exit $status
+          exit 0
       - run: npm run veritas
       - run: npm run veritas -- --report --output artifacts/veritas.md
         if: always()

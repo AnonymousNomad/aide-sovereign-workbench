@@ -12,11 +12,15 @@ export interface Shell {
   title: HTMLElement;
   statusDot: HTMLElement;
   statusBar: HTMLElement;
+  statusLeft: HTMLElement;
+  lspStatus: HTMLElement;
+  statusRight: HTMLElement;
   editorColumn: HTMLElement;
   editorRoot: HTMLElement;
   mapView: HTMLElement;
   mapFiles: HTMLElement;
   searchPanel: HTMLElement;
+  chatPanel: HTMLElement;
 }
 
 export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
@@ -36,7 +40,7 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
             <div class="map-files" id="map-files"></div>
             <div class="search-panel" id="search-panel"></div>
           </section>
-          <section class="view-overlay" data-view="exp"><h2>EXP</h2></section>
+          <section class="view-overlay" data-view="exp"><h2>EXP</h2><div class="chat-panel-root" id="chat-panel"></div></section>
           <section class="view-overlay" data-view="run"><h2>RUN</h2></section>
         </div>
       </main>
@@ -44,6 +48,7 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
     <div class="status-bar" id="status-bar">
       <span class="item" id="status-left">starting…</span>
       <span class="spacer"></span>
+      <span class="item lsp-status" id="lsp-status"></span>
       <span class="item" id="status-right"></span>
     </div>
   `;
@@ -73,15 +78,19 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
 
   const statusDot = app.querySelector<HTMLElement>('#status-dot');
   const statusBar = app.querySelector<HTMLElement>('#status-bar');
+  const statusLeft = app.querySelector<HTMLElement>('#status-left');
+  const lspStatus = app.querySelector<HTMLElement>('#lsp-status');
+  const statusRight = app.querySelector<HTMLElement>('#status-right');
   const editorColumn = app.querySelector<HTMLElement>('#editor-column');
   const editorRoot = app.querySelector<HTMLElement>('#editor-root');
   const mapView = app.querySelector<HTMLElement>('[data-view="map"]');
   const mapFiles = app.querySelector<HTMLElement>('#map-files');
   const searchPanel = app.querySelector<HTMLElement>('#search-panel');
+  const chatPanel = app.querySelector<HTMLElement>('#chat-panel');
   const title = app.querySelector<HTMLElement>('#title');
-  if (statusDot === null || statusBar === null || editorColumn === null || editorRoot === null || mapView === null || mapFiles === null || searchPanel === null || title === null) throw new Error('shell mount failed');
+  if (statusDot === null || statusBar === null || statusLeft === null || lspStatus === null || statusRight === null || editorColumn === null || editorRoot === null || mapView === null || mapFiles === null || searchPanel === null || chatPanel === null || title === null) throw new Error('shell mount failed');
 
   window.addEventListener('unload', () => unbind());
 
-  return { title, statusDot, statusBar, editorColumn, editorRoot, mapView, mapFiles, searchPanel };
+  return { title, statusDot, statusBar, statusLeft, lspStatus, statusRight, editorColumn, editorRoot, mapView, mapFiles, searchPanel, chatPanel };
 }

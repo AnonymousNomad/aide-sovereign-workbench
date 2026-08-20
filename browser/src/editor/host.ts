@@ -6,7 +6,7 @@ import type { FileReadResponseT } from '../../../common/contracts/file.ts';
 import type { SessionFileT, SessionTabT } from '../../../common/contracts/session.ts';
 import type { SessionService } from '../services/session.ts';
 import { api } from '../services/api.ts';
-import { openModel, disposeModel, markClean, isDirty, openPaths, getModel, metaFor } from './models.ts';
+import { openModel, disposeModel, markClean, isDirty, openPaths, getModel, metaFor, onModelChange } from './models.ts';
 import { createView, disposeViewFor, focusView, restoreViewState, saveViewState, revealLine, disposeAllViews } from './views.ts';
 import type { GroupsManager, EditorGroup } from './groups.ts';
 import { applyEol, restoreBom } from './text-io.ts';
@@ -94,8 +94,9 @@ export function createEditorHost(
     focusView(relPath, group.id);
     group.active = relPath;
     tabsOf(group.id).add(relPath);
-    markClean(relPath);
+markClean(relPath);
     lsp.onOpen(relPath, model.getLanguageId());
+    onModelChange(relPath, () => lsp.onChange(relPath, 0));
     notify();
   }
 

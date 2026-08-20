@@ -1,16 +1,115 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z, type ZodTypeAny } from 'zod';
 import { HealthResponse } from '../../common/contracts/health.ts';
 import { WorkspaceListResponse } from '../../common/contracts/workspace.ts';
 import { routeForFileRead, routeForFileWrite, routeForSearch, routeForSearchReplace } from './routes/fs.ts';
 import { routeForSessionGet, routeForSessionPut } from './routes/session.ts';
+import { routeForModelStatus, routeForModelStart, routeForModelStop, routeForModelIngest } from './routes/models.ts';
+import { routeForChat, routeForChatStream, routeForChatHistory, routeForChatHistorySave } from './routes/chat.ts';
+import { ChatStore } from './services/chat-store.ts';
+import { routeForLspStatus, routeForLspStart, routeForLspOpen, routeForLspClose, routeForLspChange, routeForLspCompletion, routeForLspHover, routeForLspDefinition, lspDiagnosticsToMarkers } from './routes/lsp.ts';
+import {
+  routeForDapStatus,
+  routeForDapStart,
+  routeForDapStop,
+  routeForDapLaunch,
+  routeForDapBreakpoints,
+  routeForDapConfigure,
+  routeForDapContinue,
+  routeForDapStep,
+  routeForDapStack,
+  routeForDapScopes,
+  routeForDapVariables,
+  routeForDapDisconnect
+} from './routes/dap.ts';
 import { SessionStore } from './services/session-store.ts';
 import { WorkspaceService } from './services/workspace.ts';
+import { LspManager } from './services/lsp.ts';
+import { DapManager, type DapAdapterConfig } from './services/dap.ts';
+import { ModelRuntime } from './services/model-runtime.ts';
+import type { Logger } from './services/logger.ts';
+import type { EventHub } from './events.ts';
 import type { Route } from './server.ts';
 
 type SchemaObject = Record<string, unknown>;
+
+export interface BuildRoutesOptions {
+  events?: EventHub;
+  logger?: Logger;
+  lspManager?: LspManager;
+  dapManager?: DapManager;
+  modelRuntime?: ModelRuntime;
+}
+
+export function lspEntryPath(repoRoot: string): string {
+  return path.join(repoRoot, 'node_modules', 'typescript-language-server', 'lib', 'cli.mjs');
+}
+
+export function createLspManager(repoRoot: string, workspace: string, options: BuildRoutesOptions): LspManager {
+  return new LspManager({
+    command: lspEntryPath(repoRoot),
+    workspace,
+    logger: options.logger,
+    onDiagnostics: (uri, diagnostics) => {
+      options.events?.publish('diagnostics', { uri, markers: lspDiagnosticsToMarkers(diagnostics) });
+    },
+    onStatusChange: (languageId, status) => {
+      options.events?.publish('lsp-status', { languageId, status });
+    }
+  });
+}
+
+export async function dapAdapterConfigs(repoRoot: string): Promise<DapAdapterConfig[]> {
+  try {
+    const manifest = JSON.parse(await fs.readFile(path.join(repoRoot, 'debuggers', 'manifest.json'), 'utf8')) as {
+      adapters?: Array<{ id?: string; name?: string; command?: string; args?: string[]; languages?: string[] }>;
+    };
+    return (manifest.adapters ?? []).map(adapter => {
+      const command = adapter.command ?? '';
+      const pathLike = path.isAbsolute(command) || command.includes('/') || command.includes(path.sep);
+      return {
+        id: adapter.id ?? 'unknown',
+        name: adapter.name ?? adapter.id ?? 'unknown',
+        command: pathLike ? path.resolve(repoRoot, command) : command,
+        args: adapter.args ?? [],
+        languages: adapter.languages ?? []
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function createDapManager(repoRoot: string, workspace: string, options: BuildRoutesOptions): Promise<DapManager> {
+  const adapters = await dapAdapterConfigs(repoRoot);
+  return new DapManager({
+    workspace,
+    adapters,
+    logger: options.logger,
+    onEvent: (adapterId, event, body) => {
+      options.events?.publish('debug', { adapterId, event, body });
+    }
+  });
+}
+
+export async function createModelRuntime(repoRoot: string, workspace: string, options: BuildRoutesOptions): Promise<ModelRuntime> {
+  const runtime = new ModelRuntime({
+    workspace,
+    manifestPath: path.join(repoRoot, 'models', 'manifest.json'),
+    ingestedPath: path.join(workspace, '.aide', 'ingested-models.json'),
+    modelDir: path.join(repoRoot, 'models'),
+    logger: options.logger,
+    onStatusChange: (id, status) => {
+      const eventStatus = status === 'running' ? 'ready' : status === 'starting' ? 'loading' : status === 'stopped' ? 'stopped' : 'error';
+      options.events?.publish('model', { id, status: eventStatus });
+    }
+  });
+  await runtime.load();
+  return runtime;
+}
 
 export function generateOpenApi(routes: Route[], info: { title: string; version: string }): unknown {
   const paths: Record<string, Record<string, unknown>> = {};
@@ -61,8 +160,14 @@ export function generateOpenApi(routes: Route[], info: { title: string; version:
   };
 }
 
-export async function buildRoutes(workspace: string, version: string): Promise<Route[]> {
+export async function buildRoutes(workspace: string, version: string, options: BuildRoutesOptions = {}): Promise<Route[]> {
   const fsService = new WorkspaceService(workspace);
+  const repoRoot = path.resolve(fileURLToPath(import.meta.url), '..', '..', '..');
+  const manager =
+    options.lspManager ?? createLspManager(repoRoot, workspace, options);
+  const dapManager = options.dapManager ?? (await createDapManager(repoRoot, workspace, options));
+  const modelRuntime = options.modelRuntime ?? (await createModelRuntime(repoRoot, workspace, options));
+  const chatStore = new ChatStore(workspace);
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -71,7 +176,35 @@ export async function buildRoutes(workspace: string, version: string): Promise<R
     routeForSearch(fsService),
     routeForSearchReplace(fsService),
     routeForSessionGet(new SessionStore(workspace)),
-    routeForSessionPut(new SessionStore(workspace))
+    routeForSessionPut(new SessionStore(workspace)),
+    routeForModelStatus(modelRuntime),
+    routeForModelStart(modelRuntime),
+    routeForModelStop(modelRuntime),
+    routeForModelIngest(modelRuntime),
+    routeForChat(modelRuntime),
+    routeForChatStream(modelRuntime),
+    routeForChatHistory(chatStore),
+    routeForChatHistorySave(chatStore),
+    routeForLspStatus(manager),
+    routeForLspStart(manager),
+    routeForLspOpen(manager),
+    routeForLspClose(manager),
+    routeForLspChange(manager),
+    routeForLspCompletion(manager),
+    routeForLspHover(manager),
+    routeForLspDefinition(manager),
+    routeForDapStatus(dapManager),
+    routeForDapStart(dapManager),
+    routeForDapStop(dapManager),
+    routeForDapLaunch(dapManager),
+    routeForDapBreakpoints(dapManager),
+    routeForDapConfigure(dapManager),
+    routeForDapContinue(dapManager),
+    routeForDapStep(dapManager),
+    routeForDapStack(dapManager),
+    routeForDapScopes(dapManager),
+    routeForDapVariables(dapManager),
+    routeForDapDisconnect(dapManager)
   ];
   const doc = generateOpenApi(core, { title: 'AIDE Arch Daemon API', version });
   return [...core, makeOpenApiRoute(doc)];

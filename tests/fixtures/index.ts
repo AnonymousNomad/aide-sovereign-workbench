@@ -3,6 +3,7 @@ import type { HealthResponseT } from '../../common/contracts/health.ts';
 import type { WorkspaceListResponseT } from '../../common/contracts/workspace.ts';
 import type { SearchResponseT, SearchReplaceResponseT } from '../../common/contracts/search.ts';
 import type { SessionFileT } from '../../common/contracts/session.ts';
+import type { LspStatusResponseT, LspStartResponseT, LspOpenResponseT, LspCloseResponseT, LspChangeResponseT } from '../../common/contracts/lsp.ts';
 import type { LogEventT, ModelStatusEventT, DiagnosticsEventT, TrainingProgressEventT } from '../../common/contracts/events.ts';
 
 export const healthFixtures = {
@@ -92,6 +93,34 @@ export const sessionFixtures = {
     ],
     splits: ['g1', 'g2']
   } satisfies SessionFileT
+};
+
+export const lspFixtures = {
+  statusAvailable: {
+    servers: [
+      { languageId: 'typescript', name: 'TypeScript', status: 'available' },
+      { languageId: 'javascript', name: 'JavaScript', status: 'available' }
+    ]
+  } satisfies LspStatusResponseT,
+  statusRunning: {
+    servers: [
+      { languageId: 'typescript', name: 'TypeScript', status: 'running' },
+      { languageId: 'javascript', name: 'JavaScript', status: 'available' }
+    ]
+  } satisfies LspStatusResponseT,
+  startRunning: {
+    languageId: 'typescript',
+    status: 'running'
+  } satisfies LspStartResponseT,
+  openOpened: {
+    opened: true
+  } satisfies LspOpenResponseT,
+  closeClosed: {
+    closed: true
+  } satisfies LspCloseResponseT,
+  changeChanged: {
+    changed: true
+  } satisfies LspChangeResponseT
 };
 
 export const eventFixtures = {

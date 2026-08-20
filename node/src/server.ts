@@ -6,7 +6,7 @@ import { fail, ok, type ErrorCode } from '../../common/errors.ts';
 import { Logger } from './services/logger.ts';
 import { ProcessManager } from './services/process-manager.ts';
 import { EventHub } from './events.ts';
-import { buildRoutes } from './openapi.ts';
+import { buildRoutes, createLspManager, createDapManager, createModelRuntime } from './openapi.ts';
 
 export class RouteError extends Error {
   readonly code: ErrorCode;
@@ -33,6 +33,7 @@ export interface Route {
   body?: ZodTypeAny;
   response: ZodTypeAny;
   handler: (ctx: RouteContext) => Promise<unknown> | unknown;
+  stream?: (ctx: RouteContext, res: http.ServerResponse) => Promise<void>;
 }
 
 export const MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -44,6 +45,7 @@ export class ArchServer {
   readonly workspace: string;
   readonly logFile: string;
   private readonly routes: Route[] = [];
+  private readonly shutdownHooks: Array<() => Promise<void>> = [];
 
   constructor(workspace: string, logFile: string) {
     this.workspace = workspace;
@@ -51,6 +53,11 @@ export class ArchServer {
     this.logger = new Logger(logFile);
     this.processes = new ProcessManager(this.logger);
     this.events = new EventHub(this.logger);
+  }
+
+  addShutdownHook(hook: () => Promise<void>): this {
+    this.shutdownHooks.push(hook);
+    return this;
   }
 
   route(route: Route): this {
@@ -100,6 +107,11 @@ export class ArchServer {
       const body = await this.readBody(request);
       const bodyResult = route.body ? route.body.safeParse(body) : { success: true as const, data: body };
       if (!bodyResult.success) throw new RouteError('BAD_REQUEST', 'invalid request body', bodyResult.error.issues);
+      if (route.stream !== undefined) {
+        await route.stream({ query: queryResult.data as Record<string, string>, body: bodyResult.data }, response);
+        this.logger.info('stream ok', { method: request.method, path: url.pathname, ms: Date.now() - started });
+        return;
+      }
       const data = await route.handler({ query: queryResult.data as Record<string, string>, body: bodyResult.data });
       const responseResult = route.response.safeParse(data);
       if (!responseResult.success) {
@@ -178,11 +190,13 @@ export class ArchServer {
       shuttingDown = true;
       this.logger.info('shutdown started', { signal });
       server.close(async () => {
+        await this.runShutdownHooks();
         await this.processes.shutdownAll();
         await this.logger.flush();
         process.exit(0);
       });
       setTimeout(async () => {
+        await this.runShutdownHooks();
         await this.processes.shutdownAll();
         await this.logger.flush();
         process.exit(1);
@@ -190,6 +204,16 @@ export class ArchServer {
     };
     process.once('SIGINT', () => shutdown('SIGINT'));
     process.once('SIGTERM', () => shutdown('SIGTERM'));
+  }
+
+  private async runShutdownHooks(): Promise<void> {
+    for (const hook of this.shutdownHooks) {
+      try {
+        await hook();
+      } catch (error) {
+        this.logger.error('shutdown hook failed', { message: error instanceof Error ? error.message : String(error) });
+      }
+    }
   }
 }
 
@@ -199,7 +223,14 @@ export async function main(): Promise<void> {
   const version = process.env.AIDE_VERSION || 'dev';
   const port = Number(process.env.AIDE_ARCH_PORT || 4778);
   const server = new ArchServer(workspace, path.join(workspace, '.aide', 'logs', 'arch-daemon.log'));
-  const routes = await buildRoutes(workspace, version);
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const manager = createLspManager(repoRoot, workspace, { events: server.events, logger: server.logger });
+  server.addShutdownHook(() => manager.stopAll());
+  const dapManager = await createDapManager(repoRoot, workspace, { events: server.events, logger: server.logger });
+  server.addShutdownHook(() => dapManager.stopAll());
+  const modelRuntime = await createModelRuntime(repoRoot, workspace, { events: server.events, logger: server.logger });
+  server.addShutdownHook(() => modelRuntime.stopAll());
+  const routes = await buildRoutes(workspace, version, { events: server.events, logger: server.logger, lspManager: manager, dapManager, modelRuntime });
   for (const route of routes) server.route(route);
   await server.listen(port);
   server.logger.info('arch daemon listening', { port, workspace });

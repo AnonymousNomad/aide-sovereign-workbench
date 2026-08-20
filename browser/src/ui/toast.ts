@@ -15,7 +15,11 @@ export const MESSAGES: Record<string, string> = {
 };
 
 export function translateError(code: string, message: string): string {
-  return MESSAGES[code] ?? message;
+  const label = MESSAGES[code] ?? message;
+  if ((code === 'INTERNAL' || code === 'CHILD_FAILED') && message.length > 0 && label !== message) {
+    return `${label}: ${message}`;
+  }
+  return label;
 }
 
 export function showToast(root: HTMLElement, code: string, message: string): void {

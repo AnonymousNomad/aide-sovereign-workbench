@@ -18,6 +18,7 @@ export interface ModelMeta {
 const models = new Map<string, monaco.editor.ITextModel>();
 const meta = new Map<string, ModelMeta>();
 const dirtyListeners = new Set<() => void>();
+const changeListeners = new Map<string, Set<(model: monaco.editor.ITextModel) => void>>();
 
 export function uriFor(relPath: string): monaco.Uri {
   return monaco.Uri.parse(`${MODEL_SCHEME}://model/${relPath.replace(/\\/g, '/')}`);
@@ -41,6 +42,7 @@ export function openModel(relPath: string, content: string): monaco.editor.IText
       m.dirty = true;
       for (const fn of dirtyListeners) fn();
     }
+    for (const fn of changeListeners.get(relPath) ?? []) fn(model);
   });
   return model;
 }
@@ -56,6 +58,7 @@ export function disposeModel(relPath: string): void {
     models.delete(relPath);
   }
   meta.delete(relPath);
+  changeListeners.delete(relPath);
   for (const fn of dirtyListeners) fn();
 }
 
@@ -93,5 +96,17 @@ export function onDirtyChange(fn: () => void): () => void {
   dirtyListeners.add(fn);
   return () => {
     dirtyListeners.delete(fn);
+  };
+}
+
+export function onModelChange(relPath: string, fn: (model: monaco.editor.ITextModel) => void): () => void {
+  let set = changeListeners.get(relPath);
+  if (set === undefined) {
+    set = new Set();
+    changeListeners.set(relPath, set);
+  }
+  set.add(fn);
+  return () => {
+    set?.delete(fn);
   };
 }

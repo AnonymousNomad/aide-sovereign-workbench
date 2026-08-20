@@ -11,3 +11,9 @@ test('translateError maps envelope codes to user messages', () => {
 test('translateError falls back to the daemon message for unknown codes', () => {
   assert.equal(translateError('MYSTERY', 'weird daemon thing'), 'weird daemon thing');
 });
+
+test('translateError appends the daemon detail for INTERNAL and CHILD_FAILED', () => {
+  assert.equal(translateError('INTERNAL', 'model: start this model before chatting'), 'Daemon error: model: start this model before chatting');
+  assert.equal(translateError('CHILD_FAILED', 'language server crashed'), 'Background process failed: language server crashed');
+  assert.equal(translateError('NOT_READY', 'still warming up'), 'Still warming up', 'known codes keep the fixed label');
+});

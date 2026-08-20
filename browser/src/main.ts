@@ -1,5 +1,6 @@
 import editorWorker from 'monaco-editor/editor/editor.worker?worker';
 import tsWorker from 'monaco-editor/language/typescript/ts.worker?worker';
+import 'monaco-editor/editor/editor.main';
 import '../../node_modules/monaco-editor/min/vs/editor/editor.main.css';
 import { Store } from './store/store.ts';
 import { INITIAL_STATE } from './store/state.ts';
@@ -11,6 +12,11 @@ import { createEditorHost, type EditorHost } from './editor/host.ts';
 import { createGroups } from './editor/groups.ts';
 import { createSearchPanel } from './editor/search.ts';
 import { onDirtyChange, isDirty, openPaths } from './editor/models.ts';
+import { ArchLspBridge, applyDiagnostics } from './editor/lsp-bridge.ts';
+import { registerLspProviders } from './editor/lsp-providers.ts';
+import { createChatPanel } from './chat/chat.ts';
+import type { DiagnosticsEventT } from '../../common/contracts/events.ts';
+import type { LspStatusEventT } from '../../common/contracts/lsp.ts';
 import { connectEvents } from './services/ws.ts';
 
 self.MonacoEnvironment = {
@@ -46,6 +52,16 @@ function renderAllTabs(host: EditorHost): void {
   for (const group of host.groups()) renderTabBar(group.tabBar, group.id, host);
 }
 
+function renderLspStatus(shell: ReturnType<typeof createShell>, states: Record<string, string>): void {
+  const active = Object.entries(states);
+  if (active.length === 0) {
+    shell.lspStatus.textContent = '';
+    return;
+  }
+  shell.lspStatus.textContent = active.map(([languageId, status]) => `${languageId}: ${status}`).join(' · ');
+  shell.lspStatus.className = 'item lsp-status' + (active.every(([, status]) => status === 'running' || status === 'available') ? ' ok' : active.some(([, status]) => status === 'error' || status === 'not_found') ? ' err' : '');
+}
+
 async function boot(): Promise<void> {
   const app = document.getElementById('app');
   if (app === null) throw new Error('#app missing');
@@ -66,13 +82,16 @@ async function boot(): Promise<void> {
       renderAllTabs(host);
       if (openPaths().length > 0) session.set(() => host.captureSession());
       const active = host.activePath();
-      shell.statusBar.textContent = active === null ? 'ready' : `${active}${isDirty(active) ? ' \u25cf' : ''}`;
+      shell.statusLeft.textContent = active === null ? 'ready' : `${active}${isDirty(active) ? ' \u25cf' : ''}`;
     },
-    onToast: (code, message) => showToast(shell.statusBar, code, message)
-  });
+    onToast: (code, message) => showToast(shell.statusRight, code, message)
+  }, new ArchLspBridge());
+  registerLspProviders(host);
   onDirtyChange(() => renderAllTabs(host));
   groups.onGroupsChange(() => renderAllTabs(host));
-  createSearchPanel(shell.searchPanel, { host, onToast: (code, message) => showToast(shell.statusBar, code, message) });
+  createSearchPanel(shell.searchPanel, { host, onToast: (code, message) => showToast(shell.statusRight, code, message) });
+  const chatPanel = createChatPanel(shell.chatPanel, { onToast: (code, message) => showToast(shell.statusRight, code, message) });
+  void chatPanel.refreshModels();
 
   const events = connectEvents(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`, {
     onStatus: connected => {
@@ -81,19 +100,32 @@ async function boot(): Promise<void> {
   });
   events.subscribe('log', data => {
     const event = data as { level?: string; message?: string; path?: string };
-    if (event.level === 'error') showToast(shell.statusBar, 'INTERNAL', `daemon: ${event.message ?? 'error'}${event.path ? ` (${event.path})` : ''}`);
+    if (event.level === 'error') showToast(shell.statusRight, 'INTERNAL', `daemon: ${event.message ?? 'error'}${event.path ? ` (${event.path})` : ''}`);
   });
+  events.subscribe('diagnostics', data => {
+    applyDiagnostics(data as DiagnosticsEventT);
+  });
+  const lspStates: Record<string, string> = {};
+  events.subscribe('lsp-status', data => {
+    const event = data as LspStatusEventT;
+    lspStates[event.languageId] = event.status;
+    renderLspStatus(shell, lspStates);
+  });
+  void api.lspStatus().then(status => {
+    for (const server of status.servers) lspStates[server.languageId] = server.status;
+    renderLspStatus(shell, lspStates);
+  }).catch(() => {});
 
   try {
     const health = await api.health();
     store.set(prev => ({ ...prev, booted: true, health }));
     shell.statusDot.className = 'status-dot ok';
     shell.title.textContent = `AIDE — ${health.workspace}`;
-    shell.statusBar.textContent = `daemon ${health.version}`;
+    shell.statusLeft.textContent = `daemon ${health.version}`;
   } catch (error) {
     shell.statusDot.className = 'status-dot err';
     shell.title.textContent = 'AIDE — daemon unreachable';
-    showToast(shell.statusBar, 'NOT_READY', error instanceof Error ? error.message : 'daemon unreachable');
+    showToast(shell.statusRight, 'NOT_READY', error instanceof Error ? error.message : 'daemon unreachable');
     return;
   }
 
@@ -124,7 +156,7 @@ async function boot(): Promise<void> {
     }
     shell.mapFiles.replaceChildren(list);
   } catch (error) {
-    showToast(shell.statusBar, 'INTERNAL', error instanceof Error ? error.message : 'workspace unavailable');
+    showToast(shell.statusRight, 'INTERNAL', error instanceof Error ? error.message : 'workspace unavailable');
   }
 
   window.addEventListener('pagehide', () => {

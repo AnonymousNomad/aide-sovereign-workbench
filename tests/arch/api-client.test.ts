@@ -4,7 +4,7 @@ import { mock } from 'node:test';
 import { ApiError, api } from '../../browser/src/services/api.ts';
 import { egressFetch } from '../../browser/src/services/egress.ts';
 import { ok, fail } from '../../common/errors.ts';
-import { healthFixtures, fileReadFixtures, fileWriteFixtures, searchFixtures, searchReplaceFixtures, sessionFixtures } from '../fixtures/index.ts';
+import { healthFixtures, fileReadFixtures, fileWriteFixtures, searchFixtures, searchReplaceFixtures, sessionFixtures, lspFixtures } from '../fixtures/index.ts';
 
 function mockFetch(payload: unknown, status = 200): { seen: { url: string; method: string }[] } {
   const seen: { url: string; method: string }[] = [];
@@ -125,5 +125,50 @@ test('api.sessionGet validates the empty session fixture', async () => {
   const result = await api.sessionGet();
   assert.deepEqual(result.tabs, []);
   assert.deepEqual(result.splits, ['g1']);
+  mock.restoreAll();
+});
+
+test('api.lspStatus GETs /api/lsp/status and validates the fixture', async () => {
+  const { seen } = mockFetch(ok(lspFixtures.statusAvailable));
+  const result = await api.lspStatus();
+  assert.equal(result.servers.length, 2);
+  assert.equal(seen[0]?.method, 'GET');
+  assert.equal(seen[0]?.url, '/api/lsp/status');
+  mock.restoreAll();
+});
+
+test('api.lspStart POSTs the language id and validates the fixture', async () => {
+  const { seen } = mockFetch(ok(lspFixtures.startRunning));
+  const result = await api.lspStart('typescript');
+  assert.equal(result.status, 'running');
+  assert.equal(seen[0]?.method, 'POST');
+  assert.equal(seen[0]?.url, '/api/lsp/start');
+  mock.restoreAll();
+});
+
+test('api.lspOpen POSTs uri, languageId and text and validates the fixture', async () => {
+  const { seen } = mockFetch(ok(lspFixtures.openOpened));
+  const result = await api.lspOpen('file:///broken.ts', 'typescript', 'export const x = 1;');
+  assert.equal(result.opened, true);
+  assert.equal(seen[0]?.method, 'POST');
+  assert.equal(seen[0]?.url, '/api/lsp/open');
+  mock.restoreAll();
+});
+
+test('api.lspClose POSTs the uri and validates the fixture', async () => {
+  const { seen } = mockFetch(ok(lspFixtures.closeClosed));
+  const result = await api.lspClose('file:///broken.ts');
+  assert.equal(result.closed, true);
+  assert.equal(seen[0]?.method, 'POST');
+  assert.equal(seen[0]?.url, '/api/lsp/close');
+  mock.restoreAll();
+});
+
+test('api.lspChange POSTs uri, text and version and validates the fixture', async () => {
+  const { seen } = mockFetch(ok(lspFixtures.changeChanged));
+  const result = await api.lspChange('file:///broken.ts', 'export const x = 1;', 2);
+  assert.equal(result.changed, true);
+  assert.equal(seen[0]?.method, 'POST');
+  assert.equal(seen[0]?.url, '/api/lsp/change');
   mock.restoreAll();
 });

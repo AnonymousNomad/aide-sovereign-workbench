@@ -1,10 +1,27 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
+import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 const scratch = 'e2e-scratch.txt';
 const scratchPath = path.join(repoRoot, scratch);
+const brokenTs = 'e2e-broken.ts';
+const brokenTsPath = path.join(repoRoot, brokenTs);
+const completeTs = 'e2e-complete.ts';
+const completeTsPath = path.join(repoRoot, completeTs);
+const hoverTs = 'e2e-hover.ts';
+const hoverTsPath = path.join(repoRoot, hoverTs);
+const defATs = 'e2e-def-a.ts';
+const defATsPath = path.join(repoRoot, defATs);
+const defBTs = 'e2e-def-b.ts';
+const defBTsPath = path.join(repoRoot, defBTs);
+
+async function removeScratchFiles(): Promise<void> {
+  for (const p of [scratchPath, brokenTsPath, completeTsPath, hoverTsPath, defATsPath, defBTsPath]) {
+    await fs.rm(p, { force: true });
+  }
+}
 
 async function resetSession(): Promise<void> {
   await fs.rm(path.join(repoRoot, '.aide', 'session.json'), { force: true });
@@ -26,11 +43,11 @@ test.describe.configure({ mode: 'serial' });
 
 test.beforeEach(async () => {
   await resetSession();
-  await fs.rm(scratchPath, { force: true });
+  await removeScratchFiles();
 });
 
 test.afterEach(async () => {
-  await fs.rm(scratchPath, { force: true });
+  await removeScratchFiles();
 });
 
 test('boots and shows daemon status', async ({ page }) => {
@@ -103,4 +120,78 @@ test('ws event bus drops to err and reconnects to ok after a connection failure'
   await expect(page.locator('#status-dot')).toHaveClass(/err/, { timeout: 15000 });
   await expect(page.locator('#status-dot')).toHaveClass(/ok/, { timeout: 20000 });
   await expect(page.locator('#status-bar')).toContainText(/daemon|ready/);
+});
+
+test('opening a broken ts file surfaces an lsp error marker in the editor', async ({ page }) => {
+  await fs.writeFile(brokenTsPath, 'export const answer: string = 42;\n', 'utf8');
+  await page.goto('/');
+  await page.locator('[data-activity="map"]').click();
+  await page.locator('.file-list button', { hasText: brokenTs }).first().click();
+  await expect(page.locator('.group-editor .monaco-editor')).toBeVisible();
+  await expect(page.locator('.monaco-editor .squiggly-error').first()).toBeVisible({ timeout: 60000 });
+});
+
+test('lsp completion suggests members of a ts object', async ({ page }) => {
+  await fs.writeFile(completeTsPath, 'const toolbox = { wrench: 1, screwdriver: 2 };\nconst t = toolbox.\n', 'utf8');
+  await page.goto('/');
+  await page.locator('[data-activity="map"]').click();
+  await page.locator('.file-list button', { hasText: completeTs }).first().click();
+  await expect(page.locator('.group-editor .monaco-editor')).toBeVisible();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.press('Control+Space');
+  await expect(page.locator('.suggest-widget')).toBeVisible({ timeout: 60000 });
+  await expect(page.locator('.suggest-widget')).toContainText('wrench');
+  await page.keyboard.press('Escape');
+});
+
+test('lsp hover shows type information for a ts symbol', async ({ page }) => {
+  await fs.writeFile(hoverTsPath, 'const gadget = 42;\n', 'utf8');
+  await page.goto('/');
+  await page.locator('[data-activity="map"]').click();
+  await page.locator('.file-list button', { hasText: hoverTs }).first().click();
+  await page.locator('[data-activity="map"]').click();
+  await expect(page.locator('.group-editor .monaco-editor')).toBeVisible();
+  await expect(page.locator('#lsp-status')).toContainText('running', { timeout: 60000 });
+  const line = page.locator('.group-editor .view-line').first();
+  await line.waitFor({ state: 'visible' });
+  const box = await line.boundingBox();
+  assert.ok(box, 'first view line must have a bounding box');
+  await page.mouse.move(box.x + 75, box.y + box.height / 2);
+  await expect(page.locator('.monaco-hover:not([widgetid])')).toContainText('gadget', { timeout: 60000 });
+  await page.mouse.move(0, 0);
+});
+
+test('exp chat panel lists models and surfaces not-ready honestly', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', err => pageErrors.push(String(err)));
+  await page.goto('/');
+  await page.locator('[data-activity="exp"]').click();
+  await expect(page.locator('#chat-model')).toBeVisible();
+  await expect(page.locator('#chat-model option').first()).toBeAttached({ timeout: 30000 });
+  const options = await page.locator('#chat-model option').count();
+  expect(options).toBeGreaterThanOrEqual(3);
+  await page.locator('#chat-input').fill('hello model');
+  await page.locator('#chat-send').click();
+  await expect(page.locator('#status-right')).toContainText(/model:|start this model|warming/, { timeout: 30000 });
+  expect(pageErrors, 'chat panel must not throw page errors').toEqual([]);
+});
+
+test('lsp go-to-definition jumps the cursor to the declaration', async ({ page }) => {
+  await fs.writeFile(defATsPath, 'function widget(): number { return 7; }\nconst w = widget();\n', 'utf8');
+  await page.goto('/');
+  await page.locator('[data-activity="map"]').click();
+  await page.locator('.file-list button', { hasText: defATs }).first().click();
+  await page.locator('[data-activity="map"]').click();
+  await expect(page.locator('.group-editor .monaco-editor')).toBeVisible();
+  await expect(page.locator('#lsp-status')).toContainText('running', { timeout: 60000 });
+  const usageLine = page.locator('.group-editor .view-line').nth(1);
+  await usageLine.waitFor({ state: 'visible' });
+  await usageLine.click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('F12');
+  await expect(page.locator('.monaco-alert').first()).toContainText('Found 1 symbol', { timeout: 30000 });
 });

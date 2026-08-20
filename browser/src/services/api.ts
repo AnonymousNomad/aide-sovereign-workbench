@@ -25,6 +25,42 @@ import {
   SessionFile,
   type SessionFileT
 } from '../../../common/contracts/session.ts';
+import {
+  LspStatusResponse,
+  type LspStatusResponseT,
+  LspStartRequest,
+  type LspStartResponseT,
+  LspStartResponse,
+  LspOpenRequest,
+  type LspOpenResponseT,
+  LspOpenResponse,
+  LspCloseRequest,
+  type LspCloseResponseT,
+  LspCloseResponse,
+  LspChangeRequest,
+  type LspChangeResponseT,
+  LspChangeResponse,
+  LspFeatureRequest,
+  type LspPositionT,
+  type LspCompletionItemT,
+  LspCompletionResponse,
+  LspHoverResponse,
+  LspDefinitionResponse,
+  type LspDefinitionLocationT
+} from '../../../common/contracts/lsp.ts';
+import {
+  ModelStatusResponse,
+  type ModelStatusResponseT
+} from '../../../common/contracts/models.ts';
+import {
+  ChatResponse,
+  type ChatResponseT,
+  ChatHistoryResponse,
+  type ChatHistoryResponseT,
+  ChatHistorySaveRequest,
+  ChatHistorySaveResponse,
+  type ChatMessageT
+} from '../../../common/contracts/chat.ts';
 import { egressFetch } from './egress.ts';
 
 export class ApiError extends Error {
@@ -98,5 +134,57 @@ export const api = {
   },
   sessionPut(session: SessionFileT): Promise<SessionFileT> {
     return call('/api/session', { method: 'PUT', body: session, schema: SessionFile });
+  },
+  lspStatus(): Promise<LspStatusResponseT> {
+    return call('/api/lsp/status', { schema: LspStatusResponse });
+  },
+  lspStart(languageId: string): Promise<LspStartResponseT> {
+    const body = LspStartRequest.safeParse({ languageId });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid lsp start request');
+    return call('/api/lsp/start', { body: body.data, schema: LspStartResponse });
+  },
+  lspOpen(uri: string, languageId: string, text: string): Promise<LspOpenResponseT> {
+    const body = LspOpenRequest.safeParse({ uri, languageId, text });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid lsp open request');
+    return call('/api/lsp/open', { body: body.data, schema: LspOpenResponse });
+  },
+  lspClose(uri: string): Promise<LspCloseResponseT> {
+    const body = LspCloseRequest.safeParse({ uri });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid lsp close request');
+    return call('/api/lsp/close', { body: body.data, schema: LspCloseResponse });
+  },
+  lspChange(uri: string, text: string, version: number): Promise<LspChangeResponseT> {
+    const body = LspChangeRequest.safeParse({ uri, text, version });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid lsp change request');
+    return call('/api/lsp/change', { body: body.data, schema: LspChangeResponse });
+  },
+  lspCompletion(uri: string, position: LspPositionT): Promise<LspCompletionItemT[]> {
+    const body = LspFeatureRequest.safeParse({ uri, position });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid lsp completion request');
+    return call('/api/lsp/completion', { body: body.data, schema: LspCompletionResponse }).then(response => response.items);
+  },
+  lspHover(uri: string, position: LspPositionT): Promise<string> {
+    const body = LspFeatureRequest.safeParse({ uri, position });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid lsp hover request');
+    return call('/api/lsp/hover', { body: body.data, schema: LspHoverResponse }).then(response => response.contents);
+  },
+  lspDefinition(uri: string, position: LspPositionT): Promise<LspDefinitionLocationT[]> {
+    const body = LspFeatureRequest.safeParse({ uri, position });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid lsp definition request');
+    return call('/api/lsp/definition', { body: body.data, schema: LspDefinitionResponse }).then(response => response.locations);
+  },
+  modelsStatus(): Promise<ModelStatusResponseT> {
+    return call('/api/models/status', { schema: ModelStatusResponse });
+  },
+  chat(modelId: string, messages: ChatMessageT[]): Promise<ChatResponseT> {
+    return call('/api/chat', { body: { modelId, messages }, schema: ChatResponse });
+  },
+  chatHistory(): Promise<ChatHistoryResponseT> {
+    return call('/api/chat/history', { schema: ChatHistoryResponse });
+  },
+  chatHistorySave(conversation: { id?: string; modelId: string; title: string; messages: ChatMessageT[] }): Promise<{ id: string; updatedAt: number }> {
+    const body = ChatHistorySaveRequest.safeParse(conversation);
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid chat history save');
+    return call('/api/chat/history', { body: body.data, schema: ChatHistorySaveResponse });
   }
 };

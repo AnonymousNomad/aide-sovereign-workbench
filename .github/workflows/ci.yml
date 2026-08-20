@@ -21,7 +21,12 @@ jobs:
       - run: python -m pip install --quiet debugpy
       - run: npm ci
       - run: node scripts/ci-run-all.mjs
-      - run: npm run check
+      - name: type checks and lint
+        timeout-minutes: 10
+        run: tsc -p tsconfig.node.json && tsc -p browser/tsconfig.browser.json && eslint .
+      - name: architecture tests (bounded)
+        timeout-minutes: 20
+        run: node --test --test-concurrency=3 --test-timeout=90000 "tests/arch/*.test.ts"
       - run: npm run veritas
       - run: npm run veritas -- --report --output artifacts/veritas.md
         if: always()

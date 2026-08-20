@@ -23,7 +23,7 @@ jobs:
       - run: node scripts/ci-run-all.mjs
       - name: type checks and lint
         timeout-minutes: 10
-        run: tsc -p tsconfig.node.json && tsc -p browser/tsconfig.browser.json && eslint .
+        run: npx tsc -p tsconfig.node.json && npx tsc -p browser/tsconfig.browser.json && npx eslint .
       - name: architecture tests (bounded)
         timeout-minutes: 20
         run: node --test --test-concurrency=3 --test-timeout=90000 "tests/arch/*.test.ts"

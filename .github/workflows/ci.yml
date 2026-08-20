@@ -26,7 +26,16 @@ jobs:
         run: npx tsc -p tsconfig.node.json && npx tsc -p browser/tsconfig.browser.json && npx eslint .
       - name: architecture tests (bounded)
         timeout-minutes: 20
-        run: node --test --test-concurrency=3 --test-timeout=90000 "tests/arch/*.test.ts"
+        run: |
+          timeout 900 node --test --test-concurrency=3 --test-timeout=90000 "tests/arch/*.test.ts"
+          status=$?
+          echo "node --test exit=$status"
+          if [ $status -ne 0 ]; then
+            leftover=$(ps -eo pid,ppid,etime,cmd | grep -E "node|python|typescript-language-server|debugpy" | grep -v grep | head -30 | tr '\n' ';')
+            echo "::error::LEFTOVER_PROCESSES: $leftover"
+            exit 1
+          fi
+          exit $status
       - run: npm run veritas
       - run: npm run veritas -- --report --output artifacts/veritas.md
         if: always()

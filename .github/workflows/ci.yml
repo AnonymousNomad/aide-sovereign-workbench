@@ -62,7 +62,7 @@ jobs:
           echo "::error::VERITAS_STATUS: exit=$status json_bytes=$(wc -c < /tmp/veritas.json)"
           head -c 1200 /tmp/veritas.err | tr '\n' ' ' | sed 's/%/%25/g' | xargs -I{} echo "::error::VERITAS_STDERR: {}"
           node scripts/veritas-summary.mjs /tmp/veritas.json || true
-          head -c 900 /tmp/veritas.json | tr '\n' ' ' | sed 's/%/%25/g' | xargs -I{} echo "::error::VERITAS_JSONHEAD: {}"
+          printf '%s\n' "::error::VERITAS_JSONHEAD: $(head -c 400 /tmp/veritas.json | tr -d '\n\r')"
           exit $status
       - run: npm run veritas -- --report --output artifacts/veritas.md
         if: always()

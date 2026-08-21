@@ -38,6 +38,11 @@ jobs:
             echo "::error::ARCH_TAIL1: $(tail -c 3000 /tmp/arch-out.txt | tr '\n' ';' | head -c 2950)"
             echo "::error::ARCH_TAIL2: $(tail -c 6000 /tmp/arch-out.txt | head -c 3000 | tr '\n' ';' | head -c 2950)"
             echo "::error::ARCH_PS: $(ps -eo pid,ppid,etime,cmd | head -40 | tr '\n' ';' | head -c 2950)"
+          fi
+          echo "::error::ARCH_FILES: $(grep -o 'tests/arch/[a-z0-9.-]*\.test\.ts' /tmp/arch-out.txt | sort | uniq -c | sort -rn | tr '\n' ';' | head -c 2950)"
+          echo "::error::ARCH_TIMEOUTS: $(grep -i -A2 'timed out' /tmp/arch-out.txt | tr '\n' ';' | head -c 2950)"
+          echo "::error::ARCH_LASTLINES: $(grep '^✖\|^✔' /tmp/arch-out.txt | tail -30 | tr '\n' ';' | head -c 2950)"
+          if [ $status -ne 0 ]; then
             exit 1
           fi
           exit 0

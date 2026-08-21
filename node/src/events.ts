@@ -1,12 +1,12 @@
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type { Server } from 'node:http';
 import type { ZodType } from 'zod';
-import { LogEvent, ModelStatusEvent, DiagnosticsEvent, TrainingProgressEvent } from '../../common/contracts/events.ts';
+import { LogEvent, ModelStatusEvent, DiagnosticsEvent, TrainingProgressEvent, CommandEvent } from '../../common/contracts/events.ts';
 import { DapEvent } from '../../common/contracts/dap.ts';
 import { LspStatusEvent } from '../../common/contracts/lsp.ts';
 import type { Logger } from './services/logger.ts';
 
-export type ChannelName = 'log' | 'model' | 'diagnostics' | 'training' | 'debug' | 'lsp-status';
+export type ChannelName = 'log' | 'model' | 'diagnostics' | 'training' | 'debug' | 'lsp-status' | 'command';
 
 const SCHEMAS: Record<ChannelName, ZodType> = {
   log: LogEvent,
@@ -14,7 +14,8 @@ const SCHEMAS: Record<ChannelName, ZodType> = {
   diagnostics: DiagnosticsEvent,
   training: TrainingProgressEvent,
   debug: DapEvent,
-  'lsp-status': LspStatusEvent
+  'lsp-status': LspStatusEvent,
+  command: CommandEvent
 };
 
 export const CHANNELS = Object.keys(SCHEMAS) as ChannelName[];

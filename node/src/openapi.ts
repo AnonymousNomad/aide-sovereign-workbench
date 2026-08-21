@@ -33,12 +33,16 @@ import { routeForExerciseNext, routeForExerciseAttempt } from './routes/exercise
 import { routeForDatasetList, routeForDatasetCreate, routeForDatasetAppend, routeForDatasetRead, routeForDatasetDelete } from './routes/dataset.ts';
 import { routeForTrainingPresets, routeForTrainingStatus, routeForTrainingStart, routeForTrainingStop, routeForTrainingCheckpoints } from './routes/training.ts';
 import { routeForEvalRun, routeForExportCreate, routeForExportsList } from './routes/eval-export.ts';
+import { routeForCommandList, routeForCommandInvoke, routeForKeybindingList, routeForKeybindingResolve, routeForSettingsGet, routeForSettingsPut } from './routes/commands.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
 import { DatasetStore } from '../../daemon/dataset-store.mjs';
 import { TrainingRunner } from '../../daemon/training-runner.mjs';
 import { EvalExportGate } from '../../daemon/eval-export.mjs';
+import { CommandRegistry } from './services/command-registry.mjs';
+import { KeybindingService } from './services/keybinding-service.mjs';
+import { SettingsService } from './services/settings-service.mjs';
 import { ModelRouter } from './services/model-router.ts';
 import { ProviderService } from './services/providers.ts';
 import { CredentialStore } from './services/credentials.ts';
@@ -217,6 +221,32 @@ export async function buildRoutes(workspace: string, version: string, options: B
     exportsDir: path.join(workspace, '.aide', 'exports')
   });
   await evalExportGate.load();
+  const commandRegistry = new CommandRegistry({ onEvent: (_event: string, body: Record<string, unknown>) => options.events?.publish('command', body) });
+  const BUILTIN_COMMANDS: Array<{ id: string; title: string; category: string }> = [
+    { id: 'aide.commandPalette.show', title: 'Show All Commands', category: 'View' },
+    { id: 'aide.quickOpen.show', title: 'Go to File...', category: 'File' },
+    { id: 'aide.file.save', title: 'Save File', category: 'File' },
+    { id: 'aide.view.closeActive', title: 'Close Active Editor', category: 'View' },
+    { id: 'aide.view.toggleSidebar', title: 'Toggle Sidebar Visibility', category: 'View' },
+    { id: 'aide.terminal.toggle', title: 'Toggle Terminal', category: 'Terminal' },
+    { id: 'aide.view.zoomReset', title: 'Reset Zoom', category: 'View' },
+    { id: 'aide.git.status', title: 'Show Git Status', category: 'Git' },
+    { id: 'aide.training.status', title: 'Training: Show Status', category: 'AIDE Training' },
+    { id: 'aide.academy.nextReview', title: 'Academy: Start Next Review', category: 'AIDE Academy' }
+  ];
+  for (const command of BUILTIN_COMMANDS) {
+    commandRegistry.registerCommand({
+      ...command,
+      when: 'true',
+      enablement: 'true',
+      hidden: false,
+      handler: () => ({ dispatched: command.id, surface: 'workbench' })
+    });
+  }
+  const keybindingService = new KeybindingService({ workspace });
+  await keybindingService.load();
+  const settingsService = new SettingsService({ workspace });
+  await settingsService.load();
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -260,6 +290,12 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForEvalRun(evalExportGate),
     routeForExportCreate(evalExportGate),
     routeForExportsList(evalExportGate),
+    routeForCommandList(commandRegistry),
+    routeForCommandInvoke(commandRegistry),
+    routeForKeybindingList(keybindingService),
+    routeForKeybindingResolve(keybindingService),
+    routeForSettingsGet(settingsService),
+    routeForSettingsPut(settingsService),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

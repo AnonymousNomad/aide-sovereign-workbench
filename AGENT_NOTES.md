@@ -627,3 +627,8 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Routes: GET /api/academy/exercises/next, POST /api/academy/exercises/attempt as typed contracts (49 documented routes). NOT_READY code for verifier-unavailable (RouteError union is closed).
 - Bugs caught by own tests before CI: quote-ban regex rejected valid snippets (argv makes quotes safe); explanation leaked into strict public payload (500 response-violates-contract); THEN probe showed snippet leaked too - the actual answer! All fixed + regression assertions added.
 - Verified: tsc 0, engine suite pass, arch exercise-routes 4/4, FULL npm run check fail=0 (~117s).
+
+## 2026-08-21 ~22:00 UTC — veritas double-run eliminated (report step flake source)
+- Evidence (first working MAP annotation): gates step ALL PASS exit=0, arch PASS; only the --report step failed. Root cause: report mode re-ran the ENTIRE check+test battery a second time per CI job - pure duplicate exposure to timeout lottery.
+- Fix: scripts/veritas-report-from-json.mjs renders the markdown from /tmp/veritas.json captured by the gates step (evaluateExecution + renderVeritasReport reuse; banner-strip parse like summary). ci.yml report step now = instant render. Halves veritas CI cost.
+- Verified end-to-end locally: real npm-run-veritas JSON -> "Status: verified, Evidence 100% observed" report written.

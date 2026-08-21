@@ -29,8 +29,10 @@ import {
 import { routeForProvidersList, routeForProviderConnect, routeForProviderDisconnect, routeForProviderImport } from './routes/providers.ts';
 import { routeForLearnerState, routeForLearnerReviews, routeForLearnerAttempt } from './routes/learner.ts';
 import { routeForAcademyHint } from './routes/hint.ts';
+import { routeForExerciseNext, routeForExerciseAttempt } from './routes/exercise.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
+import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
 import { ModelRouter } from './services/model-router.ts';
 import { ProviderService } from './services/providers.ts';
 import { CredentialStore } from './services/credentials.ts';
@@ -193,6 +195,11 @@ export async function buildRoutes(workspace: string, version: string, options: B
     learnerState
   });
   await tutorManager.load();
+  const exerciseEngine = new ExerciseEngine({
+    exercisesDir: path.join(repoRoot, 'academy', 'exercises'),
+    learnerState
+  });
+  await exerciseEngine.load();
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -221,6 +228,8 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForLearnerReviews(learnerState),
     routeForLearnerAttempt(learnerState),
     routeForAcademyHint(tutorManager),
+    routeForExerciseNext(exerciseEngine),
+    routeForExerciseAttempt(exerciseEngine),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

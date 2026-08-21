@@ -620,3 +620,10 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 ## 2026-08-21 ~20:05 UTC — veritas stdout banner bug + dap watermark hole #2
 - npm prints its script banner to STDOUT on linux, so /tmp/veritas.json = banner+JSON; summarizer JSON.parse always failed silently -> gate annotations never emitted on ANY CI run (local win32 npm does not banner the same way - why local testing missed it). Fix: slice from first { before parse. d2a447e evidence: gates were actually ALL PASS exit=0 that run.
 - DAP flake persisted at :72 after launch-watermark fix -> ordering theory incomplete: fake test captured watermark AFTER configure(); slow CI adapters can emit initialized/stopped during configure await (below watermark). Real fix mirrors debugpy test pattern: single watermark right after start(), before breakpoints/configure/launch.
+
+## 2026-08-21 ~21:15 UTC — A3 COMPLETE: execution-verified exercise engine
+- academy/exercise-engine.mjs: bank loader (academy/exercises/*.json, dedup+validation), attempt() executes the snippet FOR REAL via interpreter-candidate ladder (python -c print(<snippet>), argv-only no shell), compares trimmed stdout vs submission; wrong -> reveal answer+explanation ONCE; every attempt feeds LearnerState (skill mastery + output-mismatch tag). next() = due-review skill first (A1 loop closed), then lowest mastery/attempts, then id order. Public views strip answer+explanation+snippet.
+- Bank: python-core.json 6 predict exercises (slices/repeat/sorted/split/dict-len/power), deterministic pure expressions.
+- Routes: GET /api/academy/exercises/next, POST /api/academy/exercises/attempt as typed contracts (49 documented routes). NOT_READY code for verifier-unavailable (RouteError union is closed).
+- Bugs caught by own tests before CI: quote-ban regex rejected valid snippets (argv makes quotes safe); explanation leaked into strict public payload (500 response-violates-contract); THEN probe showed snippet leaked too - the actual answer! All fixed + regression assertions added.
+- Verified: tsc 0, engine suite pass, arch exercise-routes 4/4, FULL npm run check fail=0 (~117s).

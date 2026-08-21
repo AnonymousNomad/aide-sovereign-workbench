@@ -1,0 +1,54 @@
+{
+  "bank": "python-core",
+  "version": 1,
+  "exercises": [
+    {
+      "id": "py-list-slice",
+      "skill_id": "python:collections",
+      "kind": "predict",
+      "prompt": "What exactly does this expression print? [1, 2, 3][1:]",
+      "snippet": "[1, 2, 3][1:]",
+      "explanation": "A slice from index 1 to the end keeps elements at positions 1 and 2, so the list becomes [2, 3]. Python prints lists with spaces after commas."
+    },
+    {
+      "id": "py-string-repeat",
+      "skill_id": "python:string-format",
+      "kind": "predict",
+      "prompt": "What does 'ab' * 3 print?",
+      "snippet": "'ab' * 3",
+      "explanation": "Multiplying a string by an integer repeats it that many times: three copies of ab concatenated."
+    },
+    {
+      "id": "py-sorted",
+      "skill_id": "python:collections",
+      "kind": "predict",
+      "prompt": "What does sorted([3, 1, 2]) print?",
+      "snippet": "sorted([3, 1, 2])",
+      "explanation": "sorted() returns a new ascending list without mutating the original."
+    },
+    {
+      "id": "py-split",
+      "skill_id": "python:string-format",
+      "kind": "predict",
+      "prompt": "What does \"a,b\".split(',') print? Mind the quotes around each item.",
+      "snippet": "\"a,b\".split(',')",
+      "explanation": "split() breaks the string on every comma and returns a list of the pieces; Python prints each piece in single quotes."
+    },
+    {
+      "id": "py-dict-len",
+      "skill_id": "python:collections",
+      "kind": "predict",
+      "prompt": "What does len({'a': 1, 'b': 2}) print?",
+      "snippet": "len({'a': 1, 'b': 2})",
+      "explanation": "len() on a dictionary counts keys, not values or pairs printed somehow - two keys means 2."
+    },
+    {
+      "id": "py-power",
+      "skill_id": "python:numbers",
+      "kind": "predict",
+      "prompt": "What does 2 ** 10 print?",
+      "snippet": "2 ** 10",
+      "explanation": "** is exponentiation in Python, so this is two raised to the tenth power."
+    }
+  ]
+}

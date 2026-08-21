@@ -587,3 +587,9 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Mark directive: every phase/step/task must be governed by a loaded skill; missing coverage => create the skill before proceeding. Applies to AIDE build AND its own CI/ops. Will formalize an aide-ci-diagnostics skill (no-auth evidence channels: ::error annotations, GITHUB_STEP_SUMMARY via check-runs API output.summary, artifact=auth-only).
 - 1c81a48 still failed at veritas step despite timeout raise; arch green both times. Failure output invisible without auth -> instrumented ci.yml: veritas gates step captures --json to /tmp, scripts/veritas-summary.mjs renders per-gate PASS/FAIL + failing-output tail into $GITHUB_STEP_SUMMARY (readable no-auth via check-runs API). Exit semantics preserved.
 - Summarizer verified locally against fabricated JSON (FAIL+tail / PASS rendering correct).
+
+## 2026-08-21 ~15:10 UTC — CI RED TRIAGE (9bb216a): arch step, not veritas
+- Evidence via ::error annotations: ARCH_TIMEOUTS = dap-contract.test.ts:72 default waitFor (10s) expired in the FAKE-adapter full-session test under cold CI load. Real-debugpy waits already use 20-30s explicit windows.
+- Fix: waitFor default timeoutMs 10000 -> 30000. Crash-poll and request timeouts untouched.
+- Also learned: GITHUB_STEP_SUMMARY does NOT surface via check-runs API (output.summary empty) - annotation emitter is the only authless gate channel. Skill aide-ci-diagnostics corrected.
+- No VERITAS_* annotations on this run => with raised timeouts veritas gates may now pass on CI; will confirm on next green-path run.

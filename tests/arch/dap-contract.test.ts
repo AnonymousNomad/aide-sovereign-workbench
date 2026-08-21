@@ -63,7 +63,7 @@ async function tempWorkspace(): Promise<{ dir: string; cleanup: () => Promise<vo
   };
 }
 
-function waitFor(events: Array<{ event: string; body: unknown }>, from: number, predicate: (entry: { event: string; body: unknown }) => boolean, timeoutMs = 10000): Promise<{ event: string; body: unknown }> {
+function waitFor(events: Array<{ event: string; body: unknown }>, from: number, predicate: (entry: { event: string; body: unknown }) => boolean, timeoutMs = 30000): Promise<{ event: string; body: unknown }> {
   const started = Date.now();
   return new Promise((resolve, reject) => {
     const poll = () => {

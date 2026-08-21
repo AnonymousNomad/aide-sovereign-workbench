@@ -92,6 +92,12 @@ export class TutorManager {
     return { lesson: lesson.id, ...result };
   }
 
+  findLesson(courseId, lessonId) {
+    const course = this.courses.find(item => item.id === courseId);
+    const lesson = course?.lessons.find(item => item.id === lessonId);
+    return course && lesson ? { courseId: course.id, lesson } : null;
+  }
+
   certificate(courseId) {
     const course = this.courses.find(item => item.id === courseId); if (!course) throw new Error('course is not installed');
     const progress = this.progress[courseId] || { completed: [] }; if (!course.lessons.every(lesson => progress.completed.includes(lesson.id))) throw new Error('complete every assessed lesson first');

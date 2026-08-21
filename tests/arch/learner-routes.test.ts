@@ -33,7 +33,7 @@ after(async () => {
       await fs.rm(workspace, { recursive: true, force: true });
       return;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EBUSY') throw error;
+      if (!['EBUSY', 'ENOTEMPTY', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }

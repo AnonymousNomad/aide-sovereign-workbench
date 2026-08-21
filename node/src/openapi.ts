@@ -28,7 +28,9 @@ import {
 } from './routes/dap.ts';
 import { routeForProvidersList, routeForProviderConnect, routeForProviderDisconnect, routeForProviderImport } from './routes/providers.ts';
 import { routeForLearnerState, routeForLearnerReviews, routeForLearnerAttempt } from './routes/learner.ts';
+import { routeForAcademyHint } from './routes/hint.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
+import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ModelRouter } from './services/model-router.ts';
 import { ProviderService } from './services/providers.ts';
 import { CredentialStore } from './services/credentials.ts';
@@ -185,6 +187,12 @@ export async function buildRoutes(workspace: string, version: string, options: B
   const modelRouter = new ModelRouter(modelRuntime, providerService);
   const learnerState = new LearnerState({ statePath: path.join(workspace, '.aide', 'learner-state.json') });
   await learnerState.load();
+  const tutorManager = new TutorManager({
+    coursesDir: path.join(repoRoot, 'academy', 'courses'),
+    progressPath: path.join(workspace, '.aide', 'academy-progress.json'),
+    learnerState
+  });
+  await tutorManager.load();
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -212,6 +220,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForLearnerState(learnerState),
     routeForLearnerReviews(learnerState),
     routeForLearnerAttempt(learnerState),
+    routeForAcademyHint(tutorManager),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

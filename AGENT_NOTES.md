@@ -566,3 +566,8 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Final fix stack: lsp.ts pending-settle + stopAll orphan coverage + stdin guard; dap.ts same-class hardening; env-gates (capability probes with printed skip reasons) in lsp-contract/model-runtime/gguf/model-routes tests; absolutized python resolver for dap debugpy test.
 - CI now runs 169 real tests + skips 18 environment-dependent ones honestly; runner exits in ~12s of test time.
 - Known-issue (non-blocking): local HDD contention can slow model ingest tests when suite runs cold+contended; passes warm/idle.
+
+## 2026-08-21 ~11:00 UTC — ROADMAP APPROVED (tutor+training tracks); README truth-updated; CI green state published
+- User approved 2-track roadmap: Academy A1 learner-model/A2 socratic-tutor/A3 exercise-engine; Training B1 dataset-studio/B2 qlora-runner/B3 eval-export. 1 custom skill per phase (6 total). Skills to be written next.
+- Research anchors: IntelliCode EACL26 learner-state, STAP MVH hint ladder + leakage guard, SIGCSE pacing (socratic default), ICER N=1059 (prompts alone insufficient -> structural gates + user agency). Training: QLoRA+Unsloth default, GTX1060 fits 0.5B(~3GB)/1.5B(~4GB), r16 alpha~r all-linear lr2e-4, eval-before-train + eval-at-Q4_K_M + forgetting probe, dataset-quality-over-hparams.
+- README updated: fixed stale e2e count (14->17, verified via grep), Tests section now states CI-green + 170 execute/18 env-gated-skip honestly, new "Active work" section naming both tracks. No numbers written without verification (skill rule).

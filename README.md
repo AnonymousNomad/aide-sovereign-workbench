@@ -61,6 +61,13 @@ Continuously verified against the real daemon and real browser: **188 architectu
 - Live end-to-end provider calls require user-supplied credentials and are exercised manually per release — they are intentionally not part of the automated suite.
 - The first live three-pack model scorecard (`benchmarks/live-results-2026-08-10.json`) shows all three models passing function and planning smoke tasks and failing strict unified-diff formatting — which is why every patch stays behind Veritas and human approval.
 
+### Active work
+
+Two tracks are currently being advanced (research-grounded, gated the same way as everything above):
+
+- **Academy/tutor upgrades** — a persistent learner-mastery model with spaced-repetition review, model-powered Socratic hinting with answer-leakage guards, and real exercise execution (replacing today's one-liner lesson checks).
+- **Local training pipeline** — dataset studio (dedup, template previews, locked splits), a hardware-aware QLoRA job runner with live loss streaming and best-checkpoint policy, and an eval-gated GGUF export loop so a fine-tuned model only registers if it beats its baseline.
+
 ## Security & Privacy
 
 - The daemon binds to the loopback interface only; no inbound port is exposed to the network.
@@ -85,10 +92,12 @@ Open `http://127.0.0.1:4173/`. The first-run guide walks through model selection
 ## Tests
 
 ```bash
-npm run check:arch   # TypeScript checks (node + browser), ESLint, 188 tests
+npm run check:arch   # TypeScript checks (node + browser), ESLint, then all architecture tests
 npm run build:frontend
-npm run test:e2e     # 14 Playwright browser tests against the real daemon
+npm run test:e2e     # 17 Playwright browser tests against the real daemon
 ```
+
+CI runs the same gate on ubuntu-latest and is green. Of the 188 architecture tests, 18 are environment-gated (they need bundled GGUF artifacts, a working Python + llama-cpp-python runtime, or a spawnable language server) and skip in CI with printed reasons; the remaining 170 execute for real. Locally with artifacts installed, all 188 run.
 
 The contract layer (`common/contracts`, zod → OpenAPI) is shared by both sides, so frontend and daemon tests consume identical fixtures and drift is caught at check time.
 

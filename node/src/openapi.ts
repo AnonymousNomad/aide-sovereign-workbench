@@ -34,6 +34,7 @@ import { routeForDatasetList, routeForDatasetCreate, routeForDatasetAppend, rout
 import { routeForTrainingPresets, routeForTrainingStatus, routeForTrainingStart, routeForTrainingStop, routeForTrainingCheckpoints } from './routes/training.ts';
 import { routeForEvalRun, routeForExportCreate, routeForExportsList } from './routes/eval-export.ts';
 import { routeForCommandList, routeForCommandInvoke, routeForKeybindingList, routeForKeybindingResolve, routeForSettingsGet, routeForSettingsPut } from './routes/commands.ts';
+import { routeForRgQuickOpen, routeForRgFiles, routeForRgSearch } from './routes/rg.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
@@ -43,6 +44,7 @@ import { EvalExportGate } from '../../daemon/eval-export.mjs';
 import { CommandRegistry } from './services/command-registry.mjs';
 import { KeybindingService } from './services/keybinding-service.mjs';
 import { SettingsService } from './services/settings-service.mjs';
+import { RgService } from './services/rg-service.mjs';
 import { ModelRouter } from './services/model-router.ts';
 import { ProviderService } from './services/providers.ts';
 import { CredentialStore } from './services/credentials.ts';
@@ -247,6 +249,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
   await keybindingService.load();
   const settingsService = new SettingsService({ workspace });
   await settingsService.load();
+  const rgService = new RgService({ workspace });
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -296,6 +299,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForKeybindingResolve(keybindingService),
     routeForSettingsGet(settingsService),
     routeForSettingsPut(settingsService),
+    routeForRgQuickOpen(rgService),
+    routeForRgFiles(rgService),
+    routeForRgSearch(rgService),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

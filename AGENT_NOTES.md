@@ -651,3 +651,19 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Routes: POST /api/training/export-eval, POST /api/training/export, GET /api/training/exports - 62 documented routes.
 - Also this session: dap waitFor budget 30000->90000 (CI runner flake hit exactly 30s once; same suite passed in adjacent gate).
 - ROADMAP DONE: A1-A3 + B1-B3 all shipped CI-green. NEXT: skills-coverage audit per Mark directive; then frontend wiring of training/academy panels.
+
+## 2026-08-22 ~01:00 UTC — VS Code PARITY PROGRAM launched (R-phase done, P1 specced)
+- Mark directive: research online what AIDE lacks vs VS Code, create phase skills with SOPs (what/why/threat matrix/deps/pitfalls/gates).
+- Gap matrix + 10 phases (P1..P10) encoded in C:\Users\Grey_\.agents\skills\aide-vscode-parity-roadmap\SKILL.md: P1 commands/keybindings/settings -> P2 quick-open+global search(ripgrep) -> P3 editor depth -> P4 SCM UX -> P5 debug depth -> P6 tasks/terminal profiles -> P7 extension API v1 -> P8 theming+accessibility -> P9 perf budgets -> P10 test explorer. Program-wide threat matrix included. Non-goals: remote SSH/notebooks/web.
+- Live research (VS Code source): CommandsRegistry = Map<id,LinkedList>, disposable registration; KeybindingResolver first-chord lookup map, -commandId removals match by when-IMPLICATION not equality (issue #293802), chords resolved as prefix sequences; settings hierarchy Default>User>Workspace>Folder w/ scopes + restricted-keys revert on untrusted.
+- P1 SOP written: aide-parity-p1-commands-keybindings-settings\SKILL.md (server-side registry rationale, stateless chord resolve POST, shared when-clause evaluator to prevent palette/invoke drift, threat matrix incl. command allowlist + ReDoS cap).
+- NEXT: implement P1 (contracts -> context-key evaluator -> 3 services -> 5 routes -> tests -> battery -> CI), then P2 research+skill.
+
+## 2026-08-22 ~02:30 UTC — P1 SHIPPED: command registry + keybindings + settings (d72ac52, CI green)
+- common/context-keys.mjs: when-clause evaluator (&& || ! == != =~). HARD-WON LESSONS: truthy() helper was dropped in a rewrite and EVERY compound expr silently returned false via catch - always verify the helper exists after rewrites; unbound bare words must be falsy BUT =~ RHS patterns are legitimately barewords (known-flag model: {text, known}); negation must be applied EAGERLY not via ignored flag. Fail-closed on trailing ops/oversize/bad regex.
+- Services: CommandRegistry (Map+dispose, enablement gate, will/did-execute events), KeybindingService (defaults + user keybindings.json merge, -commandId removals filter defaults by chord match + impliesWhen, stateless resolve(chords[]) -> match|pending; chords = space-separated, modifiers+key = ONE chord), SettingsService (defaults registry w/ scopes, user .aide/settings.json PUT atomic, folder .vscode/settings.json read-only, RESTRICTED_KEYS revert machine-scoped paths).
+- 10 builtin commands seeded in openapi.ts (palette/quickOpen/save/view/terminal/git/training/academy). Routes: GET /api/commands, POST invoke, GET keybindings, POST resolve, GET/PUT settings -> 68 documented routes.
+- 'command' channel added to EventHub ChannelName union + CommandEvent contract.
+- Gotcha: assert.rejects(Promise.resolve(fn())) does NOT catch sync throws - use assert.throws for sync APIs.
+- Verified: unit suite (evaluator truth table, removal rules, restricted settings), arch routes 3 tests, tsc 0, FULL check+test green (~180s+full chain).
+- NEXT: P2 quick-open + global search (ripgrep) per parity roadmap - research refresh then skill then implement.

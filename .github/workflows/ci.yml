@@ -53,7 +53,14 @@ jobs:
           name: arch-test-log
           path: /tmp/arch-out.txt
           if-no-files-found: ignore
-      - run: npm run veritas
+      - name: veritas gates
+        if: always()
+        run: |
+          set +e
+          npm run veritas -- --json > /tmp/veritas.json
+          status=$?
+          node scripts/veritas-summary.mjs /tmp/veritas.json || true
+          exit $status
       - run: npm run veritas -- --report --output artifacts/veritas.md
         if: always()
       - uses: actions/upload-artifact@v4

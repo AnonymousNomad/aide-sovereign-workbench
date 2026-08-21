@@ -582,3 +582,8 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - harness/checks.mjs: compile gate (`npm run check`, includes full 188-test arch suite) ran under a 120s timeout; measured local duration is ~220-280s (HDD) and CI is marginal (~100-170s). Explains docs-only commits failing while code commits passed: pure runner-speed lottery.
 - Fix: COMMAND_TIMEOUTS compile 120s->600s, tests 300s->900s (git-diff unchanged). Verified by real run: npm run veritas EXIT 0, evidence_level=sufficient, failed_checks=[].
 - Note: veritas runs check+test+diff serially; expect several minutes per invocation.
+
+## 2026-08-21 ~13:40 UTC — DIRECTIVE: skill-everything doctrine + veritas CI observability
+- Mark directive: every phase/step/task must be governed by a loaded skill; missing coverage => create the skill before proceeding. Applies to AIDE build AND its own CI/ops. Will formalize an aide-ci-diagnostics skill (no-auth evidence channels: ::error annotations, GITHUB_STEP_SUMMARY via check-runs API output.summary, artifact=auth-only).
+- 1c81a48 still failed at veritas step despite timeout raise; arch green both times. Failure output invisible without auth -> instrumented ci.yml: veritas gates step captures --json to /tmp, scripts/veritas-summary.mjs renders per-gate PASS/FAIL + failing-output tail into $GITHUB_STEP_SUMMARY (readable no-auth via check-runs API). Exit semantics preserved.
+- Summarizer verified locally against fabricated JSON (FAIL+tail / PASS rendering correct).

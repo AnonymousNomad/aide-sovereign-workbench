@@ -571,3 +571,9 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - User approved 2-track roadmap: Academy A1 learner-model/A2 socratic-tutor/A3 exercise-engine; Training B1 dataset-studio/B2 qlora-runner/B3 eval-export. 1 custom skill per phase (6 total). Skills to be written next.
 - Research anchors: IntelliCode EACL26 learner-state, STAP MVH hint ladder + leakage guard, SIGCSE pacing (socratic default), ICER N=1059 (prompts alone insufficient -> structural gates + user agency). Training: QLoRA+Unsloth default, GTX1060 fits 0.5B(~3GB)/1.5B(~4GB), r16 alpha~r all-linear lr2e-4, eval-before-train + eval-at-Q4_K_M + forgetting probe, dataset-quality-over-hparams.
 - README updated: fixed stale e2e count (14->17, verified via grep), Tests section now states CI-green + 170 execute/18 env-gated-skip honestly, new "Active work" section naming both tracks. No numbers written without verification (skill rule).
+
+## 2026-08-21 ~12:00 UTC — A1 IMPLEMENTATION STARTED: LearnerState core landed
+- academy/learner-state.mjs: schema_versioned learner state (mastery EMA k=0.3 pass/0.5 fail, SM-2-lite intervals/ease/streak, misconception counters, immutable attempt log capped 5000, atomic tmp+rename save, corrupt->.bak reset), seedFromProgress migration from tutor progress.
+- academy/test-learner-state.mjs: load/empty shape, mastery math direction, interval/due-window math, persistence across reload, corrupt-file healing + .bak preservation, progress seeding (2 lessons). All assertions pass.
+- Verified additive: academy/test-tutor-manager.mjs still passes; academy/*.mjs is eslint-ignored by existing config (0 errors).
+- NEXT (A1 remainder): daemon routes GET /api/learner/state|reviews POST /api/learner/attempt + openapi contracts regen + arch test, then TutorManager.complete() single-writer hook.

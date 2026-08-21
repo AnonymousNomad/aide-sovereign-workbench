@@ -5,5 +5,5 @@
     "moduleResolution": "NodeNext",
     "types": ["node"]
   },
-  "include": ["common/**/*.ts", "node/src/**/*.ts", "tests/**/*.ts", "academy/**/*.d.mts"]
+  "include": ["common/**/*.ts", "node/src/**/*.ts", "tests/**/*.ts", "academy/**/*.d.mts", "daemon/**/*.d.mts"]
 }

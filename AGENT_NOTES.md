@@ -632,3 +632,9 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Evidence (first working MAP annotation): gates step ALL PASS exit=0, arch PASS; only the --report step failed. Root cause: report mode re-ran the ENTIRE check+test battery a second time per CI job - pure duplicate exposure to timeout lottery.
 - Fix: scripts/veritas-report-from-json.mjs renders the markdown from /tmp/veritas.json captured by the gates step (evaluateExecution + renderVeritasReport reuse; banner-strip parse like summary). ci.yml report step now = instant render. Halves veritas CI cost.
 - Verified end-to-end locally: real npm-run-veritas JSON -> "Status: verified, Evidence 100% observed" report written.
+
+## 2026-08-21 ~23:00 UTC — B1 COMPLETE: dataset studio store + training routes
+- daemon/dataset-store.mjs (+d.mts): JSONL datasets under <workspace>/.aide/datasets with index.json (atomic tmp+rename). Anti-trash gates lite: exact-dup rejection by sha256 of normalized sample (survives reload), min 10 / max 32k chars, shape must be {text} xor {input,output} strings; cap 200k samples/dataset. create slug+hex id, unique names; append returns accepted/rejected_dupes/rejected_invalid/errors(<=10); read = offset/limit slice; delete removes files.
+- Routes: GET/POST /api/training/datasets, POST .../append, GET .../read?id&offset&limit, POST .../delete - typed contracts, 54 documented routes now.
+- Verified: unit suite pass (incl. dedup-across-reload), arch routes 3/3, tsc 0, eslint 0 errors, FULL npm run check fail=0 (~136s).
+- NEXT: B2 qlora-runner consumes DatasetStore + hardware presets.

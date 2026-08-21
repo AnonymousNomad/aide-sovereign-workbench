@@ -30,9 +30,11 @@ import { routeForProvidersList, routeForProviderConnect, routeForProviderDisconn
 import { routeForLearnerState, routeForLearnerReviews, routeForLearnerAttempt } from './routes/learner.ts';
 import { routeForAcademyHint } from './routes/hint.ts';
 import { routeForExerciseNext, routeForExerciseAttempt } from './routes/exercise.ts';
+import { routeForDatasetList, routeForDatasetCreate, routeForDatasetAppend, routeForDatasetRead, routeForDatasetDelete } from './routes/dataset.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
+import { DatasetStore } from '../../daemon/dataset-store.mjs';
 import { ModelRouter } from './services/model-router.ts';
 import { ProviderService } from './services/providers.ts';
 import { CredentialStore } from './services/credentials.ts';
@@ -200,6 +202,8 @@ export async function buildRoutes(workspace: string, version: string, options: B
     learnerState
   });
   await exerciseEngine.load();
+  const datasetStore = new DatasetStore({ rootDir: path.join(workspace, '.aide', 'datasets') });
+  await datasetStore.load();
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -230,6 +234,11 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForAcademyHint(tutorManager),
     routeForExerciseNext(exerciseEngine),
     routeForExerciseAttempt(exerciseEngine),
+    routeForDatasetList(datasetStore),
+    routeForDatasetCreate(datasetStore),
+    routeForDatasetAppend(datasetStore),
+    routeForDatasetRead(datasetStore),
+    routeForDatasetDelete(datasetStore),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

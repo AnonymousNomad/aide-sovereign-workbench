@@ -10,7 +10,7 @@ try {
 }
 let data;
 try {
-  data = JSON.parse(raw);
+  data = JSON.parse(raw.slice(Math.max(0, raw.indexOf('{'))));
 } catch {
   process.stdout.write(`::error::VERITAS_PARSE: ${raw.slice(0, 300).replace(/[%\n\r]/g, ' ')}\n`);
   process.exit(0);

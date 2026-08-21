@@ -123,6 +123,7 @@ test('full debug session: breakpoints, launch, stopped, stack, scopes, variables
     const program = path.join(dir, 'app.py');
     await fs.writeFile(program, 'x = 1\ny = 2\nprint(x + y)\n');
     await manager.start('fake');
+    const launchWatermark = events.length;
 
     const breakpoints = await manager.setBreakpoints('fake', 'app.py', [1, 3]);
     assert.deepEqual(breakpoints, [
@@ -131,7 +132,6 @@ test('full debug session: breakpoints, launch, stopped, stack, scopes, variables
     ]);
 
     await manager.configure('fake');
-    const launchWatermark = events.length;
     await manager.launch('fake', 'app.py', ['--flag']);
     await waitFor(events, launchWatermark, entry => entry.event === 'initialized');
     const stopped1 = await waitFor(events, launchWatermark, entry => entry.event === 'stopped');

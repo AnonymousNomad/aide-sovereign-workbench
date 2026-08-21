@@ -41,6 +41,13 @@ jobs:
             exit 1
           fi
           exit 0
+      - name: upload arch test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-test-log
+          path: /tmp/arch-out.txt
+          if-no-files-found: ignore
       - run: npm run veritas
       - run: npm run veritas -- --report --output artifacts/veritas.md
         if: always()

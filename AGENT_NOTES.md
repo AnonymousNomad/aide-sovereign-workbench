@@ -560,3 +560,9 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - FIX: test resolver now absolutizes any candidate via `<interp> -E -c "import sys; print(sys.executable)"` (cross-platform; AIDE_PYTHON included). Side effect: CI will now RUN the real debugpy session instead of a false gate-pass/fail.
 - HARDENING (same bug class as lsp.ts): dap.ts exit handler now SETTLES pending requests (reject "debug adapter exited before responding") instead of silently dropping them; stdin EPIPE guard added. dap stopAll() audited: iterates children directly (set at spawn), no orphan gap.
 - LOCAL VERIFICATION: tsc+eslint GATE-OK; dap file 9/9 pass (debugpy round trip 1.86s warm).
+
+## 2026-08-21 ~10:20 UTC — CI VERIFIED GREEN: run #153 (77798f7) completed/success
+- verify job: success. First green run since the hang started (f17dc97..8fa5164 all red).
+- Final fix stack: lsp.ts pending-settle + stopAll orphan coverage + stdin guard; dap.ts same-class hardening; env-gates (capability probes with printed skip reasons) in lsp-contract/model-runtime/gguf/model-routes tests; absolutized python resolver for dap debugpy test.
+- CI now runs 169 real tests + skips 18 environment-dependent ones honestly; runner exits in ~12s of test time.
+- Known-issue (non-blocking): local HDD contention can slow model ingest tests when suite runs cold+contended; passes warm/idle.

@@ -32,11 +32,13 @@ import { routeForAcademyHint } from './routes/hint.ts';
 import { routeForExerciseNext, routeForExerciseAttempt } from './routes/exercise.ts';
 import { routeForDatasetList, routeForDatasetCreate, routeForDatasetAppend, routeForDatasetRead, routeForDatasetDelete } from './routes/dataset.ts';
 import { routeForTrainingPresets, routeForTrainingStatus, routeForTrainingStart, routeForTrainingStop, routeForTrainingCheckpoints } from './routes/training.ts';
+import { routeForEvalRun, routeForExportCreate, routeForExportsList } from './routes/eval-export.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
 import { DatasetStore } from '../../daemon/dataset-store.mjs';
 import { TrainingRunner } from '../../daemon/training-runner.mjs';
+import { EvalExportGate } from '../../daemon/eval-export.mjs';
 import { ModelRouter } from './services/model-router.ts';
 import { ProviderService } from './services/providers.ts';
 import { CredentialStore } from './services/credentials.ts';
@@ -210,6 +212,11 @@ export async function buildRoutes(workspace: string, version: string, options: B
     workDir: path.join(workspace, '.aide', 'training'),
     onEvent: (_channel, body) => options.events?.publish('training', body)
   });
+  const evalExportGate = new EvalExportGate({
+    workDir: path.join(workspace, '.aide', 'training'),
+    exportsDir: path.join(workspace, '.aide', 'exports')
+  });
+  await evalExportGate.load();
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -250,6 +257,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForTrainingStart(trainingRunner, datasetStore),
     routeForTrainingStop(trainingRunner),
     routeForTrainingCheckpoints(trainingRunner),
+    routeForEvalRun(evalExportGate),
+    routeForExportCreate(evalExportGate),
+    routeForExportsList(evalExportGate),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

@@ -645,3 +645,9 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Tests never execute real python/GPU: injected spawnChild mock emits stdout/stderr/exit.
 - Verified: unit suite pass, arch routes 2/2, tsc 0, eslint 0 errors, FULL npm run check fail=0 (~169s).
 - NEXT: B3 eval-export (fail-closed eval gates + Q4_K_M export), then skills audit.
+
+## 2026-08-22 ~00:30 UTC — B3 COMPLETE: fail-closed eval gates + export manifests
+- daemon/eval-export.mjs (+d.mts): evaluate(jobId) checks adapter artifacts (adapter_config.json + adapter_model.safetensors) and best final train loss from checkpoint trainer_state.json vs gate 2.0; reasons array is honest. exportAdapter FAIL-CLOSED: refuses unless eval passed (re-evaluates if needed); quant whitelist Q4_K_M/Q5_K_M/Q8_0; writes sha256-hashed manifest JSON to .aide/exports/<job>-<quant>.json, status "passed" (honest: manifest describes verified adapter artifacts, not a converted GGUF - conversion needs base model on-box). Approved set persists via manifest reload.
+- Routes: POST /api/training/export-eval, POST /api/training/export, GET /api/training/exports - 62 documented routes.
+- Also this session: dap waitFor budget 30000->90000 (CI runner flake hit exactly 30s once; same suite passed in adjacent gate).
+- ROADMAP DONE: A1-A3 + B1-B3 all shipped CI-green. NEXT: skills-coverage audit per Mark directive; then frontend wiring of training/academy panels.

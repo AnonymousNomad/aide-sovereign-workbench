@@ -238,15 +238,36 @@ test('dap launch rejects paths escaping the workspace', async () => {
   }
 });
 
+async function absolutePythonPath(interp: string): Promise<string | null> {
+  return new Promise(resolve => {
+    const child = spawn(interp, ['-E', '-c', 'import sys; print(sys.executable)'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    child.stdout?.on('data', chunk => {
+      out += String(chunk);
+    });
+    child.once('error', () => resolve(null));
+    child.once('exit', code => {
+      const resolved = out.trim();
+      resolve(code === 0 && resolved.length > 0 ? resolved : null);
+    });
+  });
+}
+
 async function resolvePython(): Promise<string | null> {
-  if (process.env.AIDE_PYTHON) return process.env.AIDE_PYTHON;
+  const candidates: string[] = [];
+  if (process.env.AIDE_PYTHON) candidates.push(process.env.AIDE_PYTHON);
   if (process.platform === 'win32') {
     try {
       const result = await run('py', ['-3.10', '-E', '-c', 'import sys; print(sys.executable)']);
-      if (result.stdout.trim()) return result.stdout.trim();
+      if (result.stdout.trim()) candidates.push(result.stdout.trim());
     } catch {
       // fall through
     }
+  }
+  for (const candidate of candidates) {
+    if (path.isAbsolute(candidate)) return candidate;
+    const absolute = await absolutePythonPath(candidate);
+    if (absolute !== null) return absolute;
   }
   return null;
 }

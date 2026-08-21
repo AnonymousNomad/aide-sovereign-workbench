@@ -98,6 +98,7 @@ export class DapManager {
       stdio: ['pipe', 'pipe', 'pipe']
     });
     this.children.set(id, child);
+    child.stdin?.on('error', () => {});
     const decoder = new JsonRpcDecoder();
     this.decoders.set(id, decoder);
     child.stdout?.on('data', chunk => this.consume(id, chunk));
@@ -107,11 +108,13 @@ export class DapManager {
       this.children.delete(id);
       this.decoders.delete(id);
       for (const key of [...this.pending.keys()]) {
-        if (key.startsWith(`${id}:`)) {
-          const entry = this.pending.get(key);
-          if (entry) clearTimeout(entry.timer);
-          this.pending.delete(key);
+        if (!key.startsWith(`${id}:`)) continue;
+        const entry = this.pending.get(key);
+        if (entry) {
+          clearTimeout(entry.timer);
+          entry.reject(new Error(`debug adapter exited before responding: ${id}`));
         }
+        this.pending.delete(key);
       }
       if (this.states.get(id) !== 'stopped') this.states.set(id, 'error');
     });

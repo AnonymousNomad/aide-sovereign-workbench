@@ -131,8 +131,8 @@ test('full debug session: breakpoints, launch, stopped, stack, scopes, variables
     ]);
 
     await manager.configure('fake');
-    await manager.launch('fake', 'app.py', ['--flag']);
     const launchWatermark = events.length;
+    await manager.launch('fake', 'app.py', ['--flag']);
     await waitFor(events, launchWatermark, entry => entry.event === 'initialized');
     const stopped1 = await waitFor(events, launchWatermark, entry => entry.event === 'stopped');
     assert.equal((stopped1.body as { reason?: string }).reason, 'breakpoint');

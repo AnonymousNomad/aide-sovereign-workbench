@@ -600,3 +600,8 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Typing bridge: academy/learner-state.d.mts declaration + tsconfig.node.json include "academy/**/*.d.mts" (NodeNext resolves .mjs->.d.mts). Gotcha logged: openapi.ts needed ../../academy not ../../../ (traceResolution proved E:/academy probe).
 - Hook: TutorManager(learnerState) records courseId:lessonId pass on complete(); failure captured to lastLearnerHookError without failing completion. Legacy daemon/server.mjs instantiates LearnerState from STATE_DIR.
 - Verified: tsc clean; new arch file 5/5; tutor test incl. hook assertion passes; full npm run check green except two KNOWN HDD-contention 90s timeouts (debugpy roundtrip, gguf ingest) which pass 9/9 and 10/10 in isolation - machine-load flakes, journaled known-issue; CI is authority.
+
+## 2026-08-21 ~17:20 UTC — DAP FLAKE ROOT CAUSE: launch watermark captured after await (986f992 red)
+- Evidence: same :72 timeout on 986f992 despite 30s window; veritas gates emitted NO failing annotations (all six gates passed - timeout raise confirmed working).
+- Root cause: fake-adapter full-session test took `launchWatermark = events.length` AFTER awaiting manager.launch(); adapter events emitted before/concurrent with launch resolution land below the watermark and waitFor can never match -> structural timeout regardless of window size. Scheduler luck explains intermittent CI reds across runs.
+- Fix: capture watermark before issuing launch (matches real-debugpy test pattern at :309 which never flaked). dap file verified locally.

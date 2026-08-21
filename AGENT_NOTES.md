@@ -605,3 +605,7 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Evidence: same :72 timeout on 986f992 despite 30s window; veritas gates emitted NO failing annotations (all six gates passed - timeout raise confirmed working).
 - Root cause: fake-adapter full-session test took `launchWatermark = events.length` AFTER awaiting manager.launch(); adapter events emitted before/concurrent with launch resolution land below the watermark and waitFor can never match -> structural timeout regardless of window size. Scheduler luck explains intermittent CI reds across runs.
 - Fix: capture watermark before issuing launch (matches real-debugpy test pattern at :309 which never flaked). dap file verified locally.
+
+## 2026-08-21 ~17:50 UTC — ci.yml defect found: mangled line killed exit-status propagation
+- Line 62 had `node ... || true          exit $status` on ONE line (original edit collapsed newline): exit $status was dead args to true. Arch bounded step now PASSES (watermark race fix confirmed - ARCH_TIMEOUTS/FILES empty on df1a613).
+- df1a613 red isolated to veritas gates step with ZERO VERITAS_* annotations and exit 1 - unexplainable from old block shape; rewrote block cleanly + added unconditional diagnostics: VERITAS_STATUS (exit+json_bytes), VERITAS_STDERR tail, VERITAS_JSONHEAD. Report step restored (was accidentally swallowed by same edit); YAML validated via js-yaml.

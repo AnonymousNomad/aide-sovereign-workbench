@@ -27,6 +27,8 @@ import {
   routeForDapDisconnect
 } from './routes/dap.ts';
 import { routeForProvidersList, routeForProviderConnect, routeForProviderDisconnect, routeForProviderImport } from './routes/providers.ts';
+import { routeForLearnerState, routeForLearnerReviews, routeForLearnerAttempt } from './routes/learner.ts';
+import { LearnerState } from '../../academy/learner-state.mjs';
 import { ModelRouter } from './services/model-router.ts';
 import { ProviderService } from './services/providers.ts';
 import { CredentialStore } from './services/credentials.ts';
@@ -181,6 +183,8 @@ export async function buildRoutes(workspace: string, version: string, options: B
       logger: options.logger
     });
   const modelRouter = new ModelRouter(modelRuntime, providerService);
+  const learnerState = new LearnerState({ statePath: path.join(workspace, '.aide', 'learner-state.json') });
+  await learnerState.load();
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -205,6 +209,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForProviderConnect(providerService),
     routeForProviderDisconnect(providerService),
     routeForProviderImport(chatStore),
+    routeForLearnerState(learnerState),
+    routeForLearnerReviews(learnerState),
+    routeForLearnerAttempt(learnerState),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

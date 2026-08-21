@@ -6,10 +6,11 @@ import { promisify } from 'node:util';
 const run = promisify(execFile);
 
 export class TutorManager {
-  constructor({ coursesDir, progressPath, pythonPath = process.env.AIDE_PYTHON || '' }) {
+  constructor({ coursesDir, progressPath, pythonPath = process.env.AIDE_PYTHON || '', learnerState = null }) {
     this.coursesDir = coursesDir;
     this.progressPath = progressPath;
     this.pythonPath = pythonPath;
+    this.learnerState = learnerState;
     this.courses = [];
     this.progress = {};
   }
@@ -48,6 +49,13 @@ export class TutorManager {
     const temp = `${this.progressPath}.tmp`;
     await fs.writeFile(temp, JSON.stringify(this.progress, null, 2));
     await fs.rename(temp, this.progressPath);
+    if (this.learnerState) {
+      try {
+        await this.learnerState.recordAttempt(`${courseId}:${lessonId}`, { passed: true });
+      } catch (error) {
+        this.lastLearnerHookError = String(error?.message || error);
+      }
+    }
     return this.session(courseId);
   }
 

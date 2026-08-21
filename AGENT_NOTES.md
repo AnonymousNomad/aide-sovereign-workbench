@@ -593,3 +593,10 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Fix: waitFor default timeoutMs 10000 -> 30000. Crash-poll and request timeouts untouched.
 - Also learned: GITHUB_STEP_SUMMARY does NOT surface via check-runs API (output.summary empty) - annotation emitter is the only authless gate channel. Skill aide-ci-diagnostics corrected.
 - No VERITAS_* annotations on this run => with raised timeouts veritas gates may now pass on CI; will confirm on next green-path run.
+
+## 2026-08-21 ~16:30 UTC — A1 COMPLETE: learner state fully wired into typed daemon
+- Contracts: common/contracts/learner.ts (LearnerSkillState/SnapshotResponse/ReviewsResponse/AttemptRequest+Response, strict zod).
+- Routes: node/src/routes/learner.ts -> GET /api/learner/state, GET /api/learner/reviews, POST /api/learner/attempt; registered in buildRoutes with LearnerState at <workspace>/.aide/learner-state.json; openapi.json regenerated (46 documented routes).
+- Typing bridge: academy/learner-state.d.mts declaration + tsconfig.node.json include "academy/**/*.d.mts" (NodeNext resolves .mjs->.d.mts). Gotcha logged: openapi.ts needed ../../academy not ../../../ (traceResolution proved E:/academy probe).
+- Hook: TutorManager(learnerState) records courseId:lessonId pass on complete(); failure captured to lastLearnerHookError without failing completion. Legacy daemon/server.mjs instantiates LearnerState from STATE_DIR.
+- Verified: tsc clean; new arch file 5/5; tutor test incl. hook assertion passes; full npm run check green except two KNOWN HDD-contention 90s timeouts (debugpy roundtrip, gguf ingest) which pass 9/9 and 10/10 in isolation - machine-load flakes, journaled known-issue; CI is authority.

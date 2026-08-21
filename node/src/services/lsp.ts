@@ -116,6 +116,7 @@ export class LspManager {
       stdio: ['pipe', 'pipe', 'pipe']
     });
     this.children.set(languageId, child);
+    child.stdin?.on('error', () => {});
     const decoder = new JsonRpcDecoder();
     this.decoders.set(languageId, decoder);
     child.stdout?.on('data', chunk => this.consume(languageId, chunk));
@@ -126,11 +127,13 @@ export class LspManager {
       this.decoders.delete(languageId);
       this.ready.delete(languageId);
       for (const key of [...this.pending.keys()]) {
-        if (key.startsWith(`${languageId}:`)) {
-          const entry = this.pending.get(key);
-          if (entry) clearTimeout(entry.timer);
-          this.pending.delete(key);
+        if (!key.startsWith(`${languageId}:`)) continue;
+        const entry = this.pending.get(key);
+        if (entry) {
+          clearTimeout(entry.timer);
+          entry.reject(new Error(`language server exited before responding: ${languageId}`));
         }
+        this.pending.delete(key);
       }
       if (this.states.get(languageId) !== 'stopped') this.setState(languageId, 'error');
     });
@@ -301,7 +304,8 @@ export class LspManager {
   }
 
   async stopAll(): Promise<void> {
-    for (const languageId of [...this.ready]) await this.stop(languageId);
+    const ids = new Set([...this.children.keys(), ...this.ready]);
+    for (const languageId of ids) await this.stop(languageId);
   }
 
   request(languageId: string, method: string, params: unknown, timeoutMs?: number): Promise<unknown> {

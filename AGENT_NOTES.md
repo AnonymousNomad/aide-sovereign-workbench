@@ -577,3 +577,8 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - academy/test-learner-state.mjs: load/empty shape, mastery math direction, interval/due-window math, persistence across reload, corrupt-file healing + .bak preservation, progress seeding (2 lessons). All assertions pass.
 - Verified additive: academy/test-tutor-manager.mjs still passes; academy/*.mjs is eslint-ignored by existing config (0 errors).
 - NEXT (A1 remainder): daemon routes GET /api/learner/state|reviews POST /api/learner/attempt + openapi contracts regen + arch test, then TutorManager.complete() single-writer hook.
+
+## 2026-08-21 ~13:00 UTC — VERITAS TIMEOUT ROOT CAUSE FIXED (was breaking CI intermittently since arch suite grew)
+- harness/checks.mjs: compile gate (`npm run check`, includes full 188-test arch suite) ran under a 120s timeout; measured local duration is ~220-280s (HDD) and CI is marginal (~100-170s). Explains docs-only commits failing while code commits passed: pure runner-speed lottery.
+- Fix: COMMAND_TIMEOUTS compile 120s->600s, tests 300s->900s (git-diff unchanged). Verified by real run: npm run veritas EXIT 0, evidence_level=sufficient, failed_checks=[].
+- Note: veritas runs check+test+diff serially; expect several minutes per invocation.

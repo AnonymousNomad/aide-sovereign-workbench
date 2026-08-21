@@ -638,3 +638,10 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Routes: GET/POST /api/training/datasets, POST .../append, GET .../read?id&offset&limit, POST .../delete - typed contracts, 54 documented routes now.
 - Verified: unit suite pass (incl. dedup-across-reload), arch routes 3/3, tsc 0, eslint 0 errors, FULL npm run check fail=0 (~136s).
 - NEXT: B2 qlora-runner consumes DatasetStore + hardware presets.
+
+## 2026-08-21 ~23:59 UTC — B2 COMPLETE: qlora-runner with hardware presets + live events
+- daemon/training-runner.mjs (+d.mts): PRESETS 0.5b/1.5b tuned for GTX 1060 6GB (fp16 pinned, bf16 false - Pascal; r16/alpha16 vs r8/alpha8, lr 2e-4). start() gates: approved must be literal true, dataset >=10 accepted samples, no concurrent job. Generates pinned train_sft.py (PEFT LoRA + HF Trainer, save_total_limit=3, seed 42) from template with dataset/output/preset baked in. Loss parsing regex /loss["']?\]?\s*[=:]\s*([0-9.]+)/i handles {"loss": x} and loss=x (first regex missed quote chars). stderr OutOfMemoryError -> job.oom + oom_advice ladder (batch halve -> accum double -> seq halve -> smaller preset). stop() kills child, state=error "stopped by operator". checkpoints() reads trainer_state.json per ckpt dir, best-eval-loss sorted top-3.
+- Routes: GET /api/training/{presets,status,checkpoints}, POST /api/training/{start,stop} - 59 documented routes. Events: runner onEvent -> EventHub 'training' channel.
+- Tests never execute real python/GPU: injected spawnChild mock emits stdout/stderr/exit.
+- Verified: unit suite pass, arch routes 2/2, tsc 0, eslint 0 errors, FULL npm run check fail=0 (~169s).
+- NEXT: B3 eval-export (fail-closed eval gates + Q4_K_M export), then skills audit.

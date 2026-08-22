@@ -42,7 +42,20 @@ export const ProblemMatcher = z
 
 export const MatcherReference = z.union([z.string().min(1), ProblemMatcher]);
 
-export const TaskDefinition = z
+export interface TaskDefinitionShape {
+  label: string;
+  type: 'shell' | 'process';
+  command: string;
+  args?: string[] | undefined;
+  isBackground?: boolean | undefined;
+  group?: z.infer<typeof TaskGroup> | undefined;
+  problemMatcher?: z.infer<typeof MatcherReference> | Array<z.infer<typeof MatcherReference>> | undefined;
+  dependsOn?: string | Array<string | TaskDefinitionShape> | undefined;
+  dependsOrder?: 'parallel' | 'sequence' | undefined;
+  runOptions?: { runOn: 'default' | 'folderOpen' } | undefined;
+}
+
+const taskDefinitionObject = z
   .object({
     label: z.string().min(1),
     type: z.enum(['shell', 'process']),
@@ -51,20 +64,24 @@ export const TaskDefinition = z
     isBackground: z.boolean().optional(),
     group: TaskGroup.optional(),
     problemMatcher: z.union([MatcherReference, z.array(MatcherReference).min(1)]).optional(),
-    dependsOn: z.union([z.string(), z.array(z.union([z.string(), z.lazy(() => TaskDefinition)])).min(1)]).optional(),
+    dependsOn: z
+      .union([z.string(), z.array(z.union([z.string(), z.lazy(() => TaskDefinition)])).min(1)])
+      .optional(),
     dependsOrder: z.enum(['parallel', 'sequence']).optional(),
     runOptions: z.object({ runOn: z.enum(['default', 'folderOpen']) }).strict().optional()
   })
   .strict();
 
+export const TaskDefinition: z.ZodType<TaskDefinitionShape> = taskDefinitionObject;
+
 export const TasksFile = z
   .object({
     version: z.literal('2.0.0'),
-    tasks: z.array(TaskDefinition)
+    tasks: z.array(taskDefinitionObject)
   })
   .strict();
 
-export const TaskEntry = TaskDefinition.extend({
+export const TaskEntry = taskDefinitionObject.extend({
   source: z.enum(['tasks.json', 'detected']),
   groupKind: z.enum(['build', 'test']).optional(),
   groupIsDefault: z.boolean().optional()

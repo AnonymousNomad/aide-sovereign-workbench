@@ -109,14 +109,16 @@ test('b3 arch: compound sequential run groups child jobs under parent and emits 
   assert.equal(compileChild.name_path, 'b3 seq root > b3 compile');
 
   const window = events.slice(startedBefore).map(entry => entry.data);
-  const exitEvents = window.filter(event => event.event === 'exit' && event.job_id === rootJobId);
+  type ExitEvent = Extract<TaskEventT, { event: 'exit' }>;
+  const isExit = (event: TaskEventT): event is ExitEvent => event.event === 'exit';
+  const exitEvents = window.filter(isExit).filter(event => event.job_id === rootJobId);
   assert.equal(exitEvents.length, 1, 'exactly one coordinator exit event');
-  const childExits = window.filter(
-    event => event.event === 'exit' && event.parent_job_id !== undefined && event.parent_job_id !== null
+  const childExits = window.filter(isExit).filter(
+    event => event.parent_job_id !== undefined && event.parent_job_id !== null
   );
   assert.ok(childExits.length >= 1, 'child exits carry parent linkage');
-  assert.equal(exitEvents[0].parent_job_id, null);
-  assert.equal(exitEvents[0].name_path, 'b3 seq root');
+  assert.equal(exitEvents[0]?.parent_job_id ?? null, null);
+  assert.equal(exitEvents[0]?.name_path ?? null, 'b3 seq root');
 });
 
 test('b3 arch: contract rejects dependsOn entries that are not string or task object', () => {

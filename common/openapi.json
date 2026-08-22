@@ -4173,6 +4173,14 @@
                         "fits": {
                           "type": "boolean"
                         },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "COMFORTABLE",
+                            "TIGHT",
+                            "OVER"
+                          ]
+                        },
                         "quant": {
                           "type": "string"
                         },
@@ -4200,6 +4208,7 @@
                         "requiredBytes",
                         "availableBytes",
                         "fits",
+                        "verdict",
                         "quant",
                         "recommendedQuant",
                         "parametersB"

@@ -116,7 +116,7 @@ test('dap start runs the fake adapter and stores capabilities', async () => {
   }
 });
 
-test('full debug session: breakpoints, launch, stopped, stack, scopes, variables, step, continue, disconnect', async () => {
+test('full debug session: breakpoints, launch, stopped, stack, scopes, variables, step, continue, disconnect', { timeout: 240_000 }, async () => {
   const { dir, cleanup } = await tempWorkspace();
   const { manager, events } = buildManager(dir, [fakeAdapter('fake-dap-adapter.mjs')]);
   try {

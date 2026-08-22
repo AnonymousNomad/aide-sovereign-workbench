@@ -862,7 +862,7 @@ export class TaskService {
       });
     });
 
-    child.on('close', (code, signal) => {
+    child.on('close', async (code, signal) => {
       if (job.forceKillTimer) clearTimeout(job.forceKillTimer);
       child.stdout?.destroy();
       child.stderr?.destroy();
@@ -871,7 +871,13 @@ export class TaskService {
       job.finish(status, code);
       const mergedProblems = this.emitProblems(job);
       if (job.taskDef && status === 'exited') {
-        void this.maybeRecordToCache(job.taskDef, job, mergedProblems).catch(() => {});
+        // record BEFORE the terminal event so any observer of `exit`
+        // sees a consistent cache state (no miss-then-execute race)
+        try {
+          await this.maybeRecordToCache(job.taskDef, job, mergedProblems);
+        } catch {
+          // recording must never mask the run result
+        }
       }
       this.onEvent({
         event: 'exit',

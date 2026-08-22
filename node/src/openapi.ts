@@ -41,6 +41,8 @@ import { routesForTasks } from './routes/tasks.ts';
 import { routesForProblems } from './routes/problems.ts';
 import { routesForNotifications } from './routes/notifications.ts';
 import { NotificationService } from '../../node/src/services/notification-service.mjs';
+import { createHubService } from '../../node/src/services/modelhub.mjs';
+import { routesForModelHub } from './routes/modelhub.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
@@ -343,6 +345,11 @@ function buildNotificationWiredRoutes(workspace: string, options: BuildRoutesOpt
     onEvent: body => options.events?.publish('notifications', body)
   });
   void notifications.loadHooks().catch(() => {});
+  const hub = createHubService({
+    workspace,
+    modelsDir: path.join(workspace, 'models'),
+    onEvent: event => options.events?.publish('modelhub', event)
+  });
   return [
     ...routesForNotifications(notifications),
     ...routesForTasks(workspace, {
@@ -350,7 +357,8 @@ function buildNotificationWiredRoutes(workspace: string, options: BuildRoutesOpt
         options.events?.publish('tasks', body);
         notifications.ingestTaskEvent(body as Parameters<NotificationService['ingestTaskEvent']>[0]);
       }
-    })
+    }),
+    ...routesForModelHub(hub)
   ];
 }
 

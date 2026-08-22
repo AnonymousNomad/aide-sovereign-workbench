@@ -4,11 +4,12 @@ import type { ZodType } from 'zod';
 import { LogEvent, ModelStatusEvent, DiagnosticsEvent, TrainingProgressEvent, CommandEvent } from '../../common/contracts/events.ts';
 import { TaskEvent } from '../../common/contracts/tasks.ts';
 import { NotificationEvent } from '../../common/contracts/notifications.ts';
+import { HubStreamEvent } from '../../common/contracts/modelhub.ts';
 import { DapEvent } from '../../common/contracts/dap.ts';
 import { LspStatusEvent } from '../../common/contracts/lsp.ts';
 import type { Logger } from './services/logger.ts';
 
-export type ChannelName = 'log' | 'model' | 'diagnostics' | 'training' | 'debug' | 'lsp-status' | 'command' | 'tasks' | 'notifications';
+export type ChannelName = 'log' | 'model' | 'diagnostics' | 'training' | 'debug' | 'lsp-status' | 'command' | 'tasks' | 'notifications' | 'modelhub';
 
 const SCHEMAS: Record<ChannelName, ZodType> = {
   log: LogEvent,
@@ -19,7 +20,8 @@ const SCHEMAS: Record<ChannelName, ZodType> = {
   'lsp-status': LspStatusEvent,
   command: CommandEvent,
   tasks: TaskEvent,
-  notifications: NotificationEvent
+  notifications: NotificationEvent,
+  modelhub: HubStreamEvent
 };
 
 export const CHANNELS = Object.keys(SCHEMAS) as ChannelName[];

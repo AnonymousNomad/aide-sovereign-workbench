@@ -39,6 +39,8 @@ import { routeForEditorOptions } from './routes/editor-options.ts';
 import { routesForGit } from './routes/git.ts';
 import { routesForTasks } from './routes/tasks.ts';
 import { routesForProblems } from './routes/problems.ts';
+import { routesForNotifications } from './routes/notifications.ts';
+import { NotificationService } from '../../node/src/services/notification-service.mjs';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
@@ -308,9 +310,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForRgSearch(rgService),
     routeForEditorOptions(settingsService),
     ...routesForGit(workspace),
-    ...routesForTasks(workspace, {
-      onEvent: body => options.events?.publish('tasks', body)
-    }),
+    ...buildNotificationWiredRoutes(workspace, options),
     ...routesForProblems(workspace),
     routeForLspStatus(manager),
     routeForLspStart(manager),
@@ -337,8 +337,24 @@ export async function buildRoutes(workspace: string, version: string, options: B
   return [...core, makeOpenApiRoute(doc)];
 }
 
-function makeHealthRoute(workspace: string, version: string): Route {
-  return {
+function buildNotificationWiredRoutes(workspace: string, options: BuildRoutesOptions): Route[] {
+  const notifications = new NotificationService({
+    workspace,
+    onEvent: body => options.events?.publish('notifications', body)
+  });
+  void notifications.loadHooks().catch(() => {});
+  return [
+    ...routesForNotifications(notifications),
+    ...routesForTasks(workspace, {
+      onEvent: body => {
+        options.events?.publish('tasks', body);
+        notifications.ingestTaskEvent(body as Parameters<NotificationService['ingestTaskEvent']>[0]);
+      }
+    })
+  ];
+}
+
+function makeHealthRoute(workspace: string, version: string): Route {  return {
     method: 'GET',
     path: '/api/health',
     response: HealthResponse,

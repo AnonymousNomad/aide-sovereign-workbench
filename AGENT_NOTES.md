@@ -724,3 +724,9 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Master roadmap: COMPLETE COVERAGE MATRIX added (every AI-IDE surface -> owning skill | scheduled | non-goal); duplicate B2b bullet removed; B2b marked DONE.
 - CI: 84482fa SUCCESS confirmed; cc71454 in_progress at write time.
 - CI flake record: dap-contract disconnect test failed twice on CI (f129027 via veritas-compile, 72add00 via arch step) with zero code change; local suite 9/9 green throughout; resolved green on rerun bb1c378. Family: runner adapter-spawn under concurrency=3 load. Recurrence count: 2-consecutive episode 2026-08-22.
+
+## 2026-08-22 (evening) -- B4 notification harness shipped
+- Commits 5ca4822 (+fix 85a2734, CI green): NotificationService (ring buffer 200, 2s identical-coalescing, read/read-all), hook engine over .aide/hooks.json (argv arrays only, tree-kill timeout, 4KB output cap, show->toast), consent guard (network tokens require network_consent:true; PUT -> FORBIDDEN w/ CONSENT_REQUIRED detail; exec-time re-check defense-in-depth), buildToastScript (WinRT ToastText02, PS-quote escaping, AUMID default PowerShell, try/catch silent degrade), encodeOsc9/777 sanitizers.
+- Routes: GET /api/notifications[/unread], POST read|read-all, GET|PUT /api/hooks. WS channel 'notifications' added to EventHub union+schemas. Task events fan out via buildNotificationWiredRoutes (tasks channel + notifications ingestion). openapi regen: 96 documented routes.
+- LESSON: TaskExitEvent carries exitCode/signal NOT status -- derive severity (0=success, null+signal=stopped-warn, else=error). Also: RouteError must pass through route-local map wrappers untouched or it becomes INTERNAL.
+- Tests-first honored: tests/unit/test-b4-notifications.mjs (12 blocks) + tests/arch/notification-routes.test.ts (7 incl. e2e failing-task->WS notification+hook marker file+read-all). Local battery: unit+b1+b2 green, arch trio 21/21, both tsc gates clean, eslint clean.

@@ -405,10 +405,11 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/api/lsp/status') {
       return json(response, 200, { servers: lspManager.status() });
     }
-    if (request.method === 'GET' && request.url === '/api/diagnostics') return json(response, 200, { diagnostics: lspManager.diagnosticsList().map(item => ({ ...item, uri: toPlaceholderUri(item.uri) })) });
+    if (request.method === 'GET' && request.url === '/api/diagnostics') return json(response, 200, { diagnostics: [...taskManager.problemsList(), ...lspManager.diagnosticsList().map(item => ({ ...item, uri: toPlaceholderUri(item.uri) }))] });
     if (request.method === 'GET' && request.url.startsWith('/api/diagnostics?clear=')) {
       const uri = new URL(request.url, 'http://127.0.0.1').searchParams.get('clear');
       lspManager.clearDiagnostics(uri);
+      taskManager.clearProblemUri(uri);
       return json(response, 200, { cleared: uri });
     }
     if (request.method === 'GET' && request.url === '/api/dap/status') {

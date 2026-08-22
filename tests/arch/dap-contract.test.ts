@@ -25,23 +25,32 @@ function fakeAdapter(script: string, id = 'fake'): TestAdapter {
 
 function buildManager(workspace: string, adapters: TestAdapter[], opts: { requestTimeoutMs?: number } = {}) {
   const events: Array<{ event: string; body: unknown }> = [];
+  const logs: Array<{ t: number; level: string; msg: string; meta?: Record<string, unknown> | undefined }> = [];
+  const logger = {
+    error: (msg: string, meta?: Record<string, unknown>) => logs.push({ t: Date.now(), level: 'error', msg, meta }),
+    warn: (msg: string, meta?: Record<string, unknown>) => logs.push({ t: Date.now(), level: 'warn', msg, meta }),
+    info: (msg: string, meta?: Record<string, unknown>) => logs.push({ t: Date.now(), level: 'info', msg, meta })
+  };
   const managerOptions: {
     workspace: string;
     adapters: TestAdapter[];
     requestTimeoutMs?: number;
     spawnChild: typeof spawn;
+    logger: { error(msg: string, meta?: Record<string, unknown>): void; warn(msg: string, meta?: Record<string, unknown>): void; info(msg: string, meta?: Record<string, unknown>): void };
     onEvent: (adapterId: string, event: string, body: unknown) => void;
   } = {
     workspace,
     adapters,
     spawnChild: spawn,
+    logger,
     onEvent: (adapterId, event, body) => {
       if (adapterId === adapters[0]?.id) events.push({ event, body });
+      else logs.push({ t: Date.now(), level: 'info', msg: `event from other adapter ${adapterId}: ${event}` });
     }
   };
   if (opts.requestTimeoutMs !== undefined) managerOptions.requestTimeoutMs = opts.requestTimeoutMs;
   const manager = new DapManager(managerOptions);
-  return { manager, events };
+  return { manager, events, logs };
 }
 
 async function tempWorkspace(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
@@ -63,13 +72,24 @@ async function tempWorkspace(): Promise<{ dir: string; cleanup: () => Promise<vo
   };
 }
 
-function waitFor(events: Array<{ event: string; body: unknown }>, from: number, predicate: (entry: { event: string; body: unknown }) => boolean, timeoutMs = 90000): Promise<{ event: string; body: unknown }> {
+function waitFor(
+  events: Array<{ event: string; body: unknown }>,
+  from: number,
+  predicate: (entry: { event: string; body: unknown }) => boolean,
+  label: string,
+  logs: Array<{ t: number; level: string; msg: string; meta?: Record<string, unknown> | undefined }> = [],
+  timeoutMs = 90000
+): Promise<{ event: string; body: unknown }> {
   const started = Date.now();
   return new Promise((resolve, reject) => {
     const poll = () => {
       const hit = events.slice(from).reverse().find(predicate);
       if (hit) return resolve(hit);
-      if (Date.now() - started > timeoutMs) return reject(new Error('timed out waiting for dap event'));
+      if (Date.now() - started > timeoutMs) {
+        const seen = events.map(entry => entry.event).join(',') || '(none)';
+        const recentLogs = logs.slice(-12).map(line => `${line.level}:${line.msg}:${JSON.stringify(line.meta ?? {})}`).join(' | ') || '(no logs)';
+        return reject(new Error(`timed out waiting for dap event '${label}' after ${timeoutMs}ms; seen=[${seen}]; recent-logs: ${recentLogs}`));
+      }
       setTimeout(poll, 25);
     };
     poll();
@@ -118,7 +138,7 @@ test('dap start runs the fake adapter and stores capabilities', async () => {
 
 test('full debug session: breakpoints, launch, stopped, stack, scopes, variables, step, continue, disconnect', { timeout: 240_000 }, async () => {
   const { dir, cleanup } = await tempWorkspace();
-  const { manager, events } = buildManager(dir, [fakeAdapter('fake-dap-adapter.mjs')]);
+  const { manager, events, logs } = buildManager(dir, [fakeAdapter('fake-dap-adapter.mjs')]);
   try {
     const program = path.join(dir, 'app.py');
     await fs.writeFile(program, 'x = 1\ny = 2\nprint(x + y)\n');
@@ -133,8 +153,8 @@ test('full debug session: breakpoints, launch, stopped, stack, scopes, variables
 
     await manager.configure('fake');
     await manager.launch('fake', 'app.py', ['--flag']);
-    await waitFor(events, launchWatermark, entry => entry.event === 'initialized');
-    const stopped1 = await waitFor(events, launchWatermark, entry => entry.event === 'stopped');
+    await waitFor(events, launchWatermark, entry => entry.event === 'initialized', 'initialized', logs);
+    const stopped1 = await waitFor(events, launchWatermark, entry => entry.event === 'stopped', 'stopped-after-launch', logs);
     assert.equal((stopped1.body as { reason?: string }).reason, 'breakpoint');
     const threadId = (stopped1.body as { threadId?: number }).threadId;
     assert.equal(threadId, 1);
@@ -159,19 +179,19 @@ test('full debug session: breakpoints, launch, stopped, stack, scopes, variables
 
     const stepWatermark = events.length;
     await manager.step('fake', threadId!, 'next');
-    const stopped2 = await waitFor(events, stepWatermark, entry => entry.event === 'stopped');
+    const stopped2 = await waitFor(events, stepWatermark, entry => entry.event === 'stopped', 'stopped-after-step', logs);
     assert.equal((stopped2.body as { reason?: string }).reason, 'step');
     const frames2 = await manager.stack('fake', threadId!);
     assert.equal(frames2[0]?.line, 2, 'next advanced one statement');
 
     const continueWatermark = events.length;
     await manager.continue('fake', threadId!);
-    const stopped3 = await waitFor(events, continueWatermark, entry => entry.event === 'stopped');
+    const stopped3 = await waitFor(events, continueWatermark, entry => entry.event === 'stopped', 'stopped-after-continue', logs);
     assert.equal((stopped3.body as { reason?: string }).reason, 'breakpoint');
 
     const beforeDisconnect = events.length;
     await manager.disconnect('fake');
-    const terminated = await waitFor(events, beforeDisconnect, entry => entry.event === 'terminated');
+    const terminated = await waitFor(events, beforeDisconnect, entry => entry.event === 'terminated', 'terminated', logs);
     assert.ok(events.indexOf(terminated) >= beforeDisconnect, 'terminated emitted after disconnect');
     assert.equal(manager.adapterStatus('fake')?.status, 'stopped');
   } finally {
@@ -288,11 +308,17 @@ test('real debugpy adapter round trip on the fizz_engine fixture', async t => {
   }
   const { dir, cleanup } = await tempWorkspace();
   const events: Array<{ event: string; body: unknown }> = [];
+  const logs: Array<{ t: number; level: string; msg: string; meta?: Record<string, unknown> | undefined }> = [];
   const manager = new DapManager({
     workspace: dir,
     adapters: [{ id: 'python-debugpy', name: 'Python debugpy', command: python, args: ['-m', 'debugpy.adapter'], languages: ['python'] }],
     requestTimeoutMs: 60000,
     spawnChild: spawn,
+    logger: {
+      error: (msg, meta) => logs.push({ t: Date.now(), level: 'error', msg, meta }),
+      warn: (msg, meta) => logs.push({ t: Date.now(), level: 'warn', msg, meta }),
+      info: (msg, meta) => logs.push({ t: Date.now(), level: 'info', msg, meta })
+    },
     onEvent: (_id, event, body) => events.push({ event, body })
   });
   try {
@@ -311,8 +337,8 @@ test('real debugpy adapter round trip on the fizz_engine fixture', async t => {
     await manager.setBreakpoints('python-debugpy', 'fizz_engine.py', [first, second]);
     await manager.configure('python-debugpy');
     await launch;
-    await waitFor(events, launchWatermark, entry => entry.event === 'initialized', 20000);
-    const stopped1 = await waitFor(events, launchWatermark, entry => entry.event === 'stopped', 30000);
+    await waitFor(events, launchWatermark, entry => entry.event === 'initialized', 'initialized', logs, 20000);
+    const stopped1 = await waitFor(events, launchWatermark, entry => entry.event === 'stopped', 'stopped-after-launch', logs, 30000);
     assert.equal((stopped1.body as { reason?: string }).reason, 'breakpoint');
     const threadId = (stopped1.body as { threadId?: number }).threadId;
     assert.ok(threadId !== undefined, 'stopped carries threadId');
@@ -337,14 +363,14 @@ test('real debugpy adapter round trip on the fizz_engine fixture', async t => {
 
     const stepWatermark = events.length;
     await manager.step('python-debugpy', threadId!, 'next');
-    const stopped2 = await waitFor(events, stepWatermark, entry => entry.event === 'stopped', 30000);
+    const stopped2 = await waitFor(events, stepWatermark, entry => entry.event === 'stopped', 'stopped-after-step', logs, 30000);
     assert.equal((stopped2.body as { reason?: string }).reason, 'step');
     const frames2 = await manager.stack('python-debugpy', threadId!);
     assert.equal(frames2[0]?.line, first + 1, 'next advanced one statement');
 
     const continueWatermark = events.length;
     await manager.continue('python-debugpy', threadId!);
-    const stopped3 = await waitFor(events, continueWatermark, entry => entry.event === 'stopped', 30000);
+    const stopped3 = await waitFor(events, continueWatermark, entry => entry.event === 'stopped', 'stopped-after-continue', logs, 30000);
     assert.equal((stopped3.body as { reason?: string }).reason, 'breakpoint');
     const frames3 = await manager.stack('python-debugpy', threadId!);
     assert.equal(frames3[0]?.line, second, `frame at second breakpoint line ${second}`);
@@ -356,7 +382,7 @@ test('real debugpy adapter round trip on the fizz_engine fixture', async t => {
 
     const watermark = events.length;
     await manager.disconnect('python-debugpy');
-    await waitFor(events, watermark, entry => entry.event === 'terminated', 20000);
+    await waitFor(events, watermark, entry => entry.event === 'terminated', 'terminated', logs, 20000);
     assert.ok(watermark < events.length, 'terminated event arrived after disconnect');
     assert.equal(manager.adapterStatus('python-debugpy')?.status, 'stopped');
   } finally {

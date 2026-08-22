@@ -1,6 +1,3 @@
-import { spawn } from 'node:child_process';
-import path from 'node:path';
-import { promises as fs } from 'node:fs';
 import { buildToastScript } from './os-toast.mjs';
 
 export type HookRunResult = {

@@ -38,6 +38,7 @@ import { routeForRgQuickOpen, routeForRgFiles, routeForRgSearch } from './routes
 import { routeForEditorOptions } from './routes/editor-options.ts';
 import { routesForGit } from './routes/git.ts';
 import { routesForTasks } from './routes/tasks.ts';
+import { routesForProblems } from './routes/problems.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
@@ -310,6 +311,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForTasks(workspace, {
       onEvent: body => options.events?.publish('tasks', body)
     }),
+    ...routesForProblems(workspace),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

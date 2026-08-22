@@ -5,6 +5,43 @@ export const TaskGroup = z.union([
   z.object({ kind: z.enum(['build', 'test']), isDefault: z.boolean() }).strict()
 ]);
 
+export const ProblemPattern = z
+  .object({
+    regexp: z.string().min(1),
+    file: z.number().int().positive().optional(),
+    line: z.number().int().positive().optional(),
+    column: z.number().int().positive().optional(),
+    severity: z.number().int().positive().optional(),
+    code: z.number().int().positive().optional(),
+    message: z.number().int().positive().optional(),
+    kind: z.enum(['file', 'location']).optional(),
+    loop: z.boolean().optional()
+  })
+  .strict();
+
+export const ProblemMatcher = z
+  .object({
+    name: z.string().min(1),
+    owner: z.string().min(1),
+    source: z.string().min(1).optional(),
+    applyTo: z.enum(['allDocuments', 'openDocuments']).optional(),
+    pattern: z.union([ProblemPattern, z.array(ProblemPattern).min(1)]),
+    fileLocation: z
+      .union([z.literal('relative'), z.literal('absolute'), z.tuple([z.literal('relative'), z.string().min(1)])])
+      .optional(),
+    background: z
+      .object({
+        activeOnStart: z.boolean(),
+        beginsPattern: z.string().min(1),
+        endsPattern: z.string().min(1)
+      })
+      .strict()
+      .optional()
+  })
+  .strict();
+
+export const MatcherReference = z.union([z.string().min(1), ProblemMatcher]);
+
 export const TaskDefinition = z
   .object({
     label: z.string().min(1),
@@ -13,7 +50,7 @@ export const TaskDefinition = z
     args: z.array(z.string()).optional(),
     isBackground: z.boolean().optional(),
     group: TaskGroup.optional(),
-    problemMatcher: z.unknown().optional(),
+    problemMatcher: z.union([MatcherReference, z.array(MatcherReference).min(1)]).optional(),
     dependsOn: z.union([z.string(), z.array(z.string())]).optional(),
     dependsOrder: z.enum(['parallel', 'sequence']).optional(),
     runOptions: z.object({ runOn: z.enum(['default', 'folderOpen']) }).strict().optional()
@@ -85,8 +122,55 @@ export const TaskExitEvent = z
   })
   .strict();
 
-export const TaskEvent = z.discriminatedUnion('event', [TaskStartedEvent, TaskOutputEvent, TaskExitEvent]);
+export const ParsedProblem = z
+  .object({
+    file: z.string().min(1),
+    line: z.number().int().positive(),
+    column: z.number().int().nullable(),
+    severity: z.enum(['error', 'warning', 'info']),
+    message: z.string(),
+    code: z.string().nullable()
+  })
+  .strict();
 
+export const TaskProblemsEvent = z
+  .object({
+    event: z.literal('problems'),
+    job_id: z.string().min(1),
+    label: z.string(),
+    problems: z.array(ParsedProblem)
+  })
+  .strict();
+
+export const MatchersResponse = z
+  .object({ matchers: z.array(z.object({ name: z.string(), owner: z.string() }).strict()) })
+  .strict();
+
+export const ProblemsParseRequest = z
+  .object({
+    matcher: z.union([MatcherReference, z.array(MatcherReference).min(1)]),
+    text: z.string()
+  })
+  .strict();
+
+export const ProblemsParseResponse = z
+  .object({ problems: z.array(ParsedProblem), dropped: z.number().int().nonnegative() })
+  .strict();
+
+export const TaskEvent = z.discriminatedUnion('event', [
+  TaskStartedEvent,
+  TaskOutputEvent,
+  TaskExitEvent,
+  TaskProblemsEvent
+]);
+
+export type ProblemPatternT = z.infer<typeof ProblemPattern>;
+export type ProblemMatcherT = z.infer<typeof ProblemMatcher>;
+export type ParsedProblemT = z.infer<typeof ParsedProblem>;
+export type TaskProblemsEventT = z.infer<typeof TaskProblemsEvent>;
+export type MatchersResponseT = z.infer<typeof MatchersResponse>;
+export type ProblemsParseRequestT = z.infer<typeof ProblemsParseRequest>;
+export type ProblemsParseResponseT = z.infer<typeof ProblemsParseResponse>;
 export type TaskDefinitionT = z.infer<typeof TaskDefinition>;
 export type TasksFileT = z.infer<typeof TasksFile>;
 export type TaskEntryT = z.infer<typeof TaskEntry>;

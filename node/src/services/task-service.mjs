@@ -2,10 +2,14 @@ import { spawn, execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { BUILTIN_MATCHERS, resolveProblemMatcher, MatcherError } from './problem-matchers.mjs';
+import { MatcherSession, extractRawProblems, resolveRawProblems } from './problem-parser.mjs';
 
 const WINDOWS_CMD_SHIMS = new Set(['npm', 'npx', 'tsc', 'yarn', 'pnpm', 'gulp', 'grunt', 'vite', 'jest', 'eslint', 'tsserver']);
 const MAX_LINE_LENGTH = 8000;
 const FORCE_KILL_DELAY_MS = 3000;
+export const MAX_BUFFER_LINES = 5000;
+export const WORKSPACE_MATCHERS_FILE = '.aide/matchers.json';
 
 export const TASK_FILE_CANDIDATES = ['.aide/tasks.json', '.vscode/tasks.json'];
 
@@ -80,6 +84,24 @@ export function validateTaskDefinition(value, index) {
     if (!isPlainObject(value.runOptions)) throw new TaskFileError(`${where}.runOptions must be an object`, { where });
     if (value.runOptions.runOn !== 'default' && value.runOptions.runOn !== 'folderOpen') {
       throw new TaskFileError(`${where}.runOptions.runOn must be "default" or "folderOpen"`, { where });
+    }
+  }
+  if (value.problemMatcher !== undefined && value.problemMatcher !== null) {
+    const references = Array.isArray(value.problemMatcher) ? value.problemMatcher : [value.problemMatcher];
+    if (references.length === 0) {
+      throw new TaskFileError(`${where}.problemMatcher must not be an empty array`, { where });
+    }
+    for (const [index, pm] of references.entries()) {
+      const refWhere = `${where}.problemMatcher[${index}]`;
+      const okString = typeof pm === 'string' && pm.length > 0;
+      const okObject =
+        isPlainObject(pm) &&
+        typeof pm.name === 'string' && pm.name.length > 0 &&
+        typeof pm.owner === 'string' && pm.owner.length > 0 &&
+        (isPlainObject(pm.pattern) || (Array.isArray(pm.pattern) && pm.pattern.length > 0));
+      if (!okString && !okObject) {
+        throw new TaskFileError(`${refWhere} must be a non-empty string or an inline matcher object with name/owner/pattern`, { where: refWhere });
+      }
     }
   }
 }
@@ -176,12 +198,17 @@ export async function resolveShimPath(command) {
 }
 
 class Job {
-  constructor(id, task, source) {
+  constructor(id, task, source, matchers) {
     this.job_id = id;
     this.label = task.label;
     this.command = resolveCommand(task.type, task.command);
     this.args = [...(task.args ?? [])];
     this.source = source;
+    this.matchers = matchers;
+    this.sessions = matchers.map(matcher => new MatcherSession(matcher));
+    this.rawProblems = matchers.map(() => []);
+    this.rawKeys = matchers.map(() => new Set());
+    this.bufferLines = [];
     this.child = null;
     this.status = 'running';
     this.exitCode = null;
@@ -190,6 +217,21 @@ class Job {
     this.stoppedByUser = false;
     this.finalized = false;
     this.forceKillTimer = null;
+  }
+
+  collectLine(line) {
+    if (this.sessions.length === 0) return;
+    this.bufferLines.push(line);
+    if (this.bufferLines.length > MAX_BUFFER_LINES) this.bufferLines.shift();
+    this.sessions.forEach((session, index) => {
+      for (const problem of session.push(line)) {
+        const key = `${problem.file}|${problem.line}|${problem.column}|${problem.message}`;
+        if (!this.rawKeys[index].has(key)) {
+          this.rawKeys[index].add(key);
+          this.rawProblems[index].push(problem);
+        }
+      }
+    });
   }
 
   snapshot() {
@@ -253,9 +295,44 @@ export class TaskService {
     return { fileFound: file !== null, filePath: file ? file.relativePath : null, detectedFrom, tasks: entries };
   }
 
+  async loadWorkspaceMatchers() {
+    try {
+      const raw = await fs.readFile(path.join(this.workspace, WORKSPACE_MATCHERS_FILE), 'utf8');
+      const parsed = JSON.parse(raw);
+      return isPlainObject(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  async listMatchers() {
+    const extra = await this.loadWorkspaceMatchers();
+    const merged = { ...BUILTIN_MATCHERS };
+    for (const [key, value] of Object.entries(extra)) {
+      if (isPlainObject(value)) merged[key] = { name: typeof value.name === 'string' && value.name ? value.name : key, owner: value.owner ?? key, ...value };
+    }
+    return { matchers: Object.values(merged).map(matcher => ({ name: matcher.name, owner: matcher.owner })) };
+  }
+
   async findTask(label) {
     const { tasks } = await this.list();
     return tasks.find(task => task.label === label) ?? null;
+  }
+
+  async resolveJobMatcher(task) {
+    if (task.problemMatcher === undefined || task.problemMatcher === null) return [];
+    const extra = await this.loadWorkspaceMatchers();
+    const references = Array.isArray(task.problemMatcher) ? task.problemMatcher : [task.problemMatcher];
+    try {
+      return references.map(reference => resolveProblemMatcher(reference, extra));
+    } catch (error) {
+      if (error instanceof MatcherError) {
+        const wrapped = new Error(error.message);
+        wrapped.name = 'BAD_REQUEST';
+        throw wrapped;
+      }
+      throw error;
+    }
   }
 
   async run(label) {
@@ -271,7 +348,8 @@ export class TaskService {
       throw error;
     }
     const id = crypto.randomUUID();
-    const job = new Job(id, task, task.source ?? 'tasks.json');
+    const matcher = await this.resolveJobMatcher(task);
+    const job = new Job(id, task, task.source ?? 'tasks.json', matcher);
     this.jobs.set(id, job);
 
     let child;
@@ -306,17 +384,22 @@ export class TaskService {
         while (newlineIndex !== -1) {
           const line = truncateLine(pending.slice(0, newlineIndex).replace(/\r$/, ''));
           pending = pending.slice(newlineIndex + 1);
+          job.collectLine(line);
           this.onEvent({ event: 'output', job_id: id, label: job.label, stream: streamName, line });
           newlineIndex = pending.indexOf('\n');
         }
         if (pending.length > MAX_LINE_LENGTH) {
-          this.onEvent({ event: 'output', job_id: id, label: job.label, stream: streamName, line: truncateLine(pending) });
+          const line = truncateLine(pending);
+          job.collectLine(line);
+          this.onEvent({ event: 'output', job_id: id, label: job.label, stream: streamName, line });
           pending = '';
         }
       });
       stream.on('end', () => {
         if (pending.length > 0) {
-          this.onEvent({ event: 'output', job_id: id, label: job.label, stream: streamName, line: truncateLine(pending.replace(/\r$/, '')) });
+          const line = truncateLine(pending.replace(/\r$/, ''));
+          job.collectLine(line);
+          this.onEvent({ event: 'output', job_id: id, label: job.label, stream: streamName, line });
         }
       });
     };
@@ -329,6 +412,7 @@ export class TaskService {
       job.status = 'failed';
       job.exitCode = null;
       job.endedAt = Date.now();
+      this.emitProblems(job);
       this.onEvent({ event: 'output', job_id: id, label: job.label, stream: 'stderr', line: `spawn failed: ${error.message}` });
       this.onEvent({ event: 'exit', job_id: id, label: job.label, exitCode: null, signal: null });
     });
@@ -340,6 +424,7 @@ export class TaskService {
       job.status = job.stoppedByUser ? 'stopped' : code === 0 ? 'exited' : 'failed';
       job.exitCode = code;
       job.endedAt = Date.now();
+      this.emitProblems(job);
       this.onEvent({
         event: 'exit',
         job_id: id,
@@ -350,6 +435,36 @@ export class TaskService {
     });
 
     return { job_id: id };
+  }
+
+  emitProblems(job) {
+    if (job.matchers.length === 0) return;
+    const fullText = job.bufferLines.join('\n');
+    job.matchers.forEach((matcher, index) => {
+      for (const problem of extractRawProblems(matcher, fullText)) {
+        const key = `${problem.file}|${problem.line}|${problem.column}|${problem.message}`;
+        if (!job.rawKeys[index].has(key)) {
+          job.rawKeys[index].add(key);
+          job.rawProblems[index].push(problem);
+        }
+      }
+    });
+    const merged = [];
+    const seen = new Set();
+    job.matchers.forEach((matcher, index) => {
+      const { problems } = resolveRawProblems(matcher, job.rawProblems[index], {
+        workspaceRoot: this.workspace,
+        cwd: this.workspace
+      });
+      for (const problem of problems) {
+        const key = `${problem.file}|${problem.line}|${problem.column}|${problem.message}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(problem);
+        }
+      }
+    });
+    this.onEvent({ event: 'problems', job_id: job.job_id, label: job.label, problems: merged });
   }
 
   async stop(jobId) {

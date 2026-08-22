@@ -44,6 +44,7 @@ export class DapManager {
   private readonly capabilities = new Map<string, Record<string, boolean>>();
   private readonly children = new Map<string, ChildProcess>();
   private readonly decoders = new Map<string, JsonRpcDecoder>();
+  private readonly lastEvents = new Map<string, string>();
   private readonly pending = new Map<string, PendingRequest>();
   private readonly nextId: () => number;
   private readonly adapters: DapAdapterConfig[];
@@ -235,12 +236,24 @@ export class DapManager {
     } catch {
       // adapter may already be gone; kill below
     }
+    // DAP lifecycle: a conforming adapter emits 'terminated' right after the
+    // disconnect response, then exits. Wait briefly for that event (or exit)
+    // so consumers receive it before teardown; killing immediately races it away.
+    const deadline = Date.now() + 1500;
+    while (
+      Date.now() < deadline &&
+      child.exitCode === null &&
+      this.lastEvents.get(id) !== 'terminated'
+    ) {
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
     await this.stop(id);
   }
 
   async stop(id: string): Promise<void> {
     const child = this.children.get(id);
     if (!child) return;
+    this.lastEvents.delete(id);
     const waitExit = new Promise<void>(resolve => {
       if (child.exitCode !== null) resolve();
       else child.once('exit', () => resolve());
@@ -285,6 +298,7 @@ export class DapManager {
     for (const message of messages) {
       const record = message as { type?: string; event?: string; body?: unknown; request_seq?: number; success?: boolean; error?: unknown };
       if (record.type === 'event' && record.event !== undefined) {
+        this.lastEvents.set(id, record.event);
         this.onEvent(id, record.event, record.body ?? {});
         continue;
       }

@@ -31,6 +31,7 @@ export class MatcherSession {
     this.patterns = Array.isArray(matcher.pattern) ? matcher.pattern : [matcher.pattern];
     this.background = matcher.background ?? null;
     this.active = this.background ? this.background.activeOnStart === true : true;
+    this.sawBegin = this.active && this.background ? true : false;
     this.i = 0;
     this.acc = {};
     this.declaredFile = null;
@@ -43,6 +44,7 @@ export class MatcherSession {
     if (this.background) {
       if (compile(this.background.beginsPattern).test(line)) {
         this.active = true;
+        this.sawBegin = true;
         return [];
       }
       if (compile(this.background.endsPattern).test(line)) {
@@ -52,6 +54,10 @@ export class MatcherSession {
       if (!this.active) return [];
     }
     return this.processLine(line);
+  }
+
+  isBackgroundReady() {
+    return this.background !== null && this.sawBegin && !this.active;
   }
 
   processLine(line) {

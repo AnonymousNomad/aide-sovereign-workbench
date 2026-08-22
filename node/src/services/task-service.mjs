@@ -74,8 +74,17 @@ export function validateTaskDefinition(value, index) {
     }
   }
   if (value.dependsOn !== undefined) {
-    const ok = typeof value.dependsOn === 'string' || (Array.isArray(value.dependsOn) && value.dependsOn.every(d => typeof d === 'string'));
-    if (!ok) throw new TaskFileError(`${where}.dependsOn must be a string or array of strings`, { where });
+    const deps = Array.isArray(value.dependsOn) ? value.dependsOn : [value.dependsOn];
+    if (deps.length === 0) throw new TaskFileError(`${where}.dependsOn must not be an empty array`, { where });
+    for (const [depIndex, dep] of deps.entries()) {
+      if (typeof dep === 'string') {
+        if (dep.length === 0) throw new TaskFileError(`${where}.dependsOn[${depIndex}] must not be empty`, { where: `${where}.dependsOn[${depIndex}]` });
+      } else if (isPlainObject(dep)) {
+        validateTaskDefinition(dep, `${index}.dependsOn[${depIndex}]`);
+      } else {
+        throw new TaskFileError(`${where}.dependsOn[${depIndex}] must be a string or a task definition object`, { where: `${where}.dependsOn[${depIndex}]` });
+      }
+    }
   }
   if (value.dependsOrder !== undefined && value.dependsOrder !== 'parallel' && value.dependsOrder !== 'sequence') {
     throw new TaskFileError(`${where}.dependsOrder must be "parallel" or "sequence"`, { where });
@@ -197,11 +206,62 @@ export async function resolveShimPath(command) {
   return resolved;
 }
 
+const MAX_DEPENDS_DEPTH = 16;
+const BACKGROUND_READY_POLL_MS = 50;
+const BACKGROUND_READY_TIMEOUT_MS = 60000;
+
+export function resolveDepPlan(tasks, rootTask) {
+  const byLabel = new Map(tasks.map(task => [task.label, task]));
+  const nodes = new Map();
+  const executionOrder = [];
+  const visiting = [];
+  let inlineCounter = 0;
+
+  const visit = (task, depth) => {
+    if (depth > MAX_DEPENDS_DEPTH) throw makeBadRequest(`dependency chain exceeds depth ${MAX_DEPENDS_DEPTH}`);
+    if (visiting.includes(task.label)) {
+      const cyclePath = [...visiting.slice(visiting.indexOf(task.label)), task.label].join(' -> ');
+      throw makeBadRequest(`circular dependency detected: ${cyclePath}`);
+    }
+    if (nodes.has(task.label)) return nodes.get(task.label);
+    visiting.push(task.label);
+    const rawDeps = task.dependsOn === undefined ? [] : Array.isArray(task.dependsOn) ? task.dependsOn : [task.dependsOn];
+    const deps = rawDeps.map(dep => {
+      if (typeof dep === 'string') {
+        const found = byLabel.get(dep);
+        if (!found) throw makeBadRequest(`unknown dependency "${dep}" of task "${task.label}"`);
+        return visit(found, depth + 1);
+      }
+      validateTaskDefinition(dep, `${task.label}.dependsOn[${inlineCounter}]`);
+      const synthesized = `${dep.label}`;
+      void synthesized;
+      inlineCounter += 1;
+      return visit(dep, depth + 1);
+    });
+    visiting.pop();
+    const node = { task, deps };
+    nodes.set(task.label, node);
+    for (const dep of deps) {
+      if (!executionOrder.includes(dep)) executionOrder.push(dep);
+    }
+    executionOrder.push(node);
+    return node;
+  };
+  visit(rootTask, 0);
+  return { root: nodes.get(rootTask.label), executionOrder };
+}
+
+function makeBadRequest(message) {
+  const error = new Error(message);
+  error.name = 'BAD_REQUEST';
+  return error;
+}
+
 class Job {
-  constructor(id, task, source, matchers) {
+  constructor(id, task, source, matchers, options = {}) {
     this.job_id = id;
     this.label = task.label;
-    this.command = resolveCommand(task.type, task.command);
+    this.command = task.command === '(compound)' ? '(compound)' : resolveCommand(task.type, task.command);
     this.args = [...(task.args ?? [])];
     this.source = source;
     this.matchers = matchers;
@@ -217,6 +277,12 @@ class Job {
     this.stoppedByUser = false;
     this.finalized = false;
     this.forceKillTimer = null;
+    this.isCompound = options.isCompound === true;
+    this.parentJobId = options.parentJobId ?? null;
+    this.namePath = options.namePath ?? null;
+    this.failedDependency = null;
+    this.doneResolve = null;
+    this.done = new Promise(resolve => { this.doneResolve = resolve; });
   }
 
   collectLine(line) {
@@ -243,8 +309,20 @@ class Job {
       status: this.status,
       exitCode: this.exitCode,
       startedAt: this.startedAt,
-      endedAt: this.endedAt
+      endedAt: this.endedAt,
+      parent_job_id: this.parentJobId,
+      name_path: this.namePath,
+      failed_dependency: this.failedDependency
     };
+  }
+
+  finish(status, exitCode) {
+    if (this.finalized) return;
+    this.finalized = true;
+    this.status = status;
+    this.exitCode = exitCode;
+    this.endedAt = Date.now();
+    this.doneResolve();
   }
 }
 
@@ -347,11 +425,202 @@ export class TaskService {
       error.name = 'NOT_FOUND';
       throw error;
     }
-    const id = crypto.randomUUID();
-    const matcher = await this.resolveJobMatcher(task);
-    const job = new Job(id, task, task.source ?? 'tasks.json', matcher);
-    this.jobs.set(id, job);
+    if (task.dependsOn !== undefined) return this.runCompound(task);
+    return this.runSingle(task);
+  }
 
+  async runSingle(task) {
+    const id = crypto.randomUUID();
+    const matchers = await this.resolveJobMatcher(task);
+    const job = new Job(id, task, task.source ?? 'tasks.json', matchers);
+    this.jobs.set(id, job);
+    try {
+      await this.spawnLeafJob(job);
+    } catch (error) {
+      this.jobs.delete(id);
+      throw error;
+    }
+    return { job_id: id };
+  }
+
+  async runCompound(rootTask) {
+    const file = await this.loadTasksFile();
+    if (!file) {
+      const error = new Error(`compound task "${rootTask.label}" requires a tasks.json file`);
+      error.name = 'BAD_REQUEST';
+      throw error;
+    }
+    let plan;
+    try {
+      plan = resolveDepPlan(file.tasks, rootTask);
+    } catch (error) {
+      if (error instanceof TaskFileError) throw makeBadRequest(error.message);
+      throw error;
+    }
+    const id = crypto.randomUUID();
+    const coordinator = new Job(id, { ...rootTask, command: '(compound)', args: [] }, 'tasks.json', [], { isCompound: true });
+    this.jobs.set(id, coordinator);
+    this.onEvent({ event: 'started', job_id: id, label: coordinator.label, parent_job_id: null, name_path: rootTask.label });
+    void this.executePlan(plan, coordinator, rootTask.label).catch(() => {});
+    return { job_id: id };
+  }
+
+  async executePlan(plan, coordinator, rootLabel) {
+    let ok = false;
+    try {
+      ok = await this.executeNode(plan.root, coordinator, [rootLabel]);
+    } catch {
+      ok = false;
+    } finally {
+      if (!coordinator.finalized) {
+        coordinator.finish(ok ? 'exited' : 'failed', ok ? 0 : null);
+        this.onEvent({
+          event: 'exit',
+          job_id: coordinator.job_id,
+          label: coordinator.label,
+          exitCode: coordinator.exitCode,
+          signal: null,
+          parent_job_id: null,
+          name_path: rootLabel,
+          ...(coordinator.failedDependency ? { failed_dependency: coordinator.failedDependency } : {})
+        });
+      }
+    }
+  }
+
+  async executeNode(node, coordinator, pathLabels) {
+    const order = node.task.dependsOrder === 'parallel' ? 'parallel' : 'sequence';
+    if (node.deps.length > 0) {
+      if (order === 'sequence') {
+        for (const dep of node.deps) {
+          const ok = await this.executeNode(dep, coordinator, [...pathLabels, dep.task.label]);
+          if (!ok) {
+            if (coordinator.failedDependency === null) coordinator.failedDependency = dep.task.label;
+            await this.killRunningDescendants(coordinator.job_id);
+            return false;
+          }
+        }
+      } else {
+        let cleanup = null;
+        const results = await Promise.all(
+          node.deps.map(dep =>
+            this.executeNode(dep, coordinator, [...pathLabels, dep.task.label]).then(ok => {
+              if (!ok) {
+                if (coordinator.failedDependency === null) coordinator.failedDependency = dep.task.label;
+                cleanup = this.killRunningDescendants(coordinator.job_id);
+              }
+              return ok;
+            })
+          )
+        );
+        await (cleanup ?? Promise.resolve());
+        if (!results.every(Boolean)) return false;
+      }
+    }
+    return this.executeLeaf(node.task, coordinator, pathLabels.join(' > '));
+  }
+
+  async executeLeaf(task, coordinator, namePath) {
+    const id = crypto.randomUUID();
+    const matchers = await this.resolveJobMatcher(task);
+    const job = new Job(id, task, task.source ?? 'tasks.json', matchers, { parentJobId: coordinator.job_id, namePath });
+    this.jobs.set(id, job);
+    try {
+      await this.spawnLeafJob(job);
+    } catch (error) {
+      this.jobs.delete(id);
+      this.onEvent({
+        event: 'output',
+        job_id: id,
+        label: task.label,
+        stream: 'stderr',
+        line: `spawn failed: ${error.message}`
+      });
+      if (coordinator.failedDependency === null) coordinator.failedDependency = task.label;
+      return false;
+    }
+
+    const wantsBackgroundReadiness = task.isBackground === true && job.sessions.some(session => session.background !== null);
+    if (wantsBackgroundReadiness) {
+      const ready = await this.waitBackgroundReady(job);
+      if (ready === true) return true;
+      if (ready === 'timeout') {
+        await this.terminateAsStopped(job);
+        if (coordinator.failedDependency === null) coordinator.failedDependency = task.label;
+        return false;
+      }
+      return job.exitCode === 0;
+    }
+    if (task.isBackground === true) {
+      this.onEvent({
+        event: 'output',
+        job_id: id,
+        label: task.label,
+        stream: 'stderr',
+        line: '[aide] background dependency has no background problemMatcher; treating exit as readiness'
+      });
+    }
+    await job.done;
+    return job.exitCode === 0 && (job.status === 'exited');
+  }
+
+  async waitBackgroundReady(job) {
+    const deadline = Date.now() + BACKGROUND_READY_TIMEOUT_MS;
+    return await new Promise(resolve => {
+      const timer = setInterval(() => {
+        if (job.sessions.some(session => session.isBackgroundReady())) {
+          clearInterval(timer);
+          resolve(true);
+          return;
+        }
+        if (job.finalized || Date.now() > deadline) {
+          clearInterval(timer);
+          resolve(job.finalized ? false : 'timeout');
+        }
+      }, BACKGROUND_READY_POLL_MS);
+    });
+  }
+
+  isDescendantOf(job, ancestorId) {
+    let current = job;
+    const seen = new Set();
+    while (current.parentJobId !== null) {
+      if (current.parentJobId === ancestorId) return true;
+      if (seen.has(current.parentJobId)) return false;
+      seen.add(current.parentJobId);
+      const next = this.jobs.get(current.parentJobId);
+      if (!next) return false;
+      current = next;
+    }
+    return false;
+  }
+
+  async killRunningDescendants(ancestorId) {
+    for (const job of [...this.jobs.values()]) {
+      if (job.status === 'running' && this.isDescendantOf(job, ancestorId)) {
+        await this.terminateAsStopped(job);
+      }
+    }
+  }
+
+  async terminateAsStopped(job) {
+    if (job.finalized || job.status !== 'running') return;
+    job.stoppedByUser = true;
+    job.finish('stopped', null);
+    await this.killTree(job.child);
+    this.onEvent({
+      event: 'exit',
+      job_id: job.job_id,
+      label: job.label,
+      exitCode: null,
+      signal: 'SIGTERM',
+      parent_job_id: job.parentJobId,
+      name_path: job.namePath
+    });
+  }
+
+  async spawnLeafJob(job) {
+    const id = job.job_id;
     let child;
     const spawnOptions = {
       cwd: this.workspace,
@@ -368,12 +637,11 @@ export class TaskService {
         child = spawn(job.command, job.args, spawnOptions);
       }
     } catch (error) {
-      this.jobs.delete(id);
       error.name = 'BAD_REQUEST';
       throw error;
     }
     job.child = child;
-    this.onEvent({ event: 'started', job_id: id, label: job.label });
+    this.onEvent({ event: 'started', job_id: id, label: job.label, parent_job_id: job.parentJobId, name_path: job.namePath });
 
     const attach = (streamName, stream) => {
       let pending = '';
@@ -407,34 +675,41 @@ export class TaskService {
     attach('stderr', child.stderr);
 
     child.on('error', error => {
-      if (job.finalized || job.status === 'stopped') return;
-      job.finalized = true;
-      job.status = 'failed';
-      job.exitCode = null;
-      job.endedAt = Date.now();
+      if (job.finalized) return;
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      job.finish('failed', null);
       this.emitProblems(job);
       this.onEvent({ event: 'output', job_id: id, label: job.label, stream: 'stderr', line: `spawn failed: ${error.message}` });
-      this.onEvent({ event: 'exit', job_id: id, label: job.label, exitCode: null, signal: null });
+      this.onEvent({
+        event: 'exit',
+        job_id: id,
+        label: job.label,
+        exitCode: null,
+        signal: null,
+        parent_job_id: job.parentJobId,
+        name_path: job.namePath
+      });
     });
 
     child.on('close', (code, signal) => {
       if (job.forceKillTimer) clearTimeout(job.forceKillTimer);
-      if (job.finalized || job.status === 'stopped') return;
-      job.finalized = true;
-      job.status = job.stoppedByUser ? 'stopped' : code === 0 ? 'exited' : 'failed';
-      job.exitCode = code;
-      job.endedAt = Date.now();
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      if (job.finalized) return;
+      const status = job.stoppedByUser ? 'stopped' : code === 0 ? 'exited' : 'failed';
+      job.finish(status, code);
       this.emitProblems(job);
       this.onEvent({
         event: 'exit',
         job_id: id,
         label: job.label,
         exitCode: code,
-        signal: signal ?? null
+        signal: signal ?? null,
+        parent_job_id: job.parentJobId,
+        name_path: job.namePath
       });
     });
-
-    return { job_id: id };
   }
 
   emitProblems(job) {
@@ -479,26 +754,28 @@ export class TaskService {
       error.name = 'BAD_REQUEST';
       throw error;
     }
-    job.stoppedByUser = true;
-    job.status = 'stopped';
-    job.endedAt = Date.now();
-    await this.killTree(job.child);
-    this.onEvent({ event: 'exit', job_id: jobId, label: job.label, exitCode: null, signal: 'SIGTERM' });
+    await this.terminateAsStopped(job);
+    await this.killRunningDescendants(jobId);
   }
 
   killTree(child) {
     return new Promise(resolve => {
-      if (!child || child.exitCode !== null || child.signalCode !== null) {
+      const finish = () => {
+        try { child?.stdout?.destroy(); } catch { /* already gone */ }
+        try { child?.stderr?.destroy(); } catch { /* already gone */ }
         resolve();
+      };
+      if (!child || child.exitCode !== null || child.signalCode !== null) {
+        finish();
         return;
       }
       if (path.sep === '\\') {
-        execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true }, () => resolve());
+        execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true }, () => {});
       } else {
         child.kill('SIGTERM');
       }
       jobForceKill(child);
-      child.once('close', () => resolve());
+      child.once('close', finish);
     });
   }
 

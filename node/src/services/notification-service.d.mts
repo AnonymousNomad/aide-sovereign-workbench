@@ -40,6 +40,7 @@ export interface TaskEventLike {
   exitCode?: number | null;
   signal?: string | null;
   problems?: unknown[];
+  parent_job_id?: string | null;
 }
 
 export declare class NotificationService {

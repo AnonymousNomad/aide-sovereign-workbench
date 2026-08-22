@@ -51,7 +51,7 @@ export const TaskDefinition = z
     isBackground: z.boolean().optional(),
     group: TaskGroup.optional(),
     problemMatcher: z.union([MatcherReference, z.array(MatcherReference).min(1)]).optional(),
-    dependsOn: z.union([z.string(), z.array(z.string())]).optional(),
+    dependsOn: z.union([z.string(), z.array(z.union([z.string(), z.lazy(() => TaskDefinition)])).min(1)]).optional(),
     dependsOrder: z.enum(['parallel', 'sequence']).optional(),
     runOptions: z.object({ runOn: z.enum(['default', 'folderOpen']) }).strict().optional()
   })
@@ -94,14 +94,23 @@ export const TaskJob = z
     status: TaskJobStatus,
     exitCode: z.number().int().nullable(),
     startedAt: z.number(),
-    endedAt: z.number().nullable()
+    endedAt: z.number().nullable(),
+    parent_job_id: z.string().nullable().optional(),
+    name_path: z.string().nullable().optional(),
+    failed_dependency: z.string().nullable().optional()
   })
   .strict();
 
 export const TaskStatusResponse = z.object({ jobs: z.array(TaskJob) }).strict();
 
 export const TaskStartedEvent = z
-  .object({ event: z.literal('started'), job_id: z.string().min(1), label: z.string() })
+  .object({
+    event: z.literal('started'),
+    job_id: z.string().min(1),
+    label: z.string(),
+    parent_job_id: z.string().nullable().optional(),
+    name_path: z.string().nullable().optional()
+  })
   .strict();
 export const TaskOutputEvent = z
   .object({
@@ -118,7 +127,10 @@ export const TaskExitEvent = z
     job_id: z.string().min(1),
     label: z.string(),
     exitCode: z.number().int().nullable(),
-    signal: z.string().nullable()
+    signal: z.string().nullable(),
+    parent_job_id: z.string().nullable().optional(),
+    name_path: z.string().nullable().optional(),
+    failed_dependency: z.string().nullable().optional()
   })
   .strict();
 

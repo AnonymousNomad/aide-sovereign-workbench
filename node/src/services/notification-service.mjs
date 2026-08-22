@@ -183,6 +183,7 @@ export class NotificationService {
 
   ingestTaskEvent(evt) {
     if (!evt || typeof evt !== 'object') return;
+    if (evt.parent_job_id !== undefined && evt.parent_job_id !== null) return;
     const label = evt.label ?? evt.job_id ?? 'task';
     if (evt.event === 'started') {
       void this.runHooks('task.started', { label, job_id: evt.job_id });

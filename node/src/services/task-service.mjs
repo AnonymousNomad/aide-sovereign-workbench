@@ -4,6 +4,72 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { BUILTIN_MATCHERS, resolveProblemMatcher, MatcherError } from './problem-matchers.mjs';
 import { MatcherSession, extractRawProblems, resolveRawProblems } from './problem-parser.mjs';
+import { BuildCache, computeCacheKey } from './build-cache.mjs';
+
+const CACHE_VERSION = 1;
+const MAX_CACHE_INPUT_FILES = 5000;
+
+export function globToMatcher(glob) {
+  const normalized = glob.split('\\').join('/');
+  let pattern = '';
+  let i = 0;
+  while (i < normalized.length) {
+    const ch = normalized[i];
+    if (ch === '*') {
+      if (normalized[i + 1] === '*') {
+        const isDirGlob = normalized[i + 2] === '/';
+        pattern += isDirGlob ? '(?:.*/)?' : '.*';
+        i += isDirGlob ? 3 : 2;
+        continue;
+      }
+      pattern += '[^/]*';
+      i += 1;
+      continue;
+    }
+    if (ch === '?') {
+      pattern += '[^/]';
+      i += 1;
+      continue;
+    }
+    pattern += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    i += 1;
+  }
+  return new RegExp(`^${pattern}$`);
+}
+
+export async function hashGlobs(workspaceRoot, globs) {
+  const matchers = globs.map(glob => globToMatcher(glob));
+  const matches = {};
+  let count = 0;
+  const walk = async dir => {
+    let dirents;
+    try {
+      dirents = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const dirent of dirents) {
+      if (dirent.name === '.git' || dirent.name === 'node_modules' || dirent.name === '.aide') continue;
+      const absolute = path.join(dir, dirent.name);
+      const relative = path.relative(workspaceRoot, absolute).split('\\').join('/');
+      if (dirent.isDirectory()) {
+        await walk(absolute);
+        continue;
+      }
+      if (!matchers.some(matcher => matcher.test(relative))) continue;
+      count += 1;
+      if (count > MAX_CACHE_INPUT_FILES) {
+        const error = new Error(`cache inputs exceed ${MAX_CACHE_INPUT_FILES} files; task excluded from caching`);
+        error.name = 'CACHE_INPUTS_LIMIT';
+        throw error;
+      }
+      const contents = await fs.readFile(absolute);
+      matches[relative] = crypto.createHash('sha256').update(contents).digest('hex');
+    }
+  };
+  await walk(workspaceRoot);
+  return matches;
+}
 
 const WINDOWS_CMD_SHIMS = new Set(['npm', 'npx', 'tsc', 'yarn', 'pnpm', 'gulp', 'grunt', 'vite', 'jest', 'eslint', 'tsserver']);
 const MAX_LINE_LENGTH = 8000;
@@ -33,7 +99,7 @@ function checkString(value, where) {
 export function validateTaskDefinition(value, index) {
   const where = `tasks[${index}]`;
   if (!isPlainObject(value)) throw new TaskFileError(`${where} must be an object`, { where });
-  const allowed = new Set(['label', 'type', 'command', 'args', 'isBackground', 'group', 'problemMatcher', 'dependsOn', 'dependsOrder', 'runOptions']);
+    const allowed = new Set(['label', 'type', 'command', 'args', 'isBackground', 'group', 'problemMatcher', 'dependsOn', 'dependsOrder', 'runOptions', 'cache']);
   for (const key of Object.keys(value)) {
     if (!allowed.has(key)) throw new TaskFileError(`${where}.${key} is not allowed (strict schema)`, { where, key });
   }
@@ -88,6 +154,20 @@ export function validateTaskDefinition(value, index) {
   }
   if (value.dependsOrder !== undefined && value.dependsOrder !== 'parallel' && value.dependsOrder !== 'sequence') {
     throw new TaskFileError(`${where}.dependsOrder must be "parallel" or "sequence"`, { where });
+  }
+  if (value.cache !== undefined) {
+    if (!isPlainObject(value.cache)) throw new TaskFileError(`${where}.cache must be an object`, { where });
+    for (const key of Object.keys(value.cache)) {
+      if (key !== 'inputs' && key !== 'env') {
+        throw new TaskFileError(`${where}.cache.${key} is not allowed`, { where: `${where}.cache.${key}` });
+      }
+    }
+    if (!Array.isArray(value.cache.inputs) || value.cache.inputs.length === 0 || !value.cache.inputs.every(g => typeof g === 'string' && g.length > 0)) {
+      throw new TaskFileError(`${where}.cache.inputs must be a non-empty array of non-empty strings`, { where: `${where}.cache.inputs` });
+    }
+    if (value.cache.env !== undefined && (!Array.isArray(value.cache.env) || !value.cache.env.every(e => typeof e === 'string' && e.length > 0))) {
+      throw new TaskFileError(`${where}.cache.env must be an array of non-empty strings`, { where: `${where}.cache.env` });
+    }
   }
   if (value.runOptions !== undefined) {
     if (!isPlainObject(value.runOptions)) throw new TaskFileError(`${where}.runOptions must be an object`, { where });
@@ -281,14 +361,15 @@ class Job {
     this.parentJobId = options.parentJobId ?? null;
     this.namePath = options.namePath ?? null;
     this.failedDependency = null;
+    this.restored = false;
     this.doneResolve = null;
     this.done = new Promise(resolve => { this.doneResolve = resolve; });
   }
 
   collectLine(line) {
-    if (this.sessions.length === 0) return;
     this.bufferLines.push(line);
     if (this.bufferLines.length > MAX_BUFFER_LINES) this.bufferLines.shift();
+    if (this.sessions.length === 0) return;
     this.sessions.forEach((session, index) => {
       for (const problem of session.push(line)) {
         const key = `${problem.file}|${problem.line}|${problem.column}|${problem.message}`;
@@ -312,7 +393,8 @@ class Job {
       endedAt: this.endedAt,
       parent_job_id: this.parentJobId,
       name_path: this.namePath,
-      failed_dependency: this.failedDependency
+      failed_dependency: this.failedDependency,
+      restored: this.restored
     };
   }
 
@@ -327,10 +409,11 @@ class Job {
 }
 
 export class TaskService {
-  constructor({ workspace, onEvent }) {
+  constructor({ workspace, onEvent, cacheDir } = {}) {
     this.workspace = workspace;
     this.onEvent = typeof onEvent === 'function' ? onEvent : () => {};
     this.jobs = new Map();
+    this.cache = new BuildCache({ workspace, ...(cacheDir ? { dir: cacheDir } : {}) });
   }
 
   async loadTasksFile() {
@@ -433,14 +516,101 @@ export class TaskService {
     const id = crypto.randomUUID();
     const matchers = await this.resolveJobMatcher(task);
     const job = new Job(id, task, task.source ?? 'tasks.json', matchers);
+    job.taskDef = task;
     this.jobs.set(id, job);
     try {
+      if (await this.tryRestoreFromCache(task, job)) {
+        return { job_id: id };
+      }
       await this.spawnLeafJob(job);
     } catch (error) {
+      if (job.finalized) return { job_id: id };
       this.jobs.delete(id);
       throw error;
     }
     return { job_id: id };
+  }
+
+  cacheable(task, matchers) {
+    if (!task || !task.cache || task.isBackground === true) return false;
+    return !matchers.some(matcher => matcher && matcher.background != null);
+  }
+
+  async cacheKeyFor(task, job) {
+    void job;
+    const inputHashes = await hashGlobs(this.workspace, Array.isArray(task.cache.inputs) ? task.cache.inputs : [task.cache.inputs]);
+    const envSubset = {};
+    for (const name of task.cache.env ?? []) {
+      if (Object.prototype.hasOwnProperty.call(process.env, name)) envSubset[name] = process.env[name];
+    }
+    return computeCacheKey({
+      cacheVersion: CACHE_VERSION,
+      label: task.label,
+      command: job.command,
+      args: job.args,
+      inputHashes,
+      env: envSubset,
+      nodeVersion: process.version
+    });
+  }
+
+  async tryRestoreFromCache(task, job) {
+    if (!this.cacheable(task, job.matchers)) return false;
+    let key;
+    try {
+      key = await this.cacheKeyFor(task, job);
+    } catch (error) {
+      if (error?.name === 'CACHE_INPUTS_LIMIT') {
+        this.onEvent({ event: 'output', job_id: job.job_id, label: job.label, stream: 'stderr', line: `[aide] cache disabled: ${error.message}` });
+        return false;
+      }
+      throw error;
+    }
+    const hit = await this.cache.get(key);
+    if (!hit) return false;
+    job.restored = true;
+    for (const line of hit.logText.length > 0 ? hit.logText.split('\n') : []) {
+      job.collectLine(line);
+      this.onEvent({ event: 'output', job_id: job.job_id, label: job.label, stream: 'stdout', line });
+    }
+    this.onEvent({ event: 'output', job_id: job.job_id, label: job.label, stream: 'stdout', line: `[aide] restored from cache (${key.slice(0, 8)})` });
+    if ((hit.problems ?? []).length > 0) {
+      this.onEvent({ event: 'problems', job_id: job.job_id, label: job.label, problems: hit.problems });
+    }
+    job.finish('exited', hit.manifest.exitCode);
+    this.onEvent({
+      event: 'exit',
+      job_id: job.job_id,
+      label: job.label,
+      exitCode: hit.manifest.exitCode,
+      signal: null,
+      parent_job_id: null,
+      name_path: null
+    });
+    return true;
+  }
+
+  async maybeRecordToCache(task, job, mergedProblems) {
+    if (job.restored || job.status !== 'exited' || job.exitCode !== 0) return;
+    if (!this.cacheable(task, job.matchers)) return;
+    let key;
+    try {
+      key = await this.cacheKeyFor(task, job);
+    } catch {
+      return;
+    }
+    const logText = job.bufferLines.join('\n');
+    await this.cache.record(
+      {
+        key,
+        label: task.label,
+        createdAt: Date.now(),
+        exitCode: 0,
+        sizeBytes: Buffer.byteLength(logText, 'utf8')
+      },
+      logText,
+      mergedProblems
+    );
   }
 
   async runCompound(rootTask) {
@@ -699,7 +869,10 @@ export class TaskService {
       if (job.finalized) return;
       const status = job.stoppedByUser ? 'stopped' : code === 0 ? 'exited' : 'failed';
       job.finish(status, code);
-      this.emitProblems(job);
+      const mergedProblems = this.emitProblems(job);
+      if (job.taskDef && status === 'exited') {
+        void this.maybeRecordToCache(job.taskDef, job, mergedProblems).catch(() => {});
+      }
       this.onEvent({
         event: 'exit',
         job_id: id,
@@ -713,7 +886,7 @@ export class TaskService {
   }
 
   emitProblems(job) {
-    if (job.matchers.length === 0) return;
+    if (job.matchers.length === 0) return [];
     const fullText = job.bufferLines.join('\n');
     job.matchers.forEach((matcher, index) => {
       for (const problem of extractRawProblems(matcher, fullText)) {
@@ -740,6 +913,7 @@ export class TaskService {
       }
     });
     this.onEvent({ event: 'problems', job_id: job.job_id, label: job.label, problems: merged });
+    return merged;
   }
 
   async stop(jobId) {

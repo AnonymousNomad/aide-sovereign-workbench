@@ -57,7 +57,8 @@ export interface TaskListResult {
 export type TaskEventBody = TaskEventT;
 
 export declare class TaskService {
-  constructor(options: { workspace: string; onEvent?: (body: TaskEventBody) => void });
+  constructor(options: { workspace: string; onEvent?: (body: TaskEventBody) => void; cacheDir?: string });
+  readonly cache: import('./build-cache.mjs').BuildCache;
   list(): Promise<TaskListResult>;
   loadWorkspaceMatchers(): Promise<Record<string, unknown>>;
   listMatchers(): Promise<{ matchers: Array<{ name: string; owner: string }> }>;

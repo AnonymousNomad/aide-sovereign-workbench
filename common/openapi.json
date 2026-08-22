@@ -6653,6 +6653,30 @@
                             ],
                             "additionalProperties": false
                           },
+                          "cache": {
+                            "type": "object",
+                            "properties": {
+                              "inputs": {
+                                "minItems": 1,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "env": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              }
+                            },
+                            "required": [
+                              "inputs"
+                            ],
+                            "additionalProperties": false
+                          },
                           "source": {
                             "type": "string",
                             "enum": [
@@ -7191,6 +7215,30 @@
                                       "runOn"
                                     ],
                                     "additionalProperties": false
+                                  },
+                                  "cache": {
+                                    "type": "object",
+                                    "properties": {
+                                      "inputs": {
+                                        "minItems": 1,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      },
+                                      "env": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "inputs"
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 },
                                 "required": [
@@ -7206,6 +7254,123 @@
                       ]
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/cache/clear": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "cleared": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "cleared"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/cache/stats": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "lastHitAt": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "exitCode": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "sizeBytes": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "label",
+                          "createdAt",
+                          "lastHitAt",
+                          "exitCode",
+                          "sizeBytes"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "totalBytes": {
+                      "type": "number"
+                    },
+                    "hits": {
+                      "type": "number"
+                    },
+                    "misses": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "entries",
+                    "totalBytes",
+                    "hits",
+                    "misses"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -7396,6 +7561,9 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "restored": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -7519,6 +7687,9 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "restored": {
+                            "type": "boolean"
                           }
                         },
                         "required": [

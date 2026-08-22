@@ -5,7 +5,10 @@ import {
   TaskRunResponse,
   TaskStopRequest,
   TaskStatusResponse,
-  MatchersResponse
+  MatchersResponse,
+  CacheStatsResponse,
+  CacheClearRequest,
+  CacheClearResponse
 } from '../../../common/contracts/tasks.ts';
 import { TaskService, TaskFileError } from '../../../node/src/services/task-service.mjs';
 import type { TaskEventT } from '../../../common/contracts/tasks.ts';
@@ -41,6 +44,8 @@ export function routesForTasks(workspaceRoot: string, options: { onEvent?: (body
     { method: 'GET', path: '/api/tasks/matchers', response: MatchersResponse, handler: wrap(async () => tasks.listMatchers()) },
     { method: 'POST', path: '/api/tasks/run', body: TaskRunRequest, response: TaskRunResponse, handler: wrap(async ({ body }) => tasks.run((body as { label: string }).label)) },
     { method: 'POST', path: '/api/tasks/stop', body: TaskStopRequest, response: TaskStatusResponse, handler: wrap(async ({ body }) => { await tasks.stop((body as { job_id: string }).job_id); return tasks.status(); }) },
-    { method: 'GET', path: '/api/tasks/status', response: TaskStatusResponse, handler: wrap(async () => tasks.status()) }
+    { method: 'GET', path: '/api/tasks/status', response: TaskStatusResponse, handler: wrap(async () => tasks.status()) },
+    { method: 'GET', path: '/api/tasks/cache/stats', response: CacheStatsResponse, handler: wrap(async () => tasks.cache.stats()) },
+    { method: 'POST', path: '/api/tasks/cache/clear', body: CacheClearRequest, response: CacheClearResponse, handler: wrap(async () => ({ cleared: tasks.cache.clear() })) }
   ];
 }

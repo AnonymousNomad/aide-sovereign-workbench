@@ -53,7 +53,15 @@ export interface TaskDefinitionShape {
   dependsOn?: string | Array<string | TaskDefinitionShape> | undefined;
   dependsOrder?: 'parallel' | 'sequence' | undefined;
   runOptions?: { runOn: 'default' | 'folderOpen' } | undefined;
+  cache?: { inputs: string[]; env?: string[] | undefined } | undefined;
 }
+
+const taskCacheObject = z
+  .object({
+    inputs: z.array(z.string().min(1)).min(1),
+    env: z.array(z.string().min(1)).optional()
+  })
+  .strict();
 
 const taskDefinitionObject = z
   .object({
@@ -68,7 +76,8 @@ const taskDefinitionObject = z
       .union([z.string(), z.array(z.union([z.string(), z.lazy(() => TaskDefinition)])).min(1)])
       .optional(),
     dependsOrder: z.enum(['parallel', 'sequence']).optional(),
-    runOptions: z.object({ runOn: z.enum(['default', 'folderOpen']) }).strict().optional()
+    runOptions: z.object({ runOn: z.enum(['default', 'folderOpen']) }).strict().optional(),
+    cache: taskCacheObject.optional()
   })
   .strict();
 
@@ -114,11 +123,35 @@ export const TaskJob = z
     endedAt: z.number().nullable(),
     parent_job_id: z.string().nullable().optional(),
     name_path: z.string().nullable().optional(),
-    failed_dependency: z.string().nullable().optional()
+    failed_dependency: z.string().nullable().optional(),
+    restored: z.boolean().optional()
   })
   .strict();
 
 export const TaskStatusResponse = z.object({ jobs: z.array(TaskJob) }).strict();
+
+export const CacheStatsResponse = z
+  .object({
+    entries: z.array(
+      z
+        .object({
+          key: z.string().min(1),
+          label: z.string().min(1),
+          createdAt: z.number(),
+          lastHitAt: z.number().nullable(),
+          exitCode: z.number().int(),
+          sizeBytes: z.number()
+        })
+        .strict()
+    ),
+    totalBytes: z.number(),
+    hits: z.number(),
+    misses: z.number()
+  })
+  .strict();
+
+export const CacheClearRequest = z.object({}).strict();
+export const CacheClearResponse = z.object({ cleared: z.number() }).strict();
 
 export const TaskStartedEvent = z
   .object({

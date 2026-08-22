@@ -12,6 +12,11 @@ export class SettingsService {
       ['aide.editor.fontSize', { type: 'number', default: 14, scope: 'application', description: 'Editor font size in px' }],
       ['aide.editor.tabSize', { type: 'number', default: 2, scope: 'resource', description: 'Spaces per tab' }],
       ['aide.editor.wordWrap', { type: 'boolean', default: false, scope: 'resource', description: 'Wrap long lines' }],
+      ['aide.editor.minimap', { type: 'boolean', default: true, scope: 'resource', description: 'Show the minimap' }],
+      ['aide.editor.stickyScroll', { type: 'boolean', default: true, scope: 'resource', description: 'Sticky scroll headers' }],
+      ['aide.editor.folding', { type: 'boolean', default: true, scope: 'resource', description: 'Code folding controls' }],
+      ['aide.editor.bracketColorization', { type: 'boolean', default: true, scope: 'resource', description: 'Colorize bracket pairs' }],
+      ['aide.editor.multiCursorModifier', { type: 'string', default: 'ctrlKey', scope: 'application', description: 'Modifier for multi-cursor (ctrlKey|altKey|metaKey)' }],
       ['aide.terminal.shellPath', { type: 'string', default: '', scope: 'machine', description: 'Override shell path (restricted)' }],
       ['aide.chat.modelId', { type: 'string', default: '', scope: 'window', description: 'Preferred local model id' }]
     ]);

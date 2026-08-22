@@ -1460,6 +1460,68 @@
         }
       }
     },
+    "/api/editor/options": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fontSize": {
+                      "type": "integer",
+                      "minimum": 8,
+                      "maximum": 48
+                    },
+                    "tabSize": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 8
+                    },
+                    "wordWrap": {
+                      "type": "boolean"
+                    },
+                    "minimap_enabled": {
+                      "type": "boolean"
+                    },
+                    "stickyScroll_enabled": {
+                      "type": "boolean"
+                    },
+                    "folding_enabled": {
+                      "type": "boolean"
+                    },
+                    "bracketPairColorization_enabled": {
+                      "type": "boolean"
+                    },
+                    "multiCursorModifier": {
+                      "type": "string",
+                      "enum": [
+                        "ctrlKey",
+                        "altKey",
+                        "metaKey"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "fontSize",
+                    "tabSize",
+                    "wordWrap",
+                    "minimap_enabled",
+                    "stickyScroll_enabled",
+                    "folding_enabled",
+                    "bracketPairColorization_enabled",
+                    "multiCursorModifier"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/file": {
       "get": {
         "responses": {

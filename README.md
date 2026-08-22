@@ -48,7 +48,7 @@ Continuously verified against the real daemon and real browser: **188 architectu
 - **Language intelligence** — LSP client for TypeScript: diagnostics as editor markers, completion, hover, go-to-definition.
 - **Debugging foundation** — DAP client for Python (debugpy): session tracking, breakpoints, stack/scope inspection. A full debuggee-fixture battery remains a release gate.
 - **Git** — status, diff review, staging, commit, branches, history — all local, via the git CLI.
-- **Terminal & tasks** — integrated terminal and bounded task execution with streaming output and clean process-tree stop.
+- **Terminal & tasks** — integrated terminal and a contract-first task service (`/api/tasks`): workspace `.aide/tasks.json` definitions, npm-script detection, non-blocking run/start/stop/cancel routes with streaming output events, Windows-safe `.cmd` bridging (no shell-injection surface), and clean process-tree termination. Problem matchers (compiler/linter output → editor diagnostics), compound `dependsOn` graphs, and content-hash build caching land next in the BUILD series.
 - **Online providers (opt-in)** — OpenAI, Anthropic, Google Gemini, Mistral, Groq, and OpenRouter. Credentials are encrypted at rest with Windows DPAPI in the daemon, never shown to the browser, and scrubbed from logs and errors. Every provider host is allowlisted; custom hosts require explicit per-host approval.
 - **Chat-history import** — ChatGPT and Claude `conversations.json` exports (up to 10 MB) import additively into the local chat store. Importers are schema-tested with synthetic fixtures; validation against real provider exports is an open gate until genuine export fixtures are available.
 - **Veritas evidence gates** — AI-generated changes must pass deterministic checks before release: compile, tests, Git whitespace, manifest validation, path boundaries, secret scanning. The harness never lets a model approve or apply its own changes.
@@ -67,6 +67,8 @@ Two tracks are currently being advanced (research-grounded, gated the same way a
 
 - **Academy/tutor upgrades** — a persistent learner-mastery model with spaced-repetition review, model-powered Socratic hinting with answer-leakage guards, and real exercise execution (replacing today's one-liner lesson checks).
 - **Local training pipeline** — dataset studio (dedup, template previews, locked splits), a hardware-aware QLoRA job runner with live loss streaming and best-checkpoint policy, and an eval-gated GGUF export loop so a fine-tuned model only registers if it beats its baseline.
+- **BUILD series (tasks)** — problem matchers feeding the Problems pipeline, compound task graphs, notification harness, and a local-only build cache (Turborepo-style content-hash restore, zero cloud).
+- **Harness research track** — an Iron-Suit orchestrator for every plugged-in model (local or cloud): unlimited-context local memory, honesty/verification gates, resilience with grounded offline failover, and a per-workspace improvement flywheel. All researched, skill-gated, and built behind the same test battery; nothing ships without it.
 
 ## Security & Privacy
 

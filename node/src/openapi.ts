@@ -37,6 +37,7 @@ import { routeForCommandList, routeForCommandInvoke, routeForKeybindingList, rou
 import { routeForRgQuickOpen, routeForRgFiles, routeForRgSearch } from './routes/rg.ts';
 import { routeForEditorOptions } from './routes/editor-options.ts';
 import { routesForGit } from './routes/git.ts';
+import { routesForTasks } from './routes/tasks.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
@@ -306,6 +307,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForRgSearch(rgService),
     routeForEditorOptions(settingsService),
     ...routesForGit(workspace),
+    ...routesForTasks(workspace, {
+      onEvent: body => options.events?.publish('tasks', body)
+    }),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

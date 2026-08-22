@@ -11,6 +11,7 @@ export const ERROR_CODES = [
   'TIMEOUT',
   'CHILD_FAILED',
   'BAD_RESPONSE',
+  'NOT_A_REPO',
   'COMMIT_FAILED'
 ] as const;
 

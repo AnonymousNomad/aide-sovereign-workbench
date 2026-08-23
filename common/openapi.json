@@ -639,6 +639,879 @@
         ]
       }
     },
+    "/api/byok/consent": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "consent_enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "consent_enabled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/byok/key": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stored": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "stored"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "api_key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required": [
+                  "provider_id",
+                  "api_key"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/byok/key/delete": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "base_url": {
+                            "type": "string",
+                            "maxLength": 500,
+                            "format": "uri"
+                          },
+                          "api_type": {
+                            "default": "chat-completions",
+                            "type": "string",
+                            "enum": [
+                              "chat-completions",
+                              "anthropic-messages"
+                            ]
+                          },
+                          "model_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "max_input_tokens": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 10000000
+                          },
+                          "tool_calling": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "key_stored": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "base_url",
+                          "api_type",
+                          "model_id",
+                          "tool_calling",
+                          "key_stored"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "providers"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/byok/providers/delete": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "base_url": {
+                            "type": "string",
+                            "maxLength": 500,
+                            "format": "uri"
+                          },
+                          "api_type": {
+                            "default": "chat-completions",
+                            "type": "string",
+                            "enum": [
+                              "chat-completions",
+                              "anthropic-messages"
+                            ]
+                          },
+                          "model_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "max_input_tokens": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 10000000
+                          },
+                          "tool_calling": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "key_stored": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "base_url",
+                          "api_type",
+                          "model_id",
+                          "tool_calling",
+                          "key_stored"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "providers"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/byok/providers/set": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "base_url": {
+                            "type": "string",
+                            "maxLength": 500,
+                            "format": "uri"
+                          },
+                          "api_type": {
+                            "default": "chat-completions",
+                            "type": "string",
+                            "enum": [
+                              "chat-completions",
+                              "anthropic-messages"
+                            ]
+                          },
+                          "model_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "max_input_tokens": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 10000000
+                          },
+                          "tool_calling": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "key_stored": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "base_url",
+                          "api_type",
+                          "model_id",
+                          "tool_calling",
+                          "key_stored"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "providers"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "base_url": {
+                        "type": "string",
+                        "maxLength": 500,
+                        "format": "uri"
+                      },
+                      "api_type": {
+                        "default": "chat-completions",
+                        "type": "string",
+                        "enum": [
+                          "chat-completions",
+                          "anthropic-messages"
+                        ]
+                      },
+                      "model_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "max_input_tokens": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 10000000
+                      },
+                      "tool_calling": {
+                        "default": false,
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "base_url",
+                      "api_type",
+                      "model_id",
+                      "tool_calling"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "provider"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/byok/routing": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "routing": {
+                      "type": "object",
+                      "properties": {
+                        "plan": {
+                          "default": "local",
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "const": "local"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "provider_id": {
+                                  "type": "string"
+                                },
+                                "model_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider_id",
+                                "model_id"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "act": {
+                          "default": "local",
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "const": "local"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "provider_id": {
+                                  "type": "string"
+                                },
+                                "model_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider_id",
+                                "model_id"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "utility": {
+                          "default": "local",
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "const": "local"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "provider_id": {
+                                  "type": "string"
+                                },
+                                "model_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider_id",
+                                "model_id"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "plan",
+                        "act",
+                        "utility"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "routing"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "routing": {
+                    "type": "object",
+                    "properties": {
+                      "plan": {
+                        "default": "local",
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "local"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "provider_id": {
+                                "type": "string"
+                              },
+                              "model_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "provider_id",
+                              "model_id"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "act": {
+                        "default": "local",
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "local"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "provider_id": {
+                                "type": "string"
+                              },
+                              "model_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "provider_id",
+                              "model_id"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "utility": {
+                        "default": "local",
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "const": "local"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "provider_id": {
+                                "type": "string"
+                              },
+                              "model_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "provider_id",
+                              "model_id"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "plan",
+                      "act",
+                      "utility"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "routing"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/byok/status": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "providers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "base_url": {
+                            "type": "string",
+                            "maxLength": 500,
+                            "format": "uri"
+                          },
+                          "api_type": {
+                            "default": "chat-completions",
+                            "type": "string",
+                            "enum": [
+                              "chat-completions",
+                              "anthropic-messages"
+                            ]
+                          },
+                          "model_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "max_input_tokens": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 10000000
+                          },
+                          "tool_calling": {
+                            "default": false,
+                            "type": "boolean"
+                          },
+                          "key_stored": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "base_url",
+                          "api_type",
+                          "model_id",
+                          "tool_calling",
+                          "key_stored"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "routing": {
+                      "type": "object",
+                      "properties": {
+                        "plan": {
+                          "default": "local",
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "const": "local"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "provider_id": {
+                                  "type": "string"
+                                },
+                                "model_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider_id",
+                                "model_id"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "act": {
+                          "default": "local",
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "const": "local"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "provider_id": {
+                                  "type": "string"
+                                },
+                                "model_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider_id",
+                                "model_id"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "utility": {
+                          "default": "local",
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "const": "local"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "provider_id": {
+                                  "type": "string"
+                                },
+                                "model_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "provider_id",
+                                "model_id"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "plan",
+                        "act",
+                        "utility"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "consent_enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "providers",
+                    "routing",
+                    "consent_enabled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/byok/test": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "detail": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "detail"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider_id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "provider_id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat": {
       "post": {
         "responses": {

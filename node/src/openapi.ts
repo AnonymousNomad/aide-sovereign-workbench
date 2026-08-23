@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
+import { logEgress } from '../../node/src/services/egress-journal.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z, type ZodTypeAny } from 'zod';
@@ -50,6 +51,9 @@ import { createIndexService } from '../../node/src/services/index-service.mjs';
 import { routesForIndex } from './routes/index.ts';
 import { createHandoffService } from '../../node/src/services/handoff-service.mjs';
 import { routesForHandoff } from './routes/handoff.ts';
+import { createSecretStore } from '../../node/src/services/secret-store.mjs';
+import { createByokService } from '../../node/src/services/byok-service.mjs';
+import { routesForByok } from './routes/byok.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
@@ -83,6 +87,7 @@ export interface BuildRoutesOptions {
   providerService?: ProviderService;
   agentChatFn?: (messages: Array<{ role: string; content: string }>) => Promise<string>;
   indexEmbedFn?: (texts: string[]) => Promise<number[][]>;
+  byokSecretStore?: { setKey(id: string, key: string): void; getKey(id: string): string | null; deleteKey(id: string): boolean; listProviderIds(): string[] };
 }
 
 export function lspEntryPath(repoRoot: string): string {
@@ -285,6 +290,8 @@ export async function buildRoutes(workspace: string, version: string, options: B
     onEvent: event => options.events?.publish('index', event)
   });
   const handoffService = createHandoffService({ workspace, agentLoop });
+  const secretStore = options.byokSecretStore ?? createSecretStore({ secretsPath: path.join(os.homedir(), '.aide', 'secrets.json') });
+  const byokService = createByokService({ workspace, secretStore, fetchImpl: null, onEgress: entry => logEgress(workspace, { action: entry.kind, url: `https://${entry.host ?? 'unknown'}/`, provider_id: entry.provider_id, role: entry.role }) });
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -344,6 +351,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForAgent(agentLoop),
     ...routesForIndex(indexService),
     ...routesForHandoff(handoffService),
+    ...routesForByok(byokService),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

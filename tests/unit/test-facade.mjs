@@ -224,6 +224,89 @@ test('close is complete and idempotent - no orphaned listeners', async () => {
   legacy.server.closeAllConnections?.(); legacy.server.close();
 });
 
+function tsBackendWithHandler(handler) {
+  const server = http.createServer((req, res) => handler(req, res));
+  return { server };
+}
+
+test('facade unwraps ts success envelopes to bare payloads for legacy consumers', async () => {
+  const ts = tsBackendWithHandler((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: true, data: { path: '/w/a.txt', content: 'hello' } }));
+  });
+  const legacy = fakeBackend('legacy');
+  const tsPort = await listen(ts.server);
+  const legacyPort = await listen(legacy.server);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: {}, exact: { '/x': 'ts' }, upgrades: {} },
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: legacyPort } }
+  });
+  const port = facade.server.address().port;
+  const res = await get(port, '/x');
+  assert.equal(res.status, 200);
+  assert.deepEqual(JSON.parse(res.body), { path: '/w/a.txt', content: 'hello' });
+  await facade.close();
+  for (const s of [ts.server, legacy.server]) { s.closeAllConnections?.(); s.close(); }
+});
+
+test('facade passes non-envelope ts bodies and oversized data through untouched', async () => {
+  const big = 'x'.repeat(1.5 * 1024 * 1024);
+  const ts = tsBackendWithHandler((req, res) => {
+    if (req.url === '/x/bare') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ foo: 1 })); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, data: { big } }));
+  });
+  const tsPort = await listen(ts.server);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: { '/x': 'ts' }, exact: {}, upgrades: {} },
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
+  });
+  const port = facade.server.address().port;
+  const bare = await get(port, '/x/bare');
+  assert.deepEqual(JSON.parse(bare.body), { foo: 1 });
+  const wrappedBig = await get(port, '/x/big');
+  assert.equal(JSON.parse(wrappedBig.body).big.length, big.length);
+  await facade.close();
+  ts.server.closeAllConnections?.(); ts.server.close();
+});
+
+test('facade rewrites wrapped ts error envelopes into the legacy shape', async () => {
+  const ts = tsBackendWithHandler((req, res) => {
+    res.writeHead(409, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: { code: 'CONFLICT', message: 'download already running' } }));
+  });
+  const tsPort = await listen(ts.server);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: {}, exact: { '/x': 'ts' }, upgrades: {} },
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
+  });
+  const res = await get(facade.server.address().port, '/x');
+  assert.equal(res.status, 409);
+  assert.deepEqual(JSON.parse(res.body), { error: 'download already running', code: 'CONFLICT' });
+  await facade.close();
+  ts.server.closeAllConnections?.(); ts.server.close();
+});
+
+test('facade never rewrites legacy-target JSON bodies', async () => {
+  const legacy = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, data: { a: 1 } }));
+  });
+  const legacyPort = await listen(legacy);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: {}, exact: { '/x': 'legacy' }, upgrades: {} },
+    targets: { ts: { host: HOST, port: 1 }, legacy: { host: HOST, port: legacyPort } }
+  });
+  const res = await get(facade.server.address().port, '/x');
+  assert.deepEqual(JSON.parse(res.body), { ok: true, data: { a: 1 } });
+  await facade.close();
+  legacy.closeAllConnections?.(); legacy.close();
+});
+
 after(() => {
   const leftovers = process._getActiveHandles().filter(h => !(h.constructor.name === 'Server' && h.listening === false));
   for (const handle of leftovers) {

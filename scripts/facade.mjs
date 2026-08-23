@@ -51,6 +51,24 @@ function rewriteErrorEnvelope(rawBody) {
   return null;
 }
 
+// The TS backend wraps every contract response as {ok:true,data} (common/errors.ts).
+// Legacy consumers read bare payloads - the facade strips the wrapper on ts-targeted
+// JSON responses so both frontends see one shape (anti-corruption layer).
+const UNWRAP_CAP_BYTES = 4 * 1024 * 1024;
+
+function unwrapSuccessEnvelope(rawBody) {
+  try {
+    const parsed = JSON.parse(rawBody);
+    if (
+      parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
+      parsed.ok === true && Object.keys(parsed).length === 2 && 'data' in parsed
+    ) {
+      return JSON.stringify(parsed.data);
+    }
+  } catch {}
+  return null;
+}
+
 export async function loadRouteMap(file) {
   const parsed = JSON.parse(await fs.readFile(file, 'utf8'));
   const map = { prefixes: parsed.prefixes || {}, exact: parsed.exact || {}, upgrades: parsed.upgrades || {} };
@@ -96,25 +114,25 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
       finish(proxiedResponse.statusCode, targetName);
       const outHeaders = stripHopByHop(proxiedResponse.headers);
       const status = proxiedResponse.statusCode || 502;
-      const isJsonError = status >= 400 && String(outHeaders['content-type'] || '').includes('application/json');
-      if (isJsonError) {
+      const contentType = String(outHeaders['content-type'] || '');
+      if (contentType.includes('application/json') && targetName === 'ts') {
         const chunks = [];
         let total = 0;
         let overflow = false;
         proxiedResponse.on('data', chunk => {
           total += chunk.length;
-          if (total <= 65536) chunks.push(chunk);
+          if (total <= UNWRAP_CAP_BYTES) chunks.push(chunk);
           else overflow = true;
         });
         proxiedResponse.on('end', () => {
           if (overflow) {
             finish(502, targetName);
             response.writeHead(502, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ error: 'upstream error body exceeded 64KiB', code: 'backend_error' }));
+            response.end(JSON.stringify({ error: 'upstream response body exceeded facade adaptation cap', code: 'backend_error' }));
             return;
           }
           const body = Buffer.concat(chunks).toString('utf8');
-          const payload = rewriteErrorEnvelope(body) ?? body;
+          const payload = status >= 400 ? (rewriteErrorEnvelope(body) ?? body) : (unwrapSuccessEnvelope(body) ?? body);
           outHeaders['content-length'] = String(Buffer.byteLength(payload));
           delete outHeaders['transfer-encoding'];
           response.writeHead(status, outHeaders);

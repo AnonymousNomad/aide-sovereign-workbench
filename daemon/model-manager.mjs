@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import { existsSync, createWriteStream } from 'node:fs';
+import { existsSync, createWriteStream, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import net from 'node:net';
@@ -23,6 +23,80 @@ export class ModelManager {
     this.models = new Map();
     this.processes = new Map();
     this.warmed = new Set();
+    this.servedCtx = new Map();
+  }
+
+  // Effective context = what the SERVED engine reports (/props n_ctx), which
+  // llama.cpp may clamp to the GGUF's training context; falls back to declared.
+  getEffectiveContext(id) {
+    const served = this.servedCtx.get(id);
+    if (served !== undefined) return served;
+    return Number(this.models.get(id)?.context_tokens) || 4096;
+  }
+
+  async refreshServedContext(id) {
+    const model = this.models.get(id);
+    if (!model?.endpoint) return null;
+    try {
+      const response = await fetch(`${model.endpoint}/props`, { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) throw new Error(String(response.status));
+      const data = await response.json();
+      const nCtx = Number(data?.default_generation_settings?.n_ctx);
+      if (Number.isFinite(nCtx) && nCtx > 0) this.servedCtx.set(id, nCtx);
+    } catch { /* probe is best-effort */ }
+    return this.servedCtx.get(id) ?? null;
+  }
+
+  profilePath(id) {
+    const model = this.models.get(id);
+    if (!model?.artifact_uri) return null;
+    return path.join(this.modelDir, `${model.artifact_uri.replace('local://', '')}.profile.json`);
+  }
+
+  loadProfile(id) {
+    const model = this.models.get(id);
+    if (!model) return {};
+    if (model.profile) return model.profile;
+    try {
+      model.profile = JSON.parse(readFileSync(this.profilePath(id), 'utf8'));
+    } catch { model.profile = {}; }
+    return model.profile;
+  }
+
+  async saveProfile(id, patch) {
+    const model = this.models.get(id);
+    if (!model) throw new Error('model is not allowlisted');
+    const SAMPLER_KEYS = ['temperature', 'top_k', 'top_p', 'min_p', 'mirostat', 'mirostat_tau', 'mirostat_eta', 'repeat_penalty', 'seed'];
+    const PRESETS = {
+      precise: { temperature: 0.1, min_p: 0.05, repeat_penalty: 1.05, seed: 0 },
+      balanced: { temperature: 0.7, top_p: 0.9, min_p: 0.05 },
+      creative: { temperature: 1.0, top_p: 0.95, min_p: 0.03 },
+      mirostat: { mirostat: 2, mirostat_tau: 5.0, mirostat_eta: 0.1 }
+    };
+    let next = {};
+    if (patch.preset && PRESETS[patch.preset]) next = { preset: patch.preset, samplers: { ...PRESETS[patch.preset] } };
+    else if (patch.samplers && typeof patch.samplers === 'object') {
+      for (const [key, value] of Object.entries(patch.samplers)) {
+        if (!SAMPLER_KEYS.includes(key)) { const e = new Error(`unknown sampler key: ${key}`); e.code = 'VALIDATION'; throw e; }
+        if (typeof value !== 'number' || !Number.isFinite(value)) { const e = new Error(`sampler ${key} must be a finite number`); e.code = 'VALIDATION'; throw e; }
+      }
+      next = { ...this.loadProfile(id), preset: patch.preset || 'custom', samplers: patch.samplers };
+    } else { const e = new Error('profile requires preset or samplers'); e.code = 'VALIDATION'; throw e; }
+    model.profile = next;
+    const target = this.profilePath(id);
+    if (target) await fs.writeFile(target, JSON.stringify(next, null, 2)).catch(() => {});
+    return next;
+  }
+
+  samplerArgs(profile) {
+    const FLAGS = { temperature: '--temp', top_k: '--top-k', top_p: '--top-p', min_p: '--min-p', repeat_penalty: '--repeat-penalty', mirostat: '--mirostat', mirostat_tau: '--mirostat-tau', mirostat_eta: '--mirostat-eta', seed: '--seed' };
+    const args = [];
+    const samplers = profile?.samplers || {};
+    for (const [key, flag] of Object.entries(FLAGS)) {
+      const value = samplers[key];
+      if (typeof value === 'number' && Number.isFinite(value)) args.push(flag, String(value));
+    }
+    return args;
   }
 
   probePython() {
@@ -107,6 +181,8 @@ export class ModelManager {
         runtime_available: runtimeAvailable,
         artifact_available: artifactAvailable,
         artifact_path: artifact || '',
+        served_context_tokens: this.servedCtx.get(model.id) ?? null,
+        profile: this.loadProfile(model.id),
         setup_required: setup.length > 0 && modelStatus === 'ready',
         setup_message: runtimeProbePending ? 'Checking the local Python runtime…' : setup.join('; ')
       };
@@ -311,7 +387,7 @@ export class ModelManager {
       throw new Error(`Not enough free memory to start ${model.name} (${Math.round(freeRam / 1048576)} MB free, need ${Math.round(FREE_RAM_FLOOR_BYTES / 1048576)} MB). Stop another running engine (STOP ENGINE button) or wait for heavy jobs to finish, then try again.`);
     }
     await this.stopAll();
-    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1'];
+    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1', ...this.samplerArgs(this.loadProfile(id))];
     const child = this.spawnProcess(this.binaryPath, args, { stdio: 'ignore' });
     this.processes.set(id, child);
     child.once('exit', () => this.processes.delete(id));

@@ -91,6 +91,16 @@
     <div id="hub-files" class="hub-files"></div>
     <h2>Downloads</h2>
     <div id="downloads-list" class="downloads-list"><span class="muted">No active downloads.</span></div>
+    <div id="tuning-block" hidden>
+      <h2>Tuning — <span id="tuning-engine" class="muted"></span></h2>
+      <div class="hub-row">
+        <button class="secondary-btn" data-preset="precise">PRECISE</button>
+        <button class="secondary-btn" data-preset="balanced">BALANCED</button>
+        <button class="secondary-btn" data-preset="creative">CREATIVE</button>
+        <button class="secondary-btn" data-preset="mirostat">MIROSTAT</button>
+      </div>
+      <div id="tuning-note" class="muted small">Presets apply the next time you START this engine. Fine numbers arrive in a later update.</div>
+    </div>
     <h2>Import from this computer</h2>
     <div class="hub-row">
       <input id="import-path" placeholder="Full path to a .gguf file on this machine…" autocomplete="off">

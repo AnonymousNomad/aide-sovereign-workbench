@@ -393,11 +393,22 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/providers/chat') { const input = await body(request); return json(response, 200, await providerManager.chat(input.providerId, input.messages || [], input)); }
     if (request.method === 'POST' && request.url === '/api/chat') {
       const input = await body(request);
-      const modelInfo = modelManager.status().find(m => m.id === input.modelId);
-      const scaffold = buildScaffold({ contextTokens: Number(modelInfo?.context_tokens) || 4096 });
-      const messages = injectScaffold(input.messages || [], scaffold);
-      const result = await modelManager.chat(input.modelId, messages, input);
-      return json(response, 200, { ...result, harness: { injected: true, tier: scaffold.tier, bytes: scaffold.bytes, version: HARNESS_VERSION } });
+      void modelManager.refreshServedContext(input.modelId).catch(() => {});
+      const effective = modelManager.getEffectiveContext(input.modelId);
+      if (effective >= 1024) {
+        const scaffold = buildScaffold({ contextTokens: effective });
+        const messages = injectScaffold(input.messages || [], scaffold);
+        const result = await modelManager.chat(input.modelId, messages, input);
+        return json(response, 200, { ...result, harness: { injected: true, tier: scaffold.tier, bytes: scaffold.bytes, version: HARNESS_VERSION, served_context_tokens: effective } });
+      }
+      // Served window too small for the scaffold (tiny GGUFs clamp to train ctx):
+      // pass through bare so the model still answers; report honestly.
+      const result = await modelManager.chat(input.modelId, input.messages || [], input);
+      return json(response, 200, { ...result, harness: { injected: false, reason: `served context ${effective} below 1024`, served_context_tokens: effective } });
+    }
+    if (request.method === 'POST' && request.url === '/api/models/profile') {
+      const input = await body(request);
+      return json(response, 200, await modelManager.saveProfile(String(input.id), input));
     }
     if (request.method === 'POST' && request.url === '/api/operator') {
       const input = await body(request); const result = await operator.run(input);

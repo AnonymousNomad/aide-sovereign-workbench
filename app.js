@@ -237,9 +237,34 @@ function openModelsPanel() {
   refreshEngineList();
   pollDownloads();
   if (!downloadsTimer) downloadsTimer = setInterval(pollDownloads, 1500);
+  const block = $('#tuning-block');
+  if (state.selected) {
+    block.hidden = false;
+    $('#tuning-engine').textContent = state.selected.name;
+  } else {
+    block.hidden = true;
+  }
 }
 
 $('#models-button').addEventListener('click', openModelsPanel);
+document.querySelectorAll('[data-preset]').forEach(btn => {
+  btn.onclick = async () => {
+    if (!state.selected) return;
+    $('#tuning-note').textContent = 'Saving preset…';
+    try {
+      const r = await fetch(`${API}/api/models/profile`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: state.selected.id, preset: btn.dataset.preset })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      $('#tuning-note').textContent = `Saved "${btn.dataset.preset}" for ${state.selected.name}. Applies on next START.`;
+      setStrip(`Tuning saved: ${btn.dataset.preset} — takes effect on next engine start.`);
+    } catch (e) {
+      $('#tuning-note').textContent = `Save failed: ${e.message}`;
+    }
+  };
+});
 $('#models-close').addEventListener('click', () => {
   $('#models-panel').hidden = true;
   if (downloadsTimer) { clearInterval(downloadsTimer); downloadsTimer = null; }

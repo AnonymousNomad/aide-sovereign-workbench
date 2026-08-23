@@ -28,3 +28,5 @@ playwright-report/
 
 *.pyc
 skills/packs/**/__pycache__/
+
+*.profile.json

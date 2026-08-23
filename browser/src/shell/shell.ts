@@ -22,6 +22,7 @@ export interface Shell {
   searchPanel: HTMLElement;
   chatPanel: HTMLElement;
   providersPanel: HTMLElement;
+  byokPanel: HTMLElement;
 }
 
 export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
@@ -41,7 +42,7 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
             <div class="map-files" id="map-files"></div>
             <div class="search-panel" id="search-panel"></div>
           </section>
-          <section class="view-overlay" data-view="exp"><h2>EXP</h2><div class="chat-panel-root" id="chat-panel"></div><div class="providers-panel-root" id="providers-panel"></div></section>
+          <section class="view-overlay" data-view="exp"><h2>EXP</h2><div class="chat-panel-root" id="chat-panel"></div><div class="providers-panel-root" id="providers-panel"></div><div class="byok-panel-root" id="byok-panel"></div></section>
           <section class="view-overlay" data-view="run"><h2>RUN</h2></section>
         </div>
       </main>
@@ -89,10 +90,11 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
   const searchPanel = app.querySelector<HTMLElement>('#search-panel');
   const chatPanel = app.querySelector<HTMLElement>('#chat-panel');
   const providersPanel = app.querySelector<HTMLElement>('#providers-panel');
+  const byokPanel = app.querySelector<HTMLElement>('#byok-panel');
   const title = app.querySelector<HTMLElement>('#title');
-  if (statusDot === null || statusBar === null || statusLeft === null || lspStatus === null || statusRight === null || editorColumn === null || editorRoot === null || mapView === null || mapFiles === null || searchPanel === null || chatPanel === null || providersPanel === null || title === null) throw new Error('shell mount failed');
+  if (statusDot === null || statusBar === null || statusLeft === null || lspStatus === null || statusRight === null || editorColumn === null || editorRoot === null || mapView === null || mapFiles === null || searchPanel === null || chatPanel === null || providersPanel === null || byokPanel === null || title === null) throw new Error('shell mount failed');
 
   window.addEventListener('unload', () => unbind());
 
-  return { title, statusDot, statusBar, statusLeft, lspStatus, statusRight, editorColumn, editorRoot, mapView, mapFiles, searchPanel, chatPanel, providersPanel };
+  return { title, statusDot, statusBar, statusLeft, lspStatus, statusRight, editorColumn, editorRoot, mapView, mapFiles, searchPanel, chatPanel, providersPanel, byokPanel };
 }

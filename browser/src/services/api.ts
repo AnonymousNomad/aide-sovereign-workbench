@@ -73,6 +73,18 @@ import {
 } from '../../../common/contracts/chat.ts';
 import { egressFetch } from './egress.ts';
 import {
+  ByokStatusResponse,
+  ProviderSetRequest,
+  IdRequest,
+  KeyPutRequest,
+  KeyPutResponse,
+  RoutingPutRequest,
+  ConsentPutRequest,
+  ByokTestRequest,
+  ByokTestResponse
+} from '../../../common/contracts/byok.ts';
+import type { ByokStatusResponseT, ByokTestResponseT, ProviderSetRequestT, KeyPutRequestT, RoutingPutRequestT } from '../../../common/contracts/byok.ts';
+import {
   ProviderListResponse,
   ProviderConnectRequest,
   ProviderConnectResponse,
@@ -241,5 +253,38 @@ export const api = {
     const body = ProviderImportRequest.safeParse({ format, payload });
     if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid import request');
     return call('/api/providers/import', { body: body.data, schema: ProviderImportResponse });
+  },
+  byokStatus(): Promise<ByokStatusResponseT> {
+    return call('/api/byok/status', { schema: ByokStatusResponse });
+  },
+  async byokSetProvider(provider: ProviderSetRequestT['provider']): Promise<void> {
+    const body = ProviderSetRequest.safeParse({ provider });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid provider config');
+    await call('/api/byok/providers/set', { method: 'PUT', body: body.data, schema: ByokStatusResponse.pick({ providers: true }) });
+  },
+  async byokDeleteProvider(id: string): Promise<void> {
+    const body = IdRequest.safeParse({ id });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid provider id');
+    await call('/api/byok/providers/delete', { method: 'DELETE', body: body.data, schema: ByokStatusResponse.pick({ providers: true }) });
+  },
+  async byokPutKey(providerId: string, apiKey: string): Promise<void> {
+    const body = KeyPutRequest.safeParse({ provider_id: providerId, api_key: apiKey } satisfies KeyPutRequestT);
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid key payload');
+    await call('/api/byok/key', { method: 'PUT', body: body.data, schema: KeyPutResponse });
+  },
+  async byokSetRouting(routing: RoutingPutRequestT['routing']): Promise<void> {
+    const body = RoutingPutRequest.safeParse({ routing });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid routing');
+    await call('/api/byok/routing', { method: 'PUT', body: body.data, schema: ByokStatusResponse.pick({ routing: true }) });
+  },
+  async byokConsent(enabled: boolean): Promise<void> {
+    const body = ConsentPutRequest.safeParse({ enabled });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid consent payload');
+    await call('/api/byok/consent', { method: 'PUT', body: body.data, schema: ByokStatusResponse.pick({ consent_enabled: true }) });
+  },
+  byokTest(providerId: string): Promise<ByokTestResponseT> {
+    const body = ByokTestRequest.safeParse({ provider_id: providerId });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid test request');
+    return call('/api/byok/test', { method: 'POST', body: body.data, schema: ByokTestResponse });
   }
 };

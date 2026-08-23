@@ -57,3 +57,4 @@ export const ConsentPutRequest = z.strictObject({ enabled: z.boolean() });
 
 export const ByokTestRequest = z.strictObject({ provider_id: z.string().min(1) });
 export const ByokTestResponse = z.strictObject({ ok: z.boolean(), detail: z.string() });
+export type ByokTestResponseT = z.infer<typeof ByokTestResponse>;

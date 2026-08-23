@@ -46,6 +46,8 @@ import { routesForModelHub } from './routes/modelhub.ts';
 import { createCheckpointService } from '../../node/src/services/agent-checkpoints.mjs';
 import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
 import { routesForAgent } from './routes/agent.ts';
+import { createIndexService } from '../../node/src/services/index-service.mjs';
+import { routesForIndex } from './routes/index.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
@@ -78,6 +80,7 @@ export interface BuildRoutesOptions {
   modelRuntime?: ModelRuntime;
   providerService?: ProviderService;
   agentChatFn?: (messages: Array<{ role: string; content: string }>) => Promise<string>;
+  indexEmbedFn?: (texts: string[]) => Promise<number[][]>;
 }
 
 export function lspEntryPath(repoRoot: string): string {
@@ -274,6 +277,11 @@ export async function buildRoutes(workspace: string, version: string, options: B
     }),
     onEvent: event => options.events?.publish('agent', event)
   });
+  const indexService = createIndexService({
+    workspace,
+    embed: options.indexEmbedFn ?? null,
+    onEvent: event => options.events?.publish('index', event)
+  });
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -331,6 +339,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...buildNotificationWiredRoutes(workspace, options),
     ...routesForProblems(workspace),
     ...routesForAgent(agentLoop),
+    ...routesForIndex(indexService),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

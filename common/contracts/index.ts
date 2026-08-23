@@ -16,9 +16,14 @@ export const IndexReindexRequest = z.strictObject({
 });
 export type IndexReindexRequestT = z.infer<typeof IndexReindexRequest>;
 
+export const IndexReindexResponse = z.object({
+  session_id: z.string(),
+});
+export type IndexReindexResponseT = z.infer<typeof IndexReindexResponse>;
+
 export const HybridSearchQuery = z.strictObject({
   query: z.string().min(1),
-  limit: z.number().int().positive().max(50).optional(),
+  limit: z.coerce.number().int().positive().max(50).optional(),
 });
 export type HybridSearchQueryT = z.infer<typeof HybridSearchQuery>;
 

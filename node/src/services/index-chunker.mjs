@@ -47,14 +47,19 @@ export function chunkFile(relPath, content, { budget = CHUNK_BUDGET_CHARS } = {}
   const lines = String(content).split(/\r?\n/);
   const units = [];
   let cur = [];
+  let curStart = 1;
+  let lineNo = 1;
   for (const line of lines) {
     if (cur.length > 0 && isUnitStart(line)) {
-      units.push(cur);
+      units.push({ lines: cur, start: curStart });
       cur = [];
+      curStart = lineNo;
     }
+    if (cur.length === 0 && line.trim() !== '') curStart = lineNo;
     cur.push(line);
+    lineNo += 1;
   }
-  if (cur.length > 0) units.push(cur);
+  if (cur.length > 0) units.push({ lines: cur, start: curStart });
 
   const chunks = [];
   let pack = [];
@@ -62,38 +67,39 @@ export function chunkFile(relPath, content, { budget = CHUNK_BUDGET_CHARS } = {}
     if (pack.length === 0) return;
     const bodyLines = pack.flatMap(u => u.lines);
     const sig = pack[0].sig;
-    chunks.push(makeChunk(relPath, bodyLines, sig, chunks.length));
+    chunks.push(makeChunk(relPath, bodyLines, sig, chunks.length, pack[0].start));
     pack = [];
   };
 
-  for (const unitLines of units) {
-    while (unitLines.length > 0 && unitLines[0].trim() === '') unitLines.shift();
-    if (unitLines.length === 0) continue;
-    const sig = (unitLines.find(l => l.trim() !== '') ?? '').trim().slice(0, 120);
-    const size = nonWsLength(unitLines.join('\n'));
+  for (const unit of units) {
+    while (unit.lines.length > 0 && unit.lines[0].trim() === '') { unit.lines.shift(); unit.start += 1; }
+    if (unit.lines.length === 0) continue;
+    const sig = (unit.lines.find(l => l.trim() !== '') ?? '').trim().slice(0, 120);
+    const size = nonWsLength(unit.lines.join('\n'));
     if (size > budget) {
       flushPack();
-      for (const piece of splitOversized(unitLines)) {
-        chunks.push(makeChunk(relPath, piece, sig, chunks.length));
+      for (const piece of splitOversized(unit.lines)) {
+        chunks.push(makeChunk(relPath, piece, sig, chunks.length, unit.start));
+        unit.start += piece.length;
       }
       continue;
     }
     const packedSize = pack.reduce((n, u) => n + u.size, 0);
     if (pack.length > 0 && packedSize + size > budget) flushPack();
-    pack.push({ lines: unitLines, sig, size });
+    pack.push({ lines: unit.lines, sig, size, start: unit.start });
   }
   flushPack();
 
   return chunks.filter(c => nonWsLength(c.body) > 0 || c.header.length > 0);
 }
 
-function makeChunk(relPath, bodyLines, sig, index) {
+function makeChunk(relPath, bodyLines, sig, index, startLine) {
   const body = bodyLines.join('\n');
   const header = `${relPath} | ${sig}`;
   return {
     id: `${relPath.split(path.sep).join('/')}#${index}`,
     path: relPath.split(path.sep).join('/'),
-    line: 1,
+    line: startLine,
     header,
     text: `${header}\n${body}`,
     body,

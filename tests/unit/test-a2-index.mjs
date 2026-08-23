@@ -2,6 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tokenize, createBm25, rrfFuse } from '../../node/src/services/index-bm25.mjs';
 import { chunkFile } from '../../node/src/services/index-chunker.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+
+function mkWs() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'aide-idx-'));
+}
+function write(ws, rel, content) {
+  const abs = path.join(ws, rel);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, content);
+}
 
 test('tokenizer keeps code symbols and drops stopwords', () => {
   const t = tokenize('The validate_payment(user_id) returns $total');
@@ -97,4 +110,159 @@ test('stable ids are deterministic across re-chunk', () => {
   const a = chunkFile('src/a.ts', fixtureTs).map(c => c.id);
   const b = chunkFile('src/a.ts', fixtureTs).map(c => c.id);
   assert.deepEqual(a, b);
+});
+
+// --- index-store tests ---
+import { scanWorkspace, hashFile, persistIndex, loadIndex, normalize, INDEX_VERSION } from '../../node/src/services/index-store.mjs';
+
+test('store: scan skips ignore dirs, binaries and oversized files', () => {
+  const ws = mkWs();
+  write(ws, 'src/a.ts', 'export const a = 1;\n');
+  write(ws, 'node_modules/pkg/index.js', 'module.exports = 1;\n');
+  write(ws, '.aide/index/manifest.json', '{}');
+  write(ws, 'logo.png', Buffer.from([0x89, 0x50]).toString('binary'));
+  fs.mkdirSync(path.join(ws, 'big.bin'), { recursive: true });
+  fs.writeFileSync(path.join(ws, 'huge.ts'), 'x'.repeat(600 * 1024));
+  const files = scanWorkspace(ws).map(f => f.rel);
+  assert.deepEqual(files, ['src/a.ts']);
+});
+
+test('store: persist/load roundtrip preserves chunks and vectors', () => {
+  const ws = mkWs();
+  const dim = 4;
+  const vecs = [Float32Array.from([1, 0, 0, 0]), Float32Array.from([0, 1, 0, 0])];
+  persistIndex(ws, {
+    branch: 'main',
+    files: { 'a.ts': 'h1' },
+    chunks: [
+      { id: 'a.ts#0', path: 'a.ts', line: 1, header: 'a.ts | x', body: 'body one' },
+      { id: 'a.ts#1', path: 'a.ts', line: 5, header: 'a.ts | y', body: 'body two' },
+    ],
+    dim,
+    vectors: vecs,
+  });
+  const loaded = loadIndex(ws);
+  assert.ok(loaded);
+  assert.equal(loaded.branch, 'main');
+  assert.equal(loaded.chunks.length, 2);
+  assert.equal(loaded.dim, dim);
+  assert.deepEqual([...loaded.vectors[1]], [0, 1, 0, 0]);
+});
+
+test('store: normalize yields unit norm', () => {
+  const v = normalize([3, 4]);
+  assert.ok(Math.abs(Math.hypot(v[0], v[1]) - 1) < 1e-6);
+});
+
+test('store: hashFile is stable sha256', () => {
+  const ws = mkWs();
+  write(ws, 'f.txt', 'hello');
+  const h = hashFile(path.join(ws, 'f.txt'));
+  assert.equal(h.length, 64);
+  assert.equal(hashFile(path.join(ws, 'f.txt')), h);
+});
+
+// --- index-service e2e ---
+import { createIndexService } from '../../node/src/services/index-service.mjs';
+
+function fakeEmbed(texts) {
+  const dim = 8;
+  const out = [];
+  for (const text of texts) {
+    const vec = new Array(dim).fill(0);
+    for (const word of text.toLowerCase().split(/[^a-z0-9_$]+/).filter(Boolean)) {
+      let h = 0;
+      for (const ch of word) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      vec[h % dim] += 1;
+    }
+    out.push(vec);
+  }
+  return Promise.resolve(out);
+}
+
+async function waitFor(predicate, timeoutMs = 5000) {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) return false;
+    await new Promise(r => setTimeout(r, 25));
+  }
+  return true;
+}
+
+test('service e2e: reindex -> ready -> hybrid ranks exact symbol first', async () => {
+  const ws = mkWs();
+  write(ws, 'src/pay.ts', 'export function refundPayment(order) {\n  return gateway.refund(order);\n}\n');
+  write(ws, 'src/cfg.ts', 'function parseConfig(file) {\n  return JSON.parse(file);\n}\n');
+  const events = [];
+  const service = createIndexService({ workspace: ws, embed: fakeEmbed, onEvent: e => events.push(e) });
+  const started = await service.reindex();
+  assert.ok(started.session_id.length > 10);
+  assert.ok(await waitFor(() => service.getStatus().state === 'ready'), `state=${JSON.stringify(service.getStatus())}`);
+  const st = service.getStatus();
+  assert.equal(st.chunks, 2);
+  assert.equal(st.branch, null);
+  assert.equal(st.files_total, 2);
+
+  const out = await service.hybridSearch('refundPayment', 5);
+  assert.equal(out.degraded, false);
+  assert.ok(out.results.length >= 1);
+  assert.equal(out.results[0].path, 'src/pay.ts');
+
+  const kinds = new Set(events.map(e => e.type));
+  assert.ok(kinds.has('progress'));
+  assert.ok(kinds.has('ready'));
+  assert.ok(events.every(e => e.session_id === started.session_id));
+});
+
+test('service: no embed configured -> BM25-only with degraded flag', async () => {
+  const ws = mkWs();
+  write(ws, 'a.ts', 'function alphaOnly() { return 1; }\n');
+  const service = createIndexService({ workspace: ws });
+  await service.reindex();
+  assert.ok(await waitFor(() => service.getStatus().state === 'ready'));
+  const out = await service.hybridSearch('alphaOnly', 5);
+  assert.equal(out.degraded, true);
+  assert.equal(out.results[0].path, 'a.ts');
+});
+
+test('service: failing embedder surfaces honest error state', async () => {
+  const ws = mkWs();
+  write(ws, 'b.ts', 'function betaFn() { return 2; }\n');
+  const events = [];
+  const service = createIndexService({
+    workspace: ws,
+    embed: () => Promise.reject(new Error('embed server down')),
+    onEvent: e => events.push(e),
+  });
+  await service.reindex();
+  assert.ok(await waitFor(() => service.getStatus().state === 'error'));
+  const st = service.getStatus();
+  assert.match(String(st.last_error), /embed server down/);
+  assert.ok(events.some(e => e.type === 'error'));
+});
+
+test('service: second reindex with no changes touches zero files', async () => {
+  const ws = mkWs();
+  write(ws, 'c.ts', 'function gammaFn() { return 3; }\n');
+  const service = createIndexService({ workspace: ws, embed: fakeEmbed });
+  await service.reindex();
+  assert.ok(await waitFor(() => service.getStatus().state === 'ready'));
+  const chunksBefore = service.getStatus().chunks;
+  await service.reindex();
+  assert.ok(await waitFor(() => service.getStatus().state === 'ready' && !service.isRunning()));
+  assert.equal(service.getStatus().files_total, 0);
+  assert.equal(service.getStatus().chunks, chunksBefore);
+});
+
+test('service: busy guard rejects concurrent reindex', async () => {
+  const ws = mkWs();
+  write(ws, 'd.ts', 'function deltaFn() { return 4; }\n'.repeat(200));
+  let gate;
+  const gatePromise = new Promise(resolve => { gate = resolve; });
+  const slowEmbed = texts => gatePromise.then(() => fakeEmbed(texts));
+  const service = createIndexService({ workspace: ws, embed: slowEmbed });
+  await service.reindex();
+  await assert.rejects(() => service.reindex(), err => err.code === 'BUSY');
+  gate();
+  assert.ok(await waitFor(() => service.getStatus().state === 'ready' && !service.isRunning()));
 });

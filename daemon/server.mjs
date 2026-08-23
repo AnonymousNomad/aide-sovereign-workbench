@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { execFile } from 'node:child_process';
-import { promises as fs } from 'node:fs';
+import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -48,7 +48,11 @@ const workspaceConfig = async relative => {
   const candidate = path.join(WORKSPACE, relative);
   try { await fs.access(candidate); return candidate; } catch { return path.join(AIDE_HOME, relative); }
 };
-const modelManager = new ModelManager({ manifestPath: MANIFEST, modelDir: MODEL_DIR, binaryPath: process.env.AIDE_LLAMA_SERVER || path.join(AIDE_HOME, 'runtime', 'llama-server' + (process.platform === 'win32' ? '.exe' : '')), modelPath: process.env.AIDE_MODEL_PATH || '', pythonServer: true });
+const llamaBinary = process.env.AIDE_LLAMA_SERVER
+  || [path.join(AIDE_HOME, 'runtime', 'llama-server' + (process.platform === 'win32' ? '.exe' : '')), 'E:\\llama-cpp\\llama-server.exe'].find(candidate => existsSync(candidate))
+  || path.join(AIDE_HOME, 'runtime', 'llama-server' + (process.platform === 'win32' ? '.exe' : ''));
+// Binary serving is the verified mode on this machine (python llama_cpp.server spawn hangs under node-spawn; direct llama-server.exe is proven). See AGENT_NOTES 2026-08-24.
+const modelManager = new ModelManager({ manifestPath: MANIFEST, modelDir: MODEL_DIR, binaryPath: llamaBinary, modelPath: process.env.AIDE_MODEL_PATH || '', pythonServer: false });
 await modelManager.load().catch(() => {});
 const communityStore = new CommunityStore(path.join(STATE_DIR, 'community-store.json'));
 await communityStore.load().catch(() => {});

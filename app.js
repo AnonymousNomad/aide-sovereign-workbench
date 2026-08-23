@@ -978,6 +978,7 @@ function bindLaunchGuide() {
   if (localStorage.getItem('aide.launch.version') !== '2') guide.hidden = false;
   $('#launch-start').onclick = async () => { await selectBestModel({ announce: true }); closeLaunchGuide(); await startRuntime(); };
   $('#launch-learn').onclick = () => { closeLaunchGuide(); $('#learn-button').click(); };
+  $('#help-button').onclick = () => { guide.hidden = false; };
 }
 
 async function sendChat() {

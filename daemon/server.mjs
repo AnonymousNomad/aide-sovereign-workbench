@@ -23,6 +23,7 @@ import { ArtifactStore } from '../artifacts/store.mjs';
 import { ProviderManager } from '../providers/manager.mjs';
 import { WorkflowManager } from './workflow.mjs';
 import { HandoffManager } from './handoff.mjs';
+import { buildScaffold, injectScaffold, HARNESS_VERSION } from '../harness/scaffold.mjs';
 
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -392,7 +393,11 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/providers/chat') { const input = await body(request); return json(response, 200, await providerManager.chat(input.providerId, input.messages || [], input)); }
     if (request.method === 'POST' && request.url === '/api/chat') {
       const input = await body(request);
-      return json(response, 200, await modelManager.chat(input.modelId, input.messages || [], input));
+      const modelInfo = modelManager.status().find(m => m.id === input.modelId);
+      const scaffold = buildScaffold({ contextTokens: Number(modelInfo?.context_tokens) || 4096 });
+      const messages = injectScaffold(input.messages || [], scaffold);
+      const result = await modelManager.chat(input.modelId, messages, input);
+      return json(response, 200, { ...result, harness: { injected: true, tier: scaffold.tier, bytes: scaffold.bytes, version: HARNESS_VERSION } });
     }
     if (request.method === 'POST' && request.url === '/api/operator') {
       const input = await body(request); const result = await operator.run(input);

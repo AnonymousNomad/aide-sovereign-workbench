@@ -111,7 +111,13 @@ async function sendDescribe(value) {
     if (!r.ok) throw new Error(j.error || 'chat failed');
     const answer = j.answer || j.choices?.[0]?.message?.content || '(the engine returned no text)';
     pending.className = 'msg engine';
-    pending.innerHTML = `<b>${esc(state.selected.name)}</b><br>${esc(answer)}`;
+    pending.innerHTML = `<b>${esc(state.selected.name)}</b><br>${esc(answer)}` +
+      (j.harness?.injected ? `<br><small class="stage">HARNESS ${esc(j.harness.tier.toUpperCase())} · ${esc(String(j.harness.version))}</small>` : '');
+    if (j.harness?.injected) {
+      const hb = $('#harness-badge');
+      hb.textContent = `ON · ${(j.harness.tier || '').toUpperCase()}`;
+      hb.className = 'badge on';
+    }
     state.history.push({ role: 'user', content: value }, { role: 'assistant', content: answer });
     state.history = state.history.slice(-8);
     stepDone(3);

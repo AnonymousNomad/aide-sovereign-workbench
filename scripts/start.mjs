@@ -7,7 +7,22 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.AIDE_UI_PORT || 4173);
-const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: root, env: { ...process.env, AIDE_WORKSPACE: process.env.AIDE_WORKSPACE || root }, stdio: 'inherit' });
+const children = [];
+
+function spawnChild(label, args, extraEnv = {}) {
+  const child = spawn(process.execPath, args, { cwd: root, env: { ...process.env, AIDE_WORKSPACE: process.env.AIDE_WORKSPACE || root, ...extraEnv }, stdio: 'inherit' });
+  child.label = label;
+  children.push(child);
+  child.on('exit', code => {
+    if (code && code !== 143) console.error(`${label} exited with ${code}`);
+  });
+  return child;
+}
+
+spawnChild('arch', ['node/src/server.ts'], { AIDE_ARCH_PORT: process.env.AIDE_ARCH_PORT || '4778' });
+spawnChild('legacy', ['daemon/server.mjs'], { AIDE_DAEMON_PORT: process.env.AIDE_LEGACY_PORT || '4779', AIDE_LEGACY_PORT: process.env.AIDE_LEGACY_PORT || '4779' });
+spawnChild('facade', ['scripts/facade.mjs'], { AIDE_FACADE_PORT: process.env.AIDE_FACADE_PORT || '4777' });
+
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.md': 'text/plain', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const server = http.createServer(async (request, response) => {
   const requested = decodeURIComponent((request.url || '/').split('?')[0]);
@@ -18,5 +33,10 @@ const server = http.createServer(async (request, response) => {
   catch { response.writeHead(404).end('Not found'); }
 });
 server.listen(port, '127.0.0.1', () => console.log(`AIDE running at http://127.0.0.1:${port}`));
-const stop = () => { server.close(); daemon.kill('SIGTERM'); };
-process.on('SIGINT', stop); process.on('SIGTERM', stop); daemon.on('exit', code => { if (code && code !== 143) console.error(`daemon exited with ${code}`); });
+
+const stop = () => {
+  server.close();
+  for (const child of children) spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+};
+process.on('SIGINT', stop);
+process.on('SIGTERM', stop);

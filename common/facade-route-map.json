@@ -1,0 +1,22 @@
+{
+  "prefixes": {
+    "/api/agent": "ts",
+    "/api/byok": "ts",
+    "/api/commands": "ts",
+    "/api/editor": "ts",
+    "/api/health": "ts",
+    "/api/hooks": "ts",
+    "/api/index": "ts",
+    "/api/keybindings": "ts",
+    "/api/learner": "ts",
+    "/api/modelhub": "ts",
+    "/api/notifications": "ts",
+    "/api/problems": "ts",
+    "/api/rg": "ts",
+    "/api/settings": "ts"
+  },
+  "exact": {},
+  "upgrades": {
+    "/ws": "ts"
+  }
+}

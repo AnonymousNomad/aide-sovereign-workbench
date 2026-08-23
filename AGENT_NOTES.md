@@ -836,3 +836,10 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Key findings: (1) singular/plural trap - legacy serves /api/model/start|stop|status AND /api/models/status; TS serves /api/models/* family - prefix flipping must be per-exact-route, never per-family-guess. (2) 7 legacy prefix-matched families (model/ready, academy/session, academy/certificate, file, search, git/diff, dap/state) - facade longest-prefix match must handle these. (3) Dual-served set of 27 = parity-check queue for C2+ flips (editor/files/git first per plan).
 - Default ROUTE_MAP decision inputs ready: ts-only=95 routes become visible at facade flip; legacy-only=42 = port-or-drop tail (community, academy, plugins, blueprint, replay, arena, training).
 - NEXT: Phase C1 facade tests-first (tests/unit/test-facade.mjs loopback fixtures), then dual-spawn start.mjs wiring.
+
+## 2026-08-23 - Community acks + profile + C1 resume
+- Posted formal acknowledgment on contributor issue #3 (external-run/v1 evidence contract): direction approved, constraints stated (offline-only verifier, zod-strict contract-first, byte-deterministic verdicts, abstain!=verified rendering), spec-first PR series requested, isolation fix independent first. https://github.com/AnonymousNomad/aide-sovereign-workbench/issues/3#issuecomment-5386845404
+- Responded to dependabot PR #1 (TS 5.9.3 -> 7.0.2): holding during cutover milestone pending toolchain validation vs native-port compiler. https://github.com/AnonymousNomad/aide-sovereign-workbench/pull/1#issuecomment-5386845465
+- Created profile repo AnonymousNomad/AnonymousNomad + professional README for sponsors/collaborators (solo self-taught systems+LLM-from-zero positioning, sponsor CTA). Commit 317dbc5.
+- Auth note: gh CLI absent; API writes done via git credential-manager token fetched per-process (never persisted).
+- Resuming C1 facade: tests-first (tests/unit/test-facade.mjs, 7 cases), then scripts/facade.mjs + generated common/facade-route-map.json + start.mjs dual-spawn.

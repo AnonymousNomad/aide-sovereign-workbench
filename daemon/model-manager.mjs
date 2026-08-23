@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { existsSync, createWriteStream } from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import net from 'node:net';
 
 export class ModelManager {
@@ -297,7 +297,7 @@ export class ModelManager {
     if (!this.binaryPath) throw new Error('Local model setup required: install llama-server and set AIDE_LLAMA_SERVER.');
     await fs.access(this.binaryPath).catch(() => { throw new Error(`Local model setup required: llama-server was not found at ${this.binaryPath}.`); });
     await this.stopAll();
-    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable'];
+    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1'];
     const child = this.spawnProcess(this.binaryPath, args, { stdio: 'ignore' });
     this.processes.set(id, child);
     child.once('exit', () => this.processes.delete(id));
@@ -305,11 +305,34 @@ export class ModelManager {
   }
 
   async stop(id) {
+    const model = this.models.get(id);
     const child = this.processes.get(id);
-    if (!child) return { id, status: 'stopped' };
-    child.kill('SIGTERM');
-    this.processes.delete(id);
-    return { id, status: 'stopped' };
+    if (child) {
+      child.kill('SIGTERM');
+      this.processes.delete(id);
+      return { id, status: 'stopped' };
+    }
+    // Orphaned server from a previous daemon life: free its port directly.
+    const port = model?.endpoint ? new URL(model.endpoint).port : null;
+    if (!port) return { id, status: 'not-running' };
+    const freed = await this.freePort(port);
+    return { id, status: freed ? 'stopped' : 'not-running' };
+  }
+
+  async freePort(port) {
+    const target = `:${port} `;
+    const out = await new Promise(resolve => {
+      execFile('netstat', ['-ano'], { windowsHide: true }, (error, stdout) => resolve(error ? '' : String(stdout)));
+    });
+    const pids = [...new Set(out.split('\n')
+      .map(line => line.replace(/\s+/g, ' ').trim())
+      .filter(line => line.startsWith('TCP') && line.includes(target) && line.includes('LISTENING'))
+      .map(line => line.split(' ').pop())
+      .filter(pid => /^\d+$/.test(pid)))];
+    for (const pid of pids) {
+      await new Promise(resolve => { execFile('taskkill', ['/F', '/PID', pid], { windowsHide: true }, () => resolve()); });
+    }
+    return pids.length > 0;
   }
 
   async stopAll() {

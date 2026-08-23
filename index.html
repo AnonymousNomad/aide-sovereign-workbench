@@ -12,6 +12,7 @@
   <div class="brand">AIDE <span>SOVEREIGN WORKBENCH</span></div>
   <div class="chip" id="engine-chip"><i class="dot"></i><span id="engine-name">NO ENGINE</span></div>
   <div class="spacer"></div>
+  <button class="topbtn" id="stop-engine" hidden title="Stop the running engine and free memory">STOP ENGINE</button>
   <button class="topbtn" id="help-button" title="How AIDE works">HELP</button>
 </header>
 
@@ -23,7 +24,10 @@
     </div>
     <form id="describe-form" class="describe">
       <textarea id="describe-input" rows="3" placeholder="Describe what you want to build or fix..." disabled></textarea>
-      <button type="submit" id="send" disabled>SEND</button>
+      <div class="describe-actions">
+        <button type="submit" id="send" disabled>SEND</button>
+        <button type="button" id="plan-btn" disabled>TASK</button>
+      </div>
     </form>
   </section>
 
@@ -36,7 +40,8 @@
     </div>
     <div class="editor-slot" id="editor-slot" hidden>
       <div class="eyebrow">WORKBENCH</div>
-      <p class="muted pad">Editor, diffs and terminal arrive in the next cockpit updates. The orchestrator is fully usable now.</p>
+      <p class="muted pad">Editor and terminal arrive in upcoming cockpit updates. Approved changes appear below as diffs.</p>
+      <div id="diff-view" class="diff-view" hidden></div>
     </div>
   </section>
 
@@ -49,7 +54,9 @@
     </ol>
     <div class="rail-block"><span class="k">HARNESS</span><span class="badge off" id="harness-badge">STANDBY</span></div>
     <div class="rail-block"><span class="k">EGRESS</span><span class="badge off">LOCAL ONLY</span></div>
-    <div class="rail-block muted small">Diagnostics · Git · Diffs wire in over the next updates.</div>
+    <div class="rail-block"><span class="k">GIT</span><span class="badge off" id="git-badge">—</span></div>
+    <div class="rail-block"><span class="k">DIAGNOSTICS</span><span class="badge off" id="diag-badge">—</span></div>
+    <div class="rail-block muted small">Terminal · extensions wire in over upcoming updates.</div>
   </aside>
 </main>
 

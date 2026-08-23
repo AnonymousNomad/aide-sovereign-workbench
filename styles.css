@@ -35,6 +35,18 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .msg.user{align-self:flex-end;background:#14304a;border:1px solid #2d5373}
 .msg.pending{color:var(--amber);border:1px dashed #5c4b22}
 .msg.error{border-color:var(--danger);color:#ffc9d0;background:#2a1116}
+.msg .stage{display:block;margin-top:8px;color:var(--muted);font:9px var(--mono);letter-spacing:.08em}
+.msg.applied{border-color:#2c6a45}
+.approval-bar{display:flex;gap:8px;margin-top:10px}
+.approval-bar button{border:1px solid var(--line);background:transparent;color:var(--muted);font:9px var(--mono);letter-spacing:.08em;padding:7px 10px;border-radius:4px;cursor:pointer}
+.approval-bar .approve{background:var(--green);border-color:var(--green);color:#04140b;font-weight:bold}
+.approval-bar button:disabled{opacity:.4;cursor:not-allowed}
+.describe-actions{display:flex;flex-direction:column;gap:6px}
+.describe-actions button{border:0;background:var(--green);color:#04140b;font:bold 10px var(--mono);letter-spacing:.1em;padding:9px 12px;border-radius:4px;cursor:pointer}
+.describe-actions #plan-btn{background:transparent;border:1px solid var(--purple);color:var(--purple)}
+.describe-actions button:disabled{opacity:.4;cursor:not-allowed}
+.diff-view{margin-top:14px;border:1px solid var(--line);background:#09131d;border-radius:4px;padding:12px}
+.diff-view pre{margin:8px 0 0;font:11px/1.5 var(--mono);color:#c9dadd;white-space:pre-wrap;word-break:break-word;max-height:52vh;overflow:auto}
 .describe{border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px;background:#091220}
 .describe textarea{flex:1;resize:none;background:#071018;border:1px solid #31505d;color:var(--text);padding:9px;font:12px/1.5 var(--mono);border-radius:4px}
 .describe textarea:focus{outline:1px solid #3f6b83}
@@ -65,6 +77,7 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .rail-block .k{color:var(--muted);font:9px var(--mono);letter-spacing:.12em}
 .badge{font:9px var(--mono);letter-spacing:.08em;padding:3px 7px;border-radius:3px;border:1px solid var(--line);color:var(--muted)}
 .badge.on{color:var(--green);border-color:#2c6a45}
+.badge.warn{color:var(--amber);border-color:#6a5a2c}
 .muted{color:var(--muted)} .small{font-size:10px} .pad{padding:0 4px}
 
 /* ---------- bottom strip ---------- */

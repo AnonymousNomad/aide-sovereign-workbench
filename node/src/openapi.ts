@@ -43,6 +43,9 @@ import { routesForNotifications } from './routes/notifications.ts';
 import { NotificationService } from '../../node/src/services/notification-service.mjs';
 import { createHubService } from '../../node/src/services/modelhub.mjs';
 import { routesForModelHub } from './routes/modelhub.ts';
+import { createCheckpointService } from '../../node/src/services/agent-checkpoints.mjs';
+import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
+import { routesForAgent } from './routes/agent.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
@@ -74,6 +77,7 @@ export interface BuildRoutesOptions {
   dapManager?: DapManager;
   modelRuntime?: ModelRuntime;
   providerService?: ProviderService;
+  agentChatFn?: (messages: Array<{ role: string; content: string }>) => Promise<string>;
 }
 
 export function lspEntryPath(repoRoot: string): string {
@@ -258,6 +262,18 @@ export async function buildRoutes(workspace: string, version: string, options: B
   const settingsService = new SettingsService({ workspace });
   await settingsService.load();
   const rgService = new RgService({ workspace });
+  const agentCheckpoints = createCheckpointService({ workspace });
+  const agentLoop = createAgentLoop({
+    workspace,
+    rg: rgService.available() ? rgService : null,
+    checkpoints: agentCheckpoints,
+    chatFn: options.agentChatFn ?? (async messages => {
+      const selection = await modelRouter.routeForRole('chat');
+      const result = await modelRouter.chat(selection.modelId, messages.map(message => ({ role: message.role as 'system' | 'user' | 'assistant', content: message.content })), {});
+      return result.text;
+    }),
+    onEvent: event => options.events?.publish('agent', event)
+  });
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -314,6 +330,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForGit(workspace),
     ...buildNotificationWiredRoutes(workspace, options),
     ...routesForProblems(workspace),
+    ...routesForAgent(agentLoop),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

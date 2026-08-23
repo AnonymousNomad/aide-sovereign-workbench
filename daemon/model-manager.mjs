@@ -3,6 +3,10 @@ import { existsSync, createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import net from 'node:net';
+import os from 'node:os';
+
+// P7 process-hygiene law: never spawn a model server into memory pressure.
+const FREE_RAM_FLOOR_BYTES = Math.floor(2.5 * 1024 * 1024 * 1024);
 
 export class ModelManager {
   constructor({ manifestPath, modelDir, binaryPath, modelPath = '', spawnProcess = spawn, pythonServer = false } = {}) {
@@ -296,6 +300,10 @@ export class ModelManager {
     }
     if (!this.binaryPath) throw new Error('Local model setup required: install llama-server and set AIDE_LLAMA_SERVER.');
     await fs.access(this.binaryPath).catch(() => { throw new Error(`Local model setup required: llama-server was not found at ${this.binaryPath}.`); });
+    const freeRam = os.freemem();
+    if (freeRam < FREE_RAM_FLOOR_BYTES) {
+      throw new Error(`Not enough free memory to start ${model.name} (${Math.round(freeRam / 1048576)} MB free, need ${Math.round(FREE_RAM_FLOOR_BYTES / 1048576)} MB). Stop another running engine (STOP ENGINE button) or wait for heavy jobs to finish, then try again.`);
+    }
     await this.stopAll();
     const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1'];
     const child = this.spawnProcess(this.binaryPath, args, { stdio: 'ignore' });

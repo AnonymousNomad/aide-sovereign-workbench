@@ -25,3 +25,6 @@ dom*.txt
 test-results/
 playwright-report/
 
+
+*.pyc
+skills/packs/**/__pycache__/

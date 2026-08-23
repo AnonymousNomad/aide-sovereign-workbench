@@ -18,9 +18,9 @@ function loopWith(transcript) {
 }
 
 test('handoff: secret scanner catches planted tokens', () => {
-  assert.ok(scanForSecrets('key = sk-abcdefghijklmnopqrstuvwx').length === 1);
+  assert.ok(scanForSecrets('key = sk-' + 'abcdefghijklmnopqrstuvwx').length === 1);
   assert.ok(scanForSecrets('token ghp_' + 'a'.repeat(30)).length === 1);
-  assert.ok(scanForSecrets('-----BEGIN RSA PRIVATE KEY-----').length === 1);
+  assert.ok(scanForSecrets('-----BEGIN ' + 'RSA PRIVATE KEY-----').length === 1);
   assert.equal(scanForSecrets('clean text nothing here').length, 0);
 });
 
@@ -65,7 +65,7 @@ test('handoff: secret in transcript refuses unless confirmed_secret_scan', async
   const ws = mkWs();
   const service = createHandoffService({
     workspace: ws,
-    agentLoop: loopWith([{ role: 'assistant', content: 'the key is sk-abcdefghijklmnop12345678' }]),
+    agentLoop: loopWith([{ role: 'assistant', content: 'the key is sk-' + 'abcdefghijklmnop12345678' }]),
   });
   await assert.rejects(
     () => service.exportBundle({ tier: 'transcript', confirmed: true }),

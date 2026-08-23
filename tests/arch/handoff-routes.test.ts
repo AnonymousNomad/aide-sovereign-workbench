@@ -89,7 +89,7 @@ test('handoff: brief export -> list -> get -> import roundtrip over HTTP', async
 
 test('handoff: secret-bearing transcript refuses FORBIDDEN unless confirmed_secret_scan', async () => {
   const session = await post<{ session_id: string }>('/api/agent/start', {
-    task: 'leak test with key sk-abcdefghijklmnop12345678',
+    task: 'leak test with key sk-' + 'abcdefghijklmnop12345678',
     mode: 'plan'
   });
   assert.equal(session.status, 200);

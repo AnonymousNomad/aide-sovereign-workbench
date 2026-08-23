@@ -9,6 +9,13 @@ function familyOf(routePath) {
   return '/' + segments.slice(0, 2).join('/');
 }
 
+const FLIPS = {
+  exact: {
+    '/api/file': 'ts',
+    '/api/file/write': 'ts'
+  }
+};
+
 export function deriveRouteMap({ tsRoutes, legacyExactRoutes, legacyPrefixRoutes }) {
   const legacyPaths = new Set([...legacyExactRoutes, ...legacyPrefixRoutes]);
   const tsFamilies = new Set(tsRoutes.map(familyOf));
@@ -19,7 +26,12 @@ export function deriveRouteMap({ tsRoutes, legacyExactRoutes, legacyPrefixRoutes
     const collides = [...legacyPaths].some(p => p === family || p.startsWith(family + '/'));
     if (!collides) prefixes[family] = 'ts';
   }
-  return { prefixes, exact: {}, upgrades: { '/ws': 'ts' } };
+  const exact = {};
+  for (const [route, target] of Object.entries(FLIPS.exact)) {
+    if (!tsRoutes.includes(route)) throw new Error(`flip target ${route} is not served by the TS stack`);
+    exact[route] = target;
+  }
+  return { prefixes, exact, upgrades: { '/ws': 'ts' } };
 }
 
 export async function main() {

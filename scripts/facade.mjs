@@ -41,6 +41,16 @@ function pickTarget(routeMap, pathname) {
   return best || 'legacy';
 }
 
+function rewriteErrorEnvelope(rawBody) {
+  try {
+    const parsed = JSON.parse(rawBody);
+    if (parsed && typeof parsed.error === 'object' && parsed.error !== null && typeof parsed.error.message === 'string') {
+      return JSON.stringify({ error: parsed.error.message, code: parsed.error.code });
+    }
+  } catch {}
+  return null;
+}
+
 export async function loadRouteMap(file) {
   const parsed = JSON.parse(await fs.readFile(file, 'utf8'));
   const map = { prefixes: parsed.prefixes || {}, exact: parsed.exact || {}, upgrades: parsed.upgrades || {} };
@@ -58,6 +68,7 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
   if (!targets?.ts || !targets?.legacy) throw new Error('targets.ts and targets.legacy are required');
   const closed = { value: false };
   const relays = new Set();
+  const upstreamAgent = new http.Agent({ keepAlive: true, maxSockets: 16 });
   const server = http.createServer(async (request, response) => {
     const started = Date.now();
     const pathname = canonicalPath(request.url || '/');
@@ -81,9 +92,37 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
     const target = targets[targetName];
     const headers = stripHopByHop(request.headers);
     headers.host = `${target.host}:${target.port}`;
-    const proxied = http.request({ host: target.host, port: target.port, method: request.method, path: request.url, headers }, proxiedResponse => {
+    const proxied = http.request({ host: target.host, port: target.port, method: request.method, path: request.url, headers, agent: upstreamAgent }, proxiedResponse => {
       finish(proxiedResponse.statusCode, targetName);
-      response.writeHead(proxiedResponse.statusCode || 502, stripHopByHop(proxiedResponse.headers));
+      const outHeaders = stripHopByHop(proxiedResponse.headers);
+      const status = proxiedResponse.statusCode || 502;
+      const isJsonError = status >= 400 && String(outHeaders['content-type'] || '').includes('application/json');
+      if (isJsonError) {
+        const chunks = [];
+        let total = 0;
+        let overflow = false;
+        proxiedResponse.on('data', chunk => {
+          total += chunk.length;
+          if (total <= 65536) chunks.push(chunk);
+          else overflow = true;
+        });
+        proxiedResponse.on('end', () => {
+          if (overflow) {
+            finish(502, targetName);
+            response.writeHead(502, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'upstream error body exceeded 64KiB', code: 'backend_error' }));
+            return;
+          }
+          const body = Buffer.concat(chunks).toString('utf8');
+          const payload = rewriteErrorEnvelope(body) ?? body;
+          outHeaders['content-length'] = String(Buffer.byteLength(payload));
+          delete outHeaders['transfer-encoding'];
+          response.writeHead(status, outHeaders);
+          response.end(payload);
+        });
+        return;
+      }
+      response.writeHead(status, outHeaders);
       proxiedResponse.pipe(response);
     });
     proxied.on('error', () => {
@@ -137,6 +176,7 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
     close: () => {
       if (closed.value) return Promise.resolve();
       closed.value = true;
+      upstreamAgent.destroy();
       for (const socket of relays) socket.destroy();
       server.closeAllConnections?.();
       return new Promise(resolve => server.close(() => resolve()));

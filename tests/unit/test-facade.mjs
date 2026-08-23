@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import net from 'node:net';
@@ -168,6 +169,38 @@ test('loadRouteMap reads an override file and rejects traversal entries', async 
   }
 });
 
+test('generated route map routes the files domain to ts without touching legacy-only surface', async () => {
+  const map = await loadRouteMap(path.resolve(import.meta.dirname, '../../common/facade-route-map.json'));
+  assert.equal(map.exact['/api/file'], 'ts');
+  assert.equal(map.exact['/api/file/write'], 'ts');
+  assert.equal(map.prefixes['/api/index'], 'ts');
+  const allTargets = Object.values(map.prefixes).concat(Object.values(map.exact), Object.values(map.upgrades));
+  assert.ok(allTargets.every(t => t === 'ts' || t === 'legacy'));
+  assert.equal('/api/workspace/tree' in map.exact, false);
+  assert.equal(Object.keys(map.prefixes).some(prefix => '/api/search'.startsWith(prefix)), false);
+});
+
+test('facade rewrites upstream structured errors into the legacy-compatible envelope', async () => {
+  const ts = http.createServer((req, res) => {
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'file not found: missing.txt' } }));
+  });
+  const tsPort = await listen(ts);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: {}, exact: { '/anything': 'ts' }, upgrades: {} },
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
+  });
+  const port = facade.server.address().port;
+  const res = await get(port, '/anything');
+  assert.equal(res.status, 404);
+  const parsed = JSON.parse(res.body);
+  assert.equal(parsed.error, 'file not found: missing.txt');
+  assert.equal(parsed.code, 'NOT_FOUND');
+  await facade.close();
+  ts.closeAllConnections?.(); ts.close();
+});
+
 test('close is complete and idempotent - no orphaned listeners', async () => {
   const legacy = fakeBackend('legacy');
   const legacyPort = await listen(legacy.server);
@@ -189,4 +222,13 @@ test('close is complete and idempotent - no orphaned listeners', async () => {
   assert.deepEqual(probe, { rejected: 'ECONNREFUSED' });
   await facade.close();
   legacy.server.closeAllConnections?.(); legacy.server.close();
+});
+
+after(() => {
+  const leftovers = process._getActiveHandles().filter(h => !(h.constructor.name === 'Server' && h.listening === false));
+  for (const handle of leftovers) {
+    console.log(`teardown: destroying leftover ${handle.constructor.name} lp=${handle.localPort ?? ''} rp=${handle.remotePort ?? ''}`);
+    if (typeof handle.destroy === 'function') handle.destroy();
+    else if (typeof handle.close === 'function') handle.close();
+  }
 });

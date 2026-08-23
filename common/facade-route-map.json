@@ -15,7 +15,10 @@
     "/api/rg": "ts",
     "/api/settings": "ts"
   },
-  "exact": {},
+  "exact": {
+    "/api/file": "ts",
+    "/api/file/write": "ts"
+  },
   "upgrades": {
     "/ws": "ts"
   }

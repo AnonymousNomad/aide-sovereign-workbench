@@ -843,3 +843,24 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Created profile repo AnonymousNomad/AnonymousNomad + professional README for sponsors/collaborators (solo self-taught systems+LLM-from-zero positioning, sponsor CTA). Commit 317dbc5.
 - Auth note: gh CLI absent; API writes done via git credential-manager token fetched per-process (never persisted).
 - Resuming C1 facade: tests-first (tests/unit/test-facade.mjs, 7 cases), then scripts/facade.mjs + generated common/facade-route-map.json + start.mjs dual-spawn.
+
+### C1 complete (bda6f67)
+- tests-first: tests/unit/test-facade.mjs 7/7 pass (prefix+longest routing w/ boundary rule, unknown->legacy, SSE unbuffered <300ms first byte, WS upgrade relay via ws dep, dead-backend typed 502 {error:{code:backend_unavailable}}, loadRouteMap override+traversal rejection, close idempotent + ECONNREFUSED after).
+- scripts/facade.mjs: createFacade factory (port 0 testable) + spawnable main; hop-by-hop strip (upgrade path preserves ws headers), Host rewrite, canonical decoded path w/ '..'+'\\0' rejection, /api/health/ts|legacy facade-owned, EADDRINUSE loud-fail, relay socket Set destroyed on close.
+- scripts/build-facade-map.mjs -> common/facade-route-map.json: 14 ts-only families derived from openapi-vs-legacy with provable zero-collision gate (verified 0 hits in daemon/server.mjs): agent,byok,commands,editor,health,hooks,index,keybindings,learner,modelhub,notifications,problems,rg,settings. Dual-served families default legacy until flip phases. upgrades {'/ws':'ts'}.
+- scripts/start.mjs dual-spawn: arch(node/src/server.ts @4778) + legacy(daemon/server.mjs @AIDE_DAEMON_PORT=4779) + facade(@4777 public). taskkill /T /F tree teardown verified 0 orphan listeners.
+- Live matrix through :4777 PASS: health/ts 200, /api/byok/status 200 TS data, /api/models/status + /api/model/status 200 legacy data (singular/plural trap safe), /api/settings 200 TS.
+- Bugfix during wiring: legacy binds via AIDE_DAEMON_PORT not AIDE_LEGACY_PORT - start.mjs now passes both.
+- npm test chain: facade suite prepended.
+- Next (C2): parity harness for the 27 dual-served routes, then begin flip batches ts-only-exact inside dual families.
+
+## [2026-08-23 13:13] agent: CUTOVER C2 files-domain flip COMPLETE (uncommitted -> committing now)
+**Type:** task **Status:** verified
+- Flips: build-facade-map.mjs FLIPS exact {'/api/file':'ts','/api/file/write':'ts'} with TS-serves guard; map regenerated.
+- Facade anti-corruption: upstream 4xx/5xx JSON {error:{code,message}} rewritten to legacy-compatible {error:string, code} (bounded 64KiB buffer, overflow->typed backend_error 502); SSE/success paths untouched.
+- Unit suite 8/8 pass exit 0 (added: generated-map assertions incl. /api/workspace/tree + /api/search untouched; envelope rewrite test). after() hook destroys leftover handles deterministically - fixes post-suite hang class.
+- ROOT CAUSE of 'arch never binds': cold-start boot latency post-restart (AV + TS strip-compile of import graph) - arch-daemon.log proves successful binds all day once warm (1.7s warm vs >30s cold first-boot). NOT a routing bug. start.mjs now logs 'ts/legacy backend ready' readiness lines (500ms poll, unref).
+- LIVE MATRIX through :4777 all green: file read {ok,data:{path,content,too_large,size}}, missing-file 404 legacy-string envelope w/ code, write {ok,data:{path,bytes}}, workspace/tree legacy intact, model singular+plural dual->legacy intact, settings+byok ts families healthy. Stack left RUNNING detached for user EOD usability (hidden cmd; stop via taskkill on 4777/4778/4779 listeners or Ctrl-C if foreground).
+- Test-harness lessons logged: tool-timeout reaper kills Start-Process -NoNewWindow children across calls -> use cmd-wrapper Hidden detach for long-lived stacks; node --test runner reveals failures direct-run masks.
+**Files:** scripts/start.mjs, scripts/facade.mjs, scripts/build-facade-map.mjs, common/facade-route-map.json, tests/unit/test-facade.mjs
+**Next:** commit C2; then C3 git-domain parity (GET /api/git/diff legacy-only trap - per-exact flips only); queued: live UI click-through evidence, live BYOK smoke.

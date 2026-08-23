@@ -15,4 +15,14 @@ assert.equal(session.lesson.id, 'control-flow');
 assert.match(await readFile(path.join(root, 'progress.json'), 'utf8'), /variables/);
 for (const lesson of ['functions','collections','testing','control-flow','modules','errors','files','debugging','packaging','capstone']) await finish(lesson);
 assert.equal(tutor.certificate('python-foundations').credential.credentialSubject.lessons_completed, 11);
+
+const { LearnerState } = await import('./learner-state.mjs');
+const hookedRoot = await mkdtemp(path.join(tmpdir(), 'aide-tutor-hook-'));
+const learner = new LearnerState({ statePath: path.join(hookedRoot, 'learner-state.json') });
+await learner.load();
+const hooked = new TutorManager({ coursesDir: path.join(process.cwd(), 'academy/courses'), progressPath: path.join(hookedRoot, 'progress.json'), pythonPath: process.env.AIDE_PYTHON || 'python', learnerState: learner });
+await hooked.load();
+assert.equal((await hooked.check('python-foundations', 'variables')).passed, true);
+await hooked.complete('python-foundations', 'variables', 'hook verification');
+assert.equal(learner.skill('python-foundations:variables')?.attempts, 1, 'complete() must feed the learner state hook');
 console.log('tutor manager test passed');

@@ -9,12 +9,25 @@ export interface HardwareInfo {
   freeRamBytes: number;
   logicalCpus: number;
   vramBytes: number;
+  freeVramBytes: number;
   vramSource: 'nvidia-smi' | 'none';
 }
 
 let cached: HardwareInfo | null = null;
 let cachedAt = 0;
 const CACHE_MS = 30_000;
+
+export function parseNvidiaSmiMemory(text: string): { totalMib: number; freeMib: number | null } | null {
+  const line = text.trim().split('\n')[0]?.trim() ?? '';
+  if (line.length === 0) return null;
+  const parts = line.split(',').map(part => Number(part.trim()));
+  const totalRaw = parts[0] ?? NaN;
+  if (!Number.isFinite(totalRaw) || totalRaw <= 0) return null;
+  const freeRaw = parts[1] ?? NaN;
+  const totalMib = totalRaw;
+  const freeMib = Number.isFinite(freeRaw) && freeRaw > 0 ? freeRaw : null;
+  return { totalMib, freeMib };
+}
 
 export async function probeHardware(): Promise<HardwareInfo> {
   if (cached !== null && Date.now() - cachedAt < CACHE_MS) return cached;
@@ -23,14 +36,16 @@ export async function probeHardware(): Promise<HardwareInfo> {
     freeRamBytes: os.freemem(),
     logicalCpus: os.cpus().length,
     vramBytes: 0,
+    freeVramBytes: 0,
     vramSource: 'none'
   };
   if (process.platform === 'win32') {
     try {
-      const { stdout } = await run('nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'], { timeout: 5000, windowsHide: true });
-      const mib = Number(String(stdout).trim().split('\n')[0]);
-      if (Number.isFinite(mib) && mib > 0) {
-        info.vramBytes = Math.round(mib * 1024 * 1024);
+      const { stdout } = await run('nvidia-smi', ['--query-gpu=memory.total,memory.free', '--format=csv,noheader,nounits'], { timeout: 5000, windowsHide: true });
+      const parsed = parseNvidiaSmiMemory(String(stdout));
+      if (parsed !== null) {
+        info.vramBytes = Math.round(parsed.totalMib * 1024 * 1024);
+        info.freeVramBytes = parsed.freeMib === null ? 0 : Math.round(parsed.freeMib * 1024 * 1024);
         info.vramSource = 'nvidia-smi';
       }
     } catch {

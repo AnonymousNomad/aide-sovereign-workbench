@@ -51,6 +51,8 @@ export const ModelIngestRequest = z
   })
   .strict();
 
+export const ModelFitVerdict = z.enum(['COMFORTABLE', 'TIGHT', 'OVER']);
+
 export const ModelFitReport = z
   .object({
     fileBytes: z.number(),
@@ -62,6 +64,7 @@ export const ModelFitReport = z
     requiredBytes: z.number(),
     availableBytes: z.number(),
     fits: z.boolean(),
+    verdict: ModelFitVerdict,
     quant: z.string(),
     recommendedQuant: z.string(),
     parametersB: z.number().nullable()

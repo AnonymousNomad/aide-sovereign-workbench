@@ -6,10 +6,11 @@ import { promisify } from 'node:util';
 const run = promisify(execFile);
 
 export class TutorManager {
-  constructor({ coursesDir, progressPath, pythonPath = process.env.AIDE_PYTHON || '' }) {
+  constructor({ coursesDir, progressPath, pythonPath = process.env.AIDE_PYTHON || '', learnerState = null }) {
     this.coursesDir = coursesDir;
     this.progressPath = progressPath;
     this.pythonPath = pythonPath;
+    this.learnerState = learnerState;
     this.courses = [];
     this.progress = {};
   }
@@ -48,6 +49,13 @@ export class TutorManager {
     const temp = `${this.progressPath}.tmp`;
     await fs.writeFile(temp, JSON.stringify(this.progress, null, 2));
     await fs.rename(temp, this.progressPath);
+    if (this.learnerState) {
+      try {
+        await this.learnerState.recordAttempt(`${courseId}:${lessonId}`, { passed: true });
+      } catch (error) {
+        this.lastLearnerHookError = String(error?.message || error);
+      }
+    }
     return this.session(courseId);
   }
 
@@ -82,6 +90,12 @@ export class TutorManager {
     const progress = this.progress[courseId] || { completed: [], current: lesson.id }; progress.last_check = { lessonId: lesson.id, ...result, checked_at: new Date().toISOString() }; this.progress[courseId] = progress;
     const temp = `${this.progressPath}.tmp`; await fs.writeFile(temp, JSON.stringify(this.progress, null, 2)); await fs.rename(temp, this.progressPath);
     return { lesson: lesson.id, ...result };
+  }
+
+  findLesson(courseId, lessonId) {
+    const course = this.courses.find(item => item.id === courseId);
+    const lesson = course?.lessons.find(item => item.id === lessonId);
+    return course && lesson ? { courseId: course.id, lesson } : null;
   }
 
   certificate(courseId) {

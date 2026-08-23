@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
-import { promises as fs } from 'node:fs';
+import { promises as fs, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type http from 'node:http';
 import { ArchServer } from '../../node/src/server.ts';
@@ -33,11 +33,16 @@ before(async () => {
 after(async () => {
   server.events.close();
   await server.logger.flush();
+  httpServer.closeAllConnections();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
   await fs.rm(dir, { recursive: true, force: true });
 });
 
-test('GET /api/models/status lists the bundled models through the envelope', async () => {
+test('GET /api/models/status lists the bundled models through the envelope', async t => {
+  if (!existsSync(path.join(REPO_ROOT, 'models', 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf'))) {
+    t.skip('bundled GGUF artifacts are not present in this checkout (models/*.gguf are not committed)');
+    return;
+  }
   const response = await fetch(`${base}/api/models/status`);
   assert.equal(response.status, 200);
   const envelope = Envelope.safeParse(await response.json());

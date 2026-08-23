@@ -10,9 +10,19 @@ export interface FitReport {
   requiredBytes: number;
   availableBytes: number;
   fits: boolean;
+  verdict: 'COMFORTABLE' | 'TIGHT' | 'OVER';
   quant: string;
   recommendedQuant: string;
   parametersB: number | null;
+}
+
+export const VERDICT_COMFORTABLE_RATIO = 0.7;
+export const VERDICT_TIGHT_RATIO = 0.95;
+
+export function verdictFromRatio(ratio: number): 'COMFORTABLE' | 'TIGHT' | 'OVER' {
+  if (ratio < VERDICT_COMFORTABLE_RATIO) return 'COMFORTABLE';
+  if (ratio < VERDICT_TIGHT_RATIO) return 'TIGHT';
+  return 'OVER';
 }
 
 export const CTX_TIERS = [32768, 16384, 8192, 4096, 2048];
@@ -107,6 +117,7 @@ export function fitModel(info: GgufInfo, fileBytes: number, freeRamBytes: number
     requiredBytes: required,
     availableBytes: available,
     fits: required <= available,
+    verdict: verdictFromRatio(required / Math.max(1, available)),
     quant: quantFor(fileName ?? info.name ?? '', info.fileType ?? 0),
     recommendedQuant: recommended,
     parametersB: parameters

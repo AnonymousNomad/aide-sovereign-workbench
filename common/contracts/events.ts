@@ -61,3 +61,9 @@ export type MarkerT = z.infer<typeof Marker>;
 export type DiagnosticsEventT = z.infer<typeof DiagnosticsEvent>;
 export type TrainingProgressEventT = z.infer<typeof TrainingProgressEvent>;
 export type EventEnvelopeT = z.infer<typeof EventEnvelope>;
+export const CommandEvent = z
+  .object({
+    event: z.enum(['will-execute', 'did-execute', 'execute-failed']),
+    id: z.string().min(1)
+  })
+  .strict();

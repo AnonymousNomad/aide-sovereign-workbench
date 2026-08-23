@@ -48,7 +48,7 @@ Continuously verified against the real daemon and real browser: **188 architectu
 - **Language intelligence** — LSP client for TypeScript: diagnostics as editor markers, completion, hover, go-to-definition.
 - **Debugging foundation** — DAP client for Python (debugpy): session tracking, breakpoints, stack/scope inspection. A full debuggee-fixture battery remains a release gate.
 - **Git** — status, diff review, staging, commit, branches, history — all local, via the git CLI.
-- **Terminal & tasks** — integrated terminal and bounded task execution with streaming output and clean process-tree stop.
+- **Terminal & tasks** — integrated terminal and a contract-first task service (`/api/tasks`): workspace `.aide/tasks.json` definitions, npm-script detection, non-blocking run/stop routes with streaming output events, Windows-safe `.cmd` bridging (no shell-injection surface), and clean process-tree termination. Problem matchers (`$tsc`, eslint, msbuild, cargo-rustc, node-trace + workspace-defined) parse task output into workspace-contained diagnostics delivered over the event channel; compound `dependsOn` graphs and content-hash build caching land next in the BUILD series.
 - **Online providers (opt-in)** — OpenAI, Anthropic, Google Gemini, Mistral, Groq, and OpenRouter. Credentials are encrypted at rest with Windows DPAPI in the daemon, never shown to the browser, and scrubbed from logs and errors. Every provider host is allowlisted; custom hosts require explicit per-host approval.
 - **Chat-history import** — ChatGPT and Claude `conversations.json` exports (up to 10 MB) import additively into the local chat store. Importers are schema-tested with synthetic fixtures; validation against real provider exports is an open gate until genuine export fixtures are available.
 - **Veritas evidence gates** — AI-generated changes must pass deterministic checks before release: compile, tests, Git whitespace, manifest validation, path boundaries, secret scanning. The harness never lets a model approve or apply its own changes.
@@ -60,6 +60,15 @@ Continuously verified against the real daemon and real browser: **188 architectu
 - Desktop (Tauri/NSIS) packaging and installer smokes are defined in `desktop/README.md`; Rust compilation is a platform gate until a Rust toolchain is available.
 - Live end-to-end provider calls require user-supplied credentials and are exercised manually per release — they are intentionally not part of the automated suite.
 - The first live three-pack model scorecard (`benchmarks/live-results-2026-08-10.json`) shows all three models passing function and planning smoke tasks and failing strict unified-diff formatting — which is why every patch stays behind Veritas and human approval.
+
+### Active work
+
+Two tracks are currently being advanced (research-grounded, gated the same way as everything above):
+
+- **Academy/tutor upgrades** — a persistent learner-mastery model with spaced-repetition review, model-powered Socratic hinting with answer-leakage guards, and real exercise execution (replacing today's one-liner lesson checks).
+- **Local training pipeline** — dataset studio (dedup, template previews, locked splits), a hardware-aware QLoRA job runner with live loss streaming and best-checkpoint policy, and an eval-gated GGUF export loop so a fine-tuned model only registers if it beats its baseline.
+- **BUILD series (tasks)** — problem matchers feeding the Problems pipeline, compound task graphs, notification harness, and a local-only build cache (Turborepo-style content-hash restore, zero cloud).
+- **Harness research track** — an Iron-Suit orchestrator for every plugged-in model (local or cloud): unlimited-context local memory, honesty/verification gates, resilience with grounded offline failover, and a per-workspace improvement flywheel. All researched, skill-gated, and built behind the same test battery; nothing ships without it.
 
 ## Security & Privacy
 
@@ -85,10 +94,12 @@ Open `http://127.0.0.1:4173/`. The first-run guide walks through model selection
 ## Tests
 
 ```bash
-npm run check:arch   # TypeScript checks (node + browser), ESLint, 188 tests
+npm run check:arch   # TypeScript checks (node + browser), ESLint, then all architecture tests
 npm run build:frontend
-npm run test:e2e     # 14 Playwright browser tests against the real daemon
+npm run test:e2e     # 17 Playwright browser tests against the real daemon
 ```
+
+CI runs the same gate on ubuntu-latest and is green. Of the 188 architecture tests, 18 are environment-gated (they need bundled GGUF artifacts, a working Python + llama-cpp-python runtime, or a spawnable language server) and skip in CI with printed reasons; the remaining 170 execute for real. Locally with artifacts installed, all 188 run.
 
 The contract layer (`common/contracts`, zod → OpenAPI) is shared by both sides, so frontend and daemon tests consume identical fixtures and drift is caught at check time.
 

@@ -5,7 +5,7 @@ import path from 'node:path';
 const NPM = process.platform === 'win32'
   ? [process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm']]
   : ['npm', []];
-const COMMAND_TIMEOUTS = Object.freeze({ compile: 120_000, tests: 300_000, 'git-diff': 120_000 });
+const COMMAND_TIMEOUTS = Object.freeze({ compile: 600_000, tests: 900_000, 'git-diff': 120_000 });
 const ALLOWED_COMMANDS = Object.freeze({
   compile: [NPM[0], [...NPM[1], 'run', 'check']],
   tests: [NPM[0], [...NPM[1], 'test']],

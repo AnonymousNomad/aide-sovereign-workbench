@@ -14,6 +14,7 @@ import { ReplayStore } from './replay-store.mjs';
 import { ArenaManager } from './arena-manager.mjs';
 import { buildBlueprint } from '../blueprint/graph.mjs';
 import { TutorManager } from '../academy/tutor-manager.mjs';
+import { LearnerState } from '../academy/learner-state.mjs';
 import { PluginManager } from '../plugins/manager.mjs';
 import { Operator } from './operator.mjs';
 import { TaskManager } from '../tasks/manager.mjs';
@@ -61,7 +62,9 @@ await trainingManager.load().catch(() => {});
 const replayStore = new ReplayStore(path.join(STATE_DIR, 'replays.json'));
 await replayStore.load().catch(() => {});
 const arenaManager = new ArenaManager({ modelManager, manifestPath: MANIFEST, suitePath: path.join(AIDE_HOME, 'benchmarks', 'manifest.json') });
-const tutorManager = new TutorManager({ coursesDir: path.join(AIDE_HOME, 'academy', 'courses'), progressPath: path.join(STATE_DIR, 'academy-progress.json'), pythonPath: process.env.AIDE_PYTHON || '' });
+const learnerState = new LearnerState({ statePath: path.join(STATE_DIR, 'learner-state.json') });
+await learnerState.load().catch(() => {});
+const tutorManager = new TutorManager({ coursesDir: path.join(AIDE_HOME, 'academy', 'courses'), progressPath: path.join(STATE_DIR, 'academy-progress.json'), pythonPath: process.env.AIDE_PYTHON || '', learnerState });
 await tutorManager.load().catch(() => {});
 const pluginManager = new PluginManager({ pluginsDir: path.join(WORKSPACE, 'plugins'), statePath: path.join(STATE_DIR, 'plugins.json'), presetsPath: path.join(AIDE_HOME, 'plugins', 'presets.json') });
 await pluginManager.load().catch(() => {});
@@ -402,10 +405,11 @@ const server = http.createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/api/lsp/status') {
       return json(response, 200, { servers: lspManager.status() });
     }
-    if (request.method === 'GET' && request.url === '/api/diagnostics') return json(response, 200, { diagnostics: lspManager.diagnosticsList().map(item => ({ ...item, uri: toPlaceholderUri(item.uri) })) });
+    if (request.method === 'GET' && request.url === '/api/diagnostics') return json(response, 200, { diagnostics: [...taskManager.problemsList(), ...lspManager.diagnosticsList().map(item => ({ ...item, uri: toPlaceholderUri(item.uri) }))] });
     if (request.method === 'GET' && request.url.startsWith('/api/diagnostics?clear=')) {
       const uri = new URL(request.url, 'http://127.0.0.1').searchParams.get('clear');
       lspManager.clearDiagnostics(uri);
+      taskManager.clearProblemUri(uri);
       return json(response, 200, { cleared: uri });
     }
     if (request.method === 'GET' && request.url === '/api/dap/status') {

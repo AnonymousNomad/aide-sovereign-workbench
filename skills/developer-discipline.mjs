@@ -1,11 +1,11 @@
 /**
- * Mandalorian Discipline Skill
- * 
- * enforces surgical precision, verification-first discipline, and zero-tolerance
+ * Developer Discipline Skill
+ *
+ * Enforces surgical precision, verification-first discipline, and zero-tolerance
  * for unverified claims. Every operation must be surgically accurate with no room
  * for errors. This skill is mandatory at session start, before ANY action, and
  * before/after any write to code or notes.
- * 
+ *
  * Principles:
  * - Verify everything before executing
  * - Never guess, hallucinate, or go in circles
@@ -14,7 +14,7 @@
  * - All operations must be reversible and reviewable
  */
 
-const MANDALORIAN_CREDO = Object.freeze([
+const DEVELOPER_DISCIPLINE_CREDO = Object.freeze([
   'Context before action - research first, execute later',
   'Verify before you act - never assume, always confirm',
   'Surgical precision over speed - accuracy is the edge',
@@ -35,34 +35,31 @@ const VERIFICATION_GATES = Object.freeze({
   test: 'must run relevant tests after any modification'
 });
 
-export function createMandalorianDisciplineSkill() {
+export function createDeveloperDisciplineSkill() {
   return {
-    name: 'mandalorian-discipline',
-    credo: MANDALORIAN_CREDO,
+    name: 'developer-discipline',
+    credo: DEVELOPER_DISCIPLINE_CREDO,
     gates: VERIFICATION_GATES,
 
     verifyWriteOperation({ operation, target, context }) {
-      // Check that research was done
       if (!context.researchDone) {
-        throw new Error('MANDALORIAN: Research must be completed before write operation');
+        throw new Error('DISCIPLINE: Research must be completed before write operation');
       }
-      // Check that verification was done
       if (!context.verified) {
-        throw new Error('MANDALORIAN: Verification must pass before write operation');
+        throw new Error('DISCIPLINE: Verification must pass before write operation');
       }
-      // Check that the operation is reversible
       if (!context.reversible) {
-        throw new Error('MANDALORIAN: Only reversible changes are allowed');
+        throw new Error('DISCIPLINE: Only reversible changes are allowed');
       }
-      return { valid: true, message: 'Write operation passes Mandalorian discipline checks' };
+      return { valid: true, message: 'Write operation passes developer discipline checks' };
     },
 
     verifySkillCreation({ skillName, skillPurpose, researchSources }) {
       if (!researchSources || researchSources.length < 2) {
-        throw new Error(`MANDALORIAN: Skill "${skillName}" must research from at least 2 sources`);
+        throw new Error(`DISCIPLINE: Skill "${skillName}" must research from at least 2 sources`);
       }
       if (!skillPurpose || !skillPurpose.trim()) {
-        throw new Error('MANDALORIAN: Skill must have a clear purpose');
+        throw new Error('DISCIPLINE: Skill must have a clear purpose');
       }
       return { valid: true, message: `Skill "${skillName}" passes creation verification` };
     },
@@ -71,7 +68,7 @@ export function createMandalorianDisciplineSkill() {
       const required = ['researchDone', 'verified', 'reversible'];
       const missing = required.filter(key => !context[key]);
       if (missing.length > 0) {
-        throw new Error(`MANDALORIAN: Missing required context: ${missing.join(', ')}`);
+        throw new Error(`DISCIPLINE: Missing required context: ${missing.join(', ')}`);
       }
       return true;
     }
@@ -108,7 +105,7 @@ export function createDeveloperCredoSkill() {
       const requiredRoles = ['reason', 'build', 'verify'];
       for (const role of requiredRoles) {
         if (!providers[role]) {
-          throw new Error(`CREDO: Missing provider for role: ${role}`);
+          throw new Error('CREDO: Missing provider for role: ' + role);
         }
       }
       // Check that harness SOP is followed
@@ -124,8 +121,7 @@ export function createDeveloperCredoSkill() {
       // Check for verbal confidence without evidence
       const confidencePatterns = [
         /i'm (sure|confident|positive)/i,
-        /this (is|will|works)/i,
-        //guarantee|assure|certainly|definitely/i,
+        /this (is|will|works)/i
       ];
       for (const pattern of confidencePatterns) {
         if (pattern.test(lower)) {

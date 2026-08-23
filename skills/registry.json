@@ -1,0 +1,994 @@
+{
+  "generated_at": "2026-08-23T21:18:38.737Z",
+  "count": 139,
+  "categories": [
+    "academy",
+    "aide-core",
+    "architecture",
+    "build-series",
+    "cloud-handoff",
+    "discipline",
+    "general",
+    "parity",
+    "phase-legacy",
+    "post-training",
+    "training-ecosystem",
+    "training-pipeline",
+    "web-builder"
+  ],
+  "skills": [
+    {
+      "name": "adapter-serve-routing",
+      "title": "adapter-serve-routing",
+      "description": "Define and verify deterministic format-conditional adapter routing at inference. Use whenever a shared base model serves multiple adapter behaviors.",
+      "category": "general",
+      "path": "skills/packs/adapter-serve-routing/SKILL.md"
+    },
+    {
+      "name": "agent-notes",
+      "title": "agent-notes",
+      "description": "Agent Persistence System — the mandatory project journal. Use at the START of every session and every context compaction, and after EVERY task, change, decision, or event in this project. Maintains the canonical AGENT_NOTES.md so no work is ever lost across sessions. Overrides default behavior: any action that is not appended to AGENT_NOTES.md is considered incomplete.",
+      "category": "discipline",
+      "path": "skills/packs/agent-notes/SKILL.md"
+    },
+    {
+      "name": "aide-academy-phase-a1-learner-model",
+      "title": "aide-academy-phase-a1-learner-model",
+      "description": "",
+      "category": "academy",
+      "path": "skills/packs/aide-academy-phase-a1-learner-model/SKILL.md"
+    },
+    {
+      "name": "aide-academy-phase-a2-socratic-tutor",
+      "title": "aide-academy-phase-a2-socratic-tutor",
+      "description": "",
+      "category": "academy",
+      "path": "skills/packs/aide-academy-phase-a2-socratic-tutor/SKILL.md"
+    },
+    {
+      "name": "aide-academy-phase-a3-exercise-engine",
+      "title": "aide-academy-phase-a3-exercise-engine",
+      "description": "",
+      "category": "academy",
+      "path": "skills/packs/aide-academy-phase-a3-exercise-engine/SKILL.md"
+    },
+    {
+      "name": "aide-arch-backend-core",
+      "title": "aide-arch-backend-core",
+      "description": "Phase 1 SOP for the AIDE offline-first IDE rebuild — the modular daemon backend: HTTP router with zod .strict() validation at every route edge, fixed error envelope, workspace filesystem service with path containment, config/env validation, structured logging, process manager (spawn/execFile only, tree kill on Windows), health endpoint, graceful shutdown (children first). Use whenever writing backend routes/services, adding a workspace/file operation, debugging \"route 500s\", \"path escape\", or shutdown hangs, or auditing the daemon. Research-grounded (nodejs.org child_process docs, api-contract-testing.com, VS Code engineering docs).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-backend-core/SKILL.md"
+    },
+    {
+      "name": "aide-arch-editor",
+      "title": "aide-arch-editor",
+      "description": "Phase 3 SOP for the AIDE offline-first IDE rebuild — the Monaco editor core: locally bundled monaco-editor with Vite worker wiring (NO CDN), model/view separation (URI-keyed models), open/save round-trip via daemon contract, native undo/redo, find/replace + workspace search, large-file handling (Monaco virtualization replaces the custom windowing), dirty state, split editor groups, view-state restore, and LSP wiring points (didOpen/didChange versioning, markers). Use whenever wiring editor open/save/tabs/find/split/LSP, debugging \"editor blank\", \"undo lost\", \"model mismatch\", or worker loading failures. Research-grounded (github.com/microsoft/monaco-editor, VS Code engineering docs).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-editor/SKILL.md"
+    },
+    {
+      "name": "aide-arch-extensions",
+      "title": "aide-arch-extensions",
+      "description": "Phase 9 SOP for the AIDE offline-first IDE rebuild — a VS Code-class extension ecosystem: extension host as a separate Node process spawned by the daemon (fork/child), VS Code-compatible package.json manifest + contribution registry, Open VSX-compatible OFFLINE marketplace (local registry, vsix cache, sha256-verified installs, deny-by-default sandbox, network opt-in only), activation events, and a minimal vscode-like API surface. Use whenever wiring extension install/activate/execute/uninstall, building the marketplace UI, parsing manifests, or debugging extension-host failures. Research-grounded (VS Code extension host architecture docs, Open VSX, the verified aide-phase9-extension-host skill).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-extensions/SKILL.md"
+    },
+    {
+      "name": "aide-arch-foundations",
+      "title": "aide-arch-foundations",
+      "description": "Phase 0 SOP for the AIDE offline-first IDE rebuild — the project skeleton: TypeScript strict toolchain, Vite build with a separate tsc --noEmit type gate, ESLint, node:test harness, Theia-style common/browser/node directory structure, and the zod/OpenAPI contract skeleton. Use at the START of the rebuild (Phase 0), whenever scaffolding any new module or test, and whenever a build/type/compile gate fails or must be set up. Research-grounded (vite.dev, typescriptlang.org, theia-ide.org, api-contract-testing.com).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-foundations/SKILL.md"
+    },
+    {
+      "name": "aide-arch-frontend-core",
+      "title": "aide-arch-frontend-core",
+      "description": "Phase 2 SOP for the AIDE offline-first IDE rebuild — the browser-only frontend shell: app shell + view layout (LEARN/MAP/EXP/RUN), DI-light service layer, typed contract client (fetch + zod validation both directions), store/state pattern with subscriptions, offline-first rules, and the error-envelope UX. Use whenever building frontend services/state/views, wiring a new daemon call, or fixing \"frontend shows nothing / fetch failed / state desync\". Research-grounded (VS Code renderer architecture docs, Theia DI docs, api-contract-testing.com).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-frontend-core/SKILL.md"
+    },
+    {
+      "name": "aide-arch-git",
+      "title": "aide-arch-git",
+      "description": "Phase 7 SOP for the AIDE offline-first IDE rebuild — the git integration service: git CLI via execFile (shell:false, -C workspace, GIT_TERMINAL_PROMPT=0), porcelain v2 status parsing, diff/stage/commit/unstage/branch/history, git panel UI over the Phase 2 shell + Monaco diff views, safe credential handling (no interactive prompts), and the commit-ref problem class (refs/heads/main write failures — AV/OneDrive interference). Use whenever wiring git panel routes, parsing status/diff, debugging \"git panel shows nothing\", adding branch/history/unstage support, or auditing the existing test-git-api flow. Research-grounded (git-scm.com docs, nodejs.org child_process, the verified aide-phase4-git-integration skill).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-git/SKILL.md"
+    },
+    {
+      "name": "aide-arch-model-runtime",
+      "title": "aide-arch-model-runtime",
+      "description": "Phase 6 SOP for the AIDE offline-first IDE rebuild — the local model runtime + chat: port the VERIFIED model-manager (python discovery chain, llama_cpp.server spawn with --logits_all false, identity check, warmup gate, RAM doctrine, port doctrine 8081→8087), typed chat contract with SSE token streaming, model status via WS, offline-first (local llama.cpp only; online providers strictly opt-in). Use whenever wiring model start/stop/status/chat, debugging \"model won't start\", \"first chat fails\", \"MapViewOfFile failed\", or port conflicts. Research-grounded in the verified facts of 2026-08-16 (this machine, this project) plus llama.cpp docs.",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-model-runtime/SKILL.md"
+    },
+    {
+      "name": "aide-arch-packaging-release",
+      "title": "aide-arch-packaging-release",
+      "description": "Phase 11 SOP for the AIDE offline-first IDE rebuild — desktop packaging + release engineering: shell technology decision (Tauri vs Electron vs browser-only launcher, evaluated on THIS machine), offline asset bundling (Monaco workers, fonts, models, language servers — everything local), installer + first-run offline smoke test, model integrity sha256 verification, update mechanics, and the full verification battery before any release claim. Use whenever deciding the desktop shell, building the installer, verifying model/asset integrity, or auditing \"does the shipped product actually work offline from a clean install\". Research-grounded (Tauri/Electron/WebView2 docs, the verified aide-packaging-offline skill, verification-complete doctrine).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-packaging-release/SKILL.md"
+    },
+    {
+      "name": "aide-arch-protocols",
+      "title": "aide-arch-protocols",
+      "description": "Phase 5 SOP for the AIDE offline-first IDE rebuild — the LSP and DAP clients in the daemon: JSON-RPC 2.0 with Content-Length framing, correct lifecycle (initialize→initialized→didOpen→didChange→didSave→shutdown→exit), spawn-without-shell process rules, pending-request tracking with timeouts, diagnostics→Monaco markers pipeline, completion/hover/definition, and the DAP client (initialize/capabilities first, breakpoints, stack/scopes/variables). Use whenever wiring language features, debugging \"LSP returns nothing\", \"editor shows no diagnostics\", or \"debugger won't connect\", or auditing the existing lsp-manager.mjs. Research-grounded (microsoft.github.io/language-server-protocol, debugadapterprotocol, Node child_process docs).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-protocols/SKILL.md"
+    },
+    {
+      "name": "aide-arch-terminal",
+      "title": "aide-arch-terminal",
+      "description": "Phase 8 SOP for the AIDE offline-first IDE rebuild — the integrated terminal + task runner: xterm.js frontend over a daemon-hosted PTY (node-pty with ConPTY on Windows), typed task contract (npm scripts etc. run with streaming output + clean stop), process tree management, and the ANSI/unicode/quoting pitfalls. Use whenever wiring terminal UI, spawning shell sessions, running tasks with live output, or debugging \"terminal shows nothing\", \"control chars garbage\", or \"task won't stop\". Research-grounded (VS Code terminal engineering docs, node-pty docs, xterm.js docs, nodejs.org child_process).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-terminal/SKILL.md"
+    },
+    {
+      "name": "aide-arch-training-ecosystem",
+      "title": "aide-arch-training-ecosystem",
+      "description": "Phase 10 SOP for the AIDE offline-first IDE rebuild — the training arena + tutor + community as contract services: training job manager (job config JSON, spawn via task runner, WS log stream, poll status, graceful-then-tree-kill stop, checkpoint-first), Academy/tutor (course catalog, lesson sessions, deterministic gates, server-gated completion credentials), and the local community hub (feed/projects/issues/discussions/marketplace CRUD, zero cloud). Use whenever wiring RUN VERITAS JOB / STOP TRAINING JOB, lesson check/complete, or community CRUD. Research-grounded in the verified machine reality (GTX 1060 6GB Pascal FP32-only, py -3.10 -E, RAM doctrine) and the existing aide-phase5/6/7 skills.",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-training-ecosystem/SKILL.md"
+    },
+    {
+      "name": "aide-arch-wiring",
+      "title": "aide-arch-wiring",
+      "description": "Phase 4 SOP for the AIDE offline-first IDE rebuild — the contract layer between frontend and daemon: OpenAPI generated from zod schemas, shared fixtures consumed by BOTH sides' tests (drift-proofing), WebSocket/SSE event channel (logs, diagnostics, model status, training stream), Playwright e2e (auto-retrying assertions, isolated contexts, WS mocking), and the offline-first egress audit. Use whenever a new route/event is added, a contract test fails, frontend/backend disagree on shapes, or e2e flakiness is being debugged. Research-grounded (api-contract-testing.com, OpenAPI, Playwright docs, WebSocket spec).",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-wiring/SKILL.md"
+    },
+    {
+      "name": "aide-build-b1-task-service",
+      "title": "aide-build-b1-task-service",
+      "description": "",
+      "category": "build-series",
+      "path": "skills/packs/aide-build-b1-task-service/SKILL.md"
+    },
+    {
+      "name": "aide-build-b2-problem-matchers",
+      "title": "aide-build-b2-problem-matchers",
+      "description": "",
+      "category": "build-series",
+      "path": "skills/packs/aide-build-b2-problem-matchers/SKILL.md"
+    },
+    {
+      "name": "aide-build-b3-compound-tasks",
+      "title": "aide-build-b3-compound-tasks",
+      "description": "",
+      "category": "build-series",
+      "path": "skills/packs/aide-build-b3-compound-tasks/SKILL.md"
+    },
+    {
+      "name": "aide-build-b4-notifications",
+      "title": "aide-build-b4-notifications",
+      "description": "",
+      "category": "build-series",
+      "path": "skills/packs/aide-build-b4-notifications/SKILL.md"
+    },
+    {
+      "name": "aide-build-b5-local-cache",
+      "title": "aide-build-b5-local-cache",
+      "description": "",
+      "category": "build-series",
+      "path": "skills/packs/aide-build-b5-local-cache/SKILL.md"
+    },
+    {
+      "name": "aide-build-series-roadmap",
+      "title": "aide-build-series-roadmap",
+      "description": "",
+      "category": "build-series",
+      "path": "skills/packs/aide-build-series-roadmap/SKILL.md"
+    },
+    {
+      "name": "aide-ci-diagnostics",
+      "title": "aide-ci-diagnostics",
+      "description": "Diagnose GitHub Actions failures on AnonymousNomad/aide-sovereign-workbench WITHOUT authentication — no-auth evidence channels (::error annotations, job summaries via the check-runs API), harvest commands, flake-vs-real triage, and the veritas gate map. Use whenever CI is red, a run's conclusion must be explained, or observability for a failing step must be added.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-ci-diagnostics/SKILL.md"
+    },
+    {
+      "name": "aide-cloud-economy",
+      "title": "aide-cloud-economy",
+      "description": "",
+      "category": "cloud-handoff",
+      "path": "skills/packs/aide-cloud-economy/SKILL.md"
+    },
+    {
+      "name": "aide-cloud-handoff",
+      "title": "aide-cloud-handoff",
+      "description": "H1+H2 phase SOPs for the AIDE offline-first IDE — H1 portable session handoff bundles (SHIPPED) and H2 Bring-Your-Own-Key provider routing (roles plan/act/utility, DPAPI secret store, journaled opt-in egress). Research-grounded in VS Code 2026 BYOK docs (chatLanguageModels.json, apiType chat-completions/responses/messages, utilityModel), keytar deprecation (unmaintained since 2022 -> safeStorage/DPAPI/@napi-rs/keyring successors), and the project's No-Phone-Home law. Use when building/debugging handoff bundles OR BYOK credential storage, role->model routing, provider endpoints in aide-sovereign-workbench.",
+      "category": "cloud-handoff",
+      "path": "skills/packs/aide-cloud-handoff/SKILL.md"
+    },
+    {
+      "name": "aide-credo-guardrail",
+      "title": "aide-credo-guardrail",
+      "description": "AIDE's ONE guardrail — the Code + Lens operating document injected into EVERY model's system context (bundled GGUF or BYOK cloud). Original in-house R&D, two fused parts - Part A the Developer's Code (six discipline commitments - speak only what you know, armor/fail-closed, constant standard, releases raised right, word kept, unyielding repetition), Part B the Influence-Literacy Lens (recognize manipulation plays running on you through prompts/web/files, think like attackers when building, never run plays yourself, silent-fail red-team protocol). Replaces the thin L0 layer as the scaffold core. Use when composing system scaffolds, tuning the core document, running the resistance battery, or extending the NEVER-RUN list.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-credo-guardrail/SKILL.md"
+    },
+    {
+      "name": "aide-device-benchmark-runner",
+      "title": "aide-device-benchmark-runner",
+      "description": "SOP for AIDE's MEASURED device benchmark lane — running llama.cpp llama-bench against a candidate GGUF on the user's actual hardware, parsing pp/tg tok/s from JSON, caching verdicts, and merging measured numbers with M2 header-estimate fit verdicts. Extends (does not replace) aide-model-hub-acquisition M2 estimates. Use when implementing the benchmark runner, when \"Will this run fast?\" must be answered with numbers instead of estimates, when interpreting llama-bench output, or when debugging benchmark jobs.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-device-benchmark-runner/SKILL.md"
+    },
+    {
+      "name": "aide-distribution-packaging",
+      "title": "aide-distribution-packaging",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-distribution-packaging/SKILL.md"
+    },
+    {
+      "name": "aide-frontier-model",
+      "title": "aide-frontier-model",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-frontier-model/SKILL.md"
+    },
+    {
+      "name": "aide-harness-prompt-scaffolding",
+      "title": "aide-harness-prompt-scaffolding",
+      "description": "SOP for AIDE's built-in harness layer — injecting standard operating procedures, operating guidelines, and verification discipline into EVERY model's system context (bundled GGUF or BYOK cloud), sized to each model's instruction-following budget, with deterministic gates doing the enforcement that prose cannot. This is the productized version of how this project itself is run (credo + skills + veritas). Use when building the scaffolding composer, choosing what guidance ships per role/model, debugging \"model ignores the rules\", or designing harness-side quality loops.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-harness-prompt-scaffolding/SKILL.md"
+    },
+    {
+      "name": "aide-helix-memory",
+      "title": "aide-helix-memory",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-helix-memory/SKILL.md"
+    },
+    {
+      "name": "aide-ide-research",
+      "title": "aide-ide-research",
+      "description": "Master research skill for building the AIDE offline IDE (aide-sovereign-workbench). Encodes what Big Tech does for IDE architecture and offline model integration, and routes every feature decision to the phase skills. Use at the START of any AIDE task, before writing any code, when deciding how a feature must work, and when a feature request conflicts with verified practice.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-ide-research/SKILL.md"
+    },
+    {
+      "name": "aide-iron-suit-orchestrator",
+      "title": "aide-iron-suit-orchestrator",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-iron-suit-orchestrator/SKILL.md"
+    },
+    {
+      "name": "aide-master-roadmap",
+      "title": "aide-master-roadmap",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-master-roadmap/SKILL.md"
+    },
+    {
+      "name": "aide-model-handoff",
+      "title": "aide-model-handoff",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-model-handoff/SKILL.md"
+    },
+    {
+      "name": "aide-model-hub-acquisition",
+      "title": "aide-model-hub-acquisition",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-model-hub-acquisition/SKILL.md"
+    },
+    {
+      "name": "aide-model-ingestion",
+      "title": "aide-model-ingestion",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-model-ingestion/SKILL.md"
+    },
+    {
+      "name": "aide-model-sop",
+      "title": "aide-model-sop",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-model-sop/SKILL.md"
+    },
+    {
+      "name": "aide-model-task-recommender",
+      "title": "aide-model-task-recommender",
+      "description": "SOP for AIDE's per-task model recommendation engine — mapping Hugging Face GGUF models to task suitability (coding / planning-chat / utility) using Hub API metadata (pipeline_tag, library=gguf, num_parameters ranges), merging with on-device fit verdicts (M2) and measured benchmarks (llama-bench lane), producing the ranked \"recommended for YOUR machine + YOUR task\" lists in the hub UI. Use when building the recommender service, designing the task taxonomy, wiring hub starter grids, or debugging recommendation ranking.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-model-task-recommender/SKILL.md"
+    },
+    {
+      "name": "aide-offline-agent-loop",
+      "title": "aide-offline-agent-loop",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-offline-agent-loop/SKILL.md"
+    },
+    {
+      "name": "aide-offline-rag",
+      "title": "aide-offline-rag",
+      "description": "A2 phase SOP for the AIDE offline-first IDE — workspace indexing and hybrid retrieval (BM25 + dense vectors + RRF) with ZERO new native deps. Pure-JS structure-aware chunking, in-memory Float32 vector search persisted under .aide/index/, injectable embedFn (local llama_cpp.server /v1/embeddings with nomic prefixes), incremental content-hash reindexing, contract-first routes + WS channel. Research-grounded. Use whenever building/debugging the indexer, chunker, BM25/vector search, hybrid query path, or index routes/UI in aide-sovereign-workbench.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-offline-rag/SKILL.md"
+    },
+    {
+      "name": "aide-packaging-offline",
+      "title": "aide-packaging-offline",
+      "description": "Packaging SOP for the AIDE offline IDE — ship the workbench with its 3 GGUF models, fully offline, on Windows. Use whenever creating installers, deciding where model files live, verifying model integrity, or planning release/update mechanics.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-packaging-offline/SKILL.md"
+    },
+    {
+      "name": "aide-parity-p1-commands-keybindings-settings",
+      "title": "aide-parity-p1-commands-keybindings-settings",
+      "description": "",
+      "category": "parity",
+      "path": "skills/packs/aide-parity-p1-commands-keybindings-settings/SKILL.md"
+    },
+    {
+      "name": "aide-parity-p2-quickopen-global-search",
+      "title": "aide-parity-p2-quickopen-global-search",
+      "description": "",
+      "category": "parity",
+      "path": "skills/packs/aide-parity-p2-quickopen-global-search/SKILL.md"
+    },
+    {
+      "name": "aide-parity-p3-editor-depth",
+      "title": "aide-parity-p3-editor-depth",
+      "description": "",
+      "category": "parity",
+      "path": "skills/packs/aide-parity-p3-editor-depth/SKILL.md"
+    },
+    {
+      "name": "aide-parity-p4-scm-depth",
+      "title": "aide-parity-p4-scm-depth",
+      "description": "",
+      "category": "parity",
+      "path": "skills/packs/aide-parity-p4-scm-depth/SKILL.md"
+    },
+    {
+      "name": "aide-perf-launch-engineering",
+      "title": "aide-perf-launch-engineering",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-perf-launch-engineering/SKILL.md"
+    },
+    {
+      "name": "aide-phase1-model-runtime",
+      "title": "aide-phase1-model-runtime",
+      "description": "Phase 1 SOP for the AIDE offline IDE — make the 3 bundled GGUF models serve text via llama-cpp-python OpenAI-compatible endpoints and wire the daemon chat API + frontend controls. Use whenever starting/verifying model servers, implementing /api/chat or /api/model/start, or debugging \"model won't start / chat returns nothing\" on this machine.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase1-model-runtime/SKILL.md"
+    },
+    {
+      "name": "aide-phase10-model-hub",
+      "title": "aide-phase10-model-hub",
+      "description": "",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase10-model-hub/SKILL.md"
+    },
+    {
+      "name": "aide-phase2-view-switching",
+      "title": "aide-phase2-view-switching",
+      "description": "Phase 2 SOP for the AIDE offline IDE — make LEARN / MAP / EXP / RUN view switching clean: overlays on the editor column, no page scroll, no layout breakage. Use whenever changing views, fixing scrolling/resizing, or styling #learn-view / #blueprint-view overlays.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase2-view-switching/SKILL.md"
+    },
+    {
+      "name": "aide-phase3-editor-core",
+      "title": "aide-phase3-editor-core",
+      "description": "Phase 3 SOP for the AIDE offline IDE — make the code editor actually edit files: MVVM editor contract, file open/save round-trip via daemon routes, tabs, find/replace, workspace search, undo/redo stack, split editor groups, dirty state, hot-exit recovery, large-file handling, and LSP integration (spawn, initialize handshake, didOpen/didChange, completion/hover/definition, shutdown). Use whenever wiring explorer/file loading/save/find/terminal/LSP-DAP or debugging \"file won't open/save\", \"undo lost\", \"LSP returns nothing\", or \"search finds nothing\" issues.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase3-editor-core/SKILL.md"
+    },
+    {
+      "name": "aide-phase4-git-integration",
+      "title": "aide-phase4-git-integration",
+      "description": "Phase 4 SOP for the AIDE offline IDE — functional Git panel: status, diff, stage, commit, all local, all via the git CLI. Use whenever wiring Git buttons, parsing status/diff, fixing \"git panel shows nothing\", adding branch/history/unstage support, or debugging test-git-api.mjs flakes.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase4-git-integration/SKILL.md"
+    },
+    {
+      "name": "aide-phase5-training-arena",
+      "title": "aide-phase5-training-arena",
+      "description": "Phase 5 SOP for the AIDE offline IDE — run model training pipelines from the IDE: define job config JSON, spawn via the daemon, stream logs, poll status, stop cleanly (graceful-then-kill-tree, checkpoint-first). Verified against the actual code in E:\\aide-sovereign-workbench (daemon/server.mjs, daemon/training-manager.mjs, app.js) and grounded in the device reality of THIS machine (GTX 1060 6GB Pascal, FP32 only, i7-8750H, 16GB RAM, Windows, py -3.10 -E). Use whenever wiring RUN VERITAS JOB / STOP TRAINING JOB, showing training status/logs, or managing long-running processes from the daemon.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase5-training-arena/SKILL.md"
+    },
+    {
+      "name": "aide-phase6-tutor-mode",
+      "title": "aide-phase6-tutor-mode",
+      "description": "Phase 6 SOP for the AIDE offline IDE — hands-on Academy/tutor mode: course catalog, lesson sessions, RUN LESSON CHECK (deterministic gates first), MARK LESSON COMPLETE (server-gated), local completion credentials (digest + limitation). Use whenever wiring the academy/course list, lesson cards, check/complete buttons, certificate generation, or any tutor-mode change in E:\\aide-sovereign-workbench.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase6-tutor-mode/SKILL.md"
+    },
+    {
+      "name": "aide-phase7-community-hub",
+      "title": "aide-phase7-community-hub",
+      "description": "Phase 7 SOP for the AIDE offline IDE — local GitHub-like collaboration: feed, projects, issues, discussions, marketplace — stored locally, zero cloud. Use whenever wiring /api/community, the community feed, the PROJECTS/ISSUES/DISCUSSIONS/MARKETPLACE tabs, community-store CRUD, or any future sync/marketplace-install work.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase7-community-hub/SKILL.md"
+    },
+    {
+      "name": "aide-phase8-android-build",
+      "title": "aide-phase8-android-build",
+      "description": "Phase 8 SOP for the AIDE offline IDE — Android Studio-style build tooling: Gradle builds, APK assembly/signing, emulator + adb, build pipeline UI. Use whenever wiring APK build tasks, Gradle execution, signing, or emulator controls.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase8-android-build/SKILL.md"
+    },
+    {
+      "name": "aide-phase9-extension-host",
+      "title": "aide-phase9-extension-host",
+      "description": "Phase 9 SOP for the AIDE offline IDE — a VS Code-class extension ecosystem: extension host (separate Node process spawned by the daemon), VS Code-compatible manifest + contribution registry, and an Open VSX-compatible offline marketplace (registry URL config, vsix cache, sha256-verified installs, deny-by-default sandbox). Use whenever wiring extension install/activate/execute/uninstall, building the marketplace UI, parsing package.json manifests, or debugging extension-host failures.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase9-extension-host/SKILL.md"
+    },
+    {
+      "name": "aide-product-vision",
+      "title": "aide-product-vision",
+      "description": "North-star product vision for the AIDE offline-first IDE — seamless online/offline model continuity (BYOK handoff, connectivity failover mid-task), closed-loop harness that improves every model via built-in SOP/credo layers, GGUF recommendations for every device/task, and an eventually fine-tuned house model with MCP tooling. Use at the START of any feature decision to test it against the vision, when prioritizing roadmap items, or before scoping any new capability.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-product-vision/SKILL.md"
+    },
+    {
+      "name": "aide-production-cutover",
+      "title": "aide-production-cutover",
+      "description": "SOP for wiring AIDE's new TS route stack (node/src/server.ts, all 110+ openapi routes) into production so `npm start` serves it — strangler-fig migration away from the legacy monolith daemon/server.mjs. Covers the verified two-server reality, route inventory reconciliation, facade routing, contract-test safety net, per-domain cutover phases with verification gates, rollback, and decommissioning. Use when starting the cutover work, when a shipped feature 404s in the real UI, when touching scripts/start.mjs or either server entrypoint, or before decommissioning any legacy module.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-production-cutover/SKILL.md"
+    },
+    {
+      "name": "aide-provider-connect",
+      "title": "aide-provider-connect",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-provider-connect/SKILL.md"
+    },
+    {
+      "name": "aide-release-engineering",
+      "title": "aide-release-engineering",
+      "description": ">-",
+      "category": "aide-core",
+      "path": "skills/packs/aide-release-engineering/SKILL.md"
+    },
+    {
+      "name": "aide-resilience-orchestrator",
+      "title": "aide-resilience-orchestrator",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-resilience-orchestrator/SKILL.md"
+    },
+    {
+      "name": "aide-skill-curation",
+      "title": "aide-skill-curation",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-skill-curation/SKILL.md"
+    },
+    {
+      "name": "aide-smart-workbench-flow",
+      "title": "aide-smart-workbench-flow",
+      "description": "UX law for the AIDE cockpit redesign — one workflow (Describe, Plan, Approve, Build, Verify, Ship), human-in-the-middle orchestration, three-zone layout, states-not-modes, progressive disclosure, teach-by-doing checklist. Use whenever touching ANY AIDE frontend file (HTML/CSS/JS), deciding what is visible where, adding a control, judging \"is this confusing\", or building the orchestrator loop UI. Encodes the 2026-08 research base (Microsoft first-five-minutes, Userpilot contextual onboarding, VS Code walkthroughs, flow science, Mozzie orchestrator patterns) into enforceable rules.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-smart-workbench-flow/SKILL.md"
+    },
+    {
+      "name": "aide-supply-chain-audit",
+      "title": "aide-supply-chain-audit",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-supply-chain-audit/SKILL.md"
+    },
+    {
+      "name": "aide-training-phase-b1-dataset-studio",
+      "title": "aide-training-phase-b1-dataset-studio",
+      "description": "",
+      "category": "training-ecosystem",
+      "path": "skills/packs/aide-training-phase-b1-dataset-studio/SKILL.md"
+    },
+    {
+      "name": "aide-training-phase-b2-qlora-runner",
+      "title": "aide-training-phase-b2-qlora-runner",
+      "description": "",
+      "category": "training-ecosystem",
+      "path": "skills/packs/aide-training-phase-b2-qlora-runner/SKILL.md"
+    },
+    {
+      "name": "aide-training-phase-b3-eval-export",
+      "title": "aide-training-phase-b3-eval-export",
+      "description": "",
+      "category": "training-ecosystem",
+      "path": "skills/packs/aide-training-phase-b3-eval-export/SKILL.md"
+    },
+    {
+      "name": "aide-unified-diff-repair",
+      "title": "aide-unified-diff-repair",
+      "description": "SOP for fixing the README scorecard blocker — bundled models pass function/planning smoke tests but FAIL strict unified-diff formatting. Covers the two-sided fix (harness-side tolerance+repair loop in the agent-loop parser, and model-side data/training fix via format-targeted post-training), decision rules for which side to fix, and the verification battery that proves the scorecard claim changes honestly. Use when working on diff/SEARCH-REPLACE parsing, when smoke tests fail on formatting, when planning the next post-training round, or before updating README claims.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-unified-diff-repair/SKILL.md"
+    },
+    {
+      "name": "aide-veritas-layer",
+      "title": "aide-veritas-layer",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-veritas-layer/SKILL.md"
+    },
+    {
+      "name": "aide-vscode-parity-roadmap",
+      "title": "aide-vscode-parity-roadmap",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-vscode-parity-roadmap/SKILL.md"
+    },
+    {
+      "name": "anti-trash-data-doctrine",
+      "title": "anti-trash-data-doctrine",
+      "description": "The Big Tech data-quality doctrine — zero-tolerance \"no trash\" rules for building high-quality training corpora, researched from primary sources (OpenAI GPT-3, Meta Llama 3, Microsoft phi-1, DeepSeek, HF FineWeb, Ai2 Dolma 3, Stanford DSIR, perplexity pruning). Covers the ordered filtering pipeline (cheap heuristics -> dedup -> classifiers), dedup granularity (exact -> MinHash -> substring), quality scoring (classifiers, reference-model perplexity, importance resampling), contamination removal, and the gates that generated/synthetic docs must pass identically to scraped ones. Use whenever curating, filtering, grading, deduplicating, or generating ANY data for the shared ~1B corpus, when deciding what enters or leaves the corpus, or when defending a data-acceptance decision.",
+      "category": "general",
+      "path": "skills/packs/anti-trash-data-doctrine/SKILL.md"
+    },
+    {
+      "name": "ask-dont-circle",
+      "title": "ask-dont-circle",
+      "description": "Anti-loop protocol — if you do not understand something, ask the user, or search and verify from multiple independent sources FIRST, before doing anything else. Never go in circles. Use whenever a task is ambiguous, when a decision keeps stalling, when the same question is being asked twice, or when you are about to repeat work that already happened.",
+      "category": "discipline",
+      "path": "skills/packs/ask-dont-circle/SKILL.md"
+    },
+    {
+      "name": "coherence-nlp-training",
+      "title": "coherence-nlp-training",
+      "description": "Best practices for training small-from-scratch models to achieve natural language processing (NLP) coherence. Use whenever training or fine-tuning a small model where coherent, general-purpose language understanding is the target, not just domain-specific or output-format generation. Research-grounded in Big Tech small-model pipelines (SmolLM, phi, TinyLlama), catastrophic-forgetting literature, and scaled training recipes.",
+      "category": "general",
+      "path": "skills/packs/coherence-nlp-training/SKILL.md"
+    },
+    {
+      "name": "comprehension-engineering",
+      "title": "comprehension-engineering",
+      "description": "Encoding the anti-memorization corpus doctrine. Use whenever building or scaling training data (pretraining or post-training) for a small from-scratch model and the goal is a model that UNDERSTANDS what it learns, REMEMBERS it, KNOWS it — and never merely memorizes surface patterns. Governs diversity-by-evolution, interleaving, retrieval/testing signals, reasoning-trace preservation, contrastive structure, and the near-dup audits and paraphrase-robust evals that MEASURE comprehension. Complements gold-training-docs (per-doc format), corpus-curation (inventory/mix), synthetic-data-pipeline (teacher rotation), dual-mind-reasoning-traces (trace format).",
+      "category": "general",
+      "path": "skills/packs/comprehension-engineering/SKILL.md"
+    },
+    {
+      "name": "continuous-improvement-sop",
+      "title": "continuous-improvement-sop",
+      "description": "Standard operating procedure for when you discover something wrong, suboptimal, or improvable in any project as you work through it. Triggered automatically when you notice a bug, a heuristic masquerading as rigor, a broken pipeline, a better pattern, a redundancy, or any deviation from the skills and research we've already established. Use to (1) capture the finding honestly, (2) classify it, (3) fix it immediately if safe, (4) write the correction into the governing skill, and (5) log it in AGENT_NOTES. This is the loop that keeps the skills and pipelines truthful instead of drifting.",
+      "category": "discipline",
+      "path": "skills/packs/continuous-improvement-sop/SKILL.md"
+    },
+    {
+      "name": "corpus-curation",
+      "title": "corpus-curation",
+      "description": "Gold-standard pretraining corpus pipeline for the FSI-FELON models (trek 16.9M, felon 28M, Sopher/cipher 150-300M). Use whenever inventorying, grading, filtering, deduplicating, mixing, or budgeting training data, or deciding what enters or leaves the shared ~1B-token high-quality corpus. Encodes the standing operating order: the training pipeline must be the best in the world for its budget — data quality is the entire strategy for small models.",
+      "category": "general",
+      "path": "skills/packs/corpus-curation/SKILL.md"
+    },
+    {
+      "name": "cross-synthesis-generation",
+      "title": "cross-synthesis-generation",
+      "description": "Generate training documents that teach cross-synthesis of human behavioral science (48 Laws of Power/Nature, Machiavelli, mentalism, emotions) with cybersecurity architecture and software engineering. Follows dual-mind-reasoning-traces + gold-training-docs format with explicit synthesis blocks. Use when building the cross-synthesis layer (10-20% of corpus) for the 150M web-builder model, creating guardrail-capable models that reason about human factors in technical systems, detect manipulation/social engineering, and understand power dynamics in code and organizations.",
+      "category": "general",
+      "path": "skills/packs/cross-synthesis-generation/SKILL.md"
+    },
+    {
+      "name": "curriculum-learning-design",
+      "title": "curriculum-learning-design",
+      "description": "Design and implement curriculum learning for small from-scratch LLM pretraining. Covers difficulty metrics (compression ratio, MTLD, Flesch Reading Ease, code complexity), curriculum strategies (vanilla, pacing-based, interleaved), pacing functions (linear, concave, convex), and CL-as-warmup. Use when designing the pretraining data ordering for the 150M rebuild, choosing difficulty signals, or debugging curriculum-related training instability.",
+      "category": "general",
+      "path": "skills/packs/curriculum-learning-design/SKILL.md"
+    },
+    {
+      "name": "developer-code-and-credo",
+      "title": "developer-code-and-credo",
+      "description": "The Developer's Code, Credo, and Developer Discipline SOP — the engineering contract for every task (evidence-first, armor/fail-closed, constant standard, releases raised right, word kept, unyielding repetition). Use at the start of every task, before claiming anything, and whenever any behavior choice must be made. This is the authoritative version; developer-creed-production-sop and developer-discipline-engineering remain its operational appendices.",
+      "category": "discipline",
+      "path": "skills/packs/developer-code-and-credo/SKILL.md"
+    },
+    {
+      "name": "developer-creed-production-sop",
+      "title": "developer-creed-production-sop",
+      "description": "Apply the Developer Creed as a verification-first production SOP. Use for every model, code, serving, security, compatibility, and release change.",
+      "category": "general",
+      "path": "skills/packs/developer-creed-production-sop/SKILL.md"
+    },
+    {
+      "name": "developer-discipline-engineering",
+      "title": "developer-discipline-engineering",
+      "description": "Applies the Mandalorian creed-like discipline and philosophy to development engineering. Teaches how to translate the 'Way of the Developer' principles into development practice, verification-first mindset, and continuous discipline throughout the development lifecycle.",
+      "category": "general",
+      "path": "skills/packs/developer-discipline-engineering/SKILL.md"
+    },
+    {
+      "name": "device-training-1060",
+      "title": "device-training-1060",
+      "description": "Device-specific training discipline for THIS machine (GTX 1060 6GB Pascal mobile + i7-8750H + 16GB RAM + Windows). The execution layer under training-from-scratch and model-scaling: what Big Tech recommends vs what this exact card can actually do. Use whenever setting up, launching, resuming, or optimizing ANY training run (pretrain/SFT/distill/preference) on this machine — precision choice, batch/data-pipeline construction, throughput budgets, Windows DataLoader pitfalls, and the 27%-GPU-util bubble diagnosis. Hard device rules: FP32 ONLY (no AMP/TF32 — Pascal has no Tensor Cores), never num_workers>0 for in-memory token data on Windows, never run on battery.",
+      "category": "general",
+      "path": "skills/packs/device-training-1060/SKILL.md"
+    },
+    {
+      "name": "dual-mind-reasoning-traces",
+      "title": "dual-mind-reasoning-traces",
+      "description": "Generate training documents with dual-mind reasoning traces (Spock step-by-step induction + Sheldon adversarial cross-check + synthesis) for the FSI-Trek dual-cognitive architecture. Use when building distillation corpus traces, post-training reasoning data, or any document that must teach the model to run BOTH minds and synthesize. Follows Orca-2 multi-strategy, DeepSeek-R1 capacity-matched traces, MapCoder-Lite prompt erasure, SOL-VER verification gates.",
+      "category": "general",
+      "path": "skills/packs/dual-mind-reasoning-traces/SKILL.md"
+    },
+    {
+      "name": "edge-deployment-ci",
+      "title": "edge-deployment-ci",
+      "description": "CI/CD gates for edge deployment of the 150M FSI-FELON model. Covers quantization targets (Q4_K_M primary), CPU/WASM/phone targets, thermal/sustained load testing, model file size gate, first-token latency, steady-state tok/s, RSS memory, and sustained-load CI (not single-shot). Use when building the release pipeline, configuring CI for the quantized artifacts, or validating deployment targets before release.",
+      "category": "general",
+      "path": "skills/packs/edge-deployment-ci/SKILL.md"
+    },
+    {
+      "name": "felon-master",
+      "title": "felon-master",
+      "description": "FELON Q-NFRE Edge — master architect skill for building, training, and deploying the 25M param edge IDE model. Use for all FELON development: architecture, training, benchmark evaluation, cybersecurity features, nanobot territory routing, multi-agent orchestration, and edge deployment. Overrides default LLM patterns with FELON-specific closed-loop nanobot swarm architecture.",
+      "category": "general",
+      "path": "skills/packs/felon-master/SKILL.md"
+    },
+    {
+      "name": "gguf-quantization-deployment",
+      "title": "gguf-quantization-deployment",
+      "description": "Quantize, verify, and deploy GGUF models for the 150M FSI-FELON rebuild. Covers quantization format selection (Q8_0/Q4_K_M/Q5_K_M), Pareto-optimal tradeoffs, train/serve parity probes (logit agreement ≥99.9%, completion parity, gate re-run through server), tokenizer vocab equality, identity verification (GGUF sha256 chain), and offline serving stack (llama-server, ngl=0, logits_all=false, ports 8081-8087). Use when quantizing the gated checkpoint, launching the serving stack, running parity probes, or deciding release quantization.",
+      "category": "general",
+      "path": "skills/packs/gguf-quantization-deployment/SKILL.md"
+    },
+    {
+      "name": "github-repo-professional-setup",
+      "title": "github-repo-professional-setup",
+      "description": "Prepare a project as a high-visibility professional GitHub repository — README structured for conversion and AI parseability, shields.io badges, LICENSE, SECURITY.md, CONTRIBUTING.md, CI workflow, llms.txt, and credential-safe publishing. Use when setting up a new public repo, rewriting a README for traction, adding badges/CI, or pushing an existing project to GitHub.",
+      "category": "general",
+      "path": "skills/packs/github-repo-professional-setup/SKILL.md"
+    },
+    {
+      "name": "gold-training-docs",
+      "title": "gold-training-docs",
+      "description": "Generate gold-standard training documents (KD docs) for the trek language-model pretraining corpus, based on Big Tech proven data practices (Phi-1 textbook quality, LIMA curation, Orca-2 multi-strategy reasoning, Google active learning). Use when writing any new training document, building corpus batches, or creating doc templates for the queen-bee-v5 corpus.",
+      "category": "general",
+      "path": "skills/packs/gold-training-docs/SKILL.md"
+    },
+    {
+      "name": "hard-rules",
+      "title": "hard-rules",
+      "description": "Non-negotiable forbidden actions for every agent session on the FSI-FELON project. Use ALWAYS at session start, before ANY action, and before/after any write to AGENT_NOTES.md or any skill file. These are the project's sacred rules — violating any of them is a critical failure regardless of outcome.",
+      "category": "discipline",
+      "path": "skills/packs/hard-rules/SKILL.md"
+    },
+    {
+      "name": "human-systems-synthesis",
+      "title": "human-systems-synthesis",
+      "description": "Generate training documents that teach cross-synthesis of human behavioral science (48 Laws of Power/Nature, Machiavelli, mentalism, emotions) with cybersecurity architecture and software engineering. Use when building guardrail-capable models that reason about human factors in technical systems, detect manipulation/social engineering, and understand power dynamics in code and organizations. Follows dual-mind-reasoning-traces + gold-training-docs format with explicit synthesis blocks.",
+      "category": "general",
+      "path": "skills/packs/human-systems-synthesis/SKILL.md"
+    },
+    {
+      "name": "kd-corpus-production",
+      "title": "kd-corpus-production",
+      "description": "Professional knowledge-distillation corpus production for small language models. Use when generating training documents, building KD datasets, synthesizing teacher-to-student training data, auditing corpus quality, or designing distillation pipelines — for any project training a small model (sub-1B) from a stronger teacher (LLM or self). Grounded in research: Phi-1/Phi-1.5 textbook quality, LIMA curation, Orca/Orca-2 multi-strategy reasoning, Cosmopedia diversity, DataMan quality criteria, pre-training distillation design space (ACL 2025), book-level synthetic textbooks (NeurIPS 2025), and sub-1B synthetic-data practice.",
+      "category": "general",
+      "path": "skills/packs/kd-corpus-production/SKILL.md"
+    },
+    {
+      "name": "kd-teacher-strengths",
+      "title": "kd-teacher-strengths",
+      "description": "Teacher-strength-scoped knowledge distillation. Use BEFORE and DURING any distillation work — before selecting a teacher, before generating a trace, before building any KD corpus, and when choosing what to extract from an existing teacher. Mandates that every teacher model is distilled ONLY within its verified competence envelope (benchmarks + official recommendations), never beyond it. Grounded in the LFM2.5 research (IFeval 88.4, BFCLv3 57, GSMA8K 85.6, MATH-500 88, AIME25 31.7; explicitly NOT for code/knowledge tasks) and applies the same evidence-first audit to every teacher: Qwen2.5-Coder, Phi-3, DeepSeek-Coder, kira-14e, or any future teacher. Pair with kd-corpus-production and post-training-distill.",
+      "category": "general",
+      "path": "skills/packs/kd-teacher-strengths/SKILL.md"
+    },
+    {
+      "name": "model-engineering",
+      "title": "model-engineering",
+      "description": "MASTER skill for a software engineer building and training models from scratch that are competitive AND production-ready. THE single entry point that ties together the entire model lifecycle — data, architecture, pretraining, post-training, evaluation, deployment, monitoring, and the SOP catalog (standard operating procedures the model must have for every task it will be asked to do). Use whenever working on any FSI-FELON model (trek/felon/cipher/Sopher) or when deciding what to do next. Load this first; it routes to the sub-skills.",
+      "category": "general",
+      "path": "skills/packs/model-engineering/SKILL.md"
+    },
+    {
+      "name": "model-scaling",
+      "title": "model-scaling",
+      "description": "Size-feasibility discipline for FSI-FELON models on THIS machine (GTX 1060 6GB, i7-8750H, 16GB RAM). Codifies the 8/7 measured probe: hard size ceiling is ~150M (139.7M chosen), the ~5GB VRAM spill threshold, the GQA head-divisibility constraint, and the measured config candidates. Use BEFORE choosing a model size, changing a config, or budgeting a corpus/VRAM for any training run. Hard rule from user (8/7): NEVER go bigger than 100-150M. Probe first, don't assume.",
+      "category": "general",
+      "path": "skills/packs/model-scaling/SKILL.md"
+    },
+    {
+      "name": "multi-format-interference-repair",
+      "title": "multi-format-interference-repair",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/multi-format-interference-repair/SKILL.md"
+    },
+    {
+      "name": "multi-format-retention-repair",
+      "title": "multi-format-retention-repair",
+      "description": "Repair a model that emits multiple output formats or task families without improving one format by regressing another. Use whenever web, code, envelope, safety, or instruction-format repair changes shared decoder behavior.",
+      "category": "general",
+      "path": "skills/packs/multi-format-retention-repair/SKILL.md"
+    },
+    {
+      "name": "on-policy-distillation",
+      "title": "on-policy-distillation",
+      "description": "Implement SOD (Step-wise On-policy Distillation), ATOD (Annealed Turn-aware OPD), and Direct-OPD for small model post-training. Covers step-level divergence reweighting, annealed OPD-RL schedules, turn-level disagreement-uncertainty gating, and weak-to-strong policy shift transfer. Use when running Stage 2 (distillation) of the post-training pipeline, choosing between OPD variants, or implementing the distillation trainer for the 150M rebuild.",
+      "category": "general",
+      "path": "skills/packs/on-policy-distillation/SKILL.md"
+    },
+    {
+      "name": "original-trace-engineering",
+      "title": "original-trace-engineering",
+      "description": "Engineering OUR OWN highest-quality coding traces from scratch - the doctrine that replaces \"download someone else's traces\". Use whenever creating, expanding, or judging any synthetic coding training data (pretraining or post-training) for the FSI-FELON / queen-bee-v5 program. Governs seed-driven generation, execution-grounded verification, test-quality engineering, diversity-without-repetition, and the uniqueness-at-generation gate. The differentiator principle: if the data can be downloaded by everyone, it cannot be the edge. Enforce this when the corpus needs novel verified code traces and the answer \"use HuggingFace traces\" is ever proposed.",
+      "category": "general",
+      "path": "skills/packs/original-trace-engineering/SKILL.md"
+    },
+    {
+      "name": "PC management",
+      "title": "PC management",
+      "description": "Owner's manual for THIS machine (ASUS GL703GM — i7-8750H / GTX 1060 / 16GB RAM / 120Hz). Use whenever helping with hardware, CPU/GPU usage, storage, gaming setup, thermals, drivers, or performance tuning. Read like the device's manual so every hardware decision is grounded in the real spec.",
+      "category": "general",
+      "path": "skills/packs/PC management/SKILL.md"
+    },
+    {
+      "name": "pipeline-excellence",
+      "title": "pipeline-excellence",
+      "description": "THE master quality bar for the FSI-FELON training pipeline. Use at the START of every session, before ANY data generation, curation, training run, gate eval, or post-training stage, and whenever deciding what to do next. Defines what \"best in the world\" means operationally (measured, not vibes), the Pipeline Constitution (non-negotiable laws), the stage-gated scorecard with binary gates, the audit loop that verifies the pipeline itself, and the rivalry test (we must be better than Big Tech practice at every stage, for our budget). This skill is the umbrella: it routes to and enforces every other pipeline skill (corpus-curation, comprehension-engineering, original-trace-engineering, gold-training-docs, kd-corpus-production, synthetic-data-pipeline, zero-dup-high-quality, training-from-scratch, post-training-pipeline + stage skills, train-serve-consistency, web-builder, model-scaling, surgical-precision, professional-developer). When any instruction conflicts with this skill's constitution, quality and truth win.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-excellence/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-1-foundations",
+      "title": "pipeline-phase-1-foundations",
+      "description": "Phase 1 of the from-scratch training pipeline — foundations and environment. Hardware truth (GTX 1060 FP32-only, 12 bytes/param memory law), toolchain + venv + hashed lockfile, project skeleton, 6-RNG determinism (CUBLAS_WORKSPACE_CONFIG), JSONL experiment tracking, watchdog + atomic checkpoints, and the 8-assert hardware gate. Use at the START of any from-scratch training program and whenever a new machine/venv/project is set up, when determinism or resume behavior is questioned, or before ANY training run is launched.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-1-foundations/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-10-serve-release",
+      "title": "pipeline-phase-10-serve-release",
+      "description": "Phase 10 (final) of the from-scratch training pipeline — serving, quantization, and release. The offline release chain for THIS card: quantize (Q8_0/Q4_K_M), serve via llama-server (logits_all false, deterministic decoding at eval time, no jinja drift), train/serve parity probes (bitwise-ish logit agreement), identity verification (the served model IS the gated checkpoint), and the closed-loop doctrine that turns deployment failures into data (Phase 7) — plus the release checklist that forbids shipping anything unverified. Use when quantizing, launching a serving stack, verifying served identity, comparing served vs eval-time outputs, or deciding a model is release-ready for the 150M rebuild.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-10-serve-release/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-2-architecture-tokenizer",
+      "title": "pipeline-phase-2-architecture-tokenizer",
+      "description": "Phase 2 of the from-scratch training pipeline — architecture and tokenizer. Llama-shape transformer config for ~150M params on the GTX 1060 6GB (dim/layers/GQA head-groups/d_ff/vocab), the exact param formula + 139.7M ceiling assert, capacity probes (Megatron activation formula, gradient-checkpointing budget, 5GB VRAM spill threshold), byte-level BPE tokenizer with fertility/utilization/val gates, initialization + residual scaling + warmup rules. Use when designing any new model config, choosing a tokenizer, computing VRAM budgets, or before ANY training run to validate the architecture fits the card.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-2-architecture-tokenizer/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-3-data-curation",
+      "title": "pipeline-phase-3-data-curation",
+      "description": "Phase 3 of the from-scratch training pipeline — data acquisition and curation. The ordered filtering pipeline (language -> URL/metadata -> cheap heuristics -> exact/substring/MinHash dedup -> DSIR/importance resampling -> quality classifier), per-source grading and inventory, contamination scan (8-13 n-gram overlap), mix design and budgeting for a small model (~150M, ~3B tokens), and val/test holdout discipline with lock-box discipline. Enforces the anti-trash-data-doctrine and zero-dup-high-quality standing laws: NO duplicate/near-duplicate docs, NO low-quality docs, every doc verified unique against the index before staging. Use when inventorying, grading, filtering, deduplicating, mixing, or budgeting training data, or when deciding what enters or leaves the corpus.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-3-data-curation/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-4-tokenization-cache",
+      "title": "pipeline-phase-4-tokenization-cache",
+      "description": "Phase 4 of the from-scratch training pipeline — corpus tokenization and caching. Two-pass uint16 shard build with the Phase-2 tokenizer, Windows-safe I/O (no mmap sharing, num_workers=0, spawn-proof), manifest + per-shard checksums, deterministic split assignment by doc hash, and the coverage/fertility/val verify gates. Use when converting the curated Phase-3 corpus into train-ready token shards, rebuilding after a tokenizer or corpus change, or debugging \"cache misses\", \"shard drift\", or OOM-at-load in the dataloader.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-4-tokenization-cache/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-5-pretrain-code",
+      "title": "pipeline-phase-5-pretrain-code",
+      "description": "Phase 5 of the from-scratch training pipeline — the pretraining code itself. Model definition (FSI_Trek from Phase 2), trainer with packing/padding-free dataloader, loss masking, AdamW config (0.9/0.95 eps 1e-5 wd 0.1), WSD or cosine schedule with warmup, gradient accumulation for effective batch 48 on 6GB VRAM, OOM retry doctrine, atomic checkpoint save/restore (model+optimizer+RNG+LR+step+token offset), JSONL monitoring hooks, and the test battery. VERIFIED REALITY (2026-08-16 audits): torch 2.7.1+cu118 (Phase 1), FSI_Trek = production architecture (Phase 2), 150M run used LR 5e-4 / clip 5.0 / cosine+curriculum (train_150.py), 16.9M run used LR 3e-4 (closed_loop.py). Use when writing any training loop for the 150M rebuild, debugging OOM at step 0, checkpoint load mismatches, LR schedule drift on resume, or grad-norm spikes.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-5-pretrain-code/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-6-pretrain-run",
+      "title": "pipeline-phase-6-pretrain-run",
+      "description": "Phase 6 of the from-scratch training pipeline — running pretraining. Launch protocol (mandatory preflight PASS), watchdog + health-ping supervision, loss/grad-norm/spike monitoring with the recovery playbook, resume-parity verification, val-loss + cloze probes on a cadence, best-by-val checkpoint selection, and the Gate-0 exit decision (loss curve sane, coherence/format baseline captured, no silent bugs). Use when launching any pretrain run on the GTX 1060, monitoring a run, diagnosing spikes/plateaus, resuming after a crash, or deciding whether a pretrained base is good enough for Phase 7.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-6-pretrain-run/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-7-post-train-data",
+      "title": "pipeline-phase-7-post-train-data",
+      "description": "Phase 7 of the from-scratch training pipeline — post-training data construction (SFT, distillation, preference). Capacity-matched SFT pairs with replay mix, short execution-verified distillation traces with prompt erasure, DPO/GRPO preference pairs with verified margin gates, and the per-item verification gates that make the data honest before ANY post-train run. Use when building any SFT/distill/preference dataset for the 150M rebuild, deciding what belongs in post-train vs pretrain, debugging \"the model memorized but didn't generalize\", or auditing pair quality before a Phase-8 run.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-7-post-train-data/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-8-post-train-runs",
+      "title": "pipeline-phase-8-post-train-runs",
+      "description": "Phase 8 of the from-scratch training pipeline — running the post-training stages (SFT, distillation, preference). The sequencing doctrine (SFT -> distill -> DPO/GRPO), per-stage recipes with THIS card's verified numbers (SFT one epoch at 5e-5 full-FT with replay mix, distill on-policy verifier-gated, DPO beta 0.1 lr 5e-7, GRPO exact-verifier-only), per-stage gates (Gate 1 format, Gate 2 reasoning, Gate 3 preference), and the retention/regression doctrine between stages (web/env floors must hold — this project's collapse precedents). Use when deciding the next post-train stage, launching an SFT/distill/DPO/GRPO run, or gate-checking a post-train checkpoint on the 150M rebuild.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-8-post-train-runs/SKILL.md"
+    },
+    {
+      "name": "pipeline-phase-9-eval-gates",
+      "title": "pipeline-phase-9-eval-gates",
+      "description": "Phase 9 of the from-scratch training pipeline — evaluation and gate verification. The fail-loud gate matrix (format, honest chat, coherence, novelty, safety, regression), the no-vacuous-pass laws (no-gold = FAIL, degeneracy = FAIL), contamination audit rules, paired CI statistics for honest improvement claims, and the fresh-regression-only comparison rule (never compare across normalizer versions). Use when gate-checking ANY checkpoint, comparing two checkpoints, deciding whether a run passed, or auditing an eval's honesty for the 150M rebuild.",
+      "category": "training-pipeline",
+      "path": "skills/packs/pipeline-phase-9-eval-gates/SKILL.md"
+    },
+    {
+      "name": "post-training-closed-loop",
+      "title": "post-training-closed-loop",
+      "description": "Stage 4 of post-training — the perpetual closed-loop improvement system for a small from-scratch model (queen-bee-v5): eval -> collect failures -> verified re-generation -> feed back into the right stage -> retrain -> repeat. Use whenever the deployed model underperforms on a verified task and the fix must come from data, not from ad-hoc retraining. Enforces the generate -> AST-verify -> self-correct -> confidence discipline project-wide.",
+      "category": "post-training",
+      "path": "skills/packs/post-training-closed-loop/SKILL.md"
+    },
+    {
+      "name": "post-training-distill",
+      "title": "post-training-distill",
+      "description": "Stage 2 of post-training — knowledge distillation for a small from-scratch model (queen-bee-v5). Use when the SFT checkpoint passes Gate 1 and the model must learn reasoning and verified problem-solving from a stronger teacher. Governs teacher-trace data construction (multi-strategy, execution-verified only, prompt erasure) and the Gate 2 reasoning check.",
+      "category": "post-training",
+      "path": "skills/packs/post-training-distill/SKILL.md"
+    },
+    {
+      "name": "post-training-pipeline",
+      "title": "post-training-pipeline",
+      "description": "Master orchestrator for the full post-pretraining pipeline (SFT, knowledge distillation, preference optimization, RLVR, closed-loop iteration) for the FSI-FELON / queen-bee-v5 small models. Use when a from-scratch pretraining run is finishing or finished and the next phase of training must be decided, sequenced, and gated. References the per-stage skills post-training-sft, post-training-distill, post-training-preference, post-training-closed-loop.",
+      "category": "post-training",
+      "path": "skills/packs/post-training-pipeline/SKILL.md"
+    },
+    {
+      "name": "post-training-preference",
+      "title": "post-training-preference",
+      "description": "Stage 3 of post-training — preference optimization for a small from-scratch model (queen-bee-v5): DPO first, then GRPO/RLVR on verifiable tasks. Use when the distillation checkpoint passes Gate 2 and the model must be aligned to prefer correct, format-clean outputs over incorrect ones. Governs preference pair construction from verifier results, DPO recipe, GRPO recipe, and the Gate 3 final eval.",
+      "category": "post-training",
+      "path": "skills/packs/post-training-preference/SKILL.md"
+    },
+    {
+      "name": "post-training-sft",
+      "title": "post-training-sft",
+      "description": "Stage 1 of post-training — supervised fine-tuning / instruction tuning for a small from-scratch model (queen-bee-v5). Use when the pretraining base checkpoint is finalized (Gate 0) and the model must learn to follow instructions and emit the byte-exact doc/chat format. Governs SFT data construction from the gold docs, one-epoch training, and the Gate 1 format check.",
+      "category": "post-training",
+      "path": "skills/packs/post-training-sft/SKILL.md"
+    },
+    {
+      "name": "process-hygiene-sop",
+      "title": "process-hygiene-sop",
+      "description": "Mandatory end-of-task process cleanup SOP for every agent session — after ANY work that spawns processes (dev servers, test runners, model servers, watchers, background jobs), kill everything you spawned AND verify it is dead before moving on, journaling, or claiming done. Use at the end of every task, before every commit/journal entry that claims completion, whenever a shell command times out or hangs, and at session close. Prevents stray node/llama/python processes from wedging the machine, corrupting later test runs, and eating RAM/GPU needed by the user's own workloads.",
+      "category": "discipline",
+      "path": "skills/packs/process-hygiene-sop/SKILL.md"
+    },
+    {
+      "name": "production-readiness",
+      "title": "production-readiness",
+      "description": "Master roadmap for taking the FSI_Trek / queen-bee-v5 pretraining baseline (16.9M params) from Gate 0 to a production-ready, state-of-the-art-for-its-class model. Use when pretraining is finished and the next path forward must be decided — it sequences the post-training stages (via post-training-pipeline and its four stage skills), adds the 2026 small-model research decision-rules, defines the honest evaluation harness, and covers the production/deployment layer (quantization, serving, monitoring). Load this first to decide the next step, then load the matching stage skill.",
+      "category": "training-pipeline",
+      "path": "skills/packs/production-readiness/SKILL.md"
+    },
+    {
+      "name": "professional-developer",
+      "title": "professional-developer",
+      "description": "Master discipline skill for the FSI-FELON solo dev program. The professional operating standard — surgical accuracy, precision, finesse, and verification-first discipline modeled on top labs (OpenAI/Labs practices). Use at the start of every task, before claiming anything done, before reporting progress, and whenever the standard of the work must be top-tier. Overrides laziness, guessing, and \"good enough\". Pairs with surgical-precision (verify), zero-dup-high-quality (data), and the Veritas layer (nothing broken ships).",
+      "category": "discipline",
+      "path": "skills/packs/professional-developer/SKILL.md"
+    },
+    {
+      "name": "project-governance",
+      "title": "project-governance",
+      "description": "Consolidated project governance for the FSI-FELON / queen-bee-v5 small-model program. Merges the previously-unregistered skills agent-notes (persistence protocol), kd-corpus-production (KD gold-doc corpus discipline), post-training-pipeline/-sft/-distill/-preference/-closed-loop (the full post-pretraining playbook), and felon-master (FELON edge-model architecture). Use at the start of every session and every context compaction, after ANY task/change/decision/event, when writing training docs or corpus batches, when a pretraining run finishes, and when running any post-training stage or audit. When a section below says \"load the X skill\", the X content IS section N of this file.",
+      "category": "general",
+      "path": "skills/packs/project-governance/SKILL.md"
+    },
+    {
+      "name": "shopify-capability-engineering",
+      "title": "shopify-capability-engineering",
+      "description": "Build and extend verified Shopify themes and web artifacts through capability routing, official-doc retrieval, deterministic compilation, Theme Check, browser validation, and explicit escalation. Use for every Shopify or custom website feature request.",
+      "category": "general",
+      "path": "skills/packs/shopify-capability-engineering/SKILL.md"
+    },
+    {
+      "name": "skill-creator",
+      "title": "skill-creator",
+      "description": "Create new skills, modify and improve existing skills. Use when users want to create a skill from scratch, edit, or optimize an existing skill.",
+      "category": "general",
+      "path": "skills/packs/skill-creator/SKILL.md"
+    },
+    {
+      "name": "surgical-precision",
+      "title": "surgical-precision",
+      "description": "Mandatory operating discipline for every agent on the FSI-FELON project. Use whenever performing ANY action that changes or claims state — editing code, running commands, writing files, building corpora, training, or answering questions about the codebase. Enforces verification-first, mental sandboxing, double-checking, and zero-tolerance for unverified claims. No funding, no compute — precision is the only edge; every operation must be surgically accurate with no room for errors.",
+      "category": "discipline",
+      "path": "skills/packs/surgical-precision/SKILL.md"
+    },
+    {
+      "name": "synthetic-data-pipeline",
+      "title": "synthetic-data-pipeline",
+      "description": "Big-tech synthetic training-data production at scale for small models — teacher rotation (generate → verify → delete → next teacher), Nemotron-style curation, reasoning-trace distillation, Evol-Instruct evolution, and synthetic-mixture budgeting. Use whenever planning a synthetic corpus build of tens-to-hundreds of millions of tokens, selecting/rotating a generation teacher, scaling up KD, or deciding how much synthetic data can safely enter the shared ~1B-token corpus. Complements (does not replace) kd-corpus-production (per-doc 5-gate pipeline) and corpus-curation (inventory/grading).",
+      "category": "general",
+      "path": "skills/packs/synthetic-data-pipeline/SKILL.md"
+    },
+    {
+      "name": "textbook-quality-data-acquisition",
+      "title": "textbook-quality-data-acquisition",
+      "description": "The textbook-quality corpus acquisition doctrine for small from-scratch models — buy/donwload/scrape ONLY textbook-grade data (user directive: zero trash data, textbooks only). Verified license matrix (Tier 1 commercial-clean USE / Tier 2 caution / Tier 3 NC-avoid / Tier 4 unknown-avoid), the phi-1/phi-1.5 synthetic textbook recipe (20K topics, diversity constraints, classifier-filtered), Cosmopedia v2 (apache-2.0/odc-by) + FineWeb-Edu + OpenStax + Gutenberg + Standard Ebooks + Saylor + PMC-CC-BY + arXiv-CC-BY acquisition plan, exact download commands (verified 2026-08-20), and the Stage 0 legal lock registry. Use whenever sourcing training data, choosing a corpus source, deciding license questions, building the Phase-3 mix, or defending a data-acquisition decision for the 150M/queen-bee-v5 rebuild.",
+      "category": "general",
+      "path": "skills/packs/textbook-quality-data-acquisition/SKILL.md"
+    },
+    {
+      "name": "train-serve-consistency",
+      "title": "train-serve-consistency",
+      "description": "Professional standard for model-internal training/serving consistency. Use whenever a model's training loss and eval/generation quality diverge unexpectedly, when auditing any model component that could introduce training-serving skew (shared mutable state, batch-coupled modules, stateful memory, accumulated buffers, dead-gradient paths, decode-side differences), or before and after changing architecture. Codifies the big-tech invariants — batch invariance, train-like-you-serve bitwise parity, per-request state hygiene, no dead gradients — and the verification battery that proves them. Grounded in Google Rules of ML (#29/#32/#37), Thinking Machines \"Defeating Nondeterminism in LLM Inference\" (2025), vLLM/Torchtitan bitwise-parity test suite, and PyTorch inductor batch_invariant mode.",
+      "category": "general",
+      "path": "skills/packs/train-serve-consistency/SKILL.md"
+    },
+    {
+      "name": "training-from-scratch",
+      "title": "training-from-scratch",
+      "description": "Canonical pretraining pipeline for small models trained from scratch — data curriculum, hyperparameters, monitoring, spike recovery, validation, cloze evals, checkpointing, finalization — grounded in Big Tech practice (Hugging Face Smol Training Playbook, Google deep-learning tuning playbook, W&B LLM training white paper, Axolotl/LightlyTrain stability guides, EACL 2026 curriculum learning, DataDecide 2025). Use when setting up a training run, auditing training health, changing hyperparameters, adding evals, or deciding checkpoint/final model selection for queen-bee-v5 or any other from-scratch model project.",
+      "category": "general",
+      "path": "skills/packs/training-from-scratch/SKILL.md"
+    },
+    {
+      "name": "training-sop",
+      "title": "training-sop",
+      "description": "The VERIFIED end-to-end Standard Operating Procedure for training a small language model from scratch on THIS machine (GTX 1060 6GB Pascal, i7-8750H, 16GB RAM, Windows) — corpus -> tokenizer -> pretrain -> SFT -> distill -> preference -> closed-loop -> quantize -> serve. Exact numbers per stage (epochs, steps, batch, LR, warmup, clip), measured on real runs, cross-checked against TinyLlama / SmolLM2 / SmolLM3 / SmolLlama / Phi-1 / Muennighoff 2023 / LIMA / Orca-2 recipes. Use BEFORE starting ANY training stage, when auditing a run, when choosing hyperparameters, or when a stage gate must be applied. This skill is the one-stop check: the detailed per-stage skills (corpus-curation, gold-training-docs, training-from-scratch, post-training-sft/-distill/-preference/-closed-loop, device-training-1060, model-scaling) remain the deep references; this SOP sequences them with battle-tested numbers.",
+      "category": "general",
+      "path": "skills/packs/training-sop/SKILL.md"
+    },
+    {
+      "name": "twin-mind-expert-colony",
+      "title": "twin-mind-expert-colony",
+      "description": "Design and build twin-mind typed expert colonies — Mixture-of-Experts architectures whose routed expert pool is split into two competing, psychologically-typed populations (Sheldon-type and Spock-type) so the model cannot \"reason with itself and agree with itself.\" Use when designing or training any MoE model that must do genuine adversarial dual-mind computation (Cipher v2 Nanobot Colony, FSI-FELON family), when building dual-cognitive MoE routing, debate-quorum mechanisms, cross-population orthogonality losses, or the Sheldon/Spock psychological profiling behind them.",
+      "category": "general",
+      "path": "skills/packs/twin-mind-expert-colony/SKILL.md"
+    },
+    {
+      "name": "verification-complete",
+      "title": "verification-complete",
+      "description": "The full-verification standard and Standard Operating Procedure — after you do everything, NEVER assume it worked. Go through and run actual tests and real tasks that verify the work works COMPLETELY through and through — smoke tests are forbidden as proof. Research-grounded: NASA SWE-066/SWE-104/SWE-191 and NASA-GB-8719.13 (test levels, independent verification, requirements traceability, regression), stateful workflow verification (execute real workflows, inspect durable state, assert invariants), Sonar AC/DC Verify pillar (mandatory, comprehensive, automated, zero-trust, AI cannot verify AI), Qwen /verify deep-verification lane (A/B against base, vacuity checks, adversarial audit), and mutation testing (tests must fail when code is broken). Use at the end of every task, before every \"done\", and whenever a claim of working needs proof.",
+      "category": "discipline",
+      "path": "skills/packs/verification-complete/SKILL.md"
+    },
+    {
+      "name": "verify-first-discipline",
+      "title": "verify-first-discipline",
+      "description": "The operating law for this program — we do nothing without verifying it first, we research everything we do, we accept only cold hard facts, proven battle-tested methods, and operations SOPs. Use BEFORE every action, before claiming anything, when adopting any method, and when deciding what is true. Overrides vibes, guesses, and \"common knowledge.\"",
+      "category": "discipline",
+      "path": "skills/packs/verify-first-discipline/SKILL.md"
+    },
+    {
+      "name": "web-builder",
+      "title": "web-builder",
+      "description": "Website/UI generation capability for the FSI-FELON dual-mind models (trek family). The locked design: model emits a STRUCTURED DESIGN SPEC (not raw HTML/CSS), a deterministic renderer turns it into HTML/CSS, and automated layout metrics score it. Use whenever building the web-generation training data, the spec schema, the renderer, the design scorer, the closed-loop sandbox, or the GRPO reward for website tasks. Enforces the 8/7 decision: structured spec + renderer (user chose over direct HTML/CSS tokens and over hybrid). Dual-mind rule: Spock proposes the spec, Sheldon critiques it against design rules, the debate gate resolves.",
+      "category": "web-builder",
+      "path": "skills/packs/web-builder/SKILL.md"
+    },
+    {
+      "name": "web-builder-full-stack-synthesis",
+      "title": "web-builder-full-stack-synthesis",
+      "description": "Govern the full FSI-FELON website and Shopify builder mission by connecting human behavioral science, ethical power analysis, psychology-informed usability, cybersecurity, accessibility, design, Shopify APIs, backend logic, and verified deployment through one closed loop. Use for every capability, data, architecture, training, and production decision.",
+      "category": "web-builder",
+      "path": "skills/packs/web-builder-full-stack-synthesis/SKILL.md"
+    },
+    {
+      "name": "web-builder-model-frontier",
+      "title": "web-builder-model-frontier",
+      "description": "Research-grounded doctrine for building the #1 model for beautiful, novel, unique websites and Shopify websites (frontend + backend) with NLP. Use for EVERY decision on the web-builder model — data, architecture, training, evaluation, Shopify integration, capability boundaries, and release framing. Codifies what Big Tech research actually prescribes: specialize instead of scale, make data diversity the gate, benchmark on real interactive tasks, validate Shopify capabilities per-capability, and report honest capability boundaries.",
+      "category": "web-builder",
+      "path": "skills/packs/web-builder-model-frontier/SKILL.md"
+    },
+    {
+      "name": "web-builder-production-canary",
+      "title": "web-builder-production-canary",
+      "description": "Run real website/Shopify canary tasks and produce verified artifact packs with screenshots, hashes, latency, capability status, and escalation evidence before production claims or public posting.",
+      "category": "web-builder",
+      "path": "skills/packs/web-builder-production-canary/SKILL.md"
+    },
+    {
+      "name": "web-builder-spec-renderer",
+      "title": "web-builder-spec-renderer",
+      "description": "Implement the structured design spec schema, deterministic renderer, and design scorer for the FSI-FELON web-builder capability (8/7 decision: structured spec + renderer). Covers DESIGN.md token format, YAML-first spec hierarchy (tokens→primitives→blocks→templates→screens), deterministic HTML/CSS renderer, design scoring metrics (contrast, spacing, type hierarchy, palette harmony, balance, novelty, accessibility), and dual-mind closed loop (Spock proposes, Sheldon critiques, debate gate resolves). Use when building the web-builder training data, spec schema, renderer, scorer, or GRPO reward for website tasks.",
+      "category": "web-builder",
+      "path": "skills/packs/web-builder-spec-renderer/SKILL.md"
+    },
+    {
+      "name": "web-human-systems-security",
+      "title": "web-human-systems-security",
+      "description": "Defensive human-factor, persuasion, cognitive-accessibility, and cybersecurity synthesis for website and Shopify generation. Use whenever designing, auditing, curating, or training web/Shopify specs, copy, motion, conversion flows, or security behavior.",
+      "category": "general",
+      "path": "skills/packs/web-human-systems-security/SKILL.md"
+    },
+    {
+      "name": "zero-dup-high-quality",
+      "title": "zero-dup-high-quality",
+      "description": "STANDING OPERATING DIRECTIVE for the FSI-FELON / queen-bee-v5 program. MANDATORY for every corpus action. Two non-negotiable laws: (1) NO duplicate or near-duplicate training documents may ever be created or used — every new doc must be verified unique against the corpus index before staging; (2) NO document may ship unless it is the absolute highest quality manageable — verified, executable, measured, byte-exact format, zero filler. Applies to ALL models (trek, felon, Sopher, 150M web-builder), ALL phases (pretraining corpus, SFT, distill, preference, synthetic), ALL generators, ALL sources on C: and E:. This skill outranks every other skill on data quality; when any other instruction conflicts, this one wins.",
+      "category": "general",
+      "path": "skills/packs/zero-dup-high-quality/SKILL.md"
+    }
+  ]
+}

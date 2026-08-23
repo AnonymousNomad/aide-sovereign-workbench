@@ -124,7 +124,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       while (session.iterations < maxIterations && session.state === 'running') {
         session.iterations += 1;
         trimTranscript(session);
-        const reply = await chatFn(session.transcript.map(message => ({ role: message.role, content: message.content })));
+        const reply = await (session.chatFn ?? chatFn)(session.transcript.map(message => ({ role: message.role, content: message.content })));
         session.transcript.push({ role: 'assistant', content: reply });
         emit({ event: 'message', session_id: id, text: reply.slice(0, 4000) });
 
@@ -335,7 +335,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
   }
 
   return {
-    start(task, mode = 'act') {
+    start(task, mode = 'act', chatFnOverride = null) {
       const session = {
         id: randomUUID(),
         task,
@@ -347,6 +347,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         pendingApproval: null,
         deferred: null,
         checkpointHash: null,
+        chatFn: typeof chatFnOverride === 'function' ? chatFnOverride : null,
         transcript: []
       };
       sessions.set(session.id, session);

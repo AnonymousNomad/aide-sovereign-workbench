@@ -286,3 +286,42 @@ async function waitFor(predicate, timeoutMs = 4000) {
   }
   throw new Error('waitFor timed out');
 }
+
+// --- H2 per-session provider chatFn override ---
+test('agent: start accepts chatFn override and the loop uses it instead of default chatFn', async () => {
+  const events = [];
+  let overrideCalls = 0;
+  let defaultCalls = 0;
+  const loop = createAgentLoop({
+    workspace: ws,
+    checkpoints: null,
+    onEvent: event => events.push(event),
+    maxIterations: 4,
+    chatFn: async () => {
+      defaultCalls += 1;
+      return '<attempt_completion>\n<result>default-path</result>\n</attempt_completion>';
+    }
+  });
+  const started = loop.start('use the override please', 'act', async () => {
+    overrideCalls += 1;
+    return '<attempt_completion>\n<result>override-path</result>\n</attempt_completion>';
+  });
+  await waitFor(() => ['done', 'error'].includes(loop.status(started.session_id).state));
+  assert.equal(loop.status(started.session_id).state, 'done');
+  assert.equal(overrideCalls >= 1, true);
+  assert.equal(defaultCalls, 0);
+});
+
+test('agent: nil override falls back to constructor chatFn', async () => {
+  const events = [];
+  const loop = createAgentLoop({
+    workspace: ws,
+    checkpoints: null,
+    onEvent: event => events.push(event),
+    maxIterations: 4,
+    chatFn: async () => '<attempt_completion>\n<result>fallback-ok</result>\n</attempt_completion>'
+  });
+  const started = loop.start('plain start', 'act', undefined);
+  await waitFor(() => ['done', 'error'].includes(loop.status(started.session_id).state));
+  assert.equal(loop.status(started.session_id).state, 'done');
+});

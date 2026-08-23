@@ -11,7 +11,7 @@ import {
 import { RouterError } from '../services/model-router.ts';
 
 type AgentLoopService = {
-  start(task: string, mode?: 'plan' | 'act'): { session_id: string };
+  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null): { session_id: string };
   decide(sessionId: string, approvalId: string, decision: 'approve' | 'reject' | 'abort'): { ok: boolean };
   status(sessionId: string): unknown;
   list(): unknown[];
@@ -38,11 +38,26 @@ function wrap(handler: (ctx: RouteContext) => Promise<unknown> | unknown): (ctx:
   };
 }
 
-export function routesForAgent(service: AgentLoopService): Route[] {
+export function routesForAgent(service: AgentLoopService, options: { resolveProviderChatFn?: (role: 'plan' | 'act') => ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null } = {}): Route[] {
   return [
     { method: 'POST', path: '/api/agent/start', body: AgentStartRequest, response: AgentStartResponse, handler: wrap(async ({ body }) => {
-      const request = body as { task: string; mode?: 'plan' | 'act' };
-      return service.start(request.task, request.mode ?? 'act');
+      const request = body as { task: string; mode?: 'plan' | 'act'; chat_source?: 'local' | 'provider' };
+      let chatFnOverride: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | undefined;
+      if (request.chat_source === 'provider') {
+        if (!options.resolveProviderChatFn) throw new RouteError('NOT_READY', 'no provider resolver wired');
+        const role = request.mode === 'plan' ? 'plan' as const : 'act' as const;
+        let resolved: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null;
+        try {
+          resolved = options.resolveProviderChatFn(role);
+        } catch (error) {
+          const code = (error as { code?: string })?.code;
+          if (code === 'FORBIDDEN') throw new RouteError('FORBIDDEN', String((error as Error).message).slice(0, 200));
+          throw new RouteError('CHILD_FAILED', String((error as Error)?.message ?? error).slice(0, 200));
+        }
+        if (!resolved) throw new RouteError('NOT_READY', `no provider chat available for role ${role}`);
+        chatFnOverride = resolved;
+      }
+      return service.start(request.task, request.mode ?? 'act', chatFnOverride);
     }) },
     { method: 'POST', path: '/api/agent/decision', body: AgentDecisionRequest, response: AgentDecisionResponse, handler: wrap(async ({ body }) => {
       const request = body as { session_id: string; approval_id: string; decision: 'approve' | 'reject' | 'abort' };

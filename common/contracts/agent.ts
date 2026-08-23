@@ -6,7 +6,8 @@ export const AgentSessionState = z.enum(['running', 'awaiting_approval', 'done',
 
 export const AgentStartRequest = z.object({
   task: z.string().min(1).max(8000),
-  mode: AgentMode.optional()
+  mode: AgentMode.optional(),
+  chat_source: z.enum(['local', 'provider']).optional()
 }).strict();
 
 export const AgentStartResponse = z.object({

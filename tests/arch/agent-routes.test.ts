@@ -183,3 +183,18 @@ test('e2e scripted session over HTTP: read → approved write → done, zero egr
   const journalExists = await fs.access(journalPath).then(() => true).catch(() => false);
   assert.equal(journalExists, false, 'purely-local agent session must produce zero egress journal entries');
 });
+
+// --- H2 chat_source provider guards ---
+test('agent: chat_source provider without consent is refused FORBIDDEN before any egress', async () => {
+  const res = await post('/api/agent/start', { task: 'route me to a provider', mode: 'act', chat_source: 'provider' });
+  assert.equal(res.status, 403);
+  assert.equal(res.body.ok, false);
+  assert.match(res.body.error?.message ?? '', /consent/i);
+});
+
+test('agent: chat_source local (explicit) starts normally with scripted replies', async () => {
+  scriptedReplies.push('<attempt_completion>\n<result>local-ok</result>\n</attempt_completion>');
+  const res = await post<{ session_id: string }>('/api/agent/start', { task: 'local only', mode: 'act', chat_source: 'local' });
+  assert.equal(res.status, 200);
+  assert.match(res.body.data!.session_id, /-/);
+});

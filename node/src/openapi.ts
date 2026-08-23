@@ -348,7 +348,12 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForGit(workspace),
     ...buildNotificationWiredRoutes(workspace, options),
     ...routesForProblems(workspace),
-    ...routesForAgent(agentLoop),
+    ...routesForAgent(agentLoop, {
+      resolveProviderChatFn: role => {
+        if (!byokService.getConsent()) throw Object.assign(new Error('BYOK egress consent is disabled'), { code: 'FORBIDDEN' });
+        return byokService.resolveChatFn(role);
+      }
+    }),
     ...routesForIndex(indexService),
     ...routesForHandoff(handoffService),
     ...routesForByok(byokService),

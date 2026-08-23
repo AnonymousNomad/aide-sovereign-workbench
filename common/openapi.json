@@ -486,6 +486,13 @@
                       "plan",
                       "act"
                     ]
+                  },
+                  "chat_source": {
+                    "type": "string",
+                    "enum": [
+                      "local",
+                      "provider"
+                    ]
                   }
                 },
                 "required": [

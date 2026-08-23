@@ -10,6 +10,7 @@ export interface AgentLoopService {
   decide(sessionId: string, approvalId: string, decision: 'approve' | 'reject' | 'abort'): { ok: boolean };
   status(sessionId: string): AgentStatusResponseT;
   list(): AgentStatusResponseT[];
+  transcriptOf(sessionId: string): Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string; tool_name: string | null; ts: string | null }>;
   readonly rootAbs: string;
 }
 

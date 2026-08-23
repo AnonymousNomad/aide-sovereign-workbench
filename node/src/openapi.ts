@@ -48,6 +48,8 @@ import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
 import { routesForAgent } from './routes/agent.ts';
 import { createIndexService } from '../../node/src/services/index-service.mjs';
 import { routesForIndex } from './routes/index.ts';
+import { createHandoffService } from '../../node/src/services/handoff-service.mjs';
+import { routesForHandoff } from './routes/handoff.ts';
 import { LearnerState } from '../../academy/learner-state.mjs';
 import { TutorManager } from '../../academy/tutor-manager.mjs';
 import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
@@ -282,6 +284,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     embed: options.indexEmbedFn ?? null,
     onEvent: event => options.events?.publish('index', event)
   });
+  const handoffService = createHandoffService({ workspace, agentLoop });
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -340,6 +343,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForProblems(workspace),
     ...routesForAgent(agentLoop),
     ...routesForIndex(indexService),
+    ...routesForHandoff(handoffService),
     routeForLspStatus(manager),
     routeForLspStart(manager),
     routeForLspOpen(manager),

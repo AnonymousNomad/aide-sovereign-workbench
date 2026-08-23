@@ -393,6 +393,16 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         pending_approval: session.pendingApproval
       }));
     },
+    transcriptOf(sessionId) {
+      const session = sessions.get(sessionId);
+      if (!session) throw new AgentSessionError('SESSION_NOT_FOUND', `no such session: ${sessionId}`);
+      return session.transcript.map(message => ({
+        role: message.role,
+        content: message.content,
+        tool_name: null,
+        ts: null
+      }));
+    },
     rootAbs
   };
 }

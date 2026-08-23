@@ -405,7 +405,12 @@ export class ModelRuntime {
   async chat(id: string, messages: Array<{ role: string; content: string }>, options: { maxTokens?: number; temperature?: number } = {}): Promise<{ text: string; modelId: string; tokens?: number; timingMs: number }> {
     const model = this.models.get(id);
     if (!model) throw new ModelRuntimeError('CHILD_FAILED', 'model is not allowlisted');
-    if (!this.processes.has(id)) throw new ModelRuntimeError('NOT_READY', 'start this model before chatting');
+    if (!this.processes.has(id)) {
+      // Adopt externally-started servers (e.g. legacy daemon or operator CLI):
+      // if the endpoint verifiably serves this model, chat through it.
+      const external = await this.verifyEndpointModel(id, 3000).catch(() => ({ ready: false as const }));
+      if (!external.ready) throw new ModelRuntimeError('NOT_READY', 'start this model before chatting');
+    }
     const warmed = await this.warmup(id);
     if (!warmed) throw new ModelRuntimeError('NOT_READY', 'model still warming up; try again in a few seconds');
     const started = Date.now();
@@ -440,7 +445,11 @@ export class ModelRuntime {
   ): Promise<void> {
     const model = this.models.get(id);
     if (!model) throw new ModelRuntimeError('CHILD_FAILED', 'model is not allowlisted');
-    if (!this.processes.has(id)) throw new ModelRuntimeError('NOT_READY', 'start this model before chatting');
+    if (!this.processes.has(id)) {
+      // Adopt externally-started servers (same bridge as chat()).
+      const external = await this.verifyEndpointModel(id, 3000).catch(() => ({ ready: false as const }));
+      if (!external.ready) throw new ModelRuntimeError('NOT_READY', 'start this model before chatting');
+    }
     const warmed = await this.warmup(id);
     if (!warmed) throw new ModelRuntimeError('NOT_READY', 'model still warming up; try again in a few seconds');
     const response = await fetch(`${model.endpoint}/chat/completions`, {

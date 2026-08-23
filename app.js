@@ -155,6 +155,105 @@ $('#help-close').addEventListener('click', () => { $('#help-panel').hidden = tru
 
 async function planAndBuild(task) {
   threadMsg('user', task);
+  const note = threadMsg('pending', 'Starting agent loop…');
+  let sessionId = null;
+  try {
+    const r = await fetch(`${API}/api/agent/start`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task, mode: 'act' })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'agent unavailable');
+    sessionId = j.session_id;
+  } catch (e) {
+    note.remove();
+    threadMsg('system', `Agent loop not reachable (${e.message}) — falling back to single-shot planner.`);
+    return workflowPlan(task);
+  }
+  note.remove();
+  setStrip('Agent working with checkpoints — every change waits for your approval.');
+  let lastApprovalId = null;
+  for (let poll = 0; poll < 160; poll++) {
+    await new Promise(res => setTimeout(res, 1500));
+    let s;
+    try {
+      s = await jget(`${API}/api/agent/status?id=${encodeURIComponent(sessionId)}`);
+    } catch { continue; }
+    if (s.state === 'running') {
+      cardTick(`Agent working… step ${s.iterations}${s.mistake_count ? ` · ${s.mistake_count} recovery(ies)` : ''}`);
+      setStrip(`Agent working — step ${s.iterations}.`);
+    } else if (s.state === 'awaiting_approval') {
+      const a = s.pending_approval;
+      if (!a || a.approval_id === lastApprovalId) continue;
+      lastApprovalId = a.approval_id;
+      renderApproval(sessionId, a);
+      setStrip(`Waiting on you: approve or reject ${a.tool}.`);
+    } else if (s.state === 'done') {
+      finishCard(`<b>DONE</b><br>Task finished in ${s.iterations} step(s). Diff is open in the workbench.`);
+      await showDiff();
+      refreshRail();
+      setStrip('Done — review the diff above; verification counts are in the rail.');
+      return;
+    } else if (s.state === 'error' || s.state === 'aborted') {
+      finishError(`Agent ${s.state}: ${s.error || 'ended'}`);
+      return;
+    }
+  }
+  finishError('Timed out waiting for the agent to finish.');
+
+  function cardTick(text) {
+    let el = document.getElementById('agent-tick');
+    if (!el) { el = threadMsg('pending', text); el.id = 'agent-tick'; }
+    else el.textContent = text;
+  }
+  function finishCard(html) {
+    document.getElementById('agent-tick')?.remove();
+    threadMsg('engine', html.replace(/<[^>]+>/g, ''), 'AIDE');
+    const c = threadMsg('pending', '');
+    c.remove();
+  }
+  function finishError(text) {
+    document.getElementById('agent-tick')?.remove();
+    threadMsg('error', text);
+  }
+  function renderApproval(sid, a) {
+    document.getElementById('agent-tick')?.remove();
+    const card = threadMsg('pending', '');
+    card.className = 'msg engine';
+    const argsText = Object.entries(a.args_preview || {}).map(([k, v]) => `${k}: ${String(v).slice(0, 160)}`).join('\n');
+    card.innerHTML = `<b>APPROVAL — ${esc(a.tool.toUpperCase())}</b><br><pre class="approval-preview">${esc(argsText)}</pre>` +
+      (a.preview ? `<pre class="approval-preview">${esc(String(a.preview).slice(0, 1400))}</pre>` : '') +
+      (a.risks && a.risks.length ? `<small class="stage">RISKS: ${esc(a.risks.join('; '))}</small>` : '');
+    const bar = document.createElement('div');
+    bar.className = 'approval-bar';
+    const ok = document.createElement('button');
+    ok.className = 'approve';
+    ok.textContent = 'APPROVE';
+    const no = document.createElement('button');
+    no.textContent = 'REJECT';
+    const decide = async decision => {
+      ok.disabled = true; no.disabled = true;
+      card.querySelector('.approval-preview')?.classList.add('dim');
+      setStrip(decision === 'approve' ? 'Approved — agent continues.' : 'Rejected — agent adjusts course.');
+      try {
+        await fetch(`${API}/api/agent/decision`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sid, approval_id: a.approval_id, decision })
+        });
+        card.innerHTML = `<b>${esc(a.tool.toUpperCase())}</b><br>${decision === 'approve' ? 'Approved by you.' : 'Rejected by you.'}`;
+        card.classList.add('applied');
+      } catch (e) {
+        threadMsg('error', `Decision failed: ${e.message}`);
+      }
+    };
+    ok.onclick = () => decide('approve');
+    no.onclick = () => decide('reject');
+    bar.append(ok, no);
+    card.appendChild(bar);
+  }
+}
+
+async function workflowPlan(task) {
   const card = threadMsg('pending', 'Planning…');
   setStrip(`Planning "${task.slice(0, 40)}${task.length > 40 ? '…' : ''}" — the model drafts, validation gates check it.`);
   try {
@@ -210,7 +309,6 @@ async function planAndBuild(task) {
     setStrip('Planning failed — see the error card.');
   }
 }
-
 async function showDiff() {
   try {
     const d = await jget(`${API}/api/git/diff`);

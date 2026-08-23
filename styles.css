@@ -47,6 +47,8 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .describe-actions button:disabled{opacity:.4;cursor:not-allowed}
 .diff-view{margin-top:14px;border:1px solid var(--line);background:#09131d;border-radius:4px;padding:12px}
 .diff-view pre{margin:8px 0 0;font:11px/1.5 var(--mono);color:#c9dadd;white-space:pre-wrap;word-break:break-word;max-height:52vh;overflow:auto}
+.approval-preview{margin:8px 0 0;padding:8px;background:#071018;border:1px solid #22384a;font:10px/1.5 var(--mono);color:#b8c9cf;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto}
+.approval-preview.dim{opacity:.55}
 .describe{border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px;background:#091220}
 .describe textarea{flex:1;resize:none;background:#071018;border:1px solid #31505d;color:var(--text);padding:9px;font:12px/1.5 var(--mono);border-radius:4px}
 .describe textarea:focus{outline:1px solid #3f6b83}

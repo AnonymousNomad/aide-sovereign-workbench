@@ -19,9 +19,26 @@ export const HubSearchResponse = z.object({
   models: z.array(HubModel)
 }).strict();
 
+export const HubFilesQuery = z.object({
+  repo_id: z.string().min(1).max(200).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/, 'repo_id must look like owner/name')
+}).strict();
+
+export const HubFileEntry = z.object({
+  filename: z.string().min(1),
+  size: z.number().int().gte(0).nullable()
+}).strict();
+
+export const HubFilesResponse = z.object({
+  repo_id: z.string(),
+  files: z.array(HubFileEntry)
+}).strict();
+
 export const HubFilename = z.string().min(1).max(255).refine(
-  value => !value.includes('/') && !value.includes('\\') && !value.includes('..'),
-  { message: 'filename must be a bare file name' }
+  value => {
+    if (value.includes('\\') || value.startsWith('/') || value.includes('..')) return false;
+    return value.split('/').every(segment => segment.length > 0 && segment !== '.' && segment !== '..');
+  },
+  { message: 'filename must be a relative path of safe segments (no drive, backslash, or dot-dot)' }
 );
 
 export const HubDownloadRequest = z.object({

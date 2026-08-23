@@ -159,6 +159,164 @@ $('#stop-engine').addEventListener('click', async () => {
 $('#help-button').addEventListener('click', () => { $('#help-panel').hidden = false; });
 $('#help-close').addEventListener('click', () => { $('#help-panel').hidden = true; });
 
+let downloadsTimer = null;
+
+async function refreshEngineList() {
+  try {
+    const res = await jget(`${API}/api/models/status`);
+    const list = $('#engine-list');
+    if (!res.models.length) { list.innerHTML = '<span class="muted">No models in the bottle yet.</span>'; return; }
+    list.innerHTML = res.models.map(m => {
+      const running = m.runtime_available === true;
+      const usable = m.artifact_available && !['pending', 'training-only'].includes(m.status);
+      return `<div class="engine-item"><span class="engine-name">${esc(m.name)}</span><span class="engine-meta">${running ? 'READY' : (usable ? 'installed' : 'missing artifact')}</span><button data-use="${usable ? esc(m.id) : ''}" ${state.selected?.id === m.id ? 'disabled' : ''}>${state.selected?.id === m.id ? 'SELECTED' : 'USE'}</button></div>`;
+    }).join('');
+    list.querySelectorAll('[data-use]').forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.use;
+        if (!id) return;
+        const found = res.models.find(m => m.id === id);
+        if (!found) return;
+        state.selected = found; state.ready = false; state.started = false;
+        $('#models-panel').hidden = true;
+        document.body.classList.replace('state-ready', 'state-cold');
+        $('#cold-card').hidden = false;
+        $('#editor-slot').hidden = true;
+        $('#start-engine').hidden = false;
+        $('#start-engine').disabled = false;
+        $('#start-engine').textContent = 'START ENGINE';
+        $('#cold-line').innerHTML = `Selected: <b>${esc(found.name)}</b>`;
+        setStrip(`${found.name} selected — press START.`);
+      };
+    });
+  } catch (e) {
+    $('#engine-list').innerHTML = `<span class="muted">Could not load engines: ${esc(e.message)}</span>`;
+  }
+}
+
+async function pollDownloads() {
+  try {
+    const res = await jget(`${API}/api/modelhub/downloads`);
+    const jobs = res.jobs || [];
+    const active = jobs.filter(j => j.status === 'running');
+    const box = $('#downloads-list');
+    if (!jobs.length && box.dataset.empty !== '1') { box.innerHTML = '<span class="muted">No downloads yet.</span>'; }
+    if (jobs.length) {
+      box.innerHTML = jobs.map(j => {
+        const pct = j.bytes_total ? Math.round((j.bytes_done / j.bytes_total) * 100) : 0;
+        const mb = (j.bytes_done / 1048576).toFixed(1);
+        const total = j.bytes_total ? ` / ${(j.bytes_total / 1048576).toFixed(1)} MB` : ' MB';
+        return `<div class="dl-item"><b>${esc(j.filename)}</b><span class="engine-meta">${j.status.toUpperCase()} ${mb}${total} (${pct}%)</span>${j.status === 'running' ? `<button data-cancel="${esc(j.job_id)}">CANCEL</button>` : ''}</div>`;
+      }).join('');
+      box.querySelectorAll('[data-cancel]').forEach(btn => {
+        btn.onclick = async () => {
+          await fetch(`${API}/api/modelhub/downloads/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: btn.dataset.cancel }) });
+          pollDownloads();
+        };
+      });
+      const justDone = jobs.filter(j => j.status === 'done' && !j.registered);
+      for (const job of justDone) {
+        job.registered = true;
+        try {
+          const reg = await fetch(`${API}/api/models/register`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: job.filename, repo_id: job.repo_id })
+          });
+          const rj = await reg.json();
+          if (reg.ok) threadMsg('system', `Downloaded and registered: ${job.filename} (engine id: ${rj.id}). Open MODELS to use it.`);
+          refreshEngineList();
+        } catch { /* register retry on next poll */ delete job.registered; }
+      }
+    }
+    if (!active.length && downloadsTimer) { clearInterval(downloadsTimer); downloadsTimer = null; }
+  } catch { /* hub offline - ignore */ }
+}
+
+function openModelsPanel() {
+  $('#models-panel').hidden = false;
+  refreshEngineList();
+  pollDownloads();
+  if (!downloadsTimer) downloadsTimer = setInterval(pollDownloads, 1500);
+}
+
+$('#models-button').addEventListener('click', openModelsPanel);
+$('#models-close').addEventListener('click', () => {
+  $('#models-panel').hidden = true;
+  if (downloadsTimer) { clearInterval(downloadsTimer); downloadsTimer = null; }
+});
+
+$('#hub-search-btn').addEventListener('click', async () => {
+  const q = $('#hub-query').value.trim();
+  if (!q) return;
+  const results = $('#hub-results');
+  const files = $('#hub-files');
+  files.innerHTML = '';
+  results.innerHTML = '<span class="muted">Searching Hugging Face…</span>';
+  setStrip('Searching Hugging Face — this is the only network call, and it is logged.');
+  try {
+    const res = await jget(`${API}/api/modelhub/search?q=${encodeURIComponent(q)}&limit=12`);
+    if (!res.models.length) { results.innerHTML = '<span class="muted">No GGUF repos matched.</span>'; return; }
+    results.innerHTML = res.models.map(m =>
+      `<div class="hub-item"><b>${esc(m.repo_id)}</b><span class="engine-meta">↓${m.downloads.toLocaleString()} ★${m.likes}</span><button data-repo="${esc(m.repo_id)}">VIEW GGUF FILES</button></div>`
+    ).join('');
+    results.querySelectorAll('[data-repo]').forEach(btn => {
+      btn.onclick = async () => {
+        const repo = btn.dataset.repo;
+        files.innerHTML = '<span class="muted">Listing quantizations…</span>';
+        try {
+          const fr = await jget(`${API}/api/modelhub/files?repo_id=${encodeURIComponent(repo)}`);
+          files.innerHTML = fr.files.length
+            ? fr.files.map(f => {
+                const sizeGB = f.size ? `${(f.size / 1073741824).toFixed(2)} GB` : 'size?';
+                return `<div class="hub-item"><span>${esc(f.filename)}</span><span class="engine-meta">${sizeGB}</span><button data-dl="${esc(f.filename)}" data-repo2="${esc(repo)}">DOWNLOAD</button></div>`;
+              }).join('')
+            : '<span class="muted">No .gguf files in this repo.</span>';
+          files.querySelectorAll('[data-dl]').forEach(dbtn => {
+            dbtn.onclick = async () => {
+              dbtn.disabled = true; dbtn.textContent = 'QUEUED';
+              const dr = await fetch(`${API}/api/modelhub/download`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ repo_id: dbtn.dataset.repo2, filename: dbtn.dataset.dl })
+              });
+              const dj = await dr.json().catch(() => ({}));
+              if (!dr.ok) { threadMsg('error', `Download failed to start: ${dj.error || dr.status}`); dbtn.textContent = 'RETRY'; dbtn.disabled = false; return; }
+              setStrip(`Downloading ${dbtn.dataset.dl}… progress in the panel.`);
+              if (!downloadsTimer) downloadsTimer = setInterval(pollDownloads, 1500);
+              pollDownloads();
+            };
+          });
+        } catch (e) {
+          files.innerHTML = `<span class="muted">Could not list files: ${esc(e.message)}</span>`;
+        }
+      };
+    });
+    setStrip('Search done. Pick a repo, then a quant that fits your machine.');
+  } catch (e) {
+    results.innerHTML = `<span class="muted">Search failed: ${esc(e.message)}</span>`;
+    setStrip('Hub search failed.');
+  }
+});
+
+$('#import-btn').addEventListener('click', async () => {
+  const p = $('#import-path').value.trim();
+  const out = $('#import-result');
+  if (!p) return;
+  out.textContent = 'Importing (copying into AIDE models folder)…';
+  try {
+    const r = await fetch(`${API}/api/models/import`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_path: p })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    out.textContent = `Imported as engine "${j.id}" (${(j.bytes / 1048576).toFixed(1)} MB). It now appears in Engines.`;
+    refreshEngineList();
+    setStrip(`Imported ${j.id} — press USE then START when ready.`);
+  } catch (e) {
+    out.textContent = `Import failed: ${e.message}`;
+  }
+});
+
 async function planAndBuild(task) {
   threadMsg('user', task);
   const note = threadMsg('pending', 'Starting agent loop…');

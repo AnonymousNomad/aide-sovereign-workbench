@@ -49,6 +49,23 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .diff-view pre{margin:8px 0 0;font:11px/1.5 var(--mono);color:#c9dadd;white-space:pre-wrap;word-break:break-word;max-height:52vh;overflow:auto}
 .approval-preview{margin:8px 0 0;padding:8px;background:#071018;border:1px solid #22384a;font:10px/1.5 var(--mono);color:#b8c9cf;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto}
 .approval-preview.dim{opacity:.55}
+
+/* models panel */
+.panel-card.wide{width:min(680px,100%);max-height:88vh;overflow:auto}
+.panel-card h2{font:bold 13px var(--mono);margin:16px 0 8px;color:var(--blue)}
+.engine-list,.hub-results,.hub-files,.downloads-list{display:flex;flex-direction:column;gap:6px}
+.engine-item,.hub-item,.dl-item{display:flex;align-items:center;gap:10px;padding:7px 9px;border:1px solid var(--line);background:#09131d;font-size:11px}
+.engine-item b,.hub-item b{color:var(--text)}
+.engine-name{flex:1}
+.hub-item span:first-child{flex:1}
+.dl-item{justify-content:space-between}
+.engine-meta{color:var(--muted);font:9px var(--mono);letter-spacing:.06em;margin-left:auto}
+.engine-item button,.hub-item button,.dl-item button{border:1px solid var(--line);background:transparent;color:var(--blue);font:9px var(--mono);letter-spacing:.08em;padding:5px 9px;border-radius:4px;cursor:pointer}
+.engine-item button:hover:not(:disabled),.hub-item button:hover{border-color:var(--blue)}
+.engine-item button:disabled{color:var(--green);border-color:#2c6a45;cursor:default}
+.hub-row{display:flex;gap:8px;margin-bottom:8px}
+.hub-row input{flex:1;background:#071018;border:1px solid #31505d;color:var(--text);padding:8px;font:11px var(--mono);border-radius:4px}
+.secondary-btn{border:1px solid var(--purple);background:transparent;color:var(--purple);font:bold 9px var(--mono);letter-spacing:.08em;padding:0 12px;border-radius:4px;cursor:pointer}
 .describe{border-top:1px solid var(--line);padding:10px 12px;display:flex;gap:8px;background:#091220}
 .describe textarea{flex:1;resize:none;background:#071018;border:1px solid #31505d;color:var(--text);padding:9px;font:12px/1.5 var(--mono);border-radius:4px}
 .describe textarea:focus{outline:1px solid #3f6b83}

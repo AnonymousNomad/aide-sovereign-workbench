@@ -2,6 +2,8 @@ import { type Route, type RouteContext, RouteError } from '../server.ts';
 import {
   HubSearchQuery,
   HubSearchResponse,
+  HubFilesQuery,
+  HubFilesResponse,
   HubDownloadRequest,
   HubDownloadStartedResponse,
   HubCancelRequest,
@@ -13,6 +15,7 @@ import {
 
 type HubService = {
   search(q: string, sort?: string, limit?: number): Promise<unknown>;
+  listRepoFiles(repoId: string): Promise<unknown>;
   startDownload(args: { repo_id: string; filename: string; quant_label?: string | null; urlTemplate?: string }): Promise<unknown>;
   beginDownload(args: { repo_id: string; filename: string; quant_label?: string | null }): { job_id: string };
   cancel(jobId: string): Promise<{ cancelled: boolean }>;
@@ -45,6 +48,10 @@ export function routesForModelHub(service: HubService): Route[] {
     { method: 'GET', path: '/api/modelhub/search', query: HubSearchQuery, response: HubSearchResponse, handler: wrap(async ({ query }) => {
       const parsed = HubSearchQuery.parse(query);
       return service.search(parsed.q, parsed.sort ?? 'downloads', parsed.limit ?? 20);
+    }) },
+    { method: 'GET', path: '/api/modelhub/files', query: HubFilesQuery, response: HubFilesResponse, handler: wrap(async ({ query }) => {
+      const parsed = HubFilesQuery.parse(query);
+      return service.listRepoFiles(parsed.repo_id);
     }) },
     { method: 'POST', path: '/api/modelhub/download', body: HubDownloadRequest, response: HubDownloadStartedResponse, handler: wrap(async ({ body }) => {
       const request = body as { repo_id: string; filename: string; quant_label?: string | null };

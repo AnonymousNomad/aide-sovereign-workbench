@@ -477,6 +477,21 @@ const server = http.createServer(async (request, response) => {
       const input = await body(request);
       return json(response, 200, { item: await communityStore.remove(input.type, input.index) });
     }
+    if (request.method === 'POST' && request.url === '/api/models/register') {
+      const input = await body(request);
+      return json(response, 200, await modelManager.register(input));
+    }
+    if (request.method === 'POST' && request.url === '/api/models/import') {
+      const input = await body(request);
+      const sourcePath = String(input.source_path || '');
+      if (!sourcePath) throw new Error('source_path is required');
+      const filename = path.basename(sourcePath);
+      const dest = path.join(MODEL_DIR, filename);
+      if (!dest.startsWith(`${MODEL_DIR}${path.sep}`)) throw new Error('path escaped model directory');
+      await fs.copyFile(sourcePath, dest);
+      const stat = await fs.stat(dest);
+      return json(response, 200, { ...(await modelManager.register({ filename, repo_id: 'manual', context_tokens: input.context_tokens })), bytes: stat.size });
+    }
     if (request.method === 'POST' && request.url === '/api/models/start') {
       return json(response, 200, await modelManager.start((await body(request)).id));
     }

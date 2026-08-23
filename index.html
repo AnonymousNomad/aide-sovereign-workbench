@@ -12,7 +12,8 @@
   <div class="brand">AIDE <span>SOVEREIGN WORKBENCH</span></div>
   <div class="chip" id="engine-chip"><i class="dot"></i><span id="engine-name">NO ENGINE</span></div>
   <div class="spacer"></div>
-  <button class="topbtn" id="stop-engine" hidden title="Stop the running engine and free memory">STOP ENGINE</button>
+  <button class="topbtn" id="models-button" title="Engines, downloads, import">MODELS</button>
+<button class="topbtn" id="stop-engine" hidden title="Stop the running engine and free memory">STOP ENGINE</button>
   <button class="topbtn" id="help-button" title="How AIDE works">HELP</button>
 </header>
 
@@ -73,6 +74,30 @@
     </ol>
     <p class="muted">Cloud models arrive later — strictly opt-in, clearly labeled, never required.</p>
     <button id="help-close" class="primary">GOT IT</button>
+  </div>
+</section>
+
+<section id="models-panel" class="overlay" hidden>
+  <div class="panel-card wide">
+    <div class="eyebrow">MODELS / ENGINES &amp; HUB</div>
+    <h2>Engines</h2>
+    <div id="engine-list" class="engine-list"><span class="muted">Loading…</span></div>
+    <h2>Download from Hugging Face</h2>
+    <div class="hub-row">
+      <input id="hub-query" placeholder="e.g. qwen2.5 coder, llama 3.2, phi-4…" autocomplete="off">
+      <button id="hub-search-btn" class="secondary-btn">SEARCH</button>
+    </div>
+    <div id="hub-results" class="hub-results"></div>
+    <div id="hub-files" class="hub-files"></div>
+    <h2>Downloads</h2>
+    <div id="downloads-list" class="downloads-list"><span class="muted">No active downloads.</span></div>
+    <h2>Import from this computer</h2>
+    <div class="hub-row">
+      <input id="import-path" placeholder="Full path to a .gguf file on this machine…" autocomplete="off">
+      <button id="import-btn" class="secondary-btn">IMPORT</button>
+    </div>
+    <div id="import-result" class="muted small"></div>
+    <button id="models-close" class="primary">CLOSE</button>
   </div>
 </section>
 

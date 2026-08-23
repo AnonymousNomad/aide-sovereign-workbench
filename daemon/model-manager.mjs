@@ -194,13 +194,18 @@ export class ModelManager {
     if (!['ready', 'experimental'].includes(model.status) && !this.processes.has(id)) throw new Error('start this model before chatting');
     const verified = await this.verifyEndpointModel(id, Math.min(Number(options.timeout_ms) || 90_000, 5000));
     if (!verified.ready) throw new Error(verified.error || 'local runtime is not serving the selected model');
+    const payload = { messages, temperature: 0.2, max_tokens: Math.min(Number(options.max_tokens) || 512, 512) };
+    if (model.model) payload.model = model.model;
     const response = await fetch(`${model.endpoint}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: model.model, messages, temperature: 0.2, max_tokens: Math.min(Number(options.max_tokens) || 512, 512) }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(Number(options.timeout_ms) || 90_000)
     });
-    if (!response.ok) throw new Error(`local runtime returned HTTP ${response.status}`);
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`local runtime returned HTTP ${response.status}: ${detail.slice(0, 400)}`);
+    }
     return response.json();
   }
 
@@ -266,10 +271,11 @@ export class ModelManager {
     const model = this.models.get(id);
     if (!model) throw new Error('model is not allowlisted');
     if (this.processes.has(id)) return { id, status: 'running', endpoint: model.endpoint };
+    const relArtifact = model.artifact_uri.replace('local://', '');
     const file = this.modelPath
       ? path.resolve(this.modelPath)
-      : path.resolve(this.modelDir, path.basename(model.artifact_uri.replace('local://', '')));
-    if (!this.modelPath && !file.startsWith(`${this.modelDir}${path.sep}`)) throw new Error('model path escaped model directory');
+      : path.resolve(this.modelDir, relArtifact);
+    if (!this.modelPath && !file.startsWith(`${path.resolve(this.modelDir)}${path.sep}`)) throw new Error('model path escaped model directory');
     await fs.access(file).catch(() => { throw new Error(`Local model setup required: model file was not found at ${file}.`); });
     const endpoint = new URL(model.endpoint);
     if (this.pythonServer) {
@@ -310,6 +316,39 @@ export class ModelManager {
     this.processes.set(id, child);
     child.once('exit', () => this.processes.delete(id));
     return { id, status: 'starting', endpoint: model.endpoint };
+  }
+
+  async register({ filename, repo_id = '', quant_label = '', context_tokens } = {}) {
+    const rel = String(filename || '');
+    if (!/\.gguf$/i.test(rel)) throw new Error('only .gguf artifacts can be registered');
+    if (rel.includes('\\') || rel.startsWith('/') || rel.split('/').some(seg => !seg || seg === '.' || seg === '..')) {
+      throw new Error('filename must be a relative path of safe segments');
+    }
+    const file = path.resolve(this.modelDir, rel);
+    if (!file.startsWith(`${path.resolve(this.modelDir)}${path.sep}`)) throw new Error('path escaped model directory');
+    await fs.access(file).catch(() => { throw new Error(`artifact not found in models directory: ${rel}`); });
+    const id = path.basename(rel).replace(/\.gguf$/i, '').toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+    if (this.models.has(id)) {
+      const existing = this.models.get(id);
+      return { id: existing.id, status: existing.status, endpoint: existing.endpoint, existing: true };
+    }
+    const used = new Set([...this.models.values()].map(m => {
+      try { return Number(new URL(m.endpoint).port); } catch { return 0; }
+    }));
+    let port = 8090;
+    while (used.has(port) && port < 8199) port += 1;
+    const entry = { id, name: path.basename(rel).replace(/\.gguf$/i, ''), status: 'ready', endpoint: `http://127.0.0.1:${port}/v1`, artifact_uri: `local://${rel}`, model: rel, context_tokens: Number(context_tokens) || 2048 };
+    if (repo_id) entry.repo_id = repo_id;
+    if (quant_label) entry.quant_label = quant_label;
+    this.models.set(id, entry);
+    try {
+      const manifest = JSON.parse(await fs.readFile(this.manifestPath, 'utf8'));
+      if (Array.isArray(manifest.models) && !manifest.models.some(m => m.id === id)) {
+        manifest.models.push(entry);
+        await fs.writeFile(this.manifestPath, JSON.stringify(manifest, null, 2));
+      }
+    } catch { /* runtime has it this session; manifest persist is best-effort */ }
+    return { id, status: 'ready', endpoint: entry.endpoint };
   }
 
   async stop(id) {

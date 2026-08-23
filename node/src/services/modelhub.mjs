@@ -14,14 +14,31 @@ const SUPPORTED_ARCHS = new Set([
 const MAX_EVENTS = 500;
 
 function safeFilename(filename) {
-  if (!filename || filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
-    const error = new Error('filename must be a bare file name');
+  // Safe relative subpaths allowed (HF repos nest GGUFs in folders):
+  // forward-slash separators only, no backslash, no drive, no dot-dot segments.
+  if (
+    !filename || typeof filename !== 'string' ||
+    filename.includes('\\') || filename.startsWith('/') || filename.includes('..') ||
+    filename.split('/').some(segment => segment.length === 0 || segment === '.' || segment === '..')
+  ) {
+    const error = new Error('filename must be a relative path of safe segments');
     error.code = 'VALIDATION';
     throw error;
   }
 }
 
 export function createHubService({ workspace, modelsDir, fetchImpl = globalThis.fetch, onEvent }) {
+  // Traversal guard: artifact paths must stay inside modelsDir even when
+  // filenames contain safe relative subfolders (repo subdirectories on HF).
+  function assertSafeArtifactName(filename) {
+    const resolved = path.resolve(modelsDir, filename);
+    if (!resolved.startsWith(path.resolve(modelsDir) + path.sep)) {
+      const error = new Error('artifact path escapes the models directory');
+      error.code = 'VALIDATION';
+      throw error;
+    }
+    return filename;
+  }
   const jobs = new Map();
   const eventLog = [];
   let eventListener = typeof onEvent === 'function' ? onEvent : null;
@@ -60,6 +77,25 @@ export function createHubService({ workspace, modelsDir, fetchImpl = globalThis.
         tags: Array.isArray(item.tags) ? item.tags : []
       }))
     };
+  }
+
+  async function listRepoFiles(repoId) {
+    const url = `${HF_API}/${repoId}?blobs=true`;
+    logEgress(workspace, { action: 'modelhub.files', url });
+    const response = await fetchImpl(url, { headers: { 'user-agent': USER_AGENT } });
+    if (!response.ok) {
+      const error = new Error(`huggingface repo lookup failed with ${response.status}`);
+      error.code = 'UPSTREAM';
+      throw error;
+    }
+    const data = await response.json();
+    const files = (Array.isArray(data.siblings) ? data.siblings : [])
+      .filter(sibling => typeof sibling.rfilename === 'string' && sibling.rfilename.toLowerCase().endsWith('.gguf'))
+      .map(sibling => ({
+        filename: sibling.rfilename,
+        size: typeof sibling.size === 'number' ? sibling.size : null
+      }));
+    return { repo_id: repoId, files };
   }
 
   async function persistManifest(job) {
@@ -116,6 +152,7 @@ export function createHubService({ workspace, modelsDir, fetchImpl = globalThis.
       const body = response.body;
       if (!body) throw new Error('empty download stream');
       await fs.mkdir(modelsDir, { recursive: true });
+      await fs.mkdir(path.dirname(partPath), { recursive: true });
       const fileHandle = await fs.open(partPath, resumeFrom > 0 ? 'r+' : 'w');
       try {
         await fileHandle.truncate(resumeFrom);
@@ -171,6 +208,13 @@ export function createHubService({ workspace, modelsDir, fetchImpl = globalThis.
     for (let attempt = 0; attempt < 3; attempt++) {
       await runDownload(job, template);
       if (job.status !== 'error') return;
+      // Only transient network failures are retried; local filesystem or
+      // validation errors are terminal so the job never hangs as "running".
+      if (job.error && /ENOENT|EACCES|ENOSPC|VALIDATION/i.test(job.error)) {
+        job.status = 'error';
+        emit({ event: 'error', job_id: job.job_id, error: job.error });
+        return;
+      }
       job.status = 'running';
     }
   }
@@ -209,6 +253,7 @@ export function createHubService({ workspace, modelsDir, fetchImpl = globalThis.
   }
 
   function beginDownload(args) {
+    assertSafeArtifactName(args.filename);
     const job = createJob(args);
     const template = `https://huggingface.co/${args.repo_id}/resolve/main/{filename}`;
     void runWithRetry(job, template).catch(() => {}).finally(() => {
@@ -274,5 +319,5 @@ export function createHubService({ workspace, modelsDir, fetchImpl = globalThis.
     }
   }
 
-  return { search, startDownload, beginDownload, cancel, listDownloads, listEvents, importFromPath, close };
+  return { search, listRepoFiles, startDownload, beginDownload, cancel, listDownloads, listEvents, importFromPath, close };
 }

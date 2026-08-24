@@ -80,6 +80,9 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .prov-chip{display:inline-block;font:bold 8px var(--mono);letter-spacing:.1em;padding:2px 6px;border-radius:3px;border:1px dashed #6a5a2c;color:var(--amber);margin-right:6px}
 .src-ref{color:var(--blue);cursor:pointer;text-decoration:underline dotted}
 .src-ref:hover{color:#9fe0ff}
+.md-preview{font:13px/1.7 var(--sans);color:#dcebee}
+.md-preview h1,.md-preview h2,.md-preview h3{color:#fff;font-family:var(--mono)}
+.md-preview code{background:#12222f;padding:1px 5px;border-radius:3px;color:var(--blue)}
 
 /* ship panel */
 .ship-panel{border:1px solid #2c6a45;background:#0a1a12;padding:12px;margin-top:10px;border-radius:4px}

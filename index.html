@@ -13,6 +13,7 @@
   <div class="chip" id="engine-chip"><i class="dot"></i><span id="engine-name">NO ENGINE</span></div>
   <div class="spacer"></div>
   <button class="topbtn" id="skills-button" title="Built-in SOP packs">SKILLS</button>
+    <button class="topbtn" id="plugins-button" title="Local plugins">PLUGINS</button>
     <button class="topbtn" id="models-button" title="Engines, downloads, import">MODELS</button>
 <button class="topbtn" id="stop-engine" hidden title="Stop the running engine and free memory">STOP ENGINE</button>
   <button class="topbtn" id="help-button" title="How AIDE works">HELP</button>
@@ -190,6 +191,16 @@
     </div>
     <div id="skills-results" class="cmdk-results"></div>
     <button id="skills-close" class="primary">CLOSE</button>
+  </div>
+</section>
+
+<section id="plugins-panel" class="overlay cmdk" hidden>
+  <div class="cmdk-box wide">
+    <div class="eyebrow">PLUGINS — LOCAL, OPT-IN, CAPABILITY-GATED</div>
+    <div id="plugins-installed" class="hub-results"></div>
+    <h2 style="font:bold 13px var(--mono);color:var(--blue);margin:14px 0 8px">CATALOG</h2>
+    <div id="plugins-catalog" class="hub-results"></div>
+    <button id="plugins-close" class="primary">CLOSE</button>
   </div>
 </section>
 

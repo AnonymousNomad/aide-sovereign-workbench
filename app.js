@@ -1231,4 +1231,75 @@ $('#delegation-toggle').addEventListener('click', () => {
   setStrip(`Delegation: ${delegationMode.toUpperCase()} — ${delegationMode === 'strict' ? 'every tool call asks you first.' : 'read-only tools run without asking; writes always ask.'}`);
 });
 
+// ---------- Plugins surface v1 (declarative capability plugins) ----------
+const PLUGIN_CONTRIBUTIONS = {
+  'git-review': { label: 'Open GIT review', run: () => { if (!$('#editor-slot').hidden) openGitSheet(); else threadMsg('system', 'Start an engine first — git review lives in the workbench.'); } },
+  'env-inspector': { label: 'Report runtime versions', run: () => { toggleTerminal(true); $('#term-input').value = 'node --version'; $('#term-form').dispatchEvent(new Event('submit')); } },
+  'markdown-preview': { label: 'Preview active markdown', run: () => previewActiveMarkdown() }
+};
+
+function pluginTrusted(id) {
+  return !!((window.__pluginState?.trust || {})[id]);
+}
+
+async function loadPluginsPanel() {
+  try {
+    const res = await jget(`${API}/api/plugins`);
+    const presets = await jget(`${API}/api/plugins/presets`);
+    window.__pluginState = { installed: res.plugins || [], catalog: (presets.presets || presets).filter(p => !p.installed) };
+    renderPlugins();
+  } catch (e) {
+    $('#plugins-installed').innerHTML = `<span class="muted small">Plugin service unavailable: ${esc(e.message)}</span>`;
+    $('#plugins-catalog').innerHTML = '';
+  }
+}
+
+function renderPlugins() {
+  const { installed, catalog } = window.__pluginState;
+  const instEl = $('#plugins-installed');
+  if (!installed.length) instEl.innerHTML = '<span class="muted small">No plugins installed yet — install from the catalog below.</span>';
+  else instEl.innerHTML = installed.map(p => {
+    if (p.invalid) return `<div class="hub-item"><b>${esc(p.id)}</b><span class="engine-meta">INVALID: ${esc(p.invalid)}</span></div>`;
+    const trusted = p.trusted === true;
+    const contribution = trusted && PLUGIN_CONTRIBUTIONS[p.id];
+    return `<div class="hub-item"><b>${esc(p.name || p.id)}</b><span class="engine-meta">${(p.capabilities || []).join(', ')}</span>` +
+      `<button data-trust="${esc(p.id)}" data-val="${!trusted}">${trusted ? 'TRUSTED' : 'UNTRUSTED'}</button>` +
+      (contribution ? `<button data-open="${esc(p.id)}">${esc(contribution.label)}</button>` : '') +
+      `</div>`;
+  }).join('');
+  $('#plugins-catalog').innerHTML = catalog.map(p =>
+    `<div class="hub-item"><b>${esc(p.name)}</b><span class="muted small" style="flex:1">${esc(p.description)}</span><button data-install="${esc(p.id)}">INSTALL</button></div>`
+  ).join('') || '<span class="muted small">All catalog plugins installed.</span>';
+
+  document.querySelectorAll('[data-trust]').forEach(btn => btn.onclick = async () => {
+    await fetch(`${API}/api/plugins/trust`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: btn.dataset.trust, trusted: btn.dataset.val === 'true' }) });
+    loadPluginsPanel();
+  });
+  document.querySelectorAll('[data-install]').forEach(btn => btn.onclick = async () => {
+    btn.disabled = true; btn.textContent = 'INSTALLING…';
+    await fetch(`${API}/api/plugins/scaffold`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: btn.dataset.install, approved: true }) });
+    loadPluginsPanel();
+  });
+  document.querySelectorAll('[data-open]').forEach(btn => btn.onclick = () => PLUGIN_CONTRIBUTIONS[btn.dataset.open]?.run());
+}
+
+$('#plugins-button').addEventListener('click', () => { $('#plugins-panel').hidden = false; loadPluginsPanel(); });
+$('#plugins-close').addEventListener('click', () => { $('#plugins-panel').hidden = true; });
+
+function previewActiveMarkdown() {
+  if (!editorState.path || !editorState.path.endsWith('.md')) return threadMsg('system', 'Open a .md file first, then preview.');
+  const raw = editorState.instance.getValue();
+  let html = esc(raw)
+    .replace(/^### (.*)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.*)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.*)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^- (.*)$/gm, '&bull; $1');
+  const box = $('#diff-view');
+  $('#editor-slot').hidden = false;
+  box.hidden = false;
+  box.innerHTML = `<div class="eyebrow">MARKDOWN PREVIEW (safe subset)</div><div class="md-preview">${html}</div>`;
+}
+
 loadModels();

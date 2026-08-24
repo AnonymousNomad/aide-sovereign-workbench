@@ -67,9 +67,20 @@ AIDE qualifies as a primary editor at all.
 
 ## Execution order (proposed)
 
-1. E1: Palette + global search + terminal panel (one "power surface" slice)
-2. E2: LSP->Monaco bridge (diagnostics/hover/go-to-def)
-3. E3: Git depth (branches/history/push-with-consent) + provenance chips
-4. E4: Skills browser + bounded-delegation console
-5. E5: Telemetry (outcome latency, rework flagging) — the differentiator
-6. Then W6 cutover convergence, W7/W8 surfaces, W9 release engineering
+> **Revised 2026-08-25 after usage-data research** (FlouState 11,805 sessions:
+> debugger = 1.4% of editor time, 75% never open it; PanDev heartbeat: reading
+> code ≈ 29%, maintenance ≈ 24%; DORA 2026 adopted Rework Rate as 5th metric):
+>
+> - Debug UI **deferred post-release** (was assumed P0-adjacent — data says no)
+> - Replace-in-files elevated (maintenance slice, approval-gated multi-file rewrite)
+> - Session/settings persistence elevated (cockpit remembers nothing across reloads)
+> - Ship telemetry + provenance stay the differentiator lane (VS Code has nothing here)
+
+1. E1: Palette + global search + terminal panel ✅ SHIPPED
+2. E1.1: Replace-in-files (approval-gated) + session persistence (engine/UI state)
+3. E2: LSP->Monaco bridge ✅ SHIPPED
+4. E3: Git depth (branches/history/push-with-consent) ✅ SHIPPED
+5. E4: Skills browser ✅ SHIPPED · delegation console + provenance source-span chips
+6. E5: Telemetry expansion (rework flagging via Assisted-by segmentation)
+7. Then W6 cutover convergence, W7/W8 surfaces, W9 release engineering
+8. Debug UI: deferred until post-release usage data justifies it

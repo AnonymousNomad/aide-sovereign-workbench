@@ -4,14 +4,15 @@
 
 ## Key facts
 - Two-process architecture: browser frontend (Monaco editor) + Node.js daemon on loopback (HTTP/WebSocket, ports 4173/4777).
+- Cockpit orchestrator UI: Describe -> Plan -> Approve -> Build -> Verify; approval-gated agent loop with diff previews, live git-diff workbench, verification rail.
+- Model Hub in-app: Hugging Face GGUF search, quantization listing, resumable downloads, one-click engine registration; local import by path.
+- Harness scaffold v2.1: sized operating layer per model (micro for small contexts, full Code+Lens for strong budgets); byte-deterministic; 20-task effectiveness battery published in docs/evidence/.
+- Backend auto-select: probes llama-server builds via --list-devices; Vulkan/CUDA/CPU chosen by operator profile > benchmark verdict > hardware heuristic.
 - Local AI chat via llama.cpp OpenAI-compatible loopback; GGUF weights downloaded separately and SHA-256 verified; never bundled.
-- Model handoff: every chat-capable model (local GGUF + cloud providers) is a route with its own context window; health-gated per-conversation model picker, history fitted to the target window, explicit fallback + answer labeling.
-- LSP client for TypeScript (diagnostics, completion, hover, go-to-definition); DAP client for Python/debugpy (foundation).
-- Git integration via CLI: status, diff, stage, commit, branches, history.
-- Online providers opt-in: OpenAI, Anthropic, Google Gemini, Mistral, Groq, OpenRouter; credentials encrypted at rest with Windows DPAPI in the daemon; host allowlist with explicit approval for custom hosts.
-- ChatGPT/Claude conversations.json export import into local chat history (additive, 10 MB cap).
-- Veritas evidence gates: AI-generated changes must pass compile, tests, Git whitespace, manifest validation, path boundaries, secret scanning before release; models never approve or apply their own changes.
-- Verified continuously: 188 architecture tests, 17 end-to-end browser tests, 10/10 doctor preflight.
+- LSP client for TypeScript; DAP client for Python/debugpy. Git via CLI. Tasks service with problem matchers.
+- Online providers opt-in (OpenAI, Anthropic, Gemini, Mistral, Groq, OpenRouter); DPAPI-encrypted credentials; host allowlist.
+- Veritas evidence gates: models never approve or apply their own changes.
+- Verified continuously: 188 architecture tests, 17 e2e browser tests, 10/10 doctor preflight, plus unit batteries (facade 12, scaffold 5, agent loop 14+5).
 
 ## Links
 - Repository: https://github.com/AnonymousNomad/aide-sovereign-workbench

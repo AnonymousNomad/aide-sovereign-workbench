@@ -40,19 +40,26 @@ flowchart LR
 
 ## What Works Today
 
-Continuously verified against the real daemon and real browser: **188 architecture tests, 17 end-to-end browser tests, and a 10/10 doctor preflight**. Test counts are re-measured before every release; nothing in this list is claimed without a passing gate.
+Continuously verified against the real daemon and real browser: **188 architecture tests, 17 end-to-end browser tests, a 10/10 doctor preflight**, plus the unit batteries below (re-measured before every release; nothing here is claimed without a passing gate).
 
+- **Cockpit orchestrator UI** — one workflow (Describe → Plan → Approve → Build → Verify): a chat/orchestrator dock, an approval-gated agent loop with per-call diff previews, live git-diff workbench, and a verification rail (diagnostics, git state, harness status). States, not modes: cold start is one button; every blocked state renders its own recovery action.
+- **Model Hub (in-app acquisition)** — search Hugging Face GGUF repos, list quantizations with real file sizes, resumable downloads with progress and cancel, and one-click registration into the engine pool. Local `.gguf` import by path is supported for air-gapped setups.
+- **Harness scaffold v2.1** — every chat gets a sized operating layer: a 3-line micro tier for small-context models, the full Code+Lens document (PART A non-overridable + influence-lens B1–B6) for strong budgets. Byte-deterministic composition, budget caps with honest drop reporting, and a fixed 20-task effectiveness battery (`scripts/run-harness-battery.mjs`) — results published in `docs/evidence/`, including the negative result that forced the redesign.
+- **Backend auto-select** — candidate llama-server builds are probed via `--list-devices`; Vulkan/CUDA/CPU selection follows operator profile → cached benchmark verdict → hardware heuristic. On Pascal-class GPUs (e.g. GTX 1060) the measured generation advantage of the Vulkan backend over CPU is ~4.6× on bundled test models.
 - **Editor** — workspace tree, tabs, dirty state, find/replace, split editor groups, session recovery.
 - **Local AI models** — chat through an OpenAI-compatible loopback runtime; GGUF ingestion with SHA-256 verification and memory-fit checks against the local GPU/RAM. Weights are never bundled in the repository; they are downloaded separately and verified.
-- **Model handoff** — every model that can chat (local GGUF servers and cloud providers alike) is one route with its own context window; a health-gated picker binds a model per conversation, the daemon fits your full history to the new model's window (system prompt preserved, newest turns kept), failed routes fall back to the next healthy model with an explicit notice, and every answer is labeled with the model that produced it.
+- **Model handoff** — every model that can chat is one route with its own context window; health-gated picker, history refit on switch, failed-route fallback with explicit notice, and every answer labeled with the model that produced it.
 - **Language intelligence** — LSP client for TypeScript: diagnostics as editor markers, completion, hover, go-to-definition.
 - **Debugging foundation** — DAP client for Python (debugpy): session tracking, breakpoints, stack/scope inspection. A full debuggee-fixture battery remains a release gate.
 - **Git** — status, diff review, staging, commit, branches, history — all local, via the git CLI.
-- **Terminal & tasks** — integrated terminal and a contract-first task service (`/api/tasks`): workspace `.aide/tasks.json` definitions, npm-script detection, non-blocking run/stop routes with streaming output events, Windows-safe `.cmd` bridging (no shell-injection surface), and clean process-tree termination. Problem matchers (`$tsc`, eslint, msbuild, cargo-rustc, node-trace + workspace-defined) parse task output into workspace-contained diagnostics delivered over the event channel; compound `dependsOn` graphs and content-hash build caching land next in the BUILD series.
-- **Online providers (opt-in)** — OpenAI, Anthropic, Google Gemini, Mistral, Groq, and OpenRouter. Credentials are encrypted at rest with Windows DPAPI in the daemon, never shown to the browser, and scrubbed from logs and errors. Every provider host is allowlisted; custom hosts require explicit per-host approval.
-- **Chat-history import** — ChatGPT and Claude `conversations.json` exports (up to 10 MB) import additively into the local chat store. Importers are schema-tested with synthetic fixtures; validation against real provider exports is an open gate until genuine export fixtures are available.
+- **Terminal & tasks** — integrated terminal and a contract-first task service with problem matchers, compound task graphs, and streaming output events.
+- **Online providers (opt-in)** — OpenAI, Anthropic, Google Gemini, Mistral, Groq, and OpenRouter. Credentials encrypted at rest with Windows DPAPI, never shown to the browser, scrubbed from logs; every host allowlisted.
+- **Chat-history import** — ChatGPT and Claude `conversations.json` exports import additively into the local chat store.
 - **Veritas evidence gates** — AI-generated changes must pass deterministic checks before release: compile, tests, Git whitespace, manifest validation, path boundaries, secret scanning. The harness never lets a model approve or apply its own changes.
 - **Extras** — offline plugin manifests with trust/capability gates, Academy/tutor tracks, a Training Room for approved model runs, a local Community Hub, and reproducible workspace capsules.
+
+Unit batteries behind this week's features (all green, re-runnable):
+`tests/unit/test-facade.mjs` 12/12 · `tests/unit/test-scaffold-v2.mjs` 5/5 · `tests/unit/test-a1-agent.mjs` 14/14 · `tests/arch/agent-routes.test.ts` 5/5 · harness battery evidence in `docs/evidence/harness-battery-smollm2.md`.
 
 ### Honest limits
 
@@ -63,12 +70,12 @@ Continuously verified against the real daemon and real browser: **188 architectu
 
 ### Active work
 
-Two tracks are currently being advanced (research-grounded, gated the same way as everything above):
+Research-grounded, gated the same way as everything above:
 
-- **Academy/tutor upgrades** — a persistent learner-mastery model with spaced-repetition review, model-powered Socratic hinting with answer-leakage guards, and real exercise execution (replacing today's one-liner lesson checks).
-- **Local training pipeline** — dataset studio (dedup, template previews, locked splits), a hardware-aware QLoRA job runner with live loss streaming and best-checkpoint policy, and an eval-gated GGUF export loop so a fine-tuned model only registers if it beats its baseline.
-- **BUILD series (tasks)** — problem matchers feeding the Problems pipeline, compound task graphs, notification harness, and a local-only build cache (Turborepo-style content-hash restore, zero cloud).
-- **Harness research track** — an Iron-Suit orchestrator for every plugged-in model (local or cloud): unlimited-context local memory, honesty/verification gates, resilience with grounded offline failover, and a per-workspace improvement flywheel. All researched, skill-gated, and built behind the same test battery; nothing ships without it.
+- **Harness deepening** — mid-conversation core re-injection for long agent sessions, an L0–L4 layered composer preview route, and the full Code+Lens effectiveness battery rerun on strong-budget models (1.5B+ and operator fine-tunes).
+- **Academy/tutor upgrades** — a persistent learner-mastery model with spaced-repetition review and real exercise execution.
+- **Local training pipeline** — dataset studio, hardware-aware QLoRA runner with live loss streaming, and an eval-gated GGUF export loop so a fine-tuned model only registers if it beats its baseline.
+- **BUILD series (tasks)** — notification harness and a local-only build cache (content-hash restore, zero cloud).
 
 ## Security & Privacy
 

@@ -265,7 +265,7 @@ const server = http.createServer(async (request, response) => {
         throw new Error('invalid search pattern: ' + error.message);
       }
       const results = [];
-      const excludes = ['node_modules', 'target', '.git', 'dist', 'build'].filter(name => !params.get('include-' + name));
+      const excludes = ['node_modules', 'target', '.git', 'dist', 'build', 'assets', '.aide', 'logs', 'legacy-shell-backup'].filter(name => !params.get('include-' + name));
       await (async function walk(dir) {
         for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
           if (entry.name.startsWith('.') || excludes.includes(entry.name)) continue;

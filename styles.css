@@ -62,6 +62,21 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 #save-file:not(:disabled){border-color:var(--green);color:var(--green)}
 .editor-container{flex:1;min-height:0}
 
+/* E1: palette / search / terminal */
+.cmdk{align-items:flex-start;justify-content:center;padding-top:12vh}
+.cmdk-box{width:min(620px,92%);background:#0b151e;border:1px solid #3a586e;border-radius:6px;padding:10px;box-shadow:0 24px 80px #000c}
+#cmdk-input,#gs-query,#term-input{width:100%;background:#071018;border:1px solid #31505d;color:var(--text);padding:9px;font:12px var(--mono);border-radius:4px}
+.cmdk-results{max-height:46vh;overflow:auto;margin-top:8px;display:flex;flex-direction:column;gap:2px}
+.cmdk-item{padding:7px 9px;font-size:11px;color:#c9dadd;cursor:pointer;display:flex;align-items:center;gap:8px;border-radius:4px}
+.cmdk-item.active,.cmdk-item:hover{background:#14304a}
+.gs-file{margin-bottom:10px}
+.gs-hit{padding:5px 8px;font:10px/1.5 var(--mono);color:#b8c9cf;cursor:pointer;border-left:2px solid #22384a;margin:3px 0}
+.gs-hit:hover{background:#12222f}
+.terminal-drawer{flex:0 0 auto;height:230px;display:flex;flex-direction:column;border-top:1px solid var(--line);background:#060d14;margin-top:8px}
+.term-head{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line)}
+.term-out{flex:1;overflow:auto;margin:0;padding:8px 10px;font:11px/1.5 var(--mono);color:#b8c9cf;white-space:pre-wrap;word-break:break-word}
+.term-row{padding:6px 10px 0}
+
 /* ship panel */
 .ship-panel{border:1px solid #2c6a45;background:#0a1a12;padding:12px;margin-top:10px;border-radius:4px}
 .ship-files{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow:auto;margin:8px 0}

@@ -684,4 +684,179 @@ $('#ship-commit').addEventListener('click', async () => {
 
 const HARNESS_VERSION_LABEL = 'v2.1.0';
 
+// ---------- E1 power surface: palette / global search / terminal ----------
+const COMMANDS = [
+  { label: 'Open Models panel', kw: 'models hub engines download import tuning', run: () => { $('#models-panel').hidden = false; refreshEngineList(); } },
+  { label: 'Find in workspace', kw: 'search find files grep', run: () => { $('#search-overlay').hidden = false; $('#gs-query').focus(); } },
+  { label: 'Toggle terminal drawer', kw: 'terminal shell console run command', run: toggleTerminal },
+  { label: 'Stop running engine', kw: 'stop engine kill model memory', run: () => $('#stop-engine').click() },
+  { label: 'Open SHIP review', kw: 'ship commit stage git changes', run: () => { if (!$('#editor-slot').hidden) openShipPanel(); else threadMsg('system', 'Start an engine and make a change first — nothing to ship yet.'); } },
+  { label: 'Open help', kw: 'help guide how works getting started', run: () => { $('#help-panel').hidden = false; } }
+];
+
+let treeCache = { at: 0, files: [] };
+async function fileList() {
+  if (Date.now() - treeCache.at > 60000) {
+    try {
+      const res = await jget(`${API}/api/workspace/tree`);
+      const flat = [];
+      (function walk(nodes) { for (const n of nodes || []) { if (n.kind === 'directory') walk(n.children); else flat.push(n.path); } })(res.tree || []);
+      treeCache = { at: Date.now(), files: flat };
+    } catch { return treeCache.files; }
+  }
+  return treeCache.files;
+}
+
+function fuzzyScore(needle, hay) {
+  needle = needle.toLowerCase(); hay = hay.toLowerCase();
+  if (!needle) return 1;
+  let score = 0, idx = 0, streak = 0;
+  for (const ch of needle) {
+    const found = hay.indexOf(ch, idx);
+    if (found === -1) return -1;
+    streak = found === idx ? streak + 1 : 0;
+    score += 1 + streak + (found === 0 || /[\W_]/.test(hay[found - 1] || '') ? 2 : 0);
+    idx = found + 1;
+  }
+  return score;
+}
+
+let cmdkActive = -1;
+function renderCmdk(query) {
+  const box = $('#cmdk-results');
+  const commandsOnly = query.startsWith('>');
+  const q = commandsOnly ? query.slice(1).trim() : query.trim();
+  let rows = [];
+  if (commandsOnly) {
+    rows = COMMANDS.filter(c => fuzzyScore(q, c.label + ' ' + c.kw) >= 0).map(c => ({ type: 'cmd', label: c.label }));
+  } else {
+    rows = COMMANDS.filter(c => fuzzyScore(q, c.label + ' ' + c.kw) >= 0).map(c => ({ type: 'cmd', label: c.label }));
+    const files = treeCache.files.filter(f => fuzzyScore(q, f) >= 0)
+      .sort((a, b) => fuzzyScore(q, b) - fuzzyScore(q, a)).slice(0, 12)
+      .map(f => ({ type: 'file', label: f }));
+    rows = [...rows.slice(0, 8), ...files];
+  }
+  box.innerHTML = rows.map((r, i) => `<div class="cmdk-item${i === 0 ? ' active' : ''}" data-i="${i}"><span class="engine-meta">${r.type.toUpperCase()}</span> ${esc(r.label)}</div>`).join('') || '<span class="muted small">No matches.</span>';
+  cmdkActive = 0;
+  box.querySelectorAll('.cmdk-item').forEach(el => el.onclick = () => execCmdk(rows[Number(el.dataset.i)]));
+  box._rows = rows;
+}
+
+function execCmdk(row) {
+  $('#command-palette').hidden = true;
+  if (row.type === 'cmd') row.run();
+  else fetchAndOpen(row.label);
+}
+
+async function fetchAndOpen(path) {
+  try {
+    const f = await jget(`${API}/api/file?path=${encodeURIComponent(path)}`);
+    if (f.too_large) return threadMsg('system', `${path} is too large to open here.`);
+    openInEditor(f.path ?? path, f.content ?? '');
+  } catch (e) { threadMsg('error', `Open failed: ${e.message}`); }
+}
+
+$('#cmdk-input').addEventListener('input', e => renderCmdk(e.target.value));
+$('#cmdk-input').addEventListener('keydown', e => {
+  const items = [...document.querySelectorAll('#cmdk-results .cmdk-item')];
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!items.length) return;
+    cmdkActive = (cmdkActive + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
+    items.forEach((el, i) => el.classList.toggle('active', i === cmdkActive));
+    items[cmdkActive].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    items[cmdkActive]?.click();
+  } else if (e.key === 'Escape') {
+    $('#command-palette').hidden = true;
+  }
+});
+
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'k') { e.preventDefault(); (async () => { await fileList(); $('#command-palette').hidden = false; $('#cmdk-input').value = ''; renderCmdk(''); $('#cmdk-input').focus(); })(); }
+  else if ((e.ctrlKey || e.metaKey) && e.shiftKey && k === 'f') { e.preventDefault(); $('#search-overlay').hidden = false; $('#gs-query').focus(); }
+  else if ((e.ctrlKey || e.metaKey) && k === '`') { e.preventDefault(); toggleTerminal(); }
+});
+
+// ---------- Global search ----------
+$('#gs-go').addEventListener('click', runGlobalSearch);
+$('#gs-query').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runGlobalSearch(); } });
+
+async function runGlobalSearch() {
+  const q = $('#gs-query').value.trim();
+  const box = $('#gs-results');
+  if (!q) return;
+  box.innerHTML = '<span class="muted small">Searching…</span>';
+  try {
+    const res = await jget(`${API}/api/search?q=${encodeURIComponent(q)}&icase=1`);
+    const MAX_FILES = 40, MAX_HITS = 8;
+    const files = (res.results || []).slice(0, MAX_FILES);
+    box.innerHTML = files.length
+      ? files.map(f => `<div class="gs-file"><b>${esc(f.path)}</b>${f.hits.slice(0, MAX_HITS).map(h => `<div class="gs-hit" data-path="${esc(f.path)}" data-line="${h.line}"><span class="engine-meta">L${h.line}</span> ${esc(h.text.slice(0, 160))}</div>`).join('')}${f.hits.length > MAX_HITS ? `<div class="muted small">…${f.hits.length - MAX_HITS} more</div>` : ''}</div>`).join('')
+      : '<span class="muted small">No matches.</span>';
+    box.querySelectorAll('.gs-hit').forEach(hit => hit.onclick = async () => {
+      const path = hit.dataset.path, line = Number(hit.dataset.line);
+      try {
+        const f = await jget(`${API}/api/file?path=${encodeURIComponent(path)}`);
+        if (!f.too_large) { openInEditor(f.path ?? path, f.content ?? ''); editorState.instance?.revealLineInCenter(Math.min(line, editorState.instance.getModel().getLineCount())); editorState.instance?.setPosition({ lineNumber: line, column: 1 }); }
+      } catch {}
+    });
+    setStrip(`Search: ${res.total} hits in ${res.results.length} files${res.results.length > MAX_FILES ? ` (showing first ${MAX_FILES})` : ''}.`);
+  } catch (e) { box.innerHTML = `<span class="muted small">Search failed: ${esc(e.message)}</span>`; }
+}
+
+// ---------- Terminal drawer ----------
+let termLines = [];
+function termPrint(text, cls) {
+  termLines.push(`<div class="term-line ${cls || ''}">${esc(text)}</div>`);
+  const out = $('#term-out');
+  out.innerHTML = termLines.slice(-300).join('');
+  out.scrollTop = out.scrollHeight;
+}
+function toggleTerminal(force) {
+  const d = $('#terminal-drawer');
+  const show = force !== undefined ? force : d.hidden;
+  d.hidden = !show;
+  if (show && !termLines.length) termPrint('Cockpit terminal v1 — one-shot commands with output. Long-running processes: coming with TASKS.', 'muted');
+}
+$('#term-toggle').addEventListener('click', () => toggleTerminal());
+$('#term-close').addEventListener('click', () => toggleTerminal(false));
+$('#term-clear').addEventListener('click', () => { termLines = []; $('#term-out').innerHTML = ''; });
+
+function splitArgs(s) {
+  const out = []; let cur = '', q = null;
+  for (const ch of s) {
+    if (q) { if (ch === q) q = null; else cur += ch; }
+    else if (ch === '"' || ch === "'") q = ch;
+    else if (/\s/.test(ch)) { if (cur) { out.push(cur); cur = ''; } }
+    else cur += ch;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+$('#term-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const raw = $('#term-input').value.trim();
+  if (!raw) return;
+  $('#term-input').value = '';
+  termPrint('> ' + raw, 'muted');
+  const parts = splitArgs(raw);
+  try {
+    const r = await fetch(`${API}/api/terminal/run`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ program: parts[0], args: parts.slice(1), approved: true })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    const text = [j.stdout, j.stderr].filter(Boolean).join('\n').trim();
+    termPrint(text || `(no output, exit ${j.code ?? 0})`, j.code ? 'msg error' : '');
+    setStrip(`Terminal: exit ${j.code ?? 0}.`);
+  } catch (e2) {
+    termPrint(`failed: ${e2.message}`, 'msg error');
+  }
+});
+
 loadModels();

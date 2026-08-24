@@ -48,8 +48,14 @@
             <span class="spacer"></span>
             <button id="save-file" class="secondary-btn" disabled>SAVE</button>
             <button id="ship-button" class="secondary-btn">SHIP</button>
+            <button id="term-toggle" class="secondary-btn">TERMINAL</button>
           </div>
           <div id="editor-container" class="editor-container"></div>
+          <div id="terminal-drawer" class="terminal-drawer" hidden>
+            <div class="term-head"><span class="eyebrow">TERMINAL</span><span class="spacer"></span><button class="topbtn" id="term-clear">CLEAR</button><button class="topbtn" id="term-close">CLOSE</button></div>
+            <pre id="term-out" class="term-out"></pre>
+            <form id="term-form" class="hub-row term-row"><input id="term-input" placeholder="command (e.g. node --version)" autocomplete="off" spellcheck="false"><button type="submit" class="secondary-btn">RUN</button></form>
+          </div>
           <div id="ship-panel" class="ship-panel" hidden>
             <div class="ship-head eyebrow">SHIP — REVIEW &amp; COMMIT</div>
             <div id="ship-files" class="ship-files"><span class="muted small">Loading changes…</span></div>
@@ -129,6 +135,24 @@
     </div>
     <div id="import-result" class="muted small"></div>
     <button id="models-close" class="primary">CLOSE</button>
+  </div>
+</section>
+
+<section id="command-palette" class="overlay cmdk" hidden>
+  <div class="cmdk-box">
+    <input id="cmdk-input" placeholder="Type a command (>), or a file name…" autocomplete="off" spellcheck="false">
+    <div id="cmdk-results" class="cmdk-results"></div>
+    <div class="cmdk-hint muted small">Enter runs · Esc closes · &gt; commands only</div>
+  </div>
+</section>
+
+<section id="search-overlay" class="overlay cmdk" hidden>
+  <div class="cmdk-box wide">
+    <div class="hub-row">
+      <input id="gs-query" placeholder="Find in workspace…" autocomplete="off" spellcheck="false">
+      <button id="gs-go" class="secondary-btn">SEARCH</button>
+    </div>
+    <div id="gs-results" class="cmdk-results"></div>
   </div>
 </section>
 

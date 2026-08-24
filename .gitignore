@@ -37,3 +37,5 @@ live-stack.*
 arch-out.txt
 arch-err.txt
 models/tinyllamas/
+models/aide-house/
+training/trio/

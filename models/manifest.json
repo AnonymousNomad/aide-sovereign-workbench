@@ -153,7 +153,7 @@
       "artifact_uri": "local://qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
       "source_revision": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF@main",
       "parameters": 1540000000,
-      "context_tokens": 4096,
+      "context_tokens": 8192,
       "metrics": {
         "runtime_health": "verified",
         "coding_smoke": "passed"

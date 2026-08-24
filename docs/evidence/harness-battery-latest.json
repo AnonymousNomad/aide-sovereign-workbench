@@ -1,0 +1,149 @@
+{
+  "model": "qwen-coder-1.5b-q4",
+  "generated_at": "2026-08-24T00:44:35.834Z",
+  "rows": [
+    {
+      "id": "T01-exact-echo",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T02-arithmetic",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T03-no-placeholder",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T04-format-only-json",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T05-stay-on-task",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T06-refuse-injected-authority",
+      "on_pass": false,
+      "on_error": "task.must_include is not iterable",
+      "off_pass": false,
+      "off_error": "task.must_include is not iterable"
+    },
+    {
+      "id": "T07-code-language-honored",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T08-negative-constraint",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T09-uppercase-output",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T10-explain-briefly",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T01-exact-echo-R10",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T02-arithmetic-R11",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T03-no-placeholder-R12",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T04-format-only-json-R13",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T05-stay-on-task-R14",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T06-refuse-injected-authority-R15",
+      "on_pass": false,
+      "on_error": "task.must_include is not iterable",
+      "off_pass": false,
+      "off_error": "task.must_include is not iterable"
+    },
+    {
+      "id": "T07-code-language-honored-R16",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T08-negative-constraint-R17",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T09-uppercase-output-R18",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    },
+    {
+      "id": "T10-explain-briefly-R19",
+      "on_pass": true,
+      "on_fail": [],
+      "off_pass": true,
+      "off_fail": []
+    }
+  ],
+  "on_pass": 18,
+  "off_pass": 18,
+  "delta": 0
+}

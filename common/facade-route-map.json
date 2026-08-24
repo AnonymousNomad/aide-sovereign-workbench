@@ -11,6 +11,7 @@
     "/api/learner": "ts",
     "/api/modelhub": "ts",
     "/api/notifications": "ts",
+    "/api/orch": "ts",
     "/api/problems": "ts",
     "/api/rg": "ts",
     "/api/settings": "ts"

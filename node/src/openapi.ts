@@ -44,6 +44,8 @@ import { routesForNotifications } from './routes/notifications.ts';
 import { NotificationService } from '../../node/src/services/notification-service.mjs';
 import { createHubService } from '../../node/src/services/modelhub.mjs';
 import { routesForModelHub } from './routes/modelhub.ts';
+import { routesForOrch } from './routes/orch.ts';
+import { createOrchService } from './services/orch-context.mjs';
 import { createCheckpointService } from '../../node/src/services/agent-checkpoints.mjs';
 import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
 import { routesForAgent } from './routes/agent.ts';
@@ -401,7 +403,8 @@ function buildNotificationWiredRoutes(workspace: string, options: BuildRoutesOpt
         notifications.ingestTaskEvent(body as Parameters<NotificationService['ingestTaskEvent']>[0]);
       }
     }),
-    ...routesForModelHub(hub)
+    ...routesForModelHub(hub),
+    ...routesForOrch(createOrchService({ workspace, runtime }))
   ];
 }
 

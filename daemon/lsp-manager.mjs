@@ -45,7 +45,13 @@ export class LspManager {
     this.processes.set(id, child);
     child.stdout?.on('data', data => this.#consume(id, data));
     child.once('exit', () => this.processes.delete(id));
-    return { id, status: 'starting', languages: server.languages };
+    // LSP lifecycle is spec law: initialize -> response -> initialized
+    // notification BEFORE any didOpen/request. Servers ignore semantic work
+    // until then (root cause of all-null hover/completion/rename results).
+    const rootUri = `file:///${this.workspace.replace(/\\/g, '/')}`.replace('//', '//');
+    await this.request(id, { method: 'initialize', params: { processId: process.pid, rootUri, capabilities: {} } });
+    this.notify(id, { method: 'initialized', params: {} });
+    return { id, status: 'running', languages: server.languages };
   }
 
   request(id, message) {

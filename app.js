@@ -559,19 +559,51 @@ async function refreshRail() {
   try {
     const p = await jget(`${API}/api/providers`);
     const configured = (p.providers || []).filter(x => x.configured).length;
-    let block = $('#cloud-chip');
-    if (!block) {
-      block = document.createElement('div');
-      block.className = 'rail-block';
-      block.innerHTML = '<span class="k">CLOUD</span><span id="cloud-state" class="badge off">—</span>';
-      $('.rail').appendChild(block);
-    }
     const chip = $('#cloud-state');
     if (configured > 0) { chip.textContent = 'AVAILABLE'; chip.className = 'badge'; chip.title = 'Opt-in cloud providers are configured. Handoff stays manual until the continuity slice lands.'; }
     else { chip.textContent = 'NOT CONFIGURED'; chip.className = 'badge off'; }
   } catch { /* providers optional */ }
 }
 
+// Hot-exit v0: persist unsaved buffer on unload; offer recovery on boot.
+window.addEventListener('beforeunload', () => {
+  if (!editorState.path) return;
+  fetch(`${API}/api/session`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+    body: JSON.stringify({
+      selected_engine_id: state.selected?.id,
+      open_files: [editorState.path],
+      buffers: editorState.dirty && editorState.instance ? { [editorState.path]: editorState.instance.getValue() } : {}
+    })
+  }).catch(() => {});
+});
+
+async function tryHotExitRecovery() {
+  try {
+    const session = await jget(`${API}/api/session`);
+    const buffers = session?.buffers || {};
+    const entries = Object.entries(buffers).filter(([path, text]) => typeof text === 'string' && text.length > 0);
+    if (!entries.length) return;
+    const [path, text] = entries[0];
+    threadMsg('system', `Unsaved changes found for ${path} from your last session.`);
+    const recover = threadMsg('pending', '');
+    recover.className = 'msg engine';
+    recover.innerHTML = `<b>RECOVER</b><br>Unsaved buffer for ${esc(path)}.`;
+    const bar = document.createElement('div');
+    bar.className = 'approval-bar';
+    const ok = document.createElement('button');
+    ok.className = 'approve'; ok.textContent = 'REOPEN';
+    const no = document.createElement('button'); no.textContent = 'DISCARD';
+    ok.onclick = async () => {
+      bar.remove(); recover.remove();
+      await fetch(`${API}/api/file/write`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, content: text, approved: true }) });
+      threadMsg('system', `Recovered ${path} to disk (${text.length} chars).`);
+    };
+    no.onclick = () => { bar.remove(); recover.remove(); };
+    bar.append(ok, no);
+    recover.appendChild(bar);
+  } catch { /* optional */ }
+}
 // ---------- Workbench editor (Monaco, offline bundle) ----------
 const editorState = { instance: null, model: null, path: null };
 
@@ -1234,19 +1266,13 @@ $('#delegation-toggle').addEventListener('click', () => {
   setStrip(`Delegation: ${delegationMode.toUpperCase()} — ${delegationMode === 'strict' ? 'every tool call asks you first.' : 'read-only tools run without asking; writes always ask.'}`);
 });
 
-const fmtRow = document.createElement('div');
-fmtRow.className = 'rail-block';
-fmtRow.style.cursor = 'pointer';
-fmtRow.innerHTML = `<span class="k">FORMAT ON SAVE</span><span class="badge ${formatOnSave ? 'on' : 'off'}" id="fos-badge">${formatOnSave ? 'ON' : 'OFF'}</span>`;
-fmtRow.title = 'Format TS/JS/JSON/CSS/HTML when saving';
-fmtRow.onclick = () => {
+$('#fos-toggle').addEventListener('click', () => {
   formatOnSave = !formatOnSave;
   localStorage.setItem('aide.format_on_save', formatOnSave ? '1' : '0');
   const b = $('#fos-badge');
   b.textContent = formatOnSave ? 'ON' : 'OFF';
   b.className = 'badge ' + (formatOnSave ? 'on' : 'off');
-};
-$('.rail').appendChild(fmtRow);
+});
 
 // ---------- Plugins surface v1 (declarative capability plugins) ----------
 const PLUGIN_CONTRIBUTIONS = {
@@ -1511,4 +1537,5 @@ async function formatActiveDocument() {
   return false;
 }
 
+tryHotExitRecovery();
 loadModels();

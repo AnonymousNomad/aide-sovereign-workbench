@@ -206,7 +206,10 @@ export class ModelRouter {
 
   private async resolve(routeId: string): Promise<{ route: ModelRoute; selection: RouteSelection }> {
     const routes = await this.routes();
-    const direct = routes.find(entry => entry.id === routeId);
+    // Accept bare manifest ids ('smollm2-360m-q8') as well as fully-qualified
+    // 'local:<id>' route ids — callers use both forms interchangeably.
+    const direct = routes.find(entry => entry.id === routeId)
+      ?? routes.find(entry => entry.id === `local:${routeId}`);
     if (direct === undefined) throw new RouterError('down', `unknown route ${routeId}`);
     if ((await this.freshStatus(direct.id)) === 'ready') {
       return { route: direct, selection: { modelId: direct.id, displayName: direct.displayName, providerType: direct.providerType, status: 'ready', contextLength: direct.contextLength } };

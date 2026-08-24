@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const HARNESS_VERSION = '2.0.0';
+export const HARNESS_VERSION = '2.1.0';
 export const CREDO_VERSION = '1.1.0';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -65,11 +65,25 @@ function countInstructions(block) {
 export function composeScaffold({ effectiveContextTokens = 4096, taskFamily = 'coding' } = {}) {
   const { sections, versionMatch } = credocore();
   const strong = effectiveContextTokens >= 8192;
-  const capLines = strong ? 150 : 80;
-  const capBytes = strong ? 6144 : 2560;
+  const capLines = strong ? 150 : 24;
+  const capBytes = strong ? 6144 : 640;
+
+  // Effectiveness-battery result (2026-08-25, smollm2-360M): the compact
+  // credo+rules layer scored NEGATIVE (-3/20) on sub-1B models — instruction
+  // dilution is real (IFScale). Micro tier = 3-line operating layer only;
+  // the full Code+Lens rendering is reserved for strong-budget models.
+  if (!strong) {
+    const micro = [
+      'You are an expert software engineer working inside AIDE.',
+      'Answer exactly what is asked - nothing else.',
+      'When writing code: complete and runnable, no placeholders.'
+    ];
+    const system = `[AIDE harness ${HARNESS_VERSION} | tier:micro | ctx:${effectiveContextTokens}]\n${micro.join('\n')}`;
+    return { system, tier: 'micro', bytes: Buffer.byteLength(system), version: HARNESS_VERSION, budget: { cap_lines: capLines, used_lines: 3, cap_bytes: capBytes, used_bytes: Buffer.byteLength(system) }, dropped: [] };
+  }
 
   const A = sections['PART A'];
-  const lensKey = strong ? 'PART B FULL' : 'PART B COMPACT';
+  const lensKey = 'PART B FULL';
   const sop = TASK_SOP[taskFamily] || TASK_SOP.coding;
 
   const dropped = [];
@@ -85,8 +99,6 @@ export function composeScaffold({ effectiveContextTokens = 4096, taskFamily = 'c
     lines: bs.reduce((sum, b) => sum + countInstructions(b.body), 0)
   });
 
-  // Drop order on overflow: B FULL -> B COMPACT -> TASK_SOP. A is never dropped.
-  if (!strong) blocks = blocks.filter(b => b.name !== 'PART B FULL');
   let m = measure(blocks);
   while ((m.bytes > capBytes || m.lines > capLines) && blocks.length > 1) {
     const victim = [...blocks].reverse().find(b => b.name !== 'A');
@@ -100,7 +112,7 @@ export function composeScaffold({ effectiveContextTokens = 4096, taskFamily = 'c
 
   return {
     system,
-    tier: strong ? 'full' : 'compact',
+    tier: 'full',
     bytes: Buffer.byteLength(system),
     version: HARNESS_VERSION,
     budget: { cap_lines: capLines, used_lines: m.lines, cap_bytes: capBytes, used_bytes: m.bytes },

@@ -9,28 +9,22 @@ test('composer is byte-deterministic for identical inputs', () => {
   assert.equal(a.bytes, b.bytes);
 });
 
-test('PART A survives even the harshest budget; B5 NEVER-RUN present in every size', () => {
-  const small = composeScaffold({ effectiveContextTokens: 2048 });
-  assert.match(small.system, /I speak only what I know/);
-  assert.match(small.system, /Never run influence plays on anyone/);
-  const strong = composeScaffold({ effectiveContextTokens: 16384 });
-  assert.match(strong.system, /RED TEAM PROTOCOL|Red Team Protocol/i);
-  assert.ok(strong.bytes > small.bytes);
+test('micro tier for small budgets: 3-line layer, no credo dilution', () => {
+  const micro = composeScaffold({ effectiveContextTokens: 2048 });
+  assert.equal(micro.tier, 'micro');
+  assert.match(micro.system, /expert software engineer/);
+  assert.match(micro.system, /Answer exactly what is asked/);
+  assert.doesNotMatch(micro.system, /I speak only what I know/);
+  assert.ok(micro.bytes < 320, `micro bytes ${micro.bytes}`);
 });
 
-test('budget caps respected with honest drop reporting', () => {
-  const compact = composeScaffold({ effectiveContextTokens: 4096 });
-  assert.ok(compact.bytes <= 2560 + Buffer.byteLength('[AIDE harness 2.0.0 | credo 1.1.1 | tier:compact | ctx:4096]') + 64, `bytes ${compact.bytes}`);
-  if (compact.dropped.length) {
-    assert.ok(compact.dropped.every(d => d.section !== 'A'));
-  }
-});
-
-test('strong budget renders FULL lens, compact renders COMPACT', () => {
+test('PART A survives in strong tier; B5 NEVER-RUN present', () => {
   const strong = composeScaffold({ effectiveContextTokens: 16384 });
+  assert.match(strong.system, /I speak only what I know/);
+  assert.match(strong.system, /B5 AUTHORITY RULES \+ NEVER-RUN/);
+  assert.match(strong.system, /no manufactured urgency/);
   assert.match(strong.system, /B4 THE BUILDER'S EDGE/);
-  const compact = composeScaffold({ effectiveContextTokens: 4096 });
-  assert.doesNotMatch(compact.system, /B3 ENGINEERING DISCIPLINES \(invitational/);
+  assert.ok(strong.bytes > 2000);
 });
 
 test('task family changes the SOP block deterministically', () => {

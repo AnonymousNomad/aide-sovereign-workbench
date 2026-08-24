@@ -395,16 +395,17 @@ const server = http.createServer(async (request, response) => {
       const input = await body(request);
       void modelManager.refreshServedContext(input.modelId).catch(() => {});
       const effective = modelManager.getEffectiveContext(input.modelId);
-      if (effective >= 1024) {
+      const wantHarness = input.harness !== false;
+      if (wantHarness && effective >= 1024) {
         const scaffold = buildScaffold({ contextTokens: effective });
         const messages = injectScaffold(input.messages || [], scaffold);
         const result = await modelManager.chat(input.modelId, messages, input);
         return json(response, 200, { ...result, harness: { injected: true, tier: scaffold.tier, bytes: scaffold.bytes, version: HARNESS_VERSION, served_context_tokens: effective } });
       }
-      // Served window too small for the scaffold (tiny GGUFs clamp to train ctx):
-      // pass through bare so the model still answers; report honestly.
+      // Harness explicitly disabled (battery A/B) or served window too small
+      // for the scaffold (tiny GGUFs clamp to train ctx): bare passthrough.
       const result = await modelManager.chat(input.modelId, input.messages || [], input);
-      return json(response, 200, { ...result, harness: { injected: false, reason: `served context ${effective} below 1024`, served_context_tokens: effective } });
+      return json(response, 200, { ...result, harness: { injected: false, reason: wantHarness ? `served context ${effective} below 1024` : 'disabled by request', served_context_tokens: effective } });
     }
     if (request.method === 'POST' && request.url === '/api/models/profile') {
       const input = await body(request);

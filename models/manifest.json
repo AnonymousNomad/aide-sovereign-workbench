@@ -235,6 +235,22 @@
       "providerType": "local",
       "chatTemplate": "gguf-metadata",
       "gguf_max_context": null
+    },
+    {
+      "id": "aide-cipher-4b",
+      "name": "Cipher v1 (AIDE House Model)",
+      "status": "ready",
+      "endpoint": "http://127.0.0.1:8091/v1",
+      "artifact_uri": "local://aide-house/base.q8_0.gguf",
+      "model": "base.q8_0.gguf",
+      "context_tokens": 3072,
+      "roles": [
+        "coder",
+        "chat",
+        "planning",
+        "reviewer"
+      ],
+      "lora_adapter": "models/aide-house/frontier-lora.gguf"
     }
   ]
 }

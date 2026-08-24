@@ -484,6 +484,11 @@ export class ModelManager {
     }
     await this.stopAll();
     const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1', ...this.samplerArgs(this.loadProfile(id)), ...this.runtimeArgs(this.loadProfile(id))];
+    // LoRA adapter hot-load: apply fine-tuned weights alongside base at inference
+    if (model.lora_adapter) {
+      const loraAbs = path.isAbsolute(model.lora_adapter) ? model.lora_adapter : path.resolve(this.modelDir, '..', model.lora_adapter);
+      if (existsSync(loraAbs)) args.push('--lora', loraAbs);
+    }
     const resolved = await this.resolveBinaryFor(this.loadProfile(id));
     const binaryForRun = typeof resolved === 'string' ? resolved : resolved.path;
     if (typeof resolved === 'object' && resolved.device) args.push('--device', resolved.device);

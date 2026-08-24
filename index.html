@@ -151,8 +151,11 @@
   <div class="cmdk-box wide">
     <div class="hub-row">
       <input id="gs-query" placeholder="Find in workspace…" autocomplete="off" spellcheck="false">
+      <input id="gs-replace" placeholder="Replace with…" autocomplete="off" spellcheck="false">
       <button id="gs-go" class="secondary-btn">SEARCH</button>
+      <button id="gs-replace-all" class="secondary-btn" disabled>REPLACE ALL</button>
     </div>
+    <div class="muted small" style="margin-bottom:6px">Replace-all rewrites every match across the workspace — review the hits first, then confirm.</div>
     <div id="gs-results" class="cmdk-results"></div>
   </div>
 </section>

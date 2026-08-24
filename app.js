@@ -31,10 +31,17 @@ async function loadModels() {
       .filter(m => m.artifact_available && !['pending', 'training-only'].includes(m.status))
       .sort((a, b) => rank(a) - rank(b));
     if (usable.length) {
-      state.selected = usable[0];
-      $('#cold-line').innerHTML = `Recommended for this machine: <b>${esc(state.selected.name)}</b>`;
+      let chosen = usable[0];
+      try {
+        const session = await jget(`${API}/api/session`);
+        const remembered = session?.data?.selected_engine_id || session?.selected_engine_id;
+        const match = usable.find(m => m.id === remembered);
+        if (match) chosen = match;
+      } catch { /* session store optional */ }
+      state.selected = chosen;
+      $('#cold-line').innerHTML = `Recommended for this machine: <b>${esc(chosen.name)}</b>${chosen !== usable[0] ? ' <span class="muted">(your last engine)</span>' : ''}`;
       $('#start-engine').hidden = false;
-      setStrip(`Press START to run ${state.selected.name}. Everything stays on this computer.`);
+      setStrip(`Press START to run ${chosen.name}. Everything stays on this computer.`);
       stepDone(1);
     } else {
       $('#cold-line').textContent = 'No chat-capable model found in the bottle. The Model Hub (search + download inside AIDE) arrives in an upcoming update.';
@@ -181,6 +188,7 @@ async function refreshEngineList() {
         const found = res.models.find(m => m.id === id);
         if (!found) return;
         state.selected = found; state.ready = false; state.started = false;
+        fetch(`${API}/api/session`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selected_engine_id: found.id }) }).catch(() => {});
         $('#models-panel').hidden = true;
         document.body.classList.replace('state-ready', 'state-cold');
         $('#cold-card').hidden = false;
@@ -967,13 +975,16 @@ async function runGlobalSearch() {
   const box = $('#gs-results');
   if (!q) return;
   box.innerHTML = '<span class="muted small">Searching…</span>';
+  $('#gs-replace-all').disabled = true;
   try {
     const res = await jget(`${API}/api/search?q=${encodeURIComponent(q)}&icase=1`);
+    window.__lastSearch = res;
     const MAX_FILES = 40, MAX_HITS = 8;
     const files = (res.results || []).slice(0, MAX_FILES);
     box.innerHTML = files.length
       ? files.map(f => `<div class="gs-file"><b>${esc(f.path)}</b>${f.hits.slice(0, MAX_HITS).map(h => `<div class="gs-hit" data-path="${esc(f.path)}" data-line="${h.line}"><span class="engine-meta">L${h.line}</span> ${esc(h.text.slice(0, 160))}</div>`).join('')}${f.hits.length > MAX_HITS ? `<div class="muted small">…${f.hits.length - MAX_HITS} more</div>` : ''}</div>`).join('')
       : '<span class="muted small">No matches.</span>';
+    $('#gs-replace-all').disabled = files.length === 0;
     box.querySelectorAll('.gs-hit').forEach(hit => hit.onclick = async () => {
       const path = hit.dataset.path, line = Number(hit.dataset.line);
       try {
@@ -981,9 +992,32 @@ async function runGlobalSearch() {
         if (!f.too_large) { openInEditor(f.path ?? path, f.content ?? ''); editorState.instance?.revealLineInCenter(Math.min(line, editorState.instance.getModel().getLineCount())); editorState.instance?.setPosition({ lineNumber: line, column: 1 }); }
       } catch {}
     });
-    setStrip(`Search: ${res.total} hits in ${res.results.length} files${res.results.length > MAX_FILES ? ` (showing first ${MAX_FILES})` : ''}.`);
+    setStrip(`Search: ${res.total} hits in ${res.results.length} files${res.results.length > MAX_FILES ? ` (showing first ${MAX_FILES})` : ''}. Replace-all is approval-gated.`);
   } catch (e) { box.innerHTML = `<span class="muted small">Search failed: ${esc(e.message)}</span>`; }
 }
+
+$('#gs-replace-all').addEventListener('click', async () => {
+  const q = $('#gs-query').value.trim();
+  const replacement = $('#gs-replace').value;
+  const last = window.__lastSearch;
+  if (!q || !last || !last.results.length) return;
+  const fileCount = last.results.length;
+  if (!confirm(`Replace ALL "${q}" with "${replacement || '(empty)'}" across ${fileCount} file(s)? This rewrites files on disk.`)) return;
+  setStrip('Replacing across workspace (approval granted)…');
+  try {
+    const r = await fetch(`${API}/api/search/replace`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, replacement, approved: true, icase: true })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    threadMsg('system', `Replaced ${j.occurrences} occurrence(s) in ${j.filesChanged} file(s).`);
+    await runGlobalSearch();
+    refreshRail();
+  } catch (e) {
+    threadMsg('error', `Replace failed: ${e.message}`);
+  }
+});
 
 // ---------- Terminal drawer ----------
 let termLines = [];

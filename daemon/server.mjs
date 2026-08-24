@@ -297,7 +297,7 @@ const server = http.createServer(async (request, response) => {
       const pattern = useRegex ? query : escapeRegExp(query);
       let regex;
       try { regex = new RegExp(wholeWord ? '\\b' + pattern + '\\b' : pattern, mode); } catch (error) { throw new Error('invalid search pattern: ' + error.message); }
-      const excludes = ['node_modules', 'target', '.git', 'dist', 'build'];
+      const excludes = ['node_modules', 'target', '.git', 'dist', 'build', 'assets', '.aide', 'logs', 'legacy-shell-backup'];
       const globalPattern = new RegExp(useRegex ? query : escapeRegExp(query), caseInsensitive ? 'gi' : 'g');
       let filesChanged = 0; let occurrences = 0;
       await (async function walk(dir) {

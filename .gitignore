@@ -30,3 +30,10 @@ playwright-report/
 skills/packs/**/__pycache__/
 
 *.profile.json
+
+dist/
+legacy-shell-backup/
+live-stack.*
+arch-out.txt
+arch-err.txt
+models/tinyllamas/

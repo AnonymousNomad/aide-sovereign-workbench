@@ -156,6 +156,24 @@
   </div>
 </section>
 
+<section id="git-sheet" class="overlay" hidden>
+  <div class="panel-card">
+    <div class="eyebrow">GIT — BRANCHES &amp; HISTORY</div>
+    <div class="hub-row">
+      <select id="git-branch-select" class="git-select"></select>
+      <button id="git-switch" class="secondary-btn">SWITCH</button>
+    </div>
+    <div id="git-ab" class="muted small"></div>
+    <h2>Recent commits</h2>
+    <div id="git-history" class="cmdk-results"><span class="muted small">Loading…</span></div>
+    <div class="hub-row">
+      <button id="git-push" class="secondary-btn">PUSH TO REMOTE</button>
+      <span id="push-note" class="muted small">Push uploads commits to your remote — one logged network call.</span>
+    </div>
+    <button id="git-close" class="primary">CLOSE</button>
+  </div>
+</section>
+
 <script src="/assets/monaco/vs/loader.js"></script>
 <script>
   require.config({ paths: { vs: '/assets/monaco/vs' } });

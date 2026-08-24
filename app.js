@@ -1021,4 +1021,72 @@ $('#term-form').addEventListener('submit', async e => {
   }
 });
 
+// ---------- Git sheet: branches, history, consented push ----------
+$('#git-badge').addEventListener('click', openGitSheet);
+
+async function openGitSheet() {
+  $('#git-sheet').hidden = false;
+  try {
+    const b = await jget(`${API}/api/git/branches`);
+    const sel = $('#git-branch-select');
+    sel.innerHTML = b.branches.map(br => `<option${br === b.current ? ' selected' : ''}>${esc(br)}</option>`).join('');
+  } catch { /* status fallback below */ }
+  await refreshGitSheet();
+}
+
+async function refreshGitSheet() {
+  try {
+    const s = await jget(`${API}/api/git/status`);
+    $('#git-ab').textContent = `${s.branch || '?'} · ahead ${s.ahead ?? 0} · behind ${s.behind ?? 0} · ${s.files.length} change(s)`;
+    $('#git-push').disabled = !(Number(s.ahead) > 0);
+    $('#push-note').textContent = Number(s.ahead) > 0
+      ? `Push uploads ${s.ahead} commit(s) to ${s.tracking || 'origin'} — one logged network call.`
+      : 'Nothing to push — local branch is in sync.';
+  } catch {}
+  try {
+    const l = await jget(`${API}/api/git/log?n=15`);
+    $('#git-history').innerHTML = l.commits.map(c =>
+      `<div class="cmdk-item"><b>${esc(c.hash)}</b> ${esc(c.subject)}<span class="engine-meta">${esc((c.date || '').slice(0, 16))}</span></div>`
+    ).join('') || '<span class="muted small">No commits yet.</span>';
+  } catch { /* leave previous */ }
+}
+
+$('#git-switch').addEventListener('click', async () => {
+  const branch = $('#git-branch-select').value;
+  if (!branch) return;
+  setStrip(`Switching to ${branch}…`);
+  try {
+    await fetch(`${API}/api/git/checkout`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branch })
+    }).then(async r => { if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `HTTP ${r.status}`); } });
+    threadMsg('system', `Switched to branch ${branch}.`);
+    refreshRail();
+    refreshGitSheet();
+  } catch (e) {
+    threadMsg('error', `Checkout failed: ${e.message}`);
+    setStrip('Branch switch failed — commit your changes first.');
+  }
+});
+
+$('#git-push').addEventListener('click', async () => {
+  if (!confirm('Push commits to the remote? This makes one network call.')) return;
+  $('#push-note').textContent = 'Pushing…';
+  try {
+    const r = await fetch(`${API}/api/git/push`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved: true })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    threadMsg('system', 'Pushed to remote.');
+    $('#push-note').textContent = 'Pushed.';
+    refreshRail();
+  } catch (e) {
+    $('#push-note').textContent = `Push failed: ${e.message}`;
+  }
+});
+
+$('#git-close').addEventListener('click', () => { $('#git-sheet').hidden = true; });
+
 loadModels();

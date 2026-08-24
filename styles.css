@@ -76,6 +76,7 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .term-head{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line)}
 .term-out{flex:1;overflow:auto;margin:0;padding:8px 10px;font:11px/1.5 var(--mono);color:#b8c9cf;white-space:pre-wrap;word-break:break-word}
 .term-row{padding:6px 10px 0}
+.git-select{flex:1;background:#071018;border:1px solid #31505d;color:var(--text);padding:8px;font:11px var(--mono);border-radius:4px}
 
 /* ship panel */
 .ship-panel{border:1px solid #2c6a45;background:#0a1a12;padding:12px;margin-top:10px;border-radius:4px}

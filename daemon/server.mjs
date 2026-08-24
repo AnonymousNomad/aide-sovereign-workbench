@@ -124,7 +124,7 @@ const rewriteIncoming = message => {
 
 function runGit(args) {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd: WORKSPACE, timeout: 5000, maxBuffer: 256 * 1024 }, (error, stdout, stderr) => {
+    execFile('git', args, { cwd: WORKSPACE, timeout: 5000, maxBuffer: 256 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'echo' } }, (error, stdout, stderr) => {
       if (error) reject(new Error(stderr.trim() || error.message));
       else resolve(stdout);
     });
@@ -378,6 +378,37 @@ const server = http.createServer(async (request, response) => {
       const message = String(input.message || '').trim();
       if (!message || message.length > 200) throw new Error('commit message is required');
       return json(response, 200, { committed: await runGit(['commit', '-m', message]) });
+    }
+    if (request.method === 'GET' && request.url === '/api/git/branches') {
+      const out = await runGit(['branch', '--format=%(refname:short)']);
+      const current = (await runGit(['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+      return json(response, 200, { branches: out.split('\n').map(b => b.trim()).filter(Boolean), current });
+    }
+    if (request.method === 'POST' && request.url === '/api/git/checkout') {
+      const input = await body(request);
+      const branch = String(input.branch || '').trim();
+      if (!/^[\w./-]+$/.test(branch)) throw new Error('invalid branch name');
+      const summary = await gitStatusSummary();
+      const dirty = summary.files.filter(f => !String(f.status || '').includes('?'));
+      if (dirty.length) throw new Error(`${dirty.length} uncommitted change(s) — commit or SHIP before switching branches`);
+      return json(response, 200, { switched: await runGit(['checkout', branch]) !== undefined, branch });
+    }
+    if (request.method === 'GET' && request.url.startsWith('/api/git/log')) {
+      const count = Math.min(Math.max(Number(new URL(request.url, 'http://127.0.0.1').searchParams.get('n')) || 15, 1), 100);
+      let out = '';
+      try { out = await runGit(['log', `--max-count=${count}`, '--date=iso-local', '--pretty=format:%h%x09%ad%x09%an%x09%s']); }
+      catch (error) { return json(response, 200, { commits: [], unavailable: /ambiguous|does not have any commits|unknown revision/i.test(error.message) ? 'no commits yet' : error.message }); }
+      const commits = out.split('\n').map(line => { const [hash, date, author, ...rest] = line.split('\t'); return { hash, date, author: author || '', subject: rest.join('\t') }; }).filter(c => c.hash);
+      return json(response, 200, { commits });
+    }
+    if (request.method === 'POST' && request.url === '/api/git/push') {
+      const input = await body(request);
+      if (input.approved !== true) throw new Error('explicit approval required — push uploads your commits to the remote');
+      const branch = String(input.branch || '').trim() || 'main';
+      await fs.mkdir(path.join(WORKSPACE, '.aide', 'logs'), { recursive: true }).catch(() => {});
+      await fs.appendFile(path.join(WORKSPACE, '.aide', 'logs', 'egress.log'), JSON.stringify({ action: 'git.push', remote: input.remote || 'origin', branch, at: new Date().toISOString() }) + '\n').catch(() => {});
+      const out = await runGit(['push', input.remote || 'origin', `${branch}:${branch}`]);
+      return json(response, 200, { pushed: true, output: String(out).slice(0, 400) });
     }
     if (request.method === 'GET' && request.url === '/api/tasks') return json(response, 200, { tasks: taskManager.list(), active: taskManager.status() });
     if (request.method === 'POST' && request.url === '/api/tasks/run') return json(response, 200, taskManager.run((await body(request)).id));

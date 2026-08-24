@@ -1,4 +1,4 @@
-import { promises as fs, existsSync, createReadStream } from 'node:fs';
+import { promises as fs, existsSync, createReadStream, readFileSync } from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
@@ -17,6 +17,46 @@ export class ModelRuntimeError extends Error {
 }
 
 export const RAM_GUARD_BYTES = 2 * 1024 ** 3;
+
+// W6 convergence: binary llama-server is the verified engine path on Windows
+// (python llama_cpp.server spawn hangs under node on this class of machine;
+// see AGENT_NOTES 2026-08-24/25). Resolution order mirrors the legacy manager:
+// env override -> workspace runtime dir -> known local install.
+const SAMPLER_FLAGS: Record<string, string> = {
+  temperature: '--temp', top_k: '--top-k', top_p: '--top-p', min_p: '--min-p',
+  repeat_penalty: '--repeat-penalty', mirostat: '--mirostat',
+  mirostat_tau: '--mirostat-tau', mirostat_eta: '--mirostat-eta', seed: '--seed'
+};
+
+function readProfileSidecar(file: string): { samplers?: Record<string, number>; runtime?: Record<string, number | boolean> } {
+  try {
+    return JSON.parse(readFileSync(`${file}.profile.json`, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function resolveLlamaBinary(workspace: string): string | null {
+  const exe = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
+  const candidates = [
+    process.env.AIDE_LLAMA_SERVER,
+    path.join(workspace, 'runtime', exe),
+    'E:\\llama-cpp\\llama-server.exe'
+  ].filter((candidate): candidate is string => Boolean(candidate));
+  return candidates.find(candidate => existsSync(candidate)) ?? null;
+}
+
+function samplerArgs(profile: ReturnType<typeof readProfileSidecar>): string[] {
+  const args: string[] = [];
+  for (const [key, flag] of Object.entries(SAMPLER_FLAGS)) {
+    const value = profile.samplers?.[key];
+    if (typeof value === 'number' && Number.isFinite(value)) args.push(flag, String(value));
+  }
+  const runtime = profile.runtime || {};
+  if (Number.isFinite(runtime.ngl as number)) args.push('-ngl', String(runtime.ngl));
+  if (runtime.flash_attn === 1 || runtime.flash_attn === true) args.push('-fa');
+  return args;
+}
 
 export interface ModelEntry {
   id: string;
@@ -335,6 +375,40 @@ export class ModelRuntime {
       if (current.size !== model.fileSize) {
         throw new ModelRuntimeError('CONFLICT', `model file changed on disk since ingestion (${model.fileSize} -> ${current.size} bytes). Re-ingest the file or restore the original.`);
       }
+    }
+    // Binary llama-server first (verified engine path); Python llama_cpp.server
+    // remains a fallback for hosts without the binary.
+    const llamaBinary = resolveLlamaBinary(this.workspace);
+    if (llamaBinary) {
+      const endpointUrl = new URL(model.endpoint);
+      const profile = readProfileSidecar(model.file);
+      const binaryArgs = [
+        '-m', model.file,
+        '--host', '127.0.0.1',
+        '--port', String(endpointUrl.port || 8080),
+        '--ctx-size', String(model.context_tokens || 2048),
+        '--threads', '4',
+        '--parallel', '1',
+        '--log-disable',
+        '--prio', '-1',
+        ...samplerArgs(profile)
+      ];
+      const alreadyUpBinary = await this.verifyEndpointModel(id).catch(() => ({ ready: false as const, status: '', served_models: [] }));
+      if (alreadyUpBinary.ready) return { id, status: 'running', endpoint: model.endpoint };
+      const child = this.spawnChild(llamaBinary, binaryArgs, { stdio: ['ignore', 'ignore', 'pipe'], detached: true });
+      this.processes.set(id, child);
+      this.onStatusChange(id, 'starting');
+      const stderrLog = path.join(this.workspace, '.aide', 'logs', `engine-${id}.err.log`);
+      await fs.mkdir(path.dirname(stderrLog), { recursive: true }).catch(() => {});
+      let stderrTail = '';
+      child.stderr?.on('data', chunk => { stderrTail = (stderrTail + String(chunk)).slice(-8192); });
+      child.once('exit', (code, signal) => {
+        this.processes.delete(id);
+        this.warmed.delete(id);
+        void fs.appendFile(stderrLog, `${stderrTail}[exit code=${code} signal=${signal}]\n`).catch(() => {});
+        this.onStatusChange(id, 'stopped');
+      });
+      return { id, status: 'starting', endpoint: model.endpoint };
     }
     if (!this.pythonReady) await this.probePython();
     if (!this.pythonReady) {

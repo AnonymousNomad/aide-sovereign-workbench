@@ -5,6 +5,25 @@ import { spawn, execFile } from 'node:child_process';
 import net from 'node:net';
 import os from 'node:os';
 
+// Backend auto-select per aide-backend-autoselect skill: probe candidate
+// binaries with --list-devices; empty output means a CPU-only build whose GPU
+// flags would be silently ignored.
+const BACKEND_ENV_KEYS = {
+  vulkan: 'AIDE_LLAMA_SERVER_VULKAN',
+  cuda: 'AIDE_LLAMA_SERVER_CUDA',
+  rocm: 'AIDE_LLAMA_SERVER_ROCM'
+};
+
+function parseListDevices(stdout) {
+  return stdout.split('\n')
+    .map(line => line.replace(/\r$/, '').trim())
+    .filter(line => /^[A-Za-z]+\d+:\s+.+\(/.test(line))
+    .map(line => {
+      const selector = line.split(':')[0].trim();
+      return { selector: selector, backend: selector.replace(/\d+$/, '') };
+    });
+}
+
 // P7 process-hygiene law: never spawn a model server into memory pressure.
 const FREE_RAM_FLOOR_BYTES = Math.floor(2.5 * 1024 * 1024 * 1024);
 
@@ -24,6 +43,7 @@ export class ModelManager {
     this.processes = new Map();
     this.warmed = new Set();
     this.servedCtx = new Map();
+    this.backendCaps = new Map();
   }
 
   // Effective context = what the SERVED engine reports (/props n_ctx), which
@@ -67,25 +87,87 @@ export class ModelManager {
     const model = this.models.get(id);
     if (!model) throw new Error('model is not allowlisted');
     const SAMPLER_KEYS = ['temperature', 'top_k', 'top_p', 'min_p', 'mirostat', 'mirostat_tau', 'mirostat_eta', 'repeat_penalty', 'seed'];
+    const RUNTIME_KEYS = ['ngl', 'flash_attn', 'backend'];
     const PRESETS = {
       precise: { temperature: 0.1, min_p: 0.05, repeat_penalty: 1.05, seed: 0 },
       balanced: { temperature: 0.7, top_p: 0.9, min_p: 0.05 },
       creative: { temperature: 1.0, top_p: 0.95, min_p: 0.03 },
       mirostat: { mirostat: 2, mirostat_tau: 5.0, mirostat_eta: 0.1 }
     };
-    let next = {};
-    if (patch.preset && PRESETS[patch.preset]) next = { preset: patch.preset, samplers: { ...PRESETS[patch.preset] } };
+    const base = this.loadProfile(id);
+    let next;
+    if (patch.preset && PRESETS[patch.preset]) next = { ...base, preset: patch.preset, samplers: { ...PRESETS[patch.preset] } };
     else if (patch.samplers && typeof patch.samplers === 'object') {
       for (const [key, value] of Object.entries(patch.samplers)) {
         if (!SAMPLER_KEYS.includes(key)) { const e = new Error(`unknown sampler key: ${key}`); e.code = 'VALIDATION'; throw e; }
         if (typeof value !== 'number' || !Number.isFinite(value)) { const e = new Error(`sampler ${key} must be a finite number`); e.code = 'VALIDATION'; throw e; }
       }
-      next = { ...this.loadProfile(id), preset: patch.preset || 'custom', samplers: patch.samplers };
-    } else { const e = new Error('profile requires preset or samplers'); e.code = 'VALIDATION'; throw e; }
+      next = { ...base, preset: patch.preset || 'custom', samplers: patch.samplers };
+    } else if (patch.runtime && typeof patch.runtime === 'object') {
+      for (const [key, value] of Object.entries(patch.runtime)) {
+        if (!RUNTIME_KEYS.includes(key)) { const e = new Error(`unknown runtime key: ${key}`); e.code = 'VALIDATION'; throw e; }
+        if (key === 'backend' ? typeof value !== 'string' : typeof value !== 'number' || !Number.isFinite(value)) { const e = new Error(`runtime ${key} has invalid type`); e.code = 'VALIDATION'; throw e; }
+      }
+      next = { ...this.loadProfile(id), runtime: patch.runtime };
+    } else { const e = new Error('profile requires preset, samplers or runtime'); e.code = 'VALIDATION'; throw e; }
     model.profile = next;
     const target = this.profilePath(id);
     if (target) await fs.writeFile(target, JSON.stringify(next, null, 2)).catch(() => {});
     return next;
+  }
+
+  // Backend selection: profile.runtime.backend picks among configured binaries
+  // (e.g. a Vulkan build vs CUDA build of llama-server). Verified research on
+  // GTX 1060: Vulkan wins token-generation on Pascal even though CUDA wins
+  // prompt-processing (llama.cpp issue #19817). A candidate with an EMPTY
+  // --list-devices result is CPU-only and is skipped for that family.
+  probeBackend(binaryPath) {
+    if (this.backendCaps.has(binaryPath)) return Promise.resolve(this.backendCaps.get(binaryPath));
+    return new Promise(resolve => {
+      const timer = setTimeout(() => { this.backendCaps.set(binaryPath, []); resolve([]); }, 10_000);
+      execFile(binaryPath, ['--list-devices'], { windowsHide: true, timeout: 9_000 }, (error, stdout) => {
+        clearTimeout(timer);
+        if (error && !stdout) { this.backendCaps.set(binaryPath, []); return resolve([]); }
+        const devices = parseListDevices(String(stdout || ''));
+        this.backendCaps.set(binaryPath, devices);
+        resolve(devices);
+      });
+    });
+  }
+
+  loadBackendsConfig() {
+    if (this.backendsConfig) return this.backendsConfig;
+    try {
+      const cfgPath = path.join(path.dirname(this.manifestPath), '..', '.aide', 'backends.json');
+      this.backendsConfig = JSON.parse(readFileSync(cfgPath, 'utf8'));
+    } catch { this.backendsConfig = {}; }
+    return this.backendsConfig;
+  }
+
+  async resolveBinaryFor(profile) {
+    const backend = profile?.runtime?.backend;
+    if (!backend) return this.binaryPath;
+    const family = String(backend).toLowerCase();
+    const envKey = BACKEND_ENV_KEYS[family];
+    const fromFile = this.loadBackendsConfig()[family];
+    const candidate = fromFile || (envKey ? process.env[envKey] : null);
+    if (!candidate || !existsSync(candidate)) return this.binaryPath;
+    const devices = await this.probeBackend(candidate);
+    if (profile.runtime.device) {
+      const known = devices.some(device => device.selector === profile.runtime.device);
+      if (known) return { path: candidate, device: profile.runtime.device };
+      return this.binaryPath;
+    }
+    if (devices.length === 0) return this.binaryPath;
+    return { path: candidate, device: devices[0].selector };
+  }
+
+  runtimeArgs(profile) {
+    const args = [];
+    const runtime = profile?.runtime || {};
+    if (Number.isFinite(runtime.ngl)) args.push('-ngl', String(runtime.ngl));
+    if (runtime.flash_attn === 1 || runtime.flash_attn === true) args.push('-fa');
+    return args;
   }
 
   samplerArgs(profile) {
@@ -387,10 +469,19 @@ export class ModelManager {
       throw new Error(`Not enough free memory to start ${model.name} (${Math.round(freeRam / 1048576)} MB free, need ${Math.round(FREE_RAM_FLOOR_BYTES / 1048576)} MB). Stop another running engine (STOP ENGINE button) or wait for heavy jobs to finish, then try again.`);
     }
     await this.stopAll();
-    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1', ...this.samplerArgs(this.loadProfile(id))];
-    const child = this.spawnProcess(this.binaryPath, args, { stdio: 'ignore' });
+    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1', ...this.samplerArgs(this.loadProfile(id)), ...this.runtimeArgs(this.loadProfile(id))];
+    const resolved = await this.resolveBinaryFor(this.loadProfile(id));
+    const binaryForRun = typeof resolved === 'string' ? resolved : resolved.path;
+    if (typeof resolved === 'object' && resolved.device) args.push('--device', resolved.device);
+    console.error(`[backend] ${id} -> ${binaryForRun}${typeof resolved === 'object' && resolved.device ? ` device=${resolved.device}` : ''} | cfg=${JSON.stringify(this.loadBackendsConfig())} | profile=${JSON.stringify(this.loadProfile(id))}`);
+    const child = this.spawnProcess(binaryForRun, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    const stderrLog = path.resolve(this.modelDir, '..', 'logs', `engine-${id}.err.log`);
+    child.stderr?.pipe(createWriteStream(stderrLog, { flags: 'a' }));
     this.processes.set(id, child);
-    child.once('exit', () => this.processes.delete(id));
+    child.once('exit', (code, signal) => {
+      this.processes.delete(id);
+      fs.appendFile(stderrLog, `[exit code=${code} signal=${signal}]\n`).catch(() => {});
+    });
     return { id, status: 'starting', endpoint: model.endpoint };
   }
 

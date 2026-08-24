@@ -607,4 +607,81 @@ async function loadTree() {
   } catch { $('#file-tree').innerHTML = '<span class="muted small">tree unavailable</span>'; }
 }
 
+// ---------- SHIP: stage review -> conventional commit ----------
+let lastIntent = '';
+
+$('#ship-button').addEventListener('click', openShipPanel);
+
+async function openShipPanel() {
+  const panel = $('#ship-panel');
+  panel.hidden = !panel.hidden;
+  if (panel.hidden) return;
+  $('#ship-result').textContent = '';
+  await refreshShipFiles();
+}
+
+async function refreshShipFiles() {
+  try {
+    const g = await jget(`${API}/api/git/status`);
+    const files = (g.files || []).filter(f => f.status !== 'untracked' || true);
+    const box = $('#ship-files');
+    if (!files.length) { box.innerHTML = '<span class="muted small">Working tree clean — nothing to ship.</span>'; return; }
+    box.innerHTML = files.map((f, i) => {
+      const p = f.path || f;
+      const st = f.status ? ` [${String(f.status).slice(0,1).toUpperCase()}]` : '';
+      return `<label class="ship-file"><input type="checkbox" checked data-ship="${esc(p)}"> <span>${esc(p)}</span><span class="engine-meta">${st}</span></label>`;
+    }).join('');
+    if (!lastIntent) lastIntent = 'chore: workspace updates via AIDE cockpit';
+    $('#ship-message').value = $('#ship-message').value || suggestMessage(files);
+  } catch (e) {
+    $('#ship-files').innerHTML = `<span class="muted small">git status unavailable: ${esc(e.message)}</span>`;
+  }
+}
+
+function suggestMessage(files) {
+  const count = files.length;
+  const kinds = { M: 'fix', A: 'feat', '?': 'chore', D: 'chore' };
+  const type = files.every(f => (f.status || '').startsWith('?')) ? 'chore' : 'update';
+  return `${type}: ${count} file${count === 1 ? '' : 's'} updated via AIDE cockpit`;
+}
+
+$('#ship-cancel').addEventListener('click', () => { $('#ship-panel').hidden = true; });
+
+$('#ship-commit').addEventListener('click', async () => {
+  const message = $('#ship-message').value.trim();
+  if (!message) { $('#ship-result').textContent = 'Commit message required.'; return; }
+  const paths = [...document.querySelectorAll('#ship-files input[data-ship]:checked')].map(cb => cb.dataset.ship);
+  if (!paths.length) { $('#ship-result').textContent = 'No files selected.'; return; }
+  const trailer = $('#ship-trailer').checked ? '\n\nAssisted-by: AIDE harness ' + HARNESS_VERSION_LABEL : '';
+  const finalMessage = message + trailer;
+  $('#ship-commit').disabled = true;
+  setStrip('Staging and committing your approved changes…');
+  try {
+    const s = await fetch(`${API}/api/git/stage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths, approved: true })
+    });
+    if (!s.ok) { const sj = await s.json().catch(() => ({})); throw new Error(sj.error || `stage HTTP ${s.status}`); }
+    const c = await fetch(`${API}/api/git/commit`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: finalMessage, approved: true })
+    });
+    const cj = await c.json().catch(() => ({}));
+    if (!c.ok) throw new Error(cj.error || `commit HTTP ${c.status}`);
+    threadMsg('engine', `Shipped: committed ${paths.length} file(s). Audit trail in git history.`);
+    $('#ship-panel').hidden = true;
+    refreshRail();
+    refreshEngineList && null;
+    setStrip('Shipped locally. Push stays a separate, explicit action.');
+    loadTree();
+  } catch (e) {
+    $('#ship-result').textContent = `Ship failed: ${e.message}`;
+    setStrip('Ship failed — see the panel for details.');
+  } finally {
+    $('#ship-commit').disabled = false;
+  }
+});
+
+const HARNESS_VERSION_LABEL = 'v2.1.0';
+
 loadModels();

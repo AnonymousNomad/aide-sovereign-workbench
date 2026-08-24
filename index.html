@@ -47,8 +47,20 @@
             <span class="eyebrow" id="open-file-name">WORKBENCH</span>
             <span class="spacer"></span>
             <button id="save-file" class="secondary-btn" disabled>SAVE</button>
+            <button id="ship-button" class="secondary-btn">SHIP</button>
           </div>
           <div id="editor-container" class="editor-container"></div>
+          <div id="ship-panel" class="ship-panel" hidden>
+            <div class="ship-head eyebrow">SHIP — REVIEW &amp; COMMIT</div>
+            <div id="ship-files" class="ship-files"><span class="muted small">Loading changes…</span></div>
+            <textarea id="ship-message" rows="3" placeholder="Commit message…"></textarea>
+            <label class="ship-trailer"><input type="checkbox" id="ship-trailer" checked> Append <code>Assisted-by: AIDE</code> trailer</label>
+            <div class="approval-bar">
+              <button id="ship-commit" class="approve">COMMIT</button>
+              <button id="ship-cancel">CANCEL</button>
+            </div>
+            <div id="ship-result" class="muted small"></div>
+          </div>
           <div id="diff-view" class="diff-view" hidden></div>
         </div>
       </div>

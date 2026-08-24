@@ -119,7 +119,7 @@ async function sendDescribe(value) {
     if (!r.ok) throw new Error(j.error || 'chat failed');
     const answer = j.answer || j.choices?.[0]?.message?.content || '(the engine returned no text)';
     pending.className = 'msg engine';
-    pending.innerHTML = `<b>${esc(state.selected.name)}</b><br>${esc(answer)}` +
+    pending.innerHTML = `<b>${esc(state.selected.name)}</b><br>${linkifySources(esc(answer))}` +
       `<div><span class="prov-chip">UNVERIFIED</span><span class="muted small"> model output — validate before relying on it</span></div>` +
       (j.harness?.injected ? `<br><small class="stage">HARNESS ${esc(j.harness.tier.toUpperCase())} · ${esc(String(j.harness.version))}</small>` : '');
     if (j.harness?.injected) {
@@ -794,6 +794,30 @@ function wireEditorLsp() {
 }
 
 wireEditorLsp();
+
+// Provenance-lite: file paths (optionally :line) mentioned in replies become
+// clickable navigation into the workbench. Applied AFTER escaping; tokens are
+// validated against the tree cache before becoming links.
+function linkifySources(escapedText) {
+  return escapedText.replace(/([\w./-]+\.(?:js|mjs|ts|json|css|html|md))(?::(\d+))?/g, (match, path, line) => {
+    if (!treeCache.files.includes(path)) return match;
+    return `<span class="src-ref" data-path="${path}" data-line="${line || 1}">${match}</span>`;
+  });
+}
+
+document.addEventListener('click', e => {
+  const ref = e.target.closest && e.target.closest('.src-ref');
+  if (!ref) return;
+  const path = ref.dataset.path;
+  fetchAndOpen(path).then(() => {
+    const line = Number(ref.dataset.line);
+    if (line > 1 && editorState.instance) {
+      editorState.instance.revealLineInCenter(line);
+      editorState.instance.setPosition({ lineNumber: line, column: 1 });
+    }
+  });
+});
+
 let lastIntent = '';
 
 $('#ship-button').addEventListener('click', openShipPanel);
@@ -1094,10 +1118,17 @@ async function refreshGitSheet() {
       : 'Nothing to push — local branch is in sync.';
   } catch {}
   try {
-    const l = await jget(`${API}/api/git/log?n=15`);
-    $('#git-history').innerHTML = l.commits.map(c =>
+    const l = await jget(`${API}/api/git/log?n=30`);
+    const commits = l.commits || [];
+    $('#git-history').innerHTML = commits.map(c =>
       `<div class="cmdk-item"><b>${esc(c.hash)}</b> ${esc(c.subject)}<span class="engine-meta">${esc((c.date || '').slice(0, 16))}</span></div>`
     ).join('') || '<span class="muted small">No commits yet.</span>';
+    // DORA rework signal v0: revert-style subjects within the recent window.
+    const reworks = commits.filter(c => /^(revert|Revert )|^(fix|chore):.*\brevert\b/i.test(c.subject)).length;
+    let ab = $('#git-ab');
+    const base = ab.textContent.split(' · rework')[0];
+    ab.textContent = base + (reworks ? ` · rework ${reworks}` : '');
+    if (reworks >= 2) { ab.textContent += ' ⚠'; }
   } catch { /* leave previous */ }
 }
 

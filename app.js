@@ -75,6 +75,7 @@ async function startEngine() {
     document.body.classList.replace('state-cold', 'state-ready');
     $('#cold-card').hidden = true;
     $('#editor-slot').hidden = false;
+    loadTree();
     const chip = $('#engine-chip');
     chip.classList.add('on');
     $('#engine-name').textContent = model.name;
@@ -524,6 +525,86 @@ async function refreshRail() {
     b.textContent = n === 0 ? 'CLEAN' : `${n} ISSUE${n === 1 ? '' : 'S'}`;
     b.className = 'badge' + (n === 0 ? ' on' : ' warn');
   } catch { /* leave placeholder */ }
+}
+
+// ---------- Workbench editor (Monaco, offline bundle) ----------
+const editorState = { instance: null, model: null, path: null };
+
+function loadMonaco(cb) {
+  if (window.__monacoReady) return cb();
+  window.addEventListener('monaco-ready', () => cb(), { once: true });
+}
+
+function openInEditor(path, content) {
+  loadMonaco(() => {
+    const container = $('#editor-container');
+    if (!editorState.instance) {
+      editorState.instance = monaco.editor.create(container, { value: '', language: 'plaintext', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false }, fontSize: 12 });
+      editorState.instance.onDidChangeModelContent(() => {
+        if (!editorState.dirty) {
+          editorState.dirty = true;
+          $('#save-file').disabled = false;
+          $('#open-file-name').textContent = `${editorState.path} *`;
+        }
+      });
+    }
+    if (editorState.model) editorState.model.dispose();
+    const ext = path.split('.').pop().toLowerCase();
+    const langs = { js: 'javascript', mjs: 'javascript', ts: 'typescript', json: 'json', css: 'css', html: 'html', md: 'markdown', py: 'python' };
+    editorState.model = monaco.editor.createModel(content, langs[ext] || 'plaintext');
+    editorState.instance.setModel(editorState.model);
+    editorState.path = path;
+    editorState.dirty = false;
+    $('#save-file').disabled = true;
+    $('#open-file-name').textContent = path;
+  });
+}
+
+async function saveCurrentFile() {
+  if (!editorState.path || !editorState.instance || !editorState.dirty) return;
+  setStrip(`Saving ${editorState.path}…`);
+  try {
+    const r = await fetch(`${API}/api/file/write`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: editorState.path, content: editorState.instance.getValue(), approved: true })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    editorState.dirty = false;
+    $('#save-file').disabled = true;
+    $('#open-file-name').textContent = editorState.path;
+    threadMsg('system', `Saved ${j.path} (${j.bytes} bytes).`);
+    setStrip('Saved. Rail verification refreshes.');
+    refreshRail();
+  } catch (e) {
+    threadMsg('error', `Save failed: ${e.message}`);
+    setStrip('Save failed — see the error card.');
+  }
+}
+
+$('#save-file').addEventListener('click', saveCurrentFile);
+
+async function loadTree() {
+  try {
+    const res = await jget(`${API}/api/workspace/tree`);
+    const tree = $('#file-tree');
+    const render = (nodes, depth) => nodes.map(n => {
+      if (n.kind === 'directory') {
+        return `<div class="tree-dir" style="padding-left:${depth * 12}px">${esc(n.name)}/</div>` + render(n.children || [], depth + 1);
+      }
+      return `<div class="tree-file" data-path="${esc(n.path)}" style="padding-left:${depth * 12}px">${esc(n.name)}</div>`;
+    }).join('');
+    tree.innerHTML = render(res.tree || [], 0);
+    tree.querySelectorAll('[data-path]').forEach(el => {
+      el.onclick = async () => {
+        try {
+          const f = await jget(`${API}/api/file?path=${encodeURIComponent(el.dataset.path)}`);
+          if (f.too_large) return threadMsg('system', `${f.path} is too large to open here.`);
+          openInEditor(f.path, f.content ?? '');
+        } catch (e) { threadMsg('error', `Open failed: ${e.message}`); }
+      };
+    });
+  } catch { $('#file-tree').innerHTML = '<span class="muted small">tree unavailable</span>'; }
 }
 
 loadModels();

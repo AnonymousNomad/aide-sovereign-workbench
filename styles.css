@@ -48,7 +48,19 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .diff-view{margin-top:14px;border:1px solid var(--line);background:#09131d;border-radius:4px;padding:12px}
 .diff-view pre{margin:8px 0 0;font:11px/1.5 var(--mono);color:#c9dadd;white-space:pre-wrap;word-break:break-word;max-height:52vh;overflow:auto}
 .approval-preview{margin:8px 0 0;padding:8px;background:#071018;border:1px solid #22384a;font:10px/1.5 var(--mono);color:#b8c9cf;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto}
-.approval-preview.dim{opacity:.55}
+.secondary-btn{border:1px solid var(--purple);background:transparent;color:var(--purple);font:bold 9px var(--mono);letter-spacing:.08em;padding:0 12px;border-radius:4px;cursor:pointer}
+
+/* workbench editor */
+.workbench-bar{flex:1;display:flex;min-height:0}
+.file-tree{width:200px;flex:0 0 auto;border-right:1px solid var(--line);overflow:auto;padding:8px 6px;background:#091220;font:10px var(--mono)}
+.tree-dir{color:var(--muted);padding-top:4px;padding-bottom:4px;white-space:nowrap}
+.tree-file{color:#b8c9cf;padding:3px 4px;cursor:pointer;white-space:nowrap;border-radius:3px}
+.tree-file:hover{background:#12222f;color:var(--text)}
+.editor-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.editor-toolbar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.editor-toolbar .spacer{flex:1}
+#save-file:not(:disabled){border-color:var(--green);color:var(--green)}
+.editor-container{flex:1;min-height:0}
 
 /* models panel */
 .panel-card.wide{width:min(680px,100%);max-height:88vh;overflow:auto}
@@ -81,7 +93,8 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .primary{border:0;background:var(--green);color:#04140b;font:bold 12px var(--mono);letter-spacing:.12em;padding:12px 22px;cursor:pointer;border-radius:4px;margin-top:10px}
 .primary:disabled{opacity:.5;cursor:not-allowed}
 .primary:hover:not(:disabled){box-shadow:0 0 18px #72ff9e44}
-.editor-slot{flex:1;padding:20px}
+.editor-slot{flex:1;min-height:0;display:flex;flex-direction:column;padding:12px 16px}
+.workbench-bar{flex:1;display:flex;min-height:0;margin-top:10px}
 
 /* ---------- right: rail ---------- */
 .rail{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding-bottom:14px}

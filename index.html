@@ -40,9 +40,18 @@
       <button id="start-engine" class="primary" hidden>START ENGINE</button>
     </div>
     <div class="editor-slot" id="editor-slot" hidden>
-      <div class="eyebrow">WORKBENCH</div>
-      <p class="muted pad">Editor and terminal arrive in upcoming cockpit updates. Approved changes appear below as diffs.</p>
-      <div id="diff-view" class="diff-view" hidden></div>
+      <div class="workbench-bar">
+        <div id="file-tree" class="file-tree"></div>
+        <div class="editor-main">
+          <div class="editor-toolbar">
+            <span class="eyebrow" id="open-file-name">WORKBENCH</span>
+            <span class="spacer"></span>
+            <button id="save-file" class="secondary-btn" disabled>SAVE</button>
+          </div>
+          <div id="editor-container" class="editor-container"></div>
+          <div id="diff-view" class="diff-view" hidden></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -111,6 +120,12 @@
   </div>
 </section>
 
+<script src="/assets/monaco/vs/loader.js"></script>
+<script>
+  require.config({ paths: { vs: '/assets/monaco/vs' } });
+  window.MonacoEnvironment = { getWorkerUrl: () => '/assets/monaco/vs/base/worker/workerMain.js' };
+  require(['vs/editor/editor.main'], () => { window.__monacoReady = true; dispatchEvent(new Event('monaco-ready')); });
+</script>
 <script src="app.js"></script>
 </body>
 </html>

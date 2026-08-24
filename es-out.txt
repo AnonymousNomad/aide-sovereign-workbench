@@ -1,0 +1,2 @@
+editor smoke e2e passed (cockpit boot verification)
+editor smoke e2e passed (cockpit boot verification)

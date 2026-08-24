@@ -373,6 +373,15 @@ async function planAndBuild(task) {
   note.remove();
   setStrip('Agent working with checkpoints — every change waits for your approval.');
   let lastApprovalId = null;
+// Bounded delegation posture: STANDARD auto-approves read-only tools;
+// STRICT asks for every tool call. Persisted per browser.
+let delegationMode = localStorage.getItem('aide.delegation') || 'standard';
+function setDelegation(mode) {
+  delegationMode = mode;
+  localStorage.setItem('aide.delegation', mode);
+  const b = $('#delegation-badge');
+  if (b) { b.textContent = mode.toUpperCase(); b.className = 'badge' + (mode === 'strict' ? ' warn' : ' on'); }
+}
   for (let poll = 0; poll < 160; poll++) {
     await new Promise(res => setTimeout(res, 1500));
     let s;
@@ -386,6 +395,17 @@ async function planAndBuild(task) {
       const a = s.pending_approval;
       if (!a || a.approval_id === lastApprovalId) continue;
       lastApprovalId = a.approval_id;
+      // Bounded delegation (MSR 2026): read-only tools pre-approved in
+      // STANDARD posture; STRICT asks for everything. Writes always ask.
+      const READ_ONLY = new Set(['read_file', 'list_dir', 'search']);
+      if (delegationMode === 'standard' && READ_ONLY.has(a.tool)) {
+        await fetch(`${API}/api/agent/decision`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId, approval_id: a.approval_id, decision: 'approve' })
+        }).catch(() => {});
+        threadMsg('system', `Auto-approved read-only ${a.tool} (standard delegation).`);
+        continue;
+      }
       renderApproval(sessionId, a);
       setStrip(`Waiting on you: approve or reject ${a.tool}.`);
     } else if (s.state === 'done') {
@@ -1204,5 +1224,10 @@ $('#skills-button').addEventListener('click', openSkillsPanel);
 $('#skills-close').addEventListener('click', () => { $('#skills-panel').hidden = true; });
 $('#skills-query').addEventListener('input', renderSkills);
 $('#skills-cat').addEventListener('change', renderSkills);
+
+$('#delegation-toggle').addEventListener('click', () => {
+  setDelegation(delegationMode === 'standard' ? 'strict' : 'standard');
+  setStrip(`Delegation: ${delegationMode.toUpperCase()} — ${delegationMode === 'strict' ? 'every tool call asks you first.' : 'read-only tools run without asking; writes always ask.'}`);
+});
 
 loadModels();

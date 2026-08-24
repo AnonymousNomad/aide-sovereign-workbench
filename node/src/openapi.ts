@@ -370,9 +370,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
           await fs.mkdir(sandboxPath, { recursive: true });
           rootForTools = sandboxPath;
         }
-        const toolSet = createAgentTools({ workspace: rootForTools, rg: rgService });
-        const toolMap = new Map(toolSet.tools.map((t: { name: string }) => [t.name, t]));
-        const tool = toolMap.get(resolved);
+        const toolSet = createAgentTools({ workspace: rootForTools, rg: rgService }) as any;
+        const toolMap = new Map(toolSet.tools.map((t: any) => [t.name as string, t]));
+        const tool = (toolMap.get(resolved) as any);
         if (!tool) throw Object.assign(new Error(`unknown tool ${name}`), { code: 'VALIDATION' });
         const result = await tool.execute(args);
         return { ok: result.ok !== false, output: String(result.output || ''), terminal: result.terminal === true };
@@ -425,7 +425,7 @@ function buildNotificationWiredRoutes(workspace: string, options: BuildRoutesOpt
         notifications.ingestTaskEvent(body as Parameters<NotificationService['ingestTaskEvent']>[0]);
       }
     }),
-    ...routesForModelHub(hub)
+    ...routesForModelHub(hub as any)
   ];
 }
 

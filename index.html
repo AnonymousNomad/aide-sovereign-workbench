@@ -132,9 +132,11 @@
     </div>
     <h2>Import from this computer</h2>
     <div class="hub-row">
-      <input id="import-path" placeholder="Full path to a .gguf file on this machine…" autocomplete="off">
+      <input id="import-path" placeholder="Full path to a .gguf file on this machine…" autocomplete="off" spellcheck="false">
+      <input id="import-ctx" placeholder="ctx" style="max-width:80px" title="Context size (default 4096)">
       <button id="import-btn" class="secondary-btn">IMPORT</button>
     </div>
+    <div class="muted small" style="margin-bottom:6px">The file is copied into AIDE's models folder. Set ctx to your training context if you know it.</div>
     <div id="import-result" class="muted small"></div>
     <button id="models-close" class="primary">CLOSE</button>
   </div>

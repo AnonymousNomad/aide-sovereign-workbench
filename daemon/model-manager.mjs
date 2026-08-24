@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import net from 'node:net';
 import os from 'node:os';
+import { scoreCandidate } from '../harness/gates.mjs';
 
 // Backend auto-select per aide-backend-autoselect skill: probe candidate
 // binaries with --list-devices; empty output means a CPU-only build whose GPU
@@ -352,19 +353,32 @@ export class ModelManager {
     if (!['ready', 'experimental'].includes(model.status) && !this.processes.has(id)) throw new Error('start this model before chatting');
     const verified = await this.verifyEndpointModel(id, Math.min(Number(options.timeout_ms) || 90_000, 5000));
     if (!verified.ready) throw new Error(verified.error || 'local runtime is not serving the selected model');
-    const payload = { messages, temperature: 0.2, max_tokens: Math.min(Number(options.max_tokens) || 512, 512) };
-    if (model.model) payload.model = model.model;
-    const response = await fetch(`${model.endpoint}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(Number(options.timeout_ms) || 90_000)
-    });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(`local runtime returned HTTP ${response.status}: ${detail.slice(0, 400)}`);
+
+    // Gated Best-of-N (harness v2.2): N temperature-jittered samples scored by
+    // mechanical gates; first clean candidate wins (early stopping); otherwise
+    // lowest-penalty candidate ships with honest meta.
+    const n = Math.min(Math.max(Number(options.n) || 1, 1), 4);
+    const baseTemp = Number.isFinite(options.temperature) ? options.temperature : 0.2;
+    let best = null;
+    let bestVerdict = null;
+    const log = [];
+    for (let attempt = 0; attempt < n; attempt++) {
+      const temperature = attempt === 0 ? baseTemp : Math.min(baseTemp + attempt * 0.25, 1.2);
+      const response = await fetch(`${model.endpoint}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...(model.model ? { model: model.model } : {}), messages, temperature, max_tokens: Math.min(Number(options.max_tokens) || 512, 512) }),
+        signal: AbortSignal.timeout(Number(options.timeout_ms) || 90_000)
+      });
+      if (!response.ok) throw new Error(`local runtime returned HTTP ${response.status}`);
+      const json = await response.json();
+      const text = json.choices?.[0]?.message?.content ?? '';
+      const verdict = scoreCandidate(text);
+      log.push({ attempt, temperature, pass: verdict.pass, penalty: verdict.penalty });
+      if (!best || verdict.penalty < bestVerdict.penalty) { best = { json, text }; bestVerdict = verdict; }
+      if (verdict.pass) break;
     }
-    return response.json();
+    return { ...best.json, gated: { n: log.length, picked: log.findIndex(g => g.pass), all_passed: log.every(g => g.pass), log } };
   }
 
   async waitReady(id, timeoutMs = 30_000) {

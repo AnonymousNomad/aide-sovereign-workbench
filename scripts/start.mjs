@@ -11,7 +11,11 @@ const port = Number(process.env.AIDE_UI_PORT || 4173);
 const children = [];
 
 function spawnChild(label, args, extraEnv = {}) {
-  const child = spawn(process.execPath, args, { cwd: root, env: { ...process.env, AIDE_WORKSPACE: process.env.AIDE_WORKSPACE || root, ...extraEnv }, stdio: 'inherit' });
+  // Detached + unref: backends must survive console-session teardowns and
+  // tool-timeout tree kills (documented wedge lesson 2026-08-25). Stop them
+  // explicitly via taskkill /IM node.exe /T or POST /api/models/stop.
+  const child = spawn(process.execPath, args, { cwd: root, env: { ...process.env, AIDE_WORKSPACE: process.env.AIDE_WORKSPACE || root, ...extraEnv }, stdio: 'ignore', detached: true, windowsHide: true });
+  child.unref();
   child.label = label;
   children.push(child);
   child.on('exit', code => {

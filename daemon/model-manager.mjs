@@ -474,7 +474,10 @@ export class ModelManager {
     const binaryForRun = typeof resolved === 'string' ? resolved : resolved.path;
     if (typeof resolved === 'object' && resolved.device) args.push('--device', resolved.device);
     console.error(`[backend] ${id} -> ${binaryForRun}${typeof resolved === 'object' && resolved.device ? ` device=${resolved.device}` : ''} | cfg=${JSON.stringify(this.loadBackendsConfig())} | profile=${JSON.stringify(this.loadProfile(id))}`);
-    const child = this.spawnProcess(binaryForRun, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    // Detached: own process group -> immune to console Ctrl+C events that
+    // killed engines with STATUS_CONTROL_C_EXIT when unrelated tool calls
+    // timed out (2026-08-25, exit code 3221225786).
+    const child = this.spawnProcess(binaryForRun, args, { stdio: ['ignore', 'ignore', 'pipe'], detached: true });
     const stderrLog = path.resolve(this.modelDir, '..', 'logs', `engine-${id}.err.log`);
     child.stderr?.pipe(createWriteStream(stderrLog, { flags: 'a' }));
     this.processes.set(id, child);

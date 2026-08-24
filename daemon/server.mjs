@@ -377,7 +377,11 @@ const server = http.createServer(async (request, response) => {
       if (input.approved !== true) throw new Error('explicit approval required');
       const message = String(input.message || '').trim();
       if (!message || message.length > 200) throw new Error('commit message is required');
-      return json(response, 200, { committed: await runGit(['commit', '-m', message]) });
+      const committed = await runGit(['commit', '-m', message]);
+      // Ship telemetry v0: intent -> verified-commit record (outcome latency foundation).
+      await fs.mkdir(path.join(WORKSPACE, '.aide', 'metrics'), { recursive: true }).catch(() => {});
+      await fs.appendFile(path.join(WORKSPACE, '.aide', 'metrics', 'ships.log'), JSON.stringify({ at: new Date().toISOString(), intent: String(input.intent || '').slice(0, 200), message: message.slice(0, 200) }) + '\n').catch(() => {});
+      return json(response, 200, { committed });
     }
     if (request.method === 'GET' && request.url === '/api/git/branches') {
       const out = await runGit(['branch', '--format=%(refname:short)']);

@@ -113,6 +113,7 @@ async function sendDescribe(value) {
     const answer = j.answer || j.choices?.[0]?.message?.content || '(the engine returned no text)';
     pending.className = 'msg engine';
     pending.innerHTML = `<b>${esc(state.selected.name)}</b><br>${esc(answer)}` +
+      `<div><span class="prov-chip">UNVERIFIED</span><span class="muted small"> model output — validate before relying on it</span></div>` +
       (j.harness?.injected ? `<br><small class="stage">HARNESS ${esc(j.harness.tier.toUpperCase())} · ${esc(String(j.harness.version))}</small>` : '');
     if (j.harness?.injected) {
       const hb = $('#harness-badge');
@@ -142,6 +143,7 @@ $('#plan-btn').addEventListener('click', () => {
   if (!v || !state.ready) return;
   $('#describe-input').value = '';
   stepDone(3);
+  lastIntent = v;
   planAndBuild(v);
 });
 $('#start-engine').addEventListener('click', startEngine);
@@ -826,7 +828,7 @@ $('#ship-commit').addEventListener('click', async () => {
     if (!s.ok) { const sj = await s.json().catch(() => ({})); throw new Error(sj.error || `stage HTTP ${s.status}`); }
     const c = await fetch(`${API}/api/git/commit`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: finalMessage, approved: true })
+      body: JSON.stringify({ message: finalMessage, approved: true, intent: lastIntent || undefined })
     });
     const cj = await c.json().catch(() => ({}));
     if (!c.ok) throw new Error(cj.error || `commit HTTP ${c.status}`);
@@ -1088,5 +1090,40 @@ $('#git-push').addEventListener('click', async () => {
 });
 
 $('#git-close').addEventListener('click', () => { $('#git-sheet').hidden = true; });
+
+// ---------- Skills browser (in-box SOP packs) ----------
+let skillsData = null;
+async function openSkillsPanel() {
+  $('#skills-panel').hidden = false;
+  if (!skillsData) {
+    try { skillsData = await jget('/skills/registry.json'); }
+    catch (e) { $('#skills-results').innerHTML = `<span class="muted small">registry unavailable: ${esc(e.message)}</span>`; return; }
+    const cats = [...new Set(skillsData.skills.map(s => s.category))].sort();
+    $('#skills-cat').innerHTML = '<option value="">ALL</option>' + cats.map(c => `<option>${esc(c)}</option>`).join('');
+  }
+  renderSkills();
+}
+function renderSkills() {
+  const q = $('#skills-query').value.trim().toLowerCase();
+  const cat = $('#skills-cat').value;
+  const list = skillsData.skills.filter(s =>
+    (!cat || s.category === cat) &&
+    (!q || s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
+  );
+  $('#skills-results').innerHTML = list.length
+    ? list.map((s, i) => `<div class="cmdk-item" data-i="${i}"><b>${esc(s.name)}</b><span class="engine-meta">${esc(s.category)}</span><span class="muted small">${esc(s.description.slice(0, 110))}…</span></div>`).join('')
+    : '<span class="muted small">No matches.</span>';
+  boxBind(list);
+  function boxBind(list2) {
+    document.querySelectorAll('#skills-results .cmdk-item').forEach(el => el.onclick = () => {
+      const s = list2[Number(el.dataset.i)];
+      window.open(`/${s.path}`, '_blank');
+    });
+  }
+}
+$('#skills-button').addEventListener('click', openSkillsPanel);
+$('#skills-close').addEventListener('click', () => { $('#skills-panel').hidden = true; });
+$('#skills-query').addEventListener('input', renderSkills);
+$('#skills-cat').addEventListener('change', renderSkills);
 
 loadModels();

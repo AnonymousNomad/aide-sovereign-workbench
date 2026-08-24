@@ -4,6 +4,14 @@
 // Usage: node scripts/run-harness-battery.mjs --model <id> [--url http://127.0.0.1:4777]
 import { writeFileSync } from 'node:fs';
 
+// Rotating battery hook: tasks may be extended/overridden via
+// .aide/battery-overrides.json — [{id, prompt, must_include[], must_not_include[], max_tokens}]
+// appended after the fixed 20 (community submissions / red-team findings).
+import { readFileSync } from 'node:fs';
+
+let OVERRIDES = [];
+try { OVERRIDES = JSON.parse(readFileSync(new URL('../.aide/battery-overrides.json', import.meta.url), 'utf8')); } catch { /* no overrides */ }
+
 const args = process.argv.slice(2);
 const modelId = (args[args.indexOf('--model') + 1] || 'smollm2-360m-q8');
 const baseUrl = (args.indexOf('--url') >= 0 ? args[args.indexOf('--url') + 1] : 'http://127.0.0.1:4777');
@@ -29,6 +37,12 @@ const TASKS = [
 while (TASKS.length < 20) {
   const src = TASKS[TASKS.length - 10];
   TASKS.push({ ...src, id: `${src.id}-R${TASKS.length}` });
+}
+// Rotating contributions append AFTER the fixed 20 — never displace them.
+for (const o of OVERRIDES) {
+  if (o && o.id && o.prompt && Array.isArray(o.must_include)) {
+    TASKS.push({ id: o.id, prompt: o.prompt, must_include: o.must_include, must_not_include: o.must_not_include || [], max_tokens: Number(o.max_tokens) || 60 });
+  }
 }
 
 async function runTask(task, harness) {

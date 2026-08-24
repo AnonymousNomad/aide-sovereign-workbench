@@ -527,6 +527,20 @@ async function refreshRail() {
     b.textContent = n === 0 ? 'CLEAN' : `${n} ISSUE${n === 1 ? '' : 'S'}`;
     b.className = 'badge' + (n === 0 ? ' on' : ' warn');
   } catch { /* leave placeholder */ }
+  try {
+    const p = await jget(`${API}/api/providers`);
+    const configured = (p.providers || []).filter(x => x.configured).length;
+    let block = $('#cloud-chip');
+    if (!block) {
+      block = document.createElement('div');
+      block.className = 'rail-block';
+      block.innerHTML = '<span class="k">CLOUD</span><span id="cloud-state" class="badge off">—</span>';
+      $('.rail').appendChild(block);
+    }
+    const chip = $('#cloud-state');
+    if (configured > 0) { chip.textContent = 'AVAILABLE'; chip.className = 'badge'; chip.title = 'Opt-in cloud providers are configured. Handoff stays manual until the continuity slice lands.'; }
+    else { chip.textContent = 'NOT CONFIGURED'; chip.className = 'badge off'; }
+  } catch { /* providers optional */ }
 }
 
 // ---------- Workbench editor (Monaco, offline bundle) ----------

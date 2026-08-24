@@ -134,3 +134,15 @@ export function buildScaffold({ contextTokens = 4096, taskFamily = 'coding' } = 
   const composed = composeScaffold({ effectiveContextTokens: contextTokens, taskFamily });
   return { system: composed.system, tier: composed.tier, bytes: composed.bytes, version: HARNESS_VERSION };
 }
+
+// Drift hook: compact PART-A-only reminder for long transcripts. Trigger
+// threshold is decided by the caller (50% of served context is the default
+// policy); this returns the deterministic reminder text.
+export function composeDriftReminder() {
+  const { sections } = credocore();
+  return `[AIDE harness drift-check]\n${sections['PART A']}`;
+}
+
+export function estimateTokens(messages) {
+  return (messages || []).reduce((sum, m) => sum + Math.ceil(String(m?.content || '').length / 4), 0);
+}

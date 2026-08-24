@@ -23,7 +23,7 @@ import { ArtifactStore } from '../artifacts/store.mjs';
 import { ProviderManager } from '../providers/manager.mjs';
 import { WorkflowManager } from './workflow.mjs';
 import { HandoffManager } from './handoff.mjs';
-import { buildScaffold, injectScaffold, HARNESS_VERSION } from '../harness/scaffold.mjs';
+import { buildScaffold, injectScaffold, composeDriftReminder, estimateTokens, HARNESS_VERSION } from '../harness/scaffold.mjs';
 
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -431,11 +431,22 @@ const server = http.createServer(async (request, response) => {
       void modelManager.refreshServedContext(input.modelId).catch(() => {});
       const effective = modelManager.getEffectiveContext(input.modelId);
       const wantHarness = input.harness !== false;
+      const t0 = performance.now();
       if (wantHarness && effective >= 1024) {
         const scaffold = buildScaffold({ contextTokens: effective });
-        const messages = injectScaffold(input.messages || [], scaffold);
+        let messages = injectScaffold(input.messages || [], scaffold);
+        // Drift hook (collaborator input 2026-08-25): re-inject PART A when the
+        // transcript passes half the served window — small models drift before
+        // they run out of context.
+        const approxTokens = estimateTokens(messages);
+        let drift = false;
+        if (approxTokens > effective * 0.5) {
+          messages = [...messages.slice(0, -1), { role: 'system', content: composeDriftReminder() }, ...messages.slice(-1)];
+          drift = true;
+        }
+        const composeMs = Math.round((performance.now() - t0) * 100) / 100;
         const result = await modelManager.chat(input.modelId, messages, input);
-        return json(response, 200, { ...result, harness: { injected: true, tier: scaffold.tier, bytes: scaffold.bytes, version: HARNESS_VERSION, served_context_tokens: effective } });
+        return json(response, 200, { ...result, harness: { injected: true, tier: scaffold.tier, bytes: scaffold.bytes, version: HARNESS_VERSION, served_context_tokens: effective, drift_reinjected: drift, approx_prompt_tokens: approxTokens, compose_ms: composeMs } });
       }
       // Harness explicitly disabled (battery A/B) or served window too small
       // for the scaffold (tiny GGUFs clamp to train ctx): bare passthrough.

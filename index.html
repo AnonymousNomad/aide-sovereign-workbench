@@ -69,7 +69,16 @@
             </div>
             <div id="ship-result" class="muted small"></div>
           </div>
-          <div id="diff-view" class="diff-view" hidden></div>
+          <div id="rename-card" class="ship-panel" hidden>
+      <div class="ship-head eyebrow">RENAME SYMBOL</div>
+      <div class="hub-row"><input id="rename-input" autocomplete="off" spellcheck="false"><button id="rename-go" class="secondary-btn">PREVIEW</button></div>
+      <div id="rename-preview" class="muted small"></div>
+      <div class="approval-bar" id="rename-actions" hidden>
+        <button id="rename-approve" class="approve">APPLY RENAME</button>
+        <button id="rename-cancel">CANCEL</button>
+      </div>
+    </div>
+    <div id="diff-view" class="diff-view" hidden></div>
         </div>
       </div>
     </div>

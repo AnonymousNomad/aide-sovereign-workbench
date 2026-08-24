@@ -1302,4 +1302,125 @@ function previewActiveMarkdown() {
   box.innerHTML = `<div class="eyebrow">MARKDOWN PREVIEW (safe subset)</div><div class="md-preview">${html}</div>`;
 }
 
+// ---------- R1: Rename Symbol (F2) with previewed multi-file apply ----------
+const renameState = { edits: null };
+
+function uriToRel(uri) {
+  let decoded = decodeURIComponent(uri);
+  const marker = '/aide-sovereign-workbench/';
+  const idx = decoded.indexOf(marker);
+  if (idx === -1) return null;
+  return decoded.slice(idx + marker.length);
+}
+
+function applyTextEditsToContent(content, edits) {
+  const toOffset = (line, ch) => {
+    const lines = content.split('\n');
+    let offset = 0;
+    for (let i = 0; i < Math.min(line, lines.length); i++) offset += lines[i].length + 1;
+    return offset + ch;
+  };
+  const sorted = [...edits].sort((a, b) =>
+    (b.range.start.line - a.range.start.line) || (b.range.start.character - a.range.start.character));
+  for (const edit of sorted) {
+    const start = toOffset(edit.range.start.line, edit.range.start.character);
+    const end = toOffset(edit.range.end.line, edit.range.end.character);
+    content = content.slice(0, start) + edit.newText + content.slice(end);
+  }
+  return content;
+}
+
+function startRenameFlow() {
+  if (!editorState.instance || !editorState.path || !LSP_LANGS.has(editorState.path.split('.').pop().toLowerCase())) {
+    return threadMsg('system', 'Rename works on open .ts/.js files.');
+  }
+  const model = editorState.instance.getModel();
+  const position = editorState.instance.getPosition();
+  const word = model.getWordAtPosition(position);
+  if (!word) return threadMsg('system', 'Place the cursor on a symbol first.');
+  $('#rename-card').hidden = false;
+  $('#rename-preview').textContent = '';
+  $('#rename-actions').hidden = true;
+  $('#rename-input').value = word.word;
+  $('#rename-input').focus();
+  $('#rename-input').select();
+}
+
+$('#rename-go').addEventListener('click', runRenamePreview);
+$('#rename-input').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runRenamePreview(); } });
+
+async function runRenamePreview() {
+  const newName = $('#rename-input').value.trim();
+  if (!newName || !editorState.path) return;
+  const position = editorState.instance.getPosition();
+  $('#rename-preview').textContent = 'Computing workspace edits…';
+  try {
+    const result = await lspRequest('textDocument/rename', {
+      textDocument: { uri: LSP_URI(editorState.path) },
+      position: lspPosition(editorState.instance.getModel(), position),
+      newName
+    });
+    if (!result || !result.changes) { $('#rename-preview').textContent = 'Cannot rename this symbol here.'; return; }
+    const grouped = Object.entries(result.changes).map(([uri, edits]) => ({ rel: uriToRel(uri), uri, edits }))
+      .filter(g => g.rel !== null && g.edits.length);
+    if (!grouped.length) { $('#rename-preview').textContent = 'Nothing to change.'; return; }
+    renameState.edits = grouped;
+    $('#rename-preview').innerHTML = grouped.map(g =>
+      `<div class="hub-item"><b>${esc(g.rel)}</b><span class="engine-meta">${g.edits.length} edit(s)</span></div>`).join('') +
+      `<div class="muted small">Review above — APPLY rewrites these files on disk. Git diff stays available for review.</div>`;
+    $('#rename-actions').hidden = false;
+  } catch (e) {
+    $('#rename-preview').textContent = `Rename failed: ${e.message}`;
+  }
+}
+
+$('#rename-approve').addEventListener('click', async () => {
+  if (!renameState.edits) return;
+  $('#rename-approve').disabled = true;
+  setStrip('Applying approved rename…');
+  const failures = [];
+  for (const group of renameState.edits) {
+    try {
+      let content;
+      if (editorState.path === group.rel && editorState.instance) content = editorState.instance.getValue();
+      else content = (await jget(`${API}/api/file?path=${encodeURIComponent(group.rel)}`)).content ?? '';
+      const updated = applyTextEditsToContent(content, group.edits);
+      const w = await fetch(`${API}/api/file/write`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: group.rel, content: updated, approved: true })
+      });
+      if (!w.ok) { const wj = await w.json().catch(() => ({})); throw new Error(`${group.rel}: ${wj.error || w.status}`); }
+      if (editorState.path === group.rel && editorState.model) {
+        const pos = editorState.instance.getPosition();
+        editorState.model.setValue(updated);
+        editorState.instance.setPosition(pos);
+        lspMaybeOpen(group.rel, updated);
+      }
+    } catch (e) {
+      failures.push(e.message);
+      break;
+    }
+  }
+  $('#rename-approve').disabled = false;
+  $('#rename-card').hidden = true;
+  if (failures.length) {
+    threadMsg('error', `Rename PARTIALLY applied — stopped at: ${failures[0]}`);
+    setStrip('Rename incomplete — check git diff for current state.');
+  } else {
+    threadMsg('engine', `Renamed across ${renameState.edits.length} file(s). Git diff is available for review.`);
+    setStrip('Rename applied. Review the diff, then SHIP when satisfied.');
+    loadTree();
+    refreshRail();
+  }
+  renameState.edits = null;
+});
+$('#rename-cancel').addEventListener('click', () => { $('#rename-card').hidden = true; renameState.edits = null; });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'F2' && editorState.instance && editorState.instance.hasTextFocus()) {
+    e.preventDefault();
+    startRenameFlow();
+  }
+});
+
 loadModels();

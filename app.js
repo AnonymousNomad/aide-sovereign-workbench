@@ -546,6 +546,12 @@ function openInEditor(path, content) {
           $('#save-file').disabled = false;
           $('#open-file-name').textContent = `${editorState.path} *`;
         }
+        clearTimeout(lspChangeDebounce);
+        lspChangeDebounce = setTimeout(() => {
+          const version = (lspState.versions.get(editorState.path) || 0) + 1;
+          lspState.versions.set(editorState.path, version);
+          lspNotify('textDocument/didChange', { textDocument: { uri: LSP_URI(editorState.path), version }, contentChanges: [{ text: editorState.instance.getValue() }] });
+        }, 400);
       });
     }
     if (editorState.model) editorState.model.dispose();
@@ -557,8 +563,11 @@ function openInEditor(path, content) {
     editorState.dirty = false;
     $('#save-file').disabled = true;
     $('#open-file-name').textContent = path;
+    lspMaybeOpen(path, content);
   });
 }
+
+let lspChangeDebounce = null;
 
 async function saveCurrentFile() {
   if (!editorState.path || !editorState.instance || !editorState.dirty) return;
@@ -607,7 +616,160 @@ async function loadTree() {
   } catch { $('#file-tree').innerHTML = '<span class="muted small">tree unavailable</span>'; }
 }
 
-// ---------- SHIP: stage review -> conventional commit ----------
+// ---------- E2: LSP -> Monaco bridge ----------
+const lspState = { started: false, versions: new Map(), opened: new Set(), pollTimer: null };
+const LSP_URI = path => `file:///workspace/${path}`;
+const LSP_LANGS = new Set(['javascript', 'typescript']);
+
+function lspPosition(model, position) {
+  return { line: position.lineNumber - 1, character: position.column - 1 };
+}
+
+async function ensureLsp() {
+  if (lspState.started) return true;
+  try {
+    const r = await fetch(`${API}/api/lsp/start`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'typescript' })
+    });
+    lspState.started = r.ok;
+    return lspState.started;
+  } catch { return false; }
+}
+
+async function lspNotify(method, params) {
+  if (!lspState.started) return;
+  try {
+    await fetch(`${API}/api/lsp/notify`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'typescript', message: { method, params } })
+    });
+  } catch { /* best-effort notifications */ }
+}
+
+async function lspRequest(method, params, attempt = 0) {
+  if (!await ensureLsp()) return null;
+  try {
+    const r = await fetch(`${API}/api/lsp/request`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'typescript', message: { method, params } })
+    });
+    const j = await r.json();
+    // Open-in-flight race: one retry after 800ms (protocols skill note).
+    if (!j.result && attempt === 0 && /not open/i.test(JSON.stringify(j))) {
+      await new Promise(res => setTimeout(res, 800));
+      return lspRequest(method, params, 1);
+    }
+    return j.result ?? null;
+  } catch { return null; }
+}
+
+function lspMaybeOpen(path, content) {
+  const lang = path.split('.').pop().toLowerCase();
+  if (!LSP_LANGS.has(lang)) return;
+  ensureLsp().then(ok => {
+    if (!ok) return;
+    const uri = LSP_URI(path);
+    const version = (lspState.versions.get(path) || 0) + 1;
+    lspState.versions.set(path, version);
+    if (!lspState.opened.has(uri)) {
+      lspState.opened.add(uri);
+      lspNotify('textDocument/didOpen', { textDocument: { uri, languageId: 'typescript', version, text: content } });
+    } else {
+      lspNotify('textDocument/didChange', { textDocument: { uri, version }, contentChanges: [{ text }] });
+    }
+  });
+}
+
+let lspChangeTimer = null;
+
+function wireEditorLsp() {
+  loadMonaco(() => {
+    for (const lang of ['javascript', 'typescript']) {
+      monaco.languages.registerHoverProvider(lang, {
+        provideHover: async (model, position) => {
+          const result = await lspRequest('textDocument/hover', {
+            textDocument: { uri: LSP_URI(editorState.path || '') },
+            position: lspPosition(model, position)
+          });
+          if (!result?.contents) return null;
+          const value = Array.isArray(result.contents)
+            ? result.contents.map(c => typeof c === 'string' ? c : c.value).join('\n\n')
+            : (result.contents.value || '');
+          if (!value.trim()) return null;
+          return { contents: [{ value: esc(value) }] };
+        }
+      });
+      monaco.languages.registerDefinitionProvider(lang, {
+        provideDefinition: async (model, position) => {
+          const result = await lspRequest('textDocument/definition', {
+            textDocument: { uri: LSP_URI(editorState.path || '') },
+            position: lspPosition(model, position)
+          });
+          if (!result) return null;
+          const defs = Array.isArray(result) ? result : [result];
+          for (const def of defs) {
+            const targetPath = decodeURIComponent((def.uri || '').replace('file:///workspace/', ''));
+            if (targetPath && targetPath !== editorState.path) {
+              try {
+                const f = await jget(`${API}/api/file?path=${encodeURIComponent(targetPath)}`);
+                openInEditor(f.path ?? targetPath, f.content ?? '');
+                editorState.instance.revealLineInCenter(def.range.start.line + 1);
+                return null;
+              } catch { /* fall through to location rendering */ }
+            }
+            return {
+              range: new monaco.Range(def.range.start.line + 1, def.range.start.character + 1, def.range.end.line + 1, def.range.end.character + 1),
+              uri: monaco.Uri.parse(def.uri)
+            };
+          }
+          return null;
+        }
+      });
+      monaco.languages.registerCompletionItemProvider(lang, {
+        triggerCharacters: ['.', '"', "'"],
+        provideCompletionItems: async (model, position) => {
+          const result = await lspRequest('textDocument/completion', {
+            textDocument: { uri: LSP_URI(editorState.path || '') },
+            position: lspPosition(model, position)
+          });
+          const items = Array.isArray(result) ? result : result?.items || [];
+          const word = model.getWordUntilPosition(position);
+          const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+          return {
+            suggestions: items.slice(0, 60).map(item => ({
+              label: item.label,
+              kind: monaco.languages.CompletionItemKind.Field,
+              insertText: item.insertText || item.label,
+              range
+            }))
+          };
+        }
+      });
+    }
+
+    lspState.pollTimer = setInterval(async () => {
+      if (!editorState.path) return;
+      try {
+        const d = await jget(`${API}/api/diagnostics`);
+        const model = editorState.model;
+        if (!model) return;
+        const mine = (d.diagnostics || []).filter(x => (x.uri || '').endsWith(editorState.path));
+        const SEV = { 1: monaco.MarkerSeverity.Error, 2: monaco.MarkerSeverity.Warning, 3: monaco.MarkerSeverity.Info, 4: monaco.MarkerSeverity.Hint };
+        monaco.editor.setModelMarkers(model, 'aide.lsp', mine.map(x => ({
+          message: x.message,
+          severity: SEV[x.severity] || monaco.MarkerSeverity.Info,
+          startLineNumber: (x.range?.start?.line ?? 0) + 1,
+          startColumn: (x.range?.start?.character ?? 0) + 1,
+          endLineNumber: (x.range?.end?.line ?? 0) + 1,
+          endColumn: (x.range?.end?.character ?? 1) + 1
+        })));
+      } catch { /* diagnostics best-effort */ }
+    }, 5000);
+  });
+}
+
+wireEditorLsp();
 let lastIntent = '';
 
 $('#ship-button').addEventListener('click', openShipPanel);

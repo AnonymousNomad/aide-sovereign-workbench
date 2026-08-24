@@ -221,6 +221,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       const code = error?.code ? `[${error.code}] ` : '';
       const message = `${code}${error instanceof Error ? error.message : String(error)}`;
       session.transcript.push({ role: 'user', content: dataWrap(call.name, false, message) });
+      session.toolLog.push({ tool: call.name, ok: false, output: message.slice(0, 300) });
       emit({ event: 'tool_result', session_id: session.id, tool: call.name, ok: false, output: message.slice(0, 2000) });
       session.mistakeCount += 1;
       if (session.mistakeCount >= maxMistakes) {
@@ -244,6 +245,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
 
     session.mistakeCount = 0;
     session.transcript.push({ role: 'user', content: dataWrap(call.name, true, result.output) });
+    session.toolLog.push({ tool: call.name, ok: true, output: String(result.output).slice(0, 500) });
     emit({ event: 'tool_result', session_id: session.id, tool: call.name, ok: true, output: result.output.slice(0, 2000) });
     return 'continue';
   }
@@ -309,15 +311,43 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
     return out;
   }
 
+  // Trajectory persistence (mini-swe-agent .traj.json compatible): full
+  // transcript + tool log + outcome, written at every terminal state. This is
+  // the raw material for the fine-tune flywheel (Loop C).
+  const trajectoryDir = () => path.join(rootAbs, '.aide', 'trajectories');
+
+  function persistTrajectory(session, outcome) {
+    const record = {
+      trajectory_format: 'aide-1',
+      session_id: session.id,
+      task: session.task,
+      mode: session.mode,
+      outcome,
+      iterations: session.iterations,
+      mistake_count: session.mistakeCount,
+      error: session.error,
+      started_at: session.startedAt,
+      ended_at: new Date().toISOString(),
+      transcript: session.transcript,
+      tool_log: session.toolLog
+    };
+    const target = path.join(trajectoryDir(), `${session.id}.traj.json`);
+    fs.mkdir(path.dirname(target), { recursive: true })
+      .then(() => fs.writeFile(target, JSON.stringify(record, null, 2)))
+      .catch(() => {});
+  }
+
   function finishDone(session, summary) {
     session.state = 'done';
     session.error = null;
+    persistTrajectory(session, 'done');
     emit({ event: 'done', session_id: session.id, summary: summary.slice(0, 4000) });
   }
 
   function finishError(session, message) {
     session.state = 'error';
     session.error = message.slice(0, 1000);
+    persistTrajectory(session, 'error', session.error);
     emit({ event: 'error', session_id: session.id, error: session.error });
   }
 
@@ -347,6 +377,8 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         pendingApproval: null,
         deferred: null,
         checkpointHash: null,
+        startedAt: new Date().toISOString(),
+        toolLog: [],
         chatFn: typeof chatFnOverride === 'function' ? chatFnOverride : null,
         transcript: []
       };

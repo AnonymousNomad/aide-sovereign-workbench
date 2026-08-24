@@ -8,19 +8,23 @@ const [index, app, styles, manager] = await Promise.all([
   readFile('daemon/model-manager.mjs', 'utf8')
 ]);
 
+// Cockpit wiring contract (post-redesign): states-not-modes, single describe
+// surface, terminal drawer, ship panel.
 assert.match(index, /<link rel="stylesheet" href="styles\.css">/);
 assert.match(index, /<script src="app\.js"><\/script>/);
-assert.match(app, /document\.body\.classList\.add\(`workbench-view-\$\{view\}`\)/);
-assert.match(app, /function setWorkbenchView\(view\)/);
-assert.match(app, /setWorkbenchView\('editor'\)/);
-assert.match(app, /setWorkbenchView\('run'\)/);
-assert.match(app, /setWorkbenchView\('learn'\)/);
-assert.match(app, /setWorkbenchView\('map'\)/);
-assert.match(app, /console\.log\(`VIEW: \$\{String\(view\)\.toUpperCase\(\)\}`\)/);
-assert.match(styles, /#learn-view:not\(\[hidden\]\)[\s\S]*position:absolute[\s\S]*overflow-y:auto/);
-assert.match(styles, /VIEW SWITCH CONTRACT/);
-assert.match(styles, /body\.simple-mode\.workbench-view-run \.editor-column>\.bottom-panel[\s\S]*height:min\(42vh,320px\)!important/);
-assert.match(styles, /html,[\s\S]*body\.simple-mode\s*\{[\s\S]*overflow:hidden!important/);
+assert.match(index, /class="state-cold"/);
+assert.match(index, /id="cold-card"/);
+assert.match(index, /id="editor-slot" hidden/);
+assert.match(index, /id="terminal-drawer"/);
+assert.match(index, /id="ship-panel"[^>]*hidden/);
+assert.match(app, /document\.body\.classList\.replace\('state-cold', 'state-ready'\)/);
+assert.match(app, /const setStrip = /);
+assert.match(app, /async function startEngine\(\)/);
+assert.match(app, /\$\('#stop-engine'\)\.addEventListener/);
+assert.match(styles, /\.state-cold|body\.state-ready/);
+assert.match(styles, /VIEW SWITCH CONTRACT|cockpit/i);
+
+// Engine runtime contract (legacy manager retains python fallback path).
 assert.doesNotMatch(manager, /spawnSync/);
 assert.match(manager, /this\.pythonProbe/);
 assert.match(manager, /runtimeProbePending/);

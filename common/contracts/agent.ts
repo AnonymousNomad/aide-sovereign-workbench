@@ -54,6 +54,20 @@ export const AgentSessionsListResponse = z.object({
   sessions: z.array(AgentStatusResponse)
 }).strict();
 
+export const AgentToolInvokeRequest = z.object({
+  name: z.string().min(1).max(64),
+  arguments: z.record(z.string(), z.string()).optional(),
+  sandbox: z.string().regex(/^[a-z0-9_-]{1,32}$/).optional(),
+  approved: z.boolean().optional()
+}).strict();
+
+export const AgentToolObservation = z.object({
+  ok: z.boolean(),
+  output: z.string().max(20000),
+  terminal: z.boolean().optional(),
+  sandbox: z.string().nullable().optional()
+}).strict();
+
 export const AgentMessageEvent = z.object({
   event: z.literal('message'),
   session_id: z.string().min(1),

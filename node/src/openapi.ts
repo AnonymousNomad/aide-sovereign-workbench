@@ -46,6 +46,7 @@ import { createHubService } from '../../node/src/services/modelhub.mjs';
 import { routesForModelHub } from './routes/modelhub.ts';
 import { routesForOrch } from './routes/orch.ts';
 import { createOrchService } from './services/orch-context.mjs';
+import { createAgentTools } from './services/agent-tools.mjs';
 import { createCheckpointService } from '../../node/src/services/agent-checkpoints.mjs';
 import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
 import { routesForAgent } from './routes/agent.ts';
@@ -350,10 +351,31 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForGit(workspace),
     ...buildNotificationWiredRoutes(workspace, options),
     ...routesForProblems(workspace),
+    ...routesForOrch(createOrchService({ workspace: workspace, runtime: modelRuntime })),
     ...routesForAgent(agentLoop, {
       resolveProviderChatFn: role => {
         if (!byokService.getConsent()) throw Object.assign(new Error('BYOK egress consent is disabled'), { code: 'FORBIDDEN' });
         return byokService.resolveChatFn(role);
+      },
+      dispatchTool: async (name: string, args: Record<string, string>, opts: { sandbox?: string }) => {
+        const ALIASES: Record<string, string> = { str_replace_editor: 'replace_in_file', execute_bash: 'run_command', think: '__think' };
+        const resolved = ALIASES[name] || name;
+        const MUTATING = new Set(['write_file', 'replace_in_file', 'run_command']);
+        if (MUTATING.has(resolved) && !args.approved && !opts.sandbox) {
+          throw Object.assign(new Error(`tool ${resolved} is mutating and requires approved: true`), { code: 'VALIDATION' });
+        }
+        let rootForTools = workspace;
+        if (opts.sandbox) {
+          const sandboxPath = path.join(workspace, '.aide', 'sandboxes', opts.sandbox);
+          await fs.mkdir(sandboxPath, { recursive: true });
+          rootForTools = sandboxPath;
+        }
+        const toolSet = createAgentTools({ workspace: rootForTools, rg: rgService });
+        const toolMap = new Map(toolSet.tools.map((t: { name: string }) => [t.name, t]));
+        const tool = toolMap.get(resolved);
+        if (!tool) throw Object.assign(new Error(`unknown tool ${name}`), { code: 'VALIDATION' });
+        const result = await tool.execute(args);
+        return { ok: result.ok !== false, output: String(result.output || ''), terminal: result.terminal === true };
       }
     }),
     ...routesForIndex(indexService),
@@ -403,8 +425,7 @@ function buildNotificationWiredRoutes(workspace: string, options: BuildRoutesOpt
         notifications.ingestTaskEvent(body as Parameters<NotificationService['ingestTaskEvent']>[0]);
       }
     }),
-    ...routesForModelHub(hub),
-    ...routesForOrch(createOrchService({ workspace, runtime }))
+    ...routesForModelHub(hub)
   ];
 }
 

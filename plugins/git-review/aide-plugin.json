@@ -1,0 +1,18 @@
+{
+  "id": "git-review",
+  "name": "Git Review",
+  "description": "Review changed files and staged diffs before commit.",
+  "capabilities": [
+    "workspace.read",
+    "ui.view"
+  ],
+  "version": "0.1.0",
+  "api_version": "1",
+  "activation_events": [],
+  "contributes": {
+    "commands": [],
+    "views": []
+  },
+  "status": "template",
+  "entry": null
+}

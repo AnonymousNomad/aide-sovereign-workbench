@@ -6,9 +6,14 @@ import {
   AgentDecisionResponse,
   AgentStatusQuery,
   AgentStatusResponse,
-  AgentSessionsListResponse
+  AgentSessionsListResponse,
+  AgentToolInvokeRequest,
+  AgentToolObservation
 } from '../../../common/contracts/agent.ts';
 import { RouterError } from '../services/model-router.ts';
+import { createAgentTools } from '../services/agent-tools.mjs';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 type AgentLoopService = {
   start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null): { session_id: string };
@@ -38,7 +43,7 @@ function wrap(handler: (ctx: RouteContext) => Promise<unknown> | unknown): (ctx:
   };
 }
 
-export function routesForAgent(service: AgentLoopService, options: { resolveProviderChatFn?: (role: 'plan' | 'act') => ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null } = {}): Route[] {
+export function routesForAgent(service: AgentLoopService, options: { resolveProviderChatFn?: (role: 'plan' | 'act') => ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, dispatchTool?: (name: string, args: Record<string, string>, opts: { sandbox?: string }) => Promise<{ ok: boolean; output: string; terminal?: boolean }> } = {}): Route[] {
   return [
     { method: 'POST', path: '/api/agent/start', body: AgentStartRequest, response: AgentStartResponse, handler: wrap(async ({ body }) => {
       const request = body as { task: string; mode?: 'plan' | 'act'; chat_source?: 'local' | 'provider' };
@@ -68,6 +73,11 @@ export function routesForAgent(service: AgentLoopService, options: { resolveProv
     }) },
     { method: 'GET', path: '/api/agent/status', query: AgentStatusQuery, response: AgentStatusResponse, handler: wrap(async ({ query }: RouteContext) => {
       return service.status((query as { id: string }).id);
+    }) },
+    { method: 'POST', path: '/api/agent/tool', body: AgentToolInvokeRequest, response: AgentToolObservation, handler: wrap(async ({ body }) => {
+      if (!options.dispatchTool) throw new RouteError('NOT_READY', 'tool dispatch is not wired on this instance');
+      const request = body as { name: string; arguments?: Record<string, string>; sandbox?: string; approved?: boolean };
+      return options.dispatchTool(request.name, request.arguments ?? {}, request.sandbox);
     }) }
   ];
 }

@@ -924,3 +924,18 @@ pm run build:frontend && node scripts/egress-audit.mjs into the aggregate 	est c
 - Test-harness lessons logged: tool-timeout reaper kills Start-Process -NoNewWindow children across calls -> use cmd-wrapper Hidden detach for long-lived stacks; node --test runner reveals failures direct-run masks.
 **Files:** scripts/start.mjs, scripts/facade.mjs, scripts/build-facade-map.mjs, common/facade-route-map.json, tests/unit/test-facade.mjs
 **Next:** commit C2; then C3 git-domain parity (GET /api/git/diff legacy-only trap - per-exact flips only); queued: live UI click-through evidence, live BYOK smoke.
+
+- [T2] [2026-08-24 19:30] Actor: opencode-model-tuner
+  Type: training-status + skill-created
+  Status: in-progress
+  Summary: Trio full fine-tune runs launched (frontier/thinking/research). AIDE integration skill created.
+  Details: Three models being fine-tuned for AIDE deployment: (1) FRONTIER mini-coder-4b QLoRA r32 seq1024 on 1124 AIDE-workflow rows (currently epoch ~2/3, loss 0.065 stable); (2) THINKING-CODER MiniMax-M2.1-Coder QLoRA r32 on 1059 rows (queued); (3) RESEARCH/TOOLS LFM2.5-1.2B LoRA r16 on 1200 native-tool-call rows (queued). Corpus taxonomy grounded in REAL workbench surfaces: daemon modules (server.mjs, model-manager.mjs, lsp-manager.mjs, intent-router.mjs etc), npm scripts, error envelope patterns, agent loop endpoints. NEW SKILL: aide-cross-terminal-sync (territory boundaries, journal protocol, heavy-job coordination, git sync rules, training-to-deployment pipeline). NEW SKILL: aide-trio-integration (closed-loop sandbox architecture, port assignments 8081-8083, harness scaffold sizing, registration via W4 hub pipeline).
+  Files: E:\FSI-FELON\models\aide_trio\{generate_p1_corpus.py, pilot_qlora.py, validate_p1_rows.py, launch_full_runs.cmd}
+  Training logs: E:\FSI-FELON\models\aide_trio\logs_full_{frontier,thinking,research}.txt
+  Next: full runs complete overnight → adapters merged → GGUFs served on Vulkan ports 8081-8083 → battery diff vs base → registered in AIDE hub → P3 trajectory collection flywheel begins.
+
+## [T2] [2026-08-24 19:35] Actor: opencode-model-tuner
+**Type:** research-synthesis
+**Status:** verified
+**Summary:** Agentic-workflow FT research synthesized from 6 primary sources (2026). Trio program aligned to proven recipes.
+**Details:** SOURCES: Socratic-SWE 2606.07412 (closed-loop self-evolution: solving traces → skill registry → targeted task generation; 50.4% SWE-bench after 3 iterations), SWE-Lego 2601.01426 (SFT-only SOTA: step-level error masking + difficulty curriculum w/ cumulative replay + verifier TTS; 42.2% @8B), SWE-Protégé 2602.22124 (SLM+expert collab; ~5K trajectories sufficient; LoRA<full-SFT caveat noted), SWE-ZERO→HERO 2604.01496 (execution-free semantic corpus FIRST then execution-grounded refinement; skipping stage-1 costs -6.5%), AHE 2604.25850 (harness self-evolution loop: component/experience/decision observability). ALL FIVE converge on the operator's exact vision: models operate IDE in sandbox, execution feedback drives improvement, closed loop = flywheel. TRIO PROGRAM ALIGNED: Stage-1 execution-free traces (current P1 corpora) → Stage-2 execution-grounded (verify_harness-gated) → RLVR with unit-test rewards → harness co-evolution per AHE pattern.

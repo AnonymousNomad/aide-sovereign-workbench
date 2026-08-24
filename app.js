@@ -618,6 +618,9 @@ async function saveCurrentFile() {
   if (!editorState.path || !editorState.instance || !editorState.dirty) return;
   setStrip(`Saving ${editorState.path}…`);
   try {
+    if (formatOnSave && FORMAT_LANGS.has(editorState.path.split('.').pop().toLowerCase())) {
+      await formatActiveDocument();
+    }
     const r = await fetch(`${API}/api/file/write`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: editorState.path, content: editorState.instance.getValue(), approved: true })
@@ -1231,6 +1234,20 @@ $('#delegation-toggle').addEventListener('click', () => {
   setStrip(`Delegation: ${delegationMode.toUpperCase()} — ${delegationMode === 'strict' ? 'every tool call asks you first.' : 'read-only tools run without asking; writes always ask.'}`);
 });
 
+const fmtRow = document.createElement('div');
+fmtRow.className = 'rail-block';
+fmtRow.style.cursor = 'pointer';
+fmtRow.innerHTML = `<span class="k">FORMAT ON SAVE</span><span class="badge ${formatOnSave ? 'on' : 'off'}" id="fos-badge">${formatOnSave ? 'ON' : 'OFF'}</span>`;
+fmtRow.title = 'Format TS/JS/JSON/CSS/HTML when saving';
+fmtRow.onclick = () => {
+  formatOnSave = !formatOnSave;
+  localStorage.setItem('aide.format_on_save', formatOnSave ? '1' : '0');
+  const b = $('#fos-badge');
+  b.textContent = formatOnSave ? 'ON' : 'OFF';
+  b.className = 'badge ' + (formatOnSave ? 'on' : 'off');
+};
+$('.rail').appendChild(fmtRow);
+
 // ---------- Plugins surface v1 (declarative capability plugins) ----------
 const PLUGIN_CONTRIBUTIONS = {
   'git-review': { label: 'Open GIT review', run: () => { if (!$('#editor-slot').hidden) openGitSheet(); else threadMsg('system', 'Start an engine first — git review lives in the workbench.'); } },
@@ -1422,5 +1439,76 @@ document.addEventListener('keydown', e => {
     startRenameFlow();
   }
 });
+
+// ---------- R2: Find All References + Format document/on-save ----------
+function groupReferences(locations) {
+  const byFile = new Map();
+  for (const loc of locations || []) {
+    const rel = uriToRel(loc.uri);
+    if (rel === null) continue;
+    if (!byFile.has(rel)) byFile.set(rel, []);
+    byFile.get(rel).push({ line: loc.range.start.line + 1, character: loc.range.start.character + 1 });
+  }
+  return byFile;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'F12' && e.shiftKey && editorState.instance && editorState.instance.hasTextFocus()) {
+    e.preventDefault();
+    const model = editorState.instance.getModel();
+    const position = editorState.instance.getPosition();
+    threadMsg('system', `Finding references for "${model.getWordAtPosition(position)?.word || 'symbol'}"…`);
+    lspRequest('textDocument/references', {
+      textDocument: { uri: LSP_URI(editorState.path || '') },
+      position: lspPosition(model, position),
+      context: { includeDeclaration: true }
+    }).then(result => {
+      if (!result || !result.length) return threadMsg('system', 'No references found.');
+      const grouped = groupReferences(result);
+      $('#search-overlay').hidden = false;
+      $('#gs-results').innerHTML = [...grouped.entries()].map(([path, hits]) =>
+        `<div class="gs-file"><b>${esc(path)}</b>${hits.slice(0, 10).map(h =>
+          `<div class="gs-hit" data-path="${esc(path)}" data-line="${h.line}"><span class="engine-meta">L${h.line}</span> reference</div>`).join('')}</div>`
+      ).join('');
+      $('#gs-results').querySelectorAll('.gs-hit').forEach(hit => hit.onclick = async () => {
+        const f = await jget(`${API}/api/file?path=${encodeURIComponent(hit.dataset.path)}`);
+        openInEditor(f.path ?? hit.dataset.path, f.content ?? '');
+        editorState.instance?.revealLineInCenter(Number(hit.dataset.line));
+      });
+      setStrip(`References: ${result.length} location(s) across ${grouped.size} file(s).`);
+    });
+  }
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i' && editorState.instance && editorState.instance.hasTextFocus()) {
+    e.preventDefault();
+    formatActiveDocument();
+  }
+});
+
+const FORMAT_LANGS = new Set(['javascript', 'typescript', 'json', 'css', 'html']);
+let formatOnSave = localStorage.getItem('aide.format_on_save') === '1';
+
+async function formatActiveDocument() {
+  if (!editorState.instance || !editorState.path) return false;
+  const ext = editorState.path.split('.').pop().toLowerCase();
+  const model = editorState.instance.getModel();
+  if (['json', 'css', 'html'].includes(ext)) {
+    await editorState.instance.getAction('editor.action.formatDocument').run();
+    return true;
+  }
+  if (LSP_LANGS.has(ext)) {
+    const edits = await lspRequest('textDocument/formatting', {
+      textDocument: { uri: LSP_URI(editorState.path) },
+      options: { tabSize: 2, insertSpaces: true }
+    });
+    if (edits && edits.length) {
+      const updated = applyTextEditsToContent(model.getValue(), edits);
+      const pos = editorState.instance.getPosition();
+      model.setValue(updated);
+      editorState.instance.setPosition(pos);
+    }
+    return true;
+  }
+  return false;
+}
 
 loadModels();

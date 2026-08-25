@@ -18,8 +18,23 @@ Everything runs on your machine by default. Online providers are strictly opt-in
 
 [![CI](https://github.com/AnonymousNomad/aide-sovereign-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/AnonymousNomad/aide-sovereign-workbench/actions/workflows/ci.yml)
 [![License Apache-2.0](https://img.shields.io/github/license/AnonymousNomad/aide-sovereign-workbench)](LICENSE)
-[![Latest release](https://img.shields.io/github/v/release/AnonymousNomad/aide-sovereign-workbench?include_prereleases)](https://github.com/AnonymousNomad/aide-sovereign-workbench/releases)
+[![Stars](https://img.shields.io/github/stars/AnonymousNomad/aide-sovereign-workbench?style=flat&logo=github)](https://github.com/AnonymousNomad/aide-sovereign-workbench/stargazers)
+[![Forks](https://img.shields.io/github/forks/AnonymousNomad/aide-sovereign-workbench?style=flat&logo=github)](https://github.com/AnonymousNomad/aide-sovereign-workbench/network/members)
+[![Issues](https://img.shields.io/github/issues/AnonymousNomad/aide-sovereign-workbench)](https://github.com/AnonymousNomad/aide-sovereign-workbench/issues)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/AnonymousNomad/aide-sovereign-workbench/blob/main/CONTRIBUTING.md)
+[![Last Commit](https://img.shields.io/github/last-commit/AnonymousNomad/aide-sovereign-workbench/main?logo=github)](https://github.com/AnonymousNomad/aide-sovereign-workbench/commits/main)
+[![TypeScript](https://img.shields.io/badge/language-TypeScript-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
+[![Node.js 26+](https://img.shields.io/node/v/latest?label=node%20%E2%89%A526&color=green)](https://nodejs.org/)
+[![Offline-First](https://img.shields.io/badge/offline--first-%E2%9C%93-green)](https://github.com/AnonymousNomad/aide-sovereign-workbench)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/anonymousnomad?style=flat&logo=github)](https://github.com/sponsors/anonymousnomad)
+
+## Who It's For
+
+- **Solo developers** who want AI assistance without sending proprietary code to cloud APIs
+- **Privacy-conscious teams** in regulated industries (healthcare, finance, legal) where code must stay local
+- **Offline/air-gapped environments** where cloud IDEs simply don't work
+- **AI researchers** studying agentic coding, model routing, and human-in-the-loop systems
+- **Fine-tuning practitioners** who want an IDE that adapts to their own fine-tuned models
 
 ## Architecture
 
@@ -37,6 +52,21 @@ flowchart LR
   PROV -.opt-in.-> CLOUD[OpenAI · Anthropic · Gemini<br/>Mistral · Groq · OpenRouter]
   DAEMON --> CHAT[(Local chat history<br/>ChatGPT / Claude export import)]
 ```
+
+## What Makes AIDE Different
+
+| Capability | VS Code + Copilot | Cursor | Windsurf | **AIDE** |
+|---|---|---|---|---|
+| Code leaves your machine | ✅ always | ✅ always | ✅ always | ❌ **never** |
+| Works fully offline | ❌ requires sign-in | ❌ requires account | ⚠️ limited | ✅ **air-gap ready** |
+| Bring your own GGUF | ❌ | ❌ cloud models only | ❌ | ✅ **any HuggingFace GGUF** |
+| Model-agnostic routing | ❌ OpenAI only | ⚠️ multi-model but cloud | ⚠️ | ✅ **local + cloud per phase** |
+| Provenance on every reply | ❌ | ❌ | ❌ | ✅ **model + gates + timing** |
+| Governance layer (Credo+Lens) | ❌ | ❌ | ❌ | ✅ **operator-shaping, not output-filtering** |
+| Self-improving via usage | ❌ | ❌ | ❌ | 🔜 **Loop C trajectory → adapter** |
+| Price | $10–39/mo | $20/mo | $15/mo | **free, open source** |
+
+AIDE doesn't try to out-feature VS Code's 100k-extension ecosystem. It owns the one thing none of them can do: **a real IDE where your code never leaves your machine and the AI is a governed, transparent, continuously improving partner — not a black-box API call.**
 
 ## What Works Today
 

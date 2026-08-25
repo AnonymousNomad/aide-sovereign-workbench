@@ -16,6 +16,7 @@
     "/api/orch": "ts",
     "/api/problems": "ts",
     "/api/rg": "ts",
+    "/api/telegram": "ts",
     "/api/settings": "ts"
   },
   "exact": {

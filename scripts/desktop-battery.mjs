@@ -7,6 +7,11 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+
+if (process.platform !== 'win32') {
+  console.log('desktop battery skipped: Windows-only probes (tasklist/notepad/COM-free native ops)');
+  process.exit(0);
+}
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 

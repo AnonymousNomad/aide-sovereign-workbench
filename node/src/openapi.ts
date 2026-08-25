@@ -47,6 +47,7 @@ import { routesForModelHub } from './routes/modelhub.ts';
 import { routesForOrch } from './routes/orch.ts';
 import { routesForMemory, createMemoryService } from './routes/memory.ts';
 import { routesForDesktop, createDesktopService } from './routes/desktop.ts';
+import { routesForTelegram, createTelegramBridgeService } from './routes/telegram.ts';
 import { createOrchService } from './services/orch-context.mjs';
 import { createAgentTools } from './services/agent-tools.mjs';
 import { createCheckpointService } from '../../node/src/services/agent-checkpoints.mjs';
@@ -356,6 +357,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForOrch(createOrchService({ workspace: workspace, runtime: modelRuntime })),
     ...routesForMemory(createMemoryService(workspace)),
     ...routesForDesktop(createDesktopService(workspace)),
+    ...routesForTelegram(createTelegramBridgeService(workspace)),
     ...routesForAgent(agentLoop, {
       resolveProviderChatFn: role => {
         if (!byokService.getConsent()) throw Object.assign(new Error('BYOK egress consent is disabled'), { code: 'FORBIDDEN' });

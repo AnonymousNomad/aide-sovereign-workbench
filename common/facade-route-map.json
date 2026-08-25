@@ -3,6 +3,7 @@
     "/api/agent": "ts",
     "/api/byok": "ts",
     "/api/commands": "ts",
+    "/api/desktop": "ts",
     "/api/editor": "ts",
     "/api/health": "ts",
     "/api/hooks": "ts",

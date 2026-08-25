@@ -216,6 +216,30 @@
   </div>
 </section>
 
+<section id="telegram-panel" class="overlay cmdk" hidden>
+  <div class="cmdk-box wide">
+    <div class="eyebrow">TELEGRAM BRIDGE — YOUR BOT · YOUR MACHINE · TRANSPORT ONLY</div>
+    <div id="tg-body" class="hub-results"><div class="muted">Loading…</div></div>
+    <div id="tg-connect" hidden>
+      <div class="muted" style="margin-bottom:10px">1. In Telegram, open <b>@BotFather</b> → send <code>/newbot</code> → follow prompts.<br>2. Copy the bot token it gives you (<code>123456:AAH...</code>).<br>3. Paste it below. It is encrypted with Windows DPAPI and never leaves this machine except to Telegram's own API.</div>
+      <input id="tg-token" type="password" style="width:100%;margin:4px 0 10px;background:#111;border:1px solid #333;color:var(--fg);padding:6px;font-family:var(--mono)" placeholder="123456:AAHxyz...">
+      <button id="tg-connect-btn" class="primary">CONNECT BOT</button>
+      <span id="tg-connect-err" class="small" style="color:#ff8080;margin-left:8px"></span>
+    </div>
+    <div id="tg-authorize" hidden>
+      <div class="muted small" style="margin-bottom:8px">Now send <b>any message</b> to your bot in Telegram (press START in the bot chat first). It will appear below — authorize it.</div>
+      <div id="tg-seen" style="margin-bottom:8px"></div>
+      <button id="tg-rescan" style="background:#111;border:1px solid #333;color:var(--fg);padding:6px 12px;font-family:var(--mono);cursor:pointer">RESCAN</button>
+    </div>
+    <div id="tg-live" hidden>
+      <div style="margin-bottom:8px"><span class="badge on">LIVE</span> <span class="muted small" id="tg-statusline"></span></div>
+      <div class="small muted" id="tg-chats"></div>
+      <button id="tg-disconnect" style="margin-top:10px;background:#111;border:1px solid #333;color:var(--fg);padding:6px 12px;font-family:var(--mono);cursor:pointer">DISCONNECT</button>
+    </div>
+    <button id="telegram-close" class="primary" style="margin-top:12px">CLOSE</button>
+  </div>
+</section>
+
 <section id="desktop-panel" class="overlay cmdk" hidden>
   <div class="cmdk-box wide">
     <div class="eyebrow">DESKTOP CONTROL — STRICT OPT-IN · SESSION-SCOPED · DENY-BY-DEFAULT</div>

@@ -11258,6 +11258,29 @@
                         "type": "number"
                       }
                     },
+                    "seen_chats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "chat_id": {
+                            "type": "number"
+                          },
+                          "first_name": {
+                            "type": "string"
+                          },
+                          "last_seen": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "chat_id",
+                          "first_name",
+                          "last_seen"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    },
                     "running": {
                       "type": "boolean"
                     },
@@ -11282,6 +11305,7 @@
                     "connected",
                     "bot_username",
                     "chat_ids",
+                    "seen_chats",
                     "running",
                     "last_poll_at",
                     "poll_cycles",
@@ -11345,6 +11369,29 @@
                         "type": "number"
                       }
                     },
+                    "seen_chats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "chat_id": {
+                            "type": "number"
+                          },
+                          "first_name": {
+                            "type": "string"
+                          },
+                          "last_seen": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "chat_id",
+                          "first_name",
+                          "last_seen"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    },
                     "running": {
                       "type": "boolean"
                     },
@@ -11369,6 +11416,7 @@
                     "connected",
                     "bot_username",
                     "chat_ids",
+                    "seen_chats",
                     "running",
                     "last_poll_at",
                     "poll_cycles",
@@ -11432,6 +11480,29 @@
                         "type": "number"
                       }
                     },
+                    "seen_chats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "chat_id": {
+                            "type": "number"
+                          },
+                          "first_name": {
+                            "type": "string"
+                          },
+                          "last_seen": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "chat_id",
+                          "first_name",
+                          "last_seen"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    },
                     "running": {
                       "type": "boolean"
                     },
@@ -11456,6 +11527,7 @@
                     "connected",
                     "bot_username",
                     "chat_ids",
+                    "seen_chats",
                     "running",
                     "last_poll_at",
                     "poll_cycles",
@@ -11498,6 +11570,29 @@
                         "type": "number"
                       }
                     },
+                    "seen_chats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "chat_id": {
+                            "type": "number"
+                          },
+                          "first_name": {
+                            "type": "string"
+                          },
+                          "last_seen": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "chat_id",
+                          "first_name",
+                          "last_seen"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    },
                     "running": {
                       "type": "boolean"
                     },
@@ -11522,6 +11617,7 @@
                     "connected",
                     "bot_username",
                     "chat_ids",
+                    "seen_chats",
                     "running",
                     "last_poll_at",
                     "poll_cycles",

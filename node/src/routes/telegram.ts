@@ -26,6 +26,7 @@ const StatusEnvelope = z.object({
   connected: z.boolean(),
   bot_username: z.string().nullable(),
   chat_ids: z.array(z.number()),
+  seen_chats: z.array(z.object({ chat_id: z.number(), first_name: z.string(), last_seen: z.string() }).passthrough()),
   running: z.boolean(),
   last_poll_at: z.string().nullable(),
   poll_cycles: z.number(),

@@ -63,6 +63,7 @@ export function createTelegramBridge({ workspace, onCommand }) {
   let lastPollAt = null;
   let pollCycles = 0;
   let ignoredUnknown = 0;
+  const seenChats = new Map(); // chat_id -> {first_name, last_seen}
   let config = null; // { token_b64, chat_ids[], enabled }
   let abort = null;
 
@@ -120,6 +121,10 @@ export function createTelegramBridge({ workspace, onCommand }) {
     const cfg = await loadConfig();
     if (!cfg?.chat_ids.includes(chatId)) {
       ignoredUnknown += 1;
+      seenChats.set(chatId, {
+        first_name: message.from?.first_name || message.chat.first_name || '',
+        last_seen: new Date().toISOString()
+      });
       return false;
     }
     const text = message.text.trim();
@@ -215,6 +220,7 @@ export function createTelegramBridge({ workspace, onCommand }) {
         connected: Boolean(cfg?.enabled && cfg.token_b64),
         bot_username: cfg?.bot_username ?? null,
         chat_ids: cfg?.chat_ids ?? [],
+        seen_chats: [...seenChats.entries()].map(([id, meta]) => ({ chat_id: id, ...meta })),
         running,
         last_poll_at: lastPollAt,
         poll_cycles: pollCycles,

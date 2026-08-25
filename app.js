@@ -1028,6 +1028,7 @@ const HARNESS_VERSION_LABEL = 'v2.1.0';
 // ---------- E1 power surface: palette / global search / terminal ----------
 const COMMANDS = [
   { label: 'Open Models panel', kw: 'models hub engines download import tuning', run: () => { $('#models-panel').hidden = false; refreshEngineList(); } },
+  { label: 'Telegram bridge setup', kw: 'telegram bot remote phone bridge connect token', run: openTelegramPanel },
   { label: 'Desktop control (grants & panic)', kw: 'desktop control grants panic allow apps files windows permission', run: openDesktopPanel },
   { label: 'Find in workspace', kw: 'search find files grep', run: () => { $('#search-overlay').hidden = false; $('#gs-query').focus(); } },
   { label: 'Toggle terminal drawer', kw: 'terminal shell console run command', run: toggleTerminal },
@@ -1304,6 +1305,58 @@ $('#git-close').addEventListener('click', () => { $('#git-sheet').hidden = true;
 
 // ---------- Skills browser (in-box SOP packs) ----------
 let skillsData = null;
+// ---------- Telegram bridge panel (monthly setup; palette entry) ----------
+async function openTelegramPanel() {
+  $('#telegram-panel').hidden = false;
+  await renderTelegramPanel();
+}
+
+async function renderTelegramPanel() {
+  const body = $('#tg-body');
+  let status;
+  try { status = await jget(`${API}/api/telegram/status`); }
+  catch (e) { body.textContent = `bridge unreachable: ${e.message}`; return; }
+  body.hidden = true;
+  $('#tg-connect').hidden = true;
+  $('#tg-authorize').hidden = true;
+  $('#tg-live').hidden = true;
+  if (!status.connected) {
+    $('#tg-connect').hidden = false;
+    $('#tg-connect-btn').onclick = async () => {
+      $('#tg-connect-err').textContent = '';
+      try {
+        await jpost(`${API}/api/telegram/connect`, { token: $('#tg-token').value.trim() });
+        setStrip(`Telegram bot connected — send it a message to finish.`);
+        await renderTelegramPanel();
+      } catch (e) { $('#tg-connect-err').textContent = String(e.message).slice(0, 120); }
+    };
+    return;
+  }
+  if (!status.chat_ids.length) {
+    $('#tg-authorize').hidden = false;
+    $('#tg-seen').innerHTML = status.seen_chats.length
+      ? status.seen_chats.map(c =>
+        `<div style="margin:4px 0"><button class="primary" data-tg-auth="${c.chat_id}">AUTHORIZE</button> <span class="small">${esc(c.first_name || 'chat')} · id ${c.chat_id}</span></div>`).join('')
+      : '<span class="muted small">No messages seen yet — press START on your bot, then send hello.</span>';
+    body.hidden = false;
+    body.querySelectorAll('[data-tg-auth]').forEach(btn => {
+      btn.onclick = async () => {
+        await jpost(`${API}/api/telegram/authorize`, { chat_id: Number(btn.dataset.tgAuth) });
+        await renderTelegramPanel();
+      };
+    });
+    return;
+  }
+  $('#tg-live').hidden = false;
+  $('#tg-statusline').textContent = `@${status.bot_username} · ${status.poll_cycles} poll cycles · last ${(status.last_poll_at || '—').slice(11, 19)} UTC`;
+  $('#tg-chats').textContent = `Authorized chats: ${status.chat_ids.join(', ')}`;
+  $('#tg-disconnect').onclick = async () => {
+    if (!confirm('Disconnect the Telegram bridge?')) return;
+    await jpost(`${API}/api/telegram/disconnect`, {});
+    await renderTelegramPanel();
+  };
+}
+
 // ---------- Desktop control panel (monthly surface; palette entry) ----------
 async function openDesktopPanel() {
   $('#desktop-panel').hidden = false;
@@ -1455,6 +1508,8 @@ function renderPlugins() {
 
 $('#plugins-button').addEventListener('click', () => { $('#plugins-panel').hidden = false; loadPluginsPanel(); });
 $('#plugins-close').addEventListener('click', () => { $('#plugins-panel').hidden = true; });
+$('#telegram-close').addEventListener('click', () => { $('#telegram-panel').hidden = true; });
+$('#desktop-close').addEventListener('click', () => { $('#desktop-panel').hidden = true; });
 $('#plugins-panel').addEventListener('click', e => { if (e.target === e.currentTarget) $('#plugins-panel').hidden = true; });
 
 function previewActiveMarkdown() {

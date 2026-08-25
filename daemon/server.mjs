@@ -24,6 +24,7 @@ import { ProviderManager } from '../providers/manager.mjs';
 import { WorkflowManager } from './workflow.mjs';
 import { HandoffManager } from './handoff.mjs';
 import { buildScaffold, injectScaffold, composeDriftReminder, estimateTokens, HARNESS_VERSION } from '../harness/scaffold.mjs';
+import { createStateBus } from '../harness/cipher-state.mjs';
 
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

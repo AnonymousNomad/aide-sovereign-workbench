@@ -1,8 +1,21 @@
 import { randomUUID } from 'node:crypto';
-import { promises as fs } from 'node:fs';
+import { promises as fs, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseToolCalls, AgentParseError } from './agent-parser.mjs';
 import { createAgentTools, computeRisks, resolveInsideWorkspace, relativeInside, parseSearchReplaceBlocks, applySearchReplace } from './agent-tools.mjs';
+
+// Shared credo loader — single discipline source per THE QUAD Law #1.
+let _credocore = null;
+function loadCredocore() {
+  if (_credocore !== null) return _credocore;
+  try {
+    const credoPath = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', '..', 'common', 'harness', 'credocore.md');
+    const raw = readFileSync(credoPath, 'utf8');
+    const partA = raw.match(/# PART A[\s\S]*?(?=\n# PART B|$)/)?.[0] || '';
+    _credocore = partA.split('\n').filter(l => l.trim() && !l.startsWith('#')).join('\n');
+  } catch { _credocore = ''; }
+  return _credocore;
+}
 
 const PARAM_ALIASES = {
   path: ['filepath', 'file_path', 'filename', 'file'],
@@ -76,10 +89,13 @@ function unifiedDiffPreview(before, after) {
 
 function buildSystemPrompt(mode, tools) {
   const toolDocs = tools.map(tool => `- ${tool.name}(${tool.params.join(', ')}) — ${tool.description}`).join('\n');
+  const credo = loadCredocore();
   const modeRule = mode === 'plan'
     ? 'You are in PLAN mode: you may only use read-only tools (read_file, list_dir, search) plus attempt_completion. To begin editing you must ask the user to approve switching with <switch_mode><target>act</target></switch_mode>.'
     : 'You are in ACT mode: all tools are available. Every file write and every command requires explicit human approval.';
   return [
+    credo,
+    '',
     'You are AIDE, an offline coding agent working inside a local workspace.',
     modeRule,
     '',

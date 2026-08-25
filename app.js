@@ -604,43 +604,92 @@ async function tryHotExitRecovery() {
     recover.appendChild(bar);
   } catch { /* optional */ }
 }
-// ---------- Workbench editor (Monaco, offline bundle) ----------
-const editorState = { instance: null, model: null, path: null };
+// ---------- Workbench editor (Monaco, multi-tab) ----------
+const editorTabs = [];  // [{path, model, dirty}]
+let activeTab = null;   // currently displayed path
+const monacoInstance = { editor: null };
 
 function loadMonaco(cb) {
   if (window.__monacoReady) return cb();
   window.addEventListener('monaco-ready', () => cb(), { once: true });
 }
 
+function getExtLang(path) {
+  const ext = path.split('.').pop().toLowerCase();
+  return { js:'javascript', mjs:'javascript', ts:'typescript', json:'json', css:'css', html:'html', md:'markdown', py:'python' }[ext] || 'plaintext';
+}
+
+function renderTabBar() {
+  const bar = $('#tab-bar');
+  if (!bar) return;
+  bar.innerHTML = editorTabs.map(t =>
+    `<div class="tab${t.path === activeTab ? ' active' : ''}${t.dirty ? ' dirty' : ''}" data-tab="${esc(t.path)}">${esc(t.path.split('/').pop())}<span class="tab-close" data-close="${esc(t.path)}">×</span></div>`
+  ).join('');
+  bar.querySelectorAll('[data-tab]').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.classList.contains('tab-close')) return;
+      switchToTab(el.dataset.tab);
+    });
+  });
+  bar.querySelectorAll('[data-close]').forEach(el => {
+    el.addEventListener('click', e => { e.stopPropagation(); closeTab(el.dataset.close); });
+  });
+}
+
+function switchToTab(path) {
+  const tab = editorTabs.find(t => t.path === path);
+  if (!tab || !monacoInstance.editor) return;
+  monacoInstance.editor.setModel(tab.model);
+  activeTab = path;
+  $('#save-file').disabled = !tab.dirty;
+  $('#open-file-name').textContent = path.split('/').pop();
+  lspMaybeOpen(path, tab.model.getValue());
+  renderTabBar();
+}
+
+function closeTab(path) {
+  const idx = editorTabs.findIndex(t => t.path === path);
+  if (idx < 0) return;
+  const wasActive = activeTab === path;
+  editorTabs[idx].model.dispose();
+  editorTabs.splice(idx, 1);
+  if (wasActive && editorTabs.length) {
+    switchToTab(editorTabs[Math.max(0, idx - 1)].path);
+  } else if (!editorTabs.length) {
+    monacoInstance.editor.setModel(null);
+    activeTab = null;
+    $('#open-file-name').textContent = 'WORKBENCH';
+    $('#save-file').disabled = true;
+  }
+  renderTabBar();
+}
+
 function openInEditor(path, content) {
   loadMonaco(() => {
     const container = $('#editor-container');
-    if (!editorState.instance) {
-      editorState.instance = monaco.editor.create(container, { value: '', language: 'plaintext', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false }, fontSize: 12 });
-      editorState.instance.onDidChangeModelContent(() => {
-        if (!editorState.dirty) {
-          editorState.dirty = true;
-          $('#save-file').disabled = false;
-          $('#open-file-name').textContent = `${editorState.path} *`;
-        }
+    if (!monacoInstance.editor) {
+      monacoInstance.editor = monaco.editor.create(container, { value: '', language: 'plaintext', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false }, fontSize: 12 });
+      monacoInstance.editor.onDidChangeModelContent(() => {
+        const tab = editorTabs.find(t => t.path === activeTab);
+        if (tab && !tab.dirty) { tab.dirty = true; renderTabBar(); $('#save-file').disabled = false; }
         clearTimeout(lspChangeDebounce);
         lspChangeDebounce = setTimeout(() => {
-          const version = (lspState.versions.get(editorState.path) || 0) + 1;
-          lspState.versions.set(editorState.path, version);
-          lspNotify('textDocument/didChange', { textDocument: { uri: LSP_URI(editorState.path), version }, contentChanges: [{ text: editorState.instance.getValue() }] });
+          const version = (lspState.versions.get(activeTab) || 0) + 1;
+          lspState.versions.set(activeTab, version);
+          lspNotify('textDocument/didChange', { textDocument: { uri: LSP_URI(activeTab), version }, contentChanges: [{ text: monacoInstance.editor.getValue() }] });
         }, 400);
       });
     }
-    if (editorState.model) editorState.model.dispose();
-    const ext = path.split('.').pop().toLowerCase();
-    const langs = { js: 'javascript', mjs: 'javascript', ts: 'typescript', json: 'json', css: 'css', html: 'html', md: 'markdown', py: 'python' };
-    editorState.model = monaco.editor.createModel(content, langs[ext] || 'plaintext');
-    editorState.instance.setModel(editorState.model);
-    editorState.path = path;
-    editorState.dirty = false;
-    $('#save-file').disabled = true;
-    $('#open-file-name').textContent = path;
+    // Already open? Just switch to it.
+    const existing = editorTabs.find(t => t.path === path);
+    if (existing) { switchToTab(path); return; }
+    const model = monaco.editor.createModel(content, getExtLang(path));
+    editorTabs.push({ path, model, dirty: false });
+    monacoInstance.editor.setModel(model);
+    activeTab = path;
+    $('#open-file-name').textContent = path.split('/').pop();
     lspMaybeOpen(path, content);
+    renderTabBar();
   });
 }
 

@@ -48,6 +48,7 @@ import { routesForOrch } from './routes/orch.ts';
 import { routesForMemory, createMemoryService } from './routes/memory.ts';
 import { routesForDesktop, createDesktopService } from './routes/desktop.ts';
 import { routesForTelegram, createTelegramBridgeService } from './routes/telegram.ts';
+import { createRequire } from 'node:module';
 import { createOrchService } from './services/orch-context.mjs';
 import { createAgentTools } from './services/agent-tools.mjs';
 import { createCheckpointService } from '../../node/src/services/agent-checkpoints.mjs';
@@ -356,8 +357,33 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForProblems(workspace),
     ...routesForOrch(createOrchService({ workspace: workspace, runtime: modelRuntime })),
     ...routesForMemory(createMemoryService(workspace)),
-    ...routesForDesktop(createDesktopService(workspace)),
-    ...routesForTelegram(createTelegramBridgeService(workspace)),
+    ...((): Route[] => {
+      // Desktop + Telegram share ONE desktop service instance (single grants
+      // state). The /ask brain composes: Telegram NL -> model proposal bounded
+      // to grants -> YES/NO confirm -> desktop execution (evidence+trajectory).
+      const req = createRequire(import.meta.url);
+      const { createTelegramBrain } = req('../services/telegram-brain.mjs');
+      const desktopService = createDesktopService(workspace);
+      const brain = createTelegramBrain({
+        desktop: desktopService,
+        resolveEngineChat: async messages => {
+          try {
+            const status = await modelRuntime.status();
+            const ready = (status.models as Array<{ id: string; status?: string }>).filter(m => m.status === 'running');
+            if (!ready.length) return null;
+            // Cipher-first doctrine: house model preferred when running.
+            const pick = ready.find(m => String(m.id).includes('cipher')) ?? ready[0];
+            return await modelRouter.chat(pick.id, messages, {});
+          } catch {
+            return null;
+          }
+        }
+      });
+      return [
+        ...routesForDesktop(desktopService),
+        ...routesForTelegram(createTelegramBridgeService(workspace, input => brain.onCommand(input)))
+      ];
+    })(),
     ...routesForAgent(agentLoop, {
       resolveProviderChatFn: role => {
         if (!byokService.getConsent()) throw Object.assign(new Error('BYOK egress consent is disabled'), { code: 'FORBIDDEN' });

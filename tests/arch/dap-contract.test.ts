@@ -136,7 +136,11 @@ test('dap start runs the fake adapter and stores capabilities', async () => {
   }
 });
 
-test('full debug session: breakpoints, launch, stopped, stack, scopes, variables, step, continue, disconnect', { timeout: 240_000 }, async () => {
+// retry:2 — this e2e is order-sensitive under --test-concurrency=3 on CI and
+// has twice flaked on docs-only pushes (0efa5a2, e7428d7) while passing solo
+// and on adjacent code commits. Bounded retry smooths infra noise; a real
+// regression still fails every attempt.
+test('full debug session: breakpoints, launch, stopped, stack, scopes, variables, step, continue, disconnect', { timeout: 240_000, retry: 2 }, async () => {
   const { dir, cleanup } = await tempWorkspace();
   const { manager, events, logs } = buildManager(dir, [fakeAdapter('fake-dap-adapter.mjs')]);
   try {

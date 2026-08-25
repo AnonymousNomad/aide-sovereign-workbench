@@ -138,9 +138,10 @@ def main():
             print(f"step {step:4d} loss {loss.item():.3f} lr {lr:.2e} grad {gn:.2f} phase {sched.phase}")
         assert torch.isfinite(loss), f"NaN at step {step}"
 
-    ckpt = {"model": model.state_dict(), "optimizer": opt.state_dict(),
-            "scheduler": sched.state_dict(), "step": args.steps, "tokens_seen": None}
-    torch.save(ckpt, os.path.join(args.out, "ckpt_smoke.pt"))
+    np.savez(os.path.join(args.out, "ckpt_smoke.npz"),
+             **{k: v.detach().cpu().numpy() for k, v in model.state_dict().items()})
+    with open(os.path.join(args.out, "ckpt_smoke_meta.json"), "w") as fmeta:
+        json.dump({"step": args.steps, "tokens_seen": None}, fmeta)
     print(f"smoke done: {args.steps} steps -> {args.out}")
 
 if __name__ == "__main__":

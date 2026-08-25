@@ -241,7 +241,7 @@ export class ModelManager {
     const runtimeProbePending = this.pythonServer && !this.pythonReady && Boolean(this.pythonProbe);
     return [...this.models.values()].map(model => {
       const artifact = this.modelPath || (model.artifact_uri?.startsWith('local://')
-        ? path.resolve(this.modelDir, path.basename(model.artifact_uri.replace('local://', '')))
+        ? path.resolve(this.modelDir, model.artifact_uri.replace('local://', ''))
         : null);
       const artifactAvailable = Boolean(artifact && existsSync(artifact));
       // Promote to ready if artifact exists locally and runtime is available
@@ -483,7 +483,7 @@ export class ModelManager {
       throw new Error(`Not enough free memory to start ${model.name} (${Math.round(freeRam / 1048576)} MB free, need ${Math.round(FREE_RAM_FLOOR_BYTES / 1048576)} MB). Stop another running engine (STOP ENGINE button) or wait for heavy jobs to finish, then try again.`);
     }
     await this.stopAll();
-    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1', ...this.samplerArgs(this.loadProfile(id)), ...this.runtimeArgs(this.loadProfile(id))];
+    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1', '--jinja', '-ngl', '999', ...this.samplerArgs(this.loadProfile(id)), ...this.runtimeArgs(this.loadProfile(id))];
     // LoRA adapter hot-load: apply fine-tuned weights alongside base at inference
     if (model.lora_adapter) {
       const loraAbs = path.isAbsolute(model.lora_adapter) ? model.lora_adapter : path.resolve(this.modelDir, '..', model.lora_adapter);

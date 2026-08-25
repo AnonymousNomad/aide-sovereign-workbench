@@ -24,7 +24,10 @@ export const DesktopActionRequest = z
     op: z.enum(['launch_app', 'open_path', 'list_windows', 'focus_window', 'move_file']),
     target: z.string().max(500).optional(),
     destination: z.string().max(500).optional(),
-    approved: z.boolean()
+    approved: z.boolean(),
+    // Optional reasoning captured into the training trajectory (DC-b).
+    // Operator actions carry intent; agent-loop actions carry Thought text.
+    note: z.string().max(300).optional()
   })
   .strict();
 

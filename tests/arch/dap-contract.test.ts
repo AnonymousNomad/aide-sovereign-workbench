@@ -140,7 +140,26 @@ test('dap start runs the fake adapter and stores capabilities', async () => {
 // has twice flaked on docs-only pushes (0efa5a2, e7428d7) while passing solo
 // and on adjacent code commits. Bounded retry smooths infra noise; a real
 // regression still fails every attempt.
-test('full debug session: breakpoints, launch, stopped, stack, scopes, variables, step, continue, disconnect', { timeout: 240_000, retry: 2 }, async () => {
+// Bounded manual retry — this e2e is order-sensitive under
+// --test-concurrency=3 on CI and has twice flaked on docs-only pushes
+// (0efa5a2, e7428d7) while passing solo and on adjacent code commits.
+// (node:test 'retry' option absent from our TS TestOptions types, so the
+// retry loop is explicit.) A real regression still fails every attempt.
+test('full debug session: breakpoints, launch, stopped, stack, scopes, variables, step, continue, disconnect', { timeout: 720_000 }, async () => {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await runFullDebugSessionOnce();
+      return;
+    } catch (error) {
+      lastError = error;
+      console.log(`dap full-session attempt ${attempt} failed: ${(error as Error).message?.slice(0, 200)}`);
+    }
+  }
+  throw lastError;
+});
+
+async function runFullDebugSessionOnce(): Promise<void> {
   const { dir, cleanup } = await tempWorkspace();
   const { manager, events, logs } = buildManager(dir, [fakeAdapter('fake-dap-adapter.mjs')]);
   try {
@@ -202,7 +221,7 @@ test('full debug session: breakpoints, launch, stopped, stack, scopes, variables
     await manager.stopAll();
     await cleanup();
   }
-});
+}
 
 test('dap unverified breakpoint lines are reported as such', async () => {
   const { dir, cleanup } = await tempWorkspace();

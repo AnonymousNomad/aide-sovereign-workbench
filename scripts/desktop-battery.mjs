@@ -114,6 +114,26 @@ test('battery: evidence trail captured denials and executions in memory spine', 
   record('evidence-trail', true, `${events.length} desktop events, decisions=[${[...decisions].join(',')}]`);
 });
 
+test('battery: trajectory recorder captures assertion-stamped training rows', async () => {
+  // fresh grant window
+  await dc.setGrants({
+    version: 1, enabled: true,
+    grants: { apps: ['notepad.exe'], roots: [dir], window_titles: [] },
+    session_started_at: new Date().toISOString(), ttl_minutes: 30, approved_by: 'operator-wizard'
+  });
+  await dc.act({ op: 'launch_app', target: 'notepad.exe', approved: true, note: 'battery probe launch' });
+  const trajFile = path.join(dir, '.aide', 'desktop', 'trajectories', 'default.jsonl');
+  const raw = await fs.readFile(trajFile, 'utf8');
+  const rows = raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+  const executed = rows.filter(r => r.verdict === 'executed');
+  assert.ok(rows.length >= 2, 'refusal + executed rows both present');
+  assert.ok(executed.length >= 1, 'at least one executed row');
+  assert.ok(executed.every(r => r.assertion && typeof r.assertion.pass === 'boolean'), 'every executed row carries an assertion');
+  assert.equal(executed[executed.length - 1].assertion.check, 'process_alive:notepad.exe');
+  assert.match(executed[executed.length - 1].thought, /battery probe/);
+  record('trajectory-recorder', true, `${rows.length} rows, assertion=${JSON.stringify(executed[executed.length - 1].assertion)}`);
+});
+
 after(async () => {
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   const passed = results.filter(r => r.passed).length;

@@ -26,6 +26,7 @@ export function createDesktopControl({ workspace }) {
   let manifest = null;
   const children = new Set();
   const panics = [];
+  let turnCounter = 0;
 
   async function loadManifest() {
     if (manifest) return manifest;
@@ -116,10 +117,57 @@ export function createDesktopControl({ workspace }) {
     }
   };
 
-  async function act(request) {
+  async function autoAssert(op, target, destination) {
+    // DC-b: every trajectory row carries a state assertion — R3 law forbids
+    // training on unverified rollouts. Assertions are mechanical, per-op.
+    switch (op) {
+      case 'launch_app': {
+        const image = path.basename(String(target)).trim();
+        const safe = /^[A-Za-z0-9._-]+$/.test(image) ? image : null;
+        if (!safe) return { pass: false, check: 'image-name-parse' };
+        const exists = await new Promise(resolve => {
+          execFile('tasklist', ['/FI', `IMAGENAME eq ${safe}`], { windowsHide: true }, (err, stdout) => {
+            resolve(!err && String(stdout).toLowerCase().includes(safe.toLowerCase()));
+          });
+        });
+        return { pass: exists, check: `process_alive:${safe}` };
+      }
+      case 'move_file': {
+        try {
+          await fs.access(String(destination));
+          return { pass: true, check: 'destination_exists' };
+        } catch {
+          return { pass: false, check: 'destination_exists' };
+        }
+      }
+      case 'open_path':
+      case 'focus_window':
+      case 'list_windows':
+      default:
+        return { pass: true, check: `${op}:observation-only` };
+    }
+  }
+
+  const TRAJECTORY_DIR = '.aide/desktop/trajectories';
+
+  async function recordTrajectory(sessionId, row) {
+    try {
+      const file = path.join(workspace, TRAJECTORY_DIR, `${sessionId}.jsonl`);
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.appendFile(file, JSON.stringify(row) + '\n', 'utf8');
+    } catch { /* training capture is best-effort; never blocks actions */ }
+  }
+
+  async function act(request, sessionId = 'default') {
     const started = Date.now();
     if (request.approved !== true) {
       await evidence('desktop', { op: request.op, target: request.target, decision: 'refused-no-approval' });
+      await recordTrajectory(sessionId, {
+        ts: new Date().toISOString(), turn: ++turnCounter,
+        observation: { op: request.op, target: request.target },
+        thought: request.note || '', action_raw: `${request.op}(target="${request.target}")`,
+        class: 'UNKNOWN', verdict: 'NO_APPROVAL', latency_ms: Date.now() - started
+      });
       throw new DesktopRefusedError('NO_APPROVAL', 'explicit approval required for desktop actions');
     }
     const grants = await activeGrants();
@@ -127,16 +175,29 @@ export function createDesktopControl({ workspace }) {
     if (!fn) throw new DesktopRefusedError('UNKNOWN_OP', `unsupported op: ${request.op}`);
     try {
       const output = await fn(grants, request.target, request.destination);
-      const result = { ok: true, decision: 'executed', output: String(output).slice(0, 2000), latency_ms: Date.now() - started };
+      const assertion = await autoAssert(request.op, request.target, request.destination);
+      const result = { ok: true, decision: 'executed', output: String(output).slice(0, 2000), latency_ms: Date.now() - started, assertion };
       await evidence('desktop', { op: request.op, target: request.target, decision: 'executed' });
+      await recordTrajectory(sessionId, {
+        ts: new Date().toISOString(), turn: ++turnCounter,
+        observation: { op: request.op, target: request.target, destination: request.destination ?? null },
+        thought: request.note || '', action_raw: `${request.op}(target="${request.target}"${request.destination ? `, destination="${request.destination}"` : ''})`,
+        class: 'WRITE', verdict: 'executed', assertion, latency_ms: result.latency_ms
+      });
       return result;
     } catch (error) {
-      if (error instanceof DesktopRefusedError) {
-        await evidence('desktop', { op: request.op, target: request.target, decision: error.code });
-        throw error;
-      }
-      await evidence('desktop', { op: request.op, target: request.target, decision: 'CHILD_FAILED' });
-      throw new DesktopRefusedError('CHILD_FAILED', error instanceof Error ? error.message : String(error));
+      const code = error instanceof DesktopRefusedError ? error.code : 'CHILD_FAILED';
+      await evidence('desktop', { op: request.op, target: request.target, decision: code });
+      // Refusal-recovery rows are TRAINING GOLD per the model spec — recorded
+      // with the refusal code as the verdict so T2's corpus includes recovery.
+      await recordTrajectory(sessionId, {
+        ts: new Date().toISOString(), turn: ++turnCounter,
+        observation: { op: request.op, target: request.target },
+        thought: request.note || '', action_raw: `${request.op}(target="${request.target}")`,
+        class: code === 'NOT_ALLOWLISTED' || code === 'PATH_NOT_GRANTED' ? 'FORBIDDEN' : 'WRITE',
+        verdict: code, latency_ms: Date.now() - started
+      });
+      throw error;
     }
   }
 

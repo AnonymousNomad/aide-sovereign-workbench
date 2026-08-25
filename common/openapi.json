@@ -3009,6 +3009,10 @@
                   },
                   "approved": {
                     "type": "boolean"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 300
                   }
                 },
                 "required": [

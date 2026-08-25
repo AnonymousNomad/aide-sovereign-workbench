@@ -30,7 +30,7 @@ export class ArenaManager {
           await this.waitReady(model.endpoint);
           for (const task of suite.tasks) {
             const started = Date.now();
-            const response = await fetch(`${model.endpoint}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model.model, messages: [{ role: 'user', content: task.prompt }], temperature: 0.1, max_tokens: 180 }) });
+            const response = await fetch(`${model.endpoint}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: model.model, messages: [{ role: 'user', content: task.prompt }], temperature: 0.1, max_tokens: 180 }), signal: AbortSignal.timeout(30000) });
             const data = await response.json();
             const output = data.choices?.[0]?.message?.content || '';
             rows.push({ model: model.id, task: task.id, status: response.ok ? 'measured' : 'error', passed: response.ok && passes(task, output), latency_ms: Date.now() - started, output_bytes: Buffer.byteLength(output), error: response.ok ? undefined : data.error });

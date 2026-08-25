@@ -3,6 +3,7 @@ import { promises as fs, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseToolCalls, AgentParseError } from './agent-parser.mjs';
 import { createAgentTools, computeRisks, resolveInsideWorkspace, relativeInside, parseSearchReplaceBlocks, applySearchReplace } from './agent-tools.mjs';
+import { createStateBus } from '../../../harness/cipher-state.mjs';
 
 // Shared credo loader — single discipline source per THE QUAD Law #1.
 let _credocore = null;
@@ -416,6 +417,18 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       if (decision === 'reject') resolve('reject');
       else if (decision === 'abort') resolve('abort');
       else resolve('approve');
+      // Loop C capture (X1.a): decisions feed the memory spine — this is the
+      // writer side of the approval/rejection events getPreferences reads.
+      try {
+        const bus = createStateBus(workspace);
+        const tool = session.pendingApproval.tool || '';
+        bus.append({
+          type: decision === 'approve' ? 'approval' : decision === 'reject' ? 'rejection' : 'abort',
+          tool,
+          pattern: tool,
+          summary: String(session.pendingApproval.args_preview || '').slice(0, 160)
+        }).catch(() => {});
+      } catch { /* memory capture is best-effort */ }
       return { ok: true };
     },
     status(sessionId) {

@@ -9,6 +9,7 @@
     "/api/index": "ts",
     "/api/keybindings": "ts",
     "/api/learner": "ts",
+    "/api/memory": "ts",
     "/api/modelhub": "ts",
     "/api/notifications": "ts",
     "/api/orch": "ts",

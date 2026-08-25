@@ -19,13 +19,8 @@ Everything runs on your machine by default. Online providers are strictly opt-in
 [![CI](https://github.com/AnonymousNomad/aide-sovereign-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/AnonymousNomad/aide-sovereign-workbench/actions/workflows/ci.yml)
 [![License Apache-2.0](https://img.shields.io/github/license/AnonymousNomad/aide-sovereign-workbench)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/AnonymousNomad/aide-sovereign-workbench?style=flat&logo=github)](https://github.com/AnonymousNomad/aide-sovereign-workbench/stargazers)
-[![Forks](https://img.shields.io/github/forks/AnonymousNomad/aide-sovereign-workbench?style=flat&logo=github)](https://github.com/AnonymousNomad/aide-sovereign-workbench/network/members)
-[![Issues](https://img.shields.io/github/issues/AnonymousNomad/aide-sovereign-workbench)](https://github.com/AnonymousNomad/aide-sovereign-workbench/issues)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/AnonymousNomad/aide-sovereign-workbench/blob/main/CONTRIBUTING.md)
 [![Last Commit](https://img.shields.io/github/last-commit/AnonymousNomad/aide-sovereign-workbench/main?logo=github)](https://github.com/AnonymousNomad/aide-sovereign-workbench/commits/main)
-[![TypeScript](https://img.shields.io/badge/language-TypeScript-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
 [![Node.js 26+](https://img.shields.io/node/v/latest?label=node%20%E2%89%A526&color=green)](https://nodejs.org/)
-[![Offline-First](https://img.shields.io/badge/offline--first-%E2%9C%93-green)](https://github.com/AnonymousNomad/aide-sovereign-workbench)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/anonymousnomad?style=flat&logo=github)](https://github.com/sponsors/anonymousnomad)
 
 ## Who It's For
@@ -70,11 +65,13 @@ AIDE doesn't try to out-feature VS Code's 100k-extension ecosystem. It owns the 
 
 ## What Works Today
 
-Continuously verified against the real daemon and real browser: **188 architecture tests, 17 end-to-end browser tests, a 10/10 doctor preflight**, plus unit batteries for facade (12/12), scaffold composition (5/5), agent loop (14/14), agent routes (5/5), and LSP manager — all re-measured before every push.
+Continuously verified against the real daemon and real browser: **265 architecture tests** (CI green on ubuntu-latest; a subset is hardware-gated and skips with printed reasons when bundled models or language servers are absent), plus unit batteries for the API facade, memory spine, memory blocks, scaffold composition, agent loop, agent routes, LSP/DAP managers, git integration, tasks, training, providers — all re-measured before every push.
 
 - **Cockpit orchestrator UI** — one workflow (Describe → Plan → Approve → Build → Verify): chat/orchestrator dock, approval-gated agent loop with per-call diff previews, live git-diff workbench, verification rail (diagnostics, git state, harness status). States, not modes.
 - **Multi-tab Monaco editor** — open, switch, edit multiple files simultaneously with dirty indicators, LSP intelligence (hover, completion, definition, diagnostics markers), F2 rename with previewed multi-file apply, Shift+F12 references, Ctrl+Shift+I formatting.
 - **Agent tool invoke API** — `POST /api/agent/tool` accepts `{name, arguments}` with alias support (`str_replace_editor`→`replace_in_file`, `execute_bash`→`run_command`) and sandbox isolation per model slot. Full trajectory persistence as `.traj.json`.
+- **Memory system (Helix X1)** — deterministic work-event spine with day digests (`GET /api/memory/digests`), pinned project/user/task memory blocks injected into every chat within token caps, approval/rejection capture feeding [learned] preference injection. Verified live: cross-session facts reach any local model.
+- **Desktop control (bounded domain)** — strict opt-in grants manifest (apps/paths/windows), deny-by-default operations with path-jail enforcement, session-scoped TTL, panic kill switch measured under 500 ms, evidence for every action including refusals. Adversarially probed: grant refusal without spawn, path escapes, prompt-injection-as-data, expiry. GUI-element automation lands next via the in-house desktop-agent executor.
 - **Model Hub (in-app acquisition)** — search Hugging Face GGUF repos, list quantizations with file sizes, resumable downloads, one-click registration. Local `.gguf` import by path supported.
 - **Harness scaffold v2.1 + Cipher learned injection** — sized operating layers (micro/full by served context) with [learned] preference blocks injected from accumulated interaction outcomes. Byte-deterministic, budget-capped, drift-aware.
 - **Backend auto-select** — probes candidate llama-server builds via `--list-devices`; Vulkan/CUDA/CPU selection follows operator profile → cached benchmark verdict → hardware heuristic. Measured 4.6× TG advantage on Pascal-class GPUs.
@@ -84,42 +81,24 @@ Continuously verified against the real daemon and real browser: **188 architectu
 - **Online providers (opt-in)** — OpenAI, Anthropic, Gemini, Mistral, Groq, OpenRouter. DPAPI-encrypted credentials, host allowlist.
 - **Veritas evidence gates** — compile, tests, whitespace, manifest validation, path boundaries, secret scanning. Models never approve or apply their own changes.
 - **Plugins** — declarative capability manifests from a 20-preset catalog with trust gates and three working contributions.
-- **Extras** — offline plugin manifests, Academy/tutor tracks, Training Room, Community Hub, workspace capsules, 139 in-box SOP packs.
 
 ### Honest limits
 
-- Pre-production engineering release — not VS Code parity yet.
-- Desktop packaging (Tauri/Electron) defined but blocked on Rust toolchain availability.
-- Fine-tuned model quality depends on training data quality; garbled output from insufficient fine-tuning is a known issue being addressed.
+- Pre-production engineering release — not VS Code parity yet; expect rough edges and rapid change.
+- Desktop packaging: Tauri sidecar architecture decided and evidenced, installer build pending Rust toolchain availability on the dev machine.
+- Fine-tuned house models are mid-program: frontier/thinking adapters verified on-device, broader capability still training.
 - Live provider calls require user-supplied credentials, tested manually per release.
+- Desktop control is currently the bounded-domain stage only (apps/paths/windows); screen-vision control is designed but not built.
 - Debug UI deferred (usage data shows 1.4% of editor time spent debugging).
 
 ### Coming next
 
-- Phase router: automatic model assignment per build phase (PLAN→CODE→TEST→REVIEW)
-- Multi-lens review: security/performance/maintainability passes on every change
-- RAG search UI: semantic code search across workspace
-- Installer: Tauri or Electron packaging for one-click install
-- Sleep-time training: nightly QLoRA on accumulated verified trajectories
-
-Unit batteries behind this week's features (all green, re-runnable):
-`tests/unit/test-facade.mjs` 12/12 · `tests/unit/test-scaffold-v2.mjs` 5/5 · `tests/unit/test-a1-agent.mjs` 14/14 · `tests/arch/agent-routes.test.ts` 5/5 · harness battery evidence in `docs/evidence/harness-battery-smollm2.md`.
-
-### Honest limits
-
-- Pre-production engineering release — **not** a claim of VS Code parity. See `docs/RELEASE_ROADMAP.md`.
-- Desktop (Tauri/NSIS) packaging and installer smokes are defined in `desktop/README.md`; Rust compilation is a platform gate until a Rust toolchain is available.
-- Live end-to-end provider calls require user-supplied credentials and are exercised manually per release — they are intentionally not part of the automated suite.
-- The first live three-pack model scorecard (`benchmarks/live-results-2026-08-10.json`) shows all three models passing function and planning smoke tasks and failing strict unified-diff formatting — which is why every patch stays behind Veritas and human approval.
-
-### Active work
-
-Research-grounded, gated the same way as everything above:
-
-- **Harness deepening** — mid-conversation core re-injection for long agent sessions, an L0–L4 layered composer preview route, and the full Code+Lens effectiveness battery rerun on strong-budget models (1.5B+ and operator fine-tunes).
-- **Academy/tutor upgrades** — a persistent learner-mastery model with spaced-repetition review and real exercise execution.
-- **Local training pipeline** — dataset studio, hardware-aware QLoRA runner with live loss streaming, and an eval-gated GGUF export loop so a fine-tuned model only registers if it beats its baseline.
-- **BUILD series (tasks)** — notification harness and a local-only build cache (content-hash restore, zero cloud).
+- **Launch shell** — Tauri 2 sidecar packaging (~5 MB shell vs ~150 MB Electron), signed installer, cold-start target under 5 seconds to a working cockpit.
+- **First-run "Descent" cinematic + guided walkthrough** — skippable, reduced-motion-aware, never-shows-again.
+- **Cipher-first recommendation doctrine** — the fine-tuned house model auto-selected everywhere once device-fit verifies.
+- **Automated debug phase** — diagnostics/build/test collectors feeding fix proposals behind approval gates, driven by an in-house repair-focused model.
+- **Telegram bridge** — remote status/approve/ask from your own devices via your own bot token; transport-only, all cognition stays local.
+- Phase router, RAG search UI, sleep-time training — unchanged priorities from the research roadmap.
 
 ## Security & Privacy
 
@@ -132,7 +111,7 @@ Research-grounded, gated the same way as everything above:
 
 ## Quickstart
 
-Prerequisites: **Node.js 20+**. For local chat, install a matching `llama-server` binary and a `.gguf` weight file (see [Model Packs](#model-packs)).
+Prerequisites: **Node.js 26+**. For local chat, install a matching `llama-server` binary and a `.gguf` weight file (see [Model Packs](#model-packs)).
 
 ```bash
 npm install
@@ -150,7 +129,7 @@ npm run build:frontend
 npm run test:e2e     # 17 Playwright browser tests against the real daemon
 ```
 
-CI runs the same gate on ubuntu-latest and is green. Of the 188 architecture tests, 18 are environment-gated (they need bundled GGUF artifacts, a working Python + llama-cpp-python runtime, or a spawnable language server) and skip in CI with printed reasons; the remaining 170 execute for real. Locally with artifacts installed, all 188 run.
+CI runs the same gate on ubuntu-latest and is green. A subset of the 265 architecture tests is environment-gated (bundled GGUF artifacts, a working Python runtime, or a spawnable language server) and skips in CI with printed reasons; the rest execute for real on every push. Locally with artifacts installed, the full suite runs.
 
 The contract layer (`common/contracts`, zod → OpenAPI) is shared by both sides, so frontend and daemon tests consume identical fixtures and drift is caught at check time.
 

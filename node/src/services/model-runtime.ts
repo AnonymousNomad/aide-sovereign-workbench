@@ -1,5 +1,5 @@
 import { promises as fs, existsSync, createReadStream, readFileSync } from 'node:fs';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, execFile, type ChildProcess } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -468,7 +468,19 @@ export class ModelRuntime {
     });
     if (child.exitCode === null) child.kill('SIGTERM');
     await Promise.race([waitExit, new Promise<void>(resolve => setTimeout(resolve, 5000))]);
-    if (child.exitCode === null) child.kill('SIGKILL');
+    if (child.exitCode === null) {
+      // Windows: child.kill() cannot reap engines that ignore signals or hold
+      // grandchildren; taskkill /T tree-kills the whole process tree (same
+      // proven repair as the legacy model-manager orphan fix).
+      if (process.platform === 'win32' && child.pid) {
+        await new Promise<void>(resolve => {
+          execFile('taskkill', ['/PID', String(child.pid), '/F', '/T'], () => resolve());
+        });
+        await Promise.race([waitExit, new Promise<void>(resolve => setTimeout(resolve, 3000))]);
+      } else {
+        child.kill('SIGKILL');
+      }
+    }
     return { id, status: 'stopped' };
   }
 

@@ -84,7 +84,29 @@ test('POST /api/models/ingest rejects a non-gguf path', async () => {
   assert.ok(envelope.data.error.message.includes('.gguf'));
 });
 
-test('POST /api/chat on an unstarted model returns NOT_READY', async () => {
+// The manifest assigns fixed ports; if a foreign server already occupies a
+// model's endpoint (e.g. an operator-run llama-server), the runtime's
+// adoption bridge will legitimately adopt it instead of returning
+// NOT_READY. Skip rather than false-alarm when the port is taken.
+async function manifestPortOccupied(id: string): Promise<boolean> {
+  try {
+    const status = await fetch(`${base}/api/models/status`);
+    if (!status.ok) return false;
+    const body = await status.json() as { data?: { models?: Array<{ id: string; endpoint?: string }> } };
+    const entry = body?.data?.models?.find(m => m.id === id);
+    if (!entry?.endpoint) return false;
+    const probe = await fetch(entry.endpoint.replace('/v1', '') + '/models', { signal: AbortSignal.timeout(1500) });
+    return probe.ok;
+  } catch {
+    return false;
+  }
+}
+
+test('POST /api/chat on an unstarted model returns NOT_READY', async t => {
+  if (await manifestPortOccupied('qwen-coder-1.5b-q4')) {
+    t.skip('a foreign server occupies the manifest endpoint (adoption bridge would adopt it); not-ready path not testable here');
+    return;
+  }
   const response = await fetch(`${base}/api/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -97,7 +119,11 @@ test('POST /api/chat on an unstarted model returns NOT_READY', async () => {
   assert.equal(envelope.data.error.code, 'NOT_READY');
 });
 
-test('POST /api/chat/stream on an unstarted model emits a validated error event', async () => {
+test('POST /api/chat/stream on an unstarted model emits a validated error event', async t => {
+  if (await manifestPortOccupied('qwen-coder-1.5b-q4')) {
+    t.skip('a foreign server occupies the manifest endpoint (adoption bridge would adopt it); not-ready path not testable here');
+    return;
+  }
   const response = await fetch(`${base}/api/chat/stream`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

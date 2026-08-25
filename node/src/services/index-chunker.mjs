@@ -11,7 +11,7 @@ const UNIT_ANCHORS = [
   /^class\s+\w+/,
   /^func\s+\w+/,
   /^fn\s+\w+/,
-  /^public\s+[\w<>\[\]]+\s+\w+\s*\(/,
+  /^public\s+[\w<>[\]]+\s+\w+\s*\(/,
   /^#{1,3}\s+\S/,
 ];
 

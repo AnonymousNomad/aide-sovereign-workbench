@@ -136,7 +136,7 @@ function runGit(args) {
 function parseGitStatus(raw) {
   const records = raw.split('\0').filter(Boolean);
   const header = records.shift() || '';
-  const branchMatch = /^##\s+([^\.\s]+)(?:\.\.([^\s]+))?(?:\s+\[([^\]]+)\])?/.exec(header);
+  const branchMatch = /^##\s+([^.\s]+)(?:\.\.([^\s]+))?(?:\s+\[([^\]]+)\])?/.exec(header);
   const tracking = branchMatch?.[2] || '';
   const counts = branchMatch?.[3] || '';
   const ahead = Number(/ahead (\d+)/.exec(counts)?.[1] || 0);

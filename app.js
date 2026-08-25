@@ -354,6 +354,17 @@ $('#import-btn').addEventListener('click', async () => {
   }
 });
 
+// Bounded delegation posture: STANDARD auto-approves read-only tools;
+// STRICT asks for every tool call. Persisted per browser.
+let delegationMode = localStorage.getItem('aide.delegation') || 'standard';
+function setDelegation(mode) {
+  delegationMode = mode;
+  localStorage.setItem('aide.delegation', mode);
+  const b = $('#delegation-badge');
+  if (b) { b.textContent = mode.toUpperCase(); b.className = 'badge' + (mode === 'strict' ? ' warn' : ' on'); }
+}
+setDelegation(delegationMode);
+
 async function planAndBuild(task) {
   threadMsg('user', task);
   const note = threadMsg('pending', 'Starting agent loop…');
@@ -374,15 +385,6 @@ async function planAndBuild(task) {
   note.remove();
   setStrip('Agent working with checkpoints — every change waits for your approval.');
   let lastApprovalId = null;
-// Bounded delegation posture: STANDARD auto-approves read-only tools;
-// STRICT asks for every tool call. Persisted per browser.
-let delegationMode = localStorage.getItem('aide.delegation') || 'standard';
-function setDelegation(mode) {
-  delegationMode = mode;
-  localStorage.setItem('aide.delegation', mode);
-  const b = $('#delegation-badge');
-  if (b) { b.textContent = mode.toUpperCase(); b.className = 'badge' + (mode === 'strict' ? ' warn' : ' on'); }
-}
   for (let poll = 0; poll < 160; poll++) {
     await new Promise(res => setTimeout(res, 1500));
     let s;
@@ -608,6 +610,14 @@ async function tryHotExitRecovery() {
 const editorTabs = [];  // [{path, model, dirty}]
 let activeTab = null;   // currently displayed path
 const monacoInstance = { editor: null };
+// Derived view of the ACTIVE tab — backs hot-exit/save/LSP paths written against
+// a single-editor shape ({path, instance, dirty}) while storage stays multi-tab.
+const editorState = {
+  get path() { return activeTab; },
+  get instance() { return monacoInstance.editor && activeTab ? monacoInstance.editor : null; },
+  get dirty() { const t = editorTabs.find(x => x.path === activeTab); return t ? t.dirty : false; },
+  set dirty(v) { const t = editorTabs.find(x => x.path === activeTab); if (t) { t.dirty = v; renderTabBar(); $('#save-file').disabled = !v; } },
+};
 
 function loadMonaco(cb) {
   if (window.__monacoReady) return cb();
@@ -807,7 +817,7 @@ function lspMaybeOpen(path, content) {
       lspState.opened.add(uri);
       lspNotify('textDocument/didOpen', { textDocument: { uri, languageId: 'typescript', version, text: content } });
     } else {
-      lspNotify('textDocument/didChange', { textDocument: { uri, version }, contentChanges: [{ text }] });
+      lspNotify('textDocument/didChange', { textDocument: { uri, version }, contentChanges: [{ text: content }] });
     }
   });
 }

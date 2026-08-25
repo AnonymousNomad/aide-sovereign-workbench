@@ -1,5 +1,9 @@
 # CIPHER — The Living System Architecture
 
+## Shell Decision (2026-08-25)
+
+Tauri blocked: Rust toolchain installation incomplete (toolchain dir exists but no binaries). Electron selected per aide-arch-packaging-release decision matrix — npm-only toolchain, daemon runs INSIDE shell process, zero new dependencies. Can revisit Tauri post-v1.0 if binary size matters.
+
 ## The Insight
 
 Current AI IDEs: model is a GUEST. It arrives, responds, leaves. No memory

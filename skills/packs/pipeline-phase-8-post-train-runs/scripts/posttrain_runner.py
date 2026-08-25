@@ -20,9 +20,15 @@ STAGES = {"sft": {"lr": 5e-5, "epochs": 1, "batch": 2, "accum": 24, "clip": 1.0,
 ORDER = ["sft", "distill", "dpo", "grpo"]
 
 def check_lineage(base_ckpt):
-    meta = base_ckpt + ".manifest.json"
+    safe_root = os.path.realpath(os.getcwd())
+    resolved = os.path.realpath(base_ckpt)
+    if not resolved.startswith(safe_root + os.sep) and resolved != safe_root:
+        print("REJECT: path traversal — base path must be within working directory")
+        sys.exit(2)
+    meta = resolved + ".manifest.json"
     if os.path.exists(meta):
-        d = json.load(open(meta, encoding="utf-8"))
+        with open(meta, encoding="utf-8") as f:
+            d = json.load(f)
         if not d.get("parent_gate_passed"):
             print(f"REJECT: lineage law — {base_ckpt} has parent_gate_passed=false")
             sys.exit(2)

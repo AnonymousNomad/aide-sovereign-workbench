@@ -58,6 +58,7 @@ export const HarnessMeta = z
     drift_reinjected: z.boolean().optional(),
     approx_prompt_tokens: z.number().int().nonnegative().optional(),
     compose_ms: z.number().optional(),
+    memory_bytes: z.number().int().nonnegative().optional(),
     reason: z.string().optional()
   })
   .strict();

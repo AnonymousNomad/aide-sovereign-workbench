@@ -55,7 +55,19 @@ export function routeForChat(router: ModelRouter, runtime: ModelRuntime, workspa
           let learnedLines: string[] = [];
           try { learnedLines = await createStateBus(workspace).getPreferences(3, 10); } catch { /* optional */ }
           const learnedBlock = learnedLines.length ? '\n\n[learned from previous interactions]\n' + learnedLines.join('\n') : '';
-          messages = injectScaffold(messages, { system: scaffold.system + learnedBlock }) as Msg[];
+          // X1.b: pinned memory blocks + session-open recency line. Best-effort
+          // reads; caps enforced at write time so injection is budget-safe.
+          let memorySection = '';
+          try {
+            const blocksMod = require('../../../harness/memory-blocks.mjs');
+            const [blocks, workLine] = await Promise.all([
+              blocksMod.readBlocks(workspace),
+              blocksMod.recentWorkLine(workspace)
+            ]);
+            memorySection = blocksMod.composeMemorySection(blocks, workLine);
+          } catch { /* optional */ }
+          const memoryBytes = Buffer.byteLength(memorySection, 'utf8');
+          messages = injectScaffold(messages, { system: scaffold.system + learnedBlock + memorySection }) as Msg[];
           // Drift hook: PART-A reminder when transcript passes half window.
           const approxTokens = estimateTokens(messages);
           let drift = false;
@@ -80,7 +92,8 @@ export function routeForChat(router: ModelRouter, runtime: ModelRuntime, workspa
               served_context_tokens: effective,
               drift_reinjected: drift,
               approx_prompt_tokens: approxTokens,
-              compose_ms: composeMs
+              compose_ms: composeMs,
+              memory_bytes: memoryBytes
             }
           };
         }

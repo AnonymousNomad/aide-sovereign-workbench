@@ -26,8 +26,6 @@ import { HandoffManager } from './handoff.mjs';
 import { buildScaffold, injectScaffold, composeDriftReminder, estimateTokens, HARNESS_VERSION } from '../harness/scaffold.mjs';
 import { createStateBus } from '../harness/cipher-state.mjs';
 
-const cipherBus = createStateBus(WORKSPACE);
-
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function matchMask(filePath, mask) {
@@ -48,6 +46,7 @@ const WORKSPACE = path.resolve(process.env.AIDE_WORKSPACE || AIDE_HOME);
 const STATE_DIR = path.join(WORKSPACE, '.aide');
 const MODEL_DIR = path.resolve(process.env.AIDE_MODEL_DIR || path.join(AIDE_HOME, 'models'));
 const MANIFEST = path.join(AIDE_HOME, 'models', 'manifest.json');
+const cipherBus = createStateBus(WORKSPACE);
 const workspaceConfig = async relative => {
   const candidate = path.join(WORKSPACE, relative);
   try { await fs.access(candidate); return candidate; } catch { return path.join(AIDE_HOME, relative); }

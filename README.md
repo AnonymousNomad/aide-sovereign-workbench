@@ -70,23 +70,37 @@ AIDE doesn't try to out-feature VS Code's 100k-extension ecosystem. It owns the 
 
 ## What Works Today
 
-Continuously verified against the real daemon and real browser: **188 architecture tests, 17 end-to-end browser tests, a 10/10 doctor preflight**, plus the unit batteries below (re-measured before every release; nothing here is claimed without a passing gate).
+Continuously verified against the real daemon and real browser: **188 architecture tests, 17 end-to-end browser tests, a 10/10 doctor preflight**, plus unit batteries for facade (12/12), scaffold composition (5/5), agent loop (14/14), agent routes (5/5), and LSP manager — all re-measured before every push.
 
-- **Cockpit orchestrator UI** — one workflow (Describe → Plan → Approve → Build → Verify): a chat/orchestrator dock, an approval-gated agent loop with per-call diff previews, live git-diff workbench, and a verification rail (diagnostics, git state, harness status). States, not modes: cold start is one button; every blocked state renders its own recovery action.
-- **Model Hub (in-app acquisition)** — search Hugging Face GGUF repos, list quantizations with real file sizes, resumable downloads with progress and cancel, and one-click registration into the engine pool. Local `.gguf` import by path is supported for air-gapped setups.
-- **Harness scaffold v2.1** — every chat gets a sized operating layer: a 3-line micro tier for small-context models, the full Code+Lens document (PART A non-overridable + influence-lens B1–B6) for strong budgets. Byte-deterministic composition, budget caps with honest drop reporting, and a fixed 20-task effectiveness battery (`scripts/run-harness-battery.mjs`) — results published in `docs/evidence/`, including the negative result that forced the redesign.
-- **Backend auto-select** — candidate llama-server builds are probed via `--list-devices`; Vulkan/CUDA/CPU selection follows operator profile → cached benchmark verdict → hardware heuristic. On Pascal-class GPUs (e.g. GTX 1060) the measured generation advantage of the Vulkan backend over CPU is ~4.6× on bundled test models.
-- **Editor** — workspace tree, tabs, dirty state, find/replace, split editor groups, session recovery.
-- **Local AI models** — chat through an OpenAI-compatible loopback runtime; GGUF ingestion with SHA-256 verification and memory-fit checks against the local GPU/RAM. Weights are never bundled in the repository; they are downloaded separately and verified.
-- **Model handoff** — every model that can chat is one route with its own context window; health-gated picker, history refit on switch, failed-route fallback with explicit notice, and every answer labeled with the model that produced it.
-- **Language intelligence** — LSP client for TypeScript: diagnostics as editor markers, completion, hover, go-to-definition.
-- **Debugging foundation** — DAP client for Python (debugpy): session tracking, breakpoints, stack/scope inspection. A full debuggee-fixture battery remains a release gate.
-- **Git** — status, diff review, staging, commit, branches, history — all local, via the git CLI.
-- **Terminal & tasks** — integrated terminal and a contract-first task service with problem matchers, compound task graphs, and streaming output events.
-- **Online providers (opt-in)** — OpenAI, Anthropic, Google Gemini, Mistral, Groq, and OpenRouter. Credentials encrypted at rest with Windows DPAPI, never shown to the browser, scrubbed from logs; every host allowlisted.
-- **Chat-history import** — ChatGPT and Claude `conversations.json` exports import additively into the local chat store.
-- **Veritas evidence gates** — AI-generated changes must pass deterministic checks before release: compile, tests, Git whitespace, manifest validation, path boundaries, secret scanning. The harness never lets a model approve or apply its own changes.
-- **Extras** — offline plugin manifests with trust/capability gates, Academy/tutor tracks, a Training Room for approved model runs, a local Community Hub, and reproducible workspace capsules.
+- **Cockpit orchestrator UI** — one workflow (Describe → Plan → Approve → Build → Verify): chat/orchestrator dock, approval-gated agent loop with per-call diff previews, live git-diff workbench, verification rail (diagnostics, git state, harness status). States, not modes.
+- **Multi-tab Monaco editor** — open, switch, edit multiple files simultaneously with dirty indicators, LSP intelligence (hover, completion, definition, diagnostics markers), F2 rename with previewed multi-file apply, Shift+F12 references, Ctrl+Shift+I formatting.
+- **Agent tool invoke API** — `POST /api/agent/tool` accepts `{name, arguments}` with alias support (`str_replace_editor`→`replace_in_file`, `execute_bash`→`run_command`) and sandbox isolation per model slot. Full trajectory persistence as `.traj.json`.
+- **Model Hub (in-app acquisition)** — search Hugging Face GGUF repos, list quantizations with file sizes, resumable downloads, one-click registration. Local `.gguf` import by path supported.
+- **Harness scaffold v2.1 + Cipher learned injection** — sized operating layers (micro/full by served context) with [learned] preference blocks injected from accumulated interaction outcomes. Byte-deterministic, budget-capped, drift-aware.
+- **Backend auto-select** — probes candidate llama-server builds via `--list-devices`; Vulkan/CUDA/CPU selection follows operator profile → cached benchmark verdict → hardware heuristic. Measured 4.6× TG advantage on Pascal-class GPUs.
+- **Git depth** — status, diff, staging, commit with Assisted-by trailer, branches, history, consented push (egress-journaled).
+- **Terminal drawer** — one-shot command execution with output capture and exit-code reporting.
+- **Language intelligence** — TypeScript LSP: diagnostics as markers, completion, hover, go-to-definition. Python DAP client foundation.
+- **Online providers (opt-in)** — OpenAI, Anthropic, Gemini, Mistral, Groq, OpenRouter. DPAPI-encrypted credentials, host allowlist.
+- **Veritas evidence gates** — compile, tests, whitespace, manifest validation, path boundaries, secret scanning. Models never approve or apply their own changes.
+- **Plugins** — declarative capability manifests from a 20-preset catalog with trust gates and three working contributions.
+- **Extras** — offline plugin manifests, Academy/tutor tracks, Training Room, Community Hub, workspace capsules, 139 in-box SOP packs.
+
+### Honest limits
+
+- Pre-production engineering release — not VS Code parity yet.
+- Desktop packaging (Tauri/Electron) defined but blocked on Rust toolchain availability.
+- Fine-tuned model quality depends on training data quality; garbled output from insufficient fine-tuning is a known issue being addressed.
+- Live provider calls require user-supplied credentials, tested manually per release.
+- Debug UI deferred (usage data shows 1.4% of editor time spent debugging).
+
+### Coming next
+
+- Phase router: automatic model assignment per build phase (PLAN→CODE→TEST→REVIEW)
+- Multi-lens review: security/performance/maintainability passes on every change
+- RAG search UI: semantic code search across workspace
+- Installer: Tauri or Electron packaging for one-click install
+- Sleep-time training: nightly QLoRA on accumulated verified trajectories
 
 Unit batteries behind this week's features (all green, re-runnable):
 `tests/unit/test-facade.mjs` 12/12 · `tests/unit/test-scaffold-v2.mjs` 5/5 · `tests/unit/test-a1-agent.mjs` 14/14 · `tests/arch/agent-routes.test.ts` 5/5 · harness battery evidence in `docs/evidence/harness-battery-smollm2.md`.

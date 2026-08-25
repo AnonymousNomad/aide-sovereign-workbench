@@ -18,7 +18,8 @@
   },
   "exact": {
     "/api/file": "ts",
-    "/api/file/write": "ts"
+    "/api/file/write": "ts",
+    "/api/chat": "ts"
   },
   "upgrades": {
     "/ws": "ts"

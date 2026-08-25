@@ -311,7 +311,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForRoutes(modelRouter),
     routeForRoute(modelRouter),
     routeForFit(),
-    routeForChat(modelRouter),
+    routeForChat(modelRouter, modelRuntime, workspace),
     routeForChatStream(modelRouter),
     routeForChatHistory(chatStore),
     routeForChatHistorySave(chatStore),

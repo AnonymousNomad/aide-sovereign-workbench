@@ -109,6 +109,7 @@ export class ModelRuntime {
   private readonly processes = new Map<string, ChildProcess>();
   private readonly warmed = new Set<string>();
   private readonly hashCache = new Map<string, { mtimeMs: number; size: number; hash: string }>();
+  private readonly servedCtx = new Map<string, number>();
 
   constructor(options: ModelRuntimeOptions) {
     this.workspace = options.workspace;
@@ -216,15 +217,18 @@ export class ModelRuntime {
 
   async status(): Promise<{ runtime: boolean; models: Array<Record<string, unknown>> }> {
     if (!this.pythonReady && this.pythonProbe === null && Date.now() - this.lastProbeAt > 5000) await this.probePython();
-    const runtimeAvailable = this.pythonReady;
+    // Engine availability = binary serving path OR python fallback. Binary is
+    // the verified primary; conflating this with the python probe alone
+    // mislabeled RUNNING binary engines as merely "installed".
+    const engineAvailable = resolveLlamaBinary(this.workspace) !== null || this.pythonReady;
     return {
-      runtime: runtimeAvailable,
+      runtime: engineAvailable,
       models: [...this.models.values()].map(model => {
         const artifactAvailable = model.file.length > 0 && existsSync(model.file);
         let modelStatus = model.status;
-        if (artifactAvailable && model.status !== 'ready' && runtimeAvailable) modelStatus = 'ready';
+        if (artifactAvailable && model.status !== 'ready' && engineAvailable) modelStatus = 'ready';
         const setup: string[] = [];
-        if (!runtimeAvailable) setup.push('fix Python runtime: set AIDE_PYTHON or ensure `py -3.10 -E -c "import llama_cpp"` succeeds');
+        if (!engineAvailable) setup.push('no engine available: install llama-server binary (runtime/ or E:\\llama-cpp) or set AIDE_PYTHON to a Python 3.10 interpreter with llama-cpp-python');
         if (modelStatus === 'ready' && !artifactAvailable) setup.push(`model file was not found at ${model.file}`);
         const entry: Record<string, unknown> = {
           id: model.id,
@@ -232,7 +236,7 @@ export class ModelRuntime {
           status: this.processes.has(model.id) ? 'running' : modelStatus,
           declared_status: modelStatus,
           endpoint: model.endpoint,
-          runtime_available: runtimeAvailable,
+          runtime_available: engineAvailable,
           artifact_available: artifactAvailable,
           setup_required: setup.length > 0 && modelStatus === 'ready',
           setup_message: setup.length > 0 ? setup.join('; ') : undefined,
@@ -488,7 +492,33 @@ export class ModelRuntime {
     for (const id of [...this.processes.keys()]) await this.stop(id);
   }
 
-  async chat(id: string, messages: Array<{ role: string; content: string }>, options: { maxTokens?: number; temperature?: number } = {}): Promise<{ text: string; modelId: string; tokens?: number; timingMs: number }> {
+  // Effective context = what the engine ACTUALLY serves (llama-server clamps
+  // n_ctx to train ctx for some artifacts). Cached from /props (served at
+  // engine ROOT, not under /v1); falls back to the manifest's declared
+  // context_tokens until first successful read (legacy parity).
+  getEffectiveContext(id: string): number | null {
+    const cached = this.servedCtx.get(id);
+    if (cached !== undefined) return cached;
+    const declared = Number(this.models.get(id)?.context_tokens);
+    return Number.isFinite(declared) && declared > 0 ? declared : null;
+  }
+
+  async refreshServedContext(id: string): Promise<void> {
+    const model = this.models.get(id);
+    if (!model) return;
+    try {
+      const base = model.endpoint.replace(/\/v1\/?$/, '');
+      const response = await fetch(`${base}/props`, { signal: AbortSignal.timeout(3000) });
+      if (!response.ok) return;
+      const props = await response.json() as { default_generation_settings?: { n_ctx?: number } };
+      const nCtx = Number(props?.default_generation_settings?.n_ctx);
+      if (Number.isFinite(nCtx) && nCtx > 0) this.servedCtx.set(id, nCtx);
+    } catch {
+      /* endpoint not up yet — keep previous value */
+    }
+  }
+
+  async chat(id: string, messages: Array<{ role: string; content: string }>, options: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {}): Promise<{ text: string; modelId: string; tokens?: number; timingMs: number }> {
     const model = this.models.get(id);
     if (!model) throw new ModelRuntimeError('CHILD_FAILED', 'model is not allowlisted');
     if (!this.processes.has(id)) {
@@ -509,7 +539,7 @@ export class ModelRuntime {
         temperature: options.temperature ?? 0.2,
         max_tokens: Math.min(options.maxTokens ?? 512, 512)
       }),
-      signal: AbortSignal.timeout(90_000)
+      signal: AbortSignal.timeout(Math.min(options.timeoutMs ?? 90_000, 300_000))
     });
     if (!response.ok) throw new ModelRuntimeError('CHILD_FAILED', `local runtime returned HTTP ${response.status}`);
     const payload = await response.json().catch(() => {

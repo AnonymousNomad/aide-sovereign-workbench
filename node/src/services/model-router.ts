@@ -54,10 +54,11 @@ export interface RouteChatResult {
 const PROBE_TTL_MS = 30_000;
 const LOCAL_PROBE_TIMEOUT_MS = 3_000;
 
-function normalizeOptions(options: { maxTokens?: number | undefined; temperature?: number | undefined }): { maxTokens?: number; temperature?: number } {
-  const out: { maxTokens?: number; temperature?: number } = {};
+function normalizeOptions(options: { maxTokens?: number | undefined; temperature?: number | undefined; timeoutMs?: number | undefined }): { maxTokens?: number; temperature?: number; timeoutMs?: number } {
+  const out: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {};
   if (options.maxTokens !== undefined) out.maxTokens = options.maxTokens;
   if (options.temperature !== undefined) out.temperature = options.temperature;
+  if (options.timeoutMs !== undefined) out.timeoutMs = options.timeoutMs;
   return out;
 }
 
@@ -220,7 +221,7 @@ export class ModelRouter {
     return { route: fallback, selection };
   }
 
-  async chat(routeId: string, messages: ChatMessageT[], options: { maxTokens?: number | undefined; temperature?: number | undefined } = {}): Promise<RouteChatResult> {
+  async chat(routeId: string, messages: ChatMessageT[], options: { maxTokens?: number | undefined; temperature?: number | undefined; timeoutMs?: number | undefined } = {}): Promise<RouteChatResult> {
     const { route, selection } = await this.resolve(routeId);
     const fit = fitHistory(messages, route.contextLength, options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {});
     const chatOptions = normalizeOptions(options);

@@ -1620,6 +1620,112 @@
                     },
                     "timingMs": {
                       "type": "number"
+                    },
+                    "answer": {
+                      "type": "string"
+                    },
+                    "harness": {
+                      "type": "object",
+                      "properties": {
+                        "injected": {
+                          "type": "boolean"
+                        },
+                        "tier": {
+                          "type": "string"
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "version": {
+                          "type": "string"
+                        },
+                        "served_context_tokens": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "drift_reinjected": {
+                          "type": "boolean"
+                        },
+                        "approx_prompt_tokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "compose_ms": {
+                          "type": "number"
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "injected"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "gated": {
+                      "type": "object",
+                      "properties": {
+                        "n": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "picked": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "all_passed": {
+                          "type": "boolean"
+                        },
+                        "log": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "attempt": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "temperature": {
+                                "type": "number"
+                              },
+                              "pass": {
+                                "type": "boolean"
+                              },
+                              "penalty": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "attempt",
+                              "temperature",
+                              "pass",
+                              "penalty"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "n",
+                        "picked",
+                        "all_passed",
+                        "log"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -1680,9 +1786,22 @@
                         "type": "number",
                         "minimum": 0,
                         "maximum": 2
+                      },
+                      "n": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 4
+                      },
+                      "timeoutMs": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
                       }
                     },
                     "additionalProperties": false
+                  },
+                  "harness": {
+                    "type": "boolean"
                   }
                 },
                 "required": [

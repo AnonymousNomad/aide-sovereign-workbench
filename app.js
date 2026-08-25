@@ -13,6 +13,20 @@ async function jget(url) {
   return j;
 }
 
+async function jpost(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error((j.error && (j.error.message || j.error)) || `HTTP ${r.status}`);
+  return j;
+}
+
+async function jput(url, body) {
+  const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error((j.error && (j.error.message || j.error)) || `HTTP ${r.status}`);
+  return j;
+}
+
 function threadMsg(kind, text, name) {
   const el = document.createElement('div');
   el.className = `msg ${kind}`;
@@ -1014,6 +1028,7 @@ const HARNESS_VERSION_LABEL = 'v2.1.0';
 // ---------- E1 power surface: palette / global search / terminal ----------
 const COMMANDS = [
   { label: 'Open Models panel', kw: 'models hub engines download import tuning', run: () => { $('#models-panel').hidden = false; refreshEngineList(); } },
+  { label: 'Desktop control (grants & panic)', kw: 'desktop control grants panic allow apps files windows permission', run: openDesktopPanel },
   { label: 'Find in workspace', kw: 'search find files grep', run: () => { $('#search-overlay').hidden = false; $('#gs-query').focus(); } },
   { label: 'Toggle terminal drawer', kw: 'terminal shell console run command', run: toggleTerminal },
   { label: 'Stop running engine', kw: 'stop engine kill model memory', run: () => $('#stop-engine').click() },
@@ -1289,6 +1304,57 @@ $('#git-close').addEventListener('click', () => { $('#git-sheet').hidden = true;
 
 // ---------- Skills browser (in-box SOP packs) ----------
 let skillsData = null;
+// ---------- Desktop control panel (monthly surface; palette entry) ----------
+async function openDesktopPanel() {
+  $('#desktop-panel').hidden = false;
+  await renderDesktopPanel();
+}
+
+async function renderDesktopPanel() {
+  const body = $('#desktop-body');
+  let status;
+  try { status = await jget(`${API}/api/desktop/status`); }
+  catch (e) { body.textContent = `desktop service unreachable: ${e.message}`; return; }
+  body.hidden = true;
+  $('#dc-wizard').hidden = true;
+  $('#dc-active').hidden = true;
+  if (!status.enabled) {
+    $('#dc-wizard').hidden = false;
+    $('#dc-enable').onclick = async () => {
+      const apps = $('#dc-apps').value.split(',').map(s => s.trim()).filter(Boolean);
+      const roots = $('#dc-roots').value.split(',').map(s => s.trim()).filter(Boolean);
+      const titles = $('#dc-titles').value.split(',').map(s => s.trim()).filter(Boolean);
+      const ttl = Math.max(1, Math.min(720, Number($('#dc-ttl').value) || 30));
+      try {
+        await jpost(`${API}/api/desktop/grants`, { enabled: true, grants: { apps, roots, window_titles: titles }, ttl_minutes: ttl });
+        setStrip(`Desktop control enabled for ${ttl} min — ${apps.length} app(s), ${roots.length} folder(s).`);
+        await renderDesktopPanel();
+      } catch (e) { threadMsg('error', `desktop grants rejected: ${e.message}`); }
+    };
+    return;
+  }
+  // ENABLED state — live status + panic
+  const g = status.grants || {};
+  const minsLeft = status.session_started_at ? Math.max(0, Math.ceil(status.ttl_minutes - (Date.now() - new Date(status.session_started_at).getTime()) / 60000)) : '?';
+  $('#dc-active').hidden = false;
+  $('#dc-statusline').textContent = `${minsLeft} min left in session · ${status.tracked_children} tracked process(es)${status.panicked ? ' · PANICKED' : ''}`;
+  $('#dc-grants-summary').innerHTML =
+    `<b>Apps:</b> ${(g.apps || []).map(a => esc(a)).join(', ') || '—'}<br>` +
+    `<b>Folders:</b> ${(g.roots || []).map(r => esc(r)).join(', ') || '—'}<br>` +
+    `<b>Windows:</b> ${(g.window_titles || []).map(t => esc(t)).join(', ') || '—'}`;
+  $('#dc-panic').onclick = async () => {
+    if (!confirm('PANIC revokes all desktop grants immediately and kills any processes AIDE started. Continue?')) return;
+    const p = await jpost(`${API}/api/desktop/panic`, {});
+    setStrip(`Desktop PANIC — grants revoked in ${p.latency_ms} ms.`);
+    await renderDesktopPanel();
+  };
+  $('#dc-disable').onclick = async () => {
+    await jpost(`${API}/api/desktop/grants`, { enabled: false, grants: { apps: [], roots: [], window_titles: [] }, ttl_minutes: 1 });
+    setStrip('Desktop control disabled.');
+    await renderDesktopPanel();
+  };
+}
+
 async function openSkillsPanel() {
   $('#skills-panel').hidden = false;
   if (!skillsData) {

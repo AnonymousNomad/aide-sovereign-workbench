@@ -121,6 +121,7 @@ try {
   } else {
     // Cockpit v2 contract: verify core surfaces render in the browser.
     assert.match(dom, /id="cold-card"/, 'cold card must render');
+    assert.match(dom, /id="desktop-panel"/, 'desktop control panel must exist in shell');
     assert.match(dom, /id="describe-form"/, 'describe form must render');
     assert.match(dom, /id="thread"/, 'orchestrator thread must render');
     assert.match(dom, /id="strip-text"/, 'status strip must render');

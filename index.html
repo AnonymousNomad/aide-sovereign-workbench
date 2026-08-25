@@ -216,6 +216,32 @@
   </div>
 </section>
 
+<section id="desktop-panel" class="overlay cmdk" hidden>
+  <div class="cmdk-box wide">
+    <div class="eyebrow">DESKTOP CONTROL — STRICT OPT-IN · SESSION-SCOPED · DENY-BY-DEFAULT</div>
+    <div id="desktop-body" class="hub-results"><div class="muted">Loading…</div></div>
+    <div id="dc-wizard" hidden>
+      <div class="muted" style="margin-bottom:10px">Off by default. When enabled, the agent may launch allow-listed apps, open paths under granted folders, and focus listed windows — every action is logged, session-scoped, and revocable instantly.</div>
+      <label class="small muted">APPS (comma-separated)</label>
+      <input id="dc-apps" style="width:100%;margin:4px 0 8px;background:#111;border:1px solid #333;color:var(--fg);padding:6px;font-family:var(--mono)" placeholder="notepad.exe">
+      <label class="small muted">GRANTED FOLDERS (absolute paths, comma-separated)</label>
+      <input id="dc-roots" style="width:100%;margin:4px 0 8px;background:#111;border:1px solid #333;color:var(--fg);padding:6px;font-family:var(--mono)">
+      <label class="small muted">WINDOW TITLES (optional)</label>
+      <input id="dc-titles" style="width:100%;margin:4px 0 8px;background:#111;border:1px solid #333;color:var(--fg);padding:6px;font-family:var(--mono)" placeholder="Visual Studio Code">
+      <label class="small muted">SESSION LENGTH (minutes)</label>
+      <input id="dc-ttl" type="number" min="1" max="720" value="30" style="width:90px;margin:4px 0 10px;background:#111;border:1px solid #333;color:var(--fg);padding:6px;font-family:var(--mono)">
+      <div><button id="dc-enable" class="primary">ENABLE FOR THIS SESSION</button></div>
+    </div>
+    <div id="dc-active" hidden>
+      <div style="margin-bottom:10px"><span class="badge on">ENABLED</span> <span class="muted small" id="dc-statusline"></span></div>
+      <div class="small" id="dc-grants-summary" style="margin-bottom:12px"></div>
+      <button id="dc-panic" style="background:#5a1010;border:1px solid #a33;color:#ffb0b0;padding:8px 14px;font-family:var(--mono);cursor:pointer">PANIC — REVOKE EVERYTHING NOW</button>
+      <button id="dc-disable" style="margin-left:8px;background:#111;border:1px solid #333;color:var(--fg);padding:8px 14px;font-family:var(--mono);cursor:pointer">DISABLE GRACEFULLY</button>
+    </div>
+    <button id="desktop-close" class="primary" style="margin-top:12px">CLOSE</button>
+  </div>
+</section>
+
 <script src="/assets/monaco/vs/loader.js"></script>
 <script>
   require.config({ paths: { vs: '/assets/monaco/vs' } });

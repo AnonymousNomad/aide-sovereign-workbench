@@ -362,17 +362,18 @@ export async function buildRoutes(workspace: string, version: string, options: B
       // state). The /ask brain composes: Telegram NL -> model proposal bounded
       // to grants -> YES/NO confirm -> desktop execution (evidence+trajectory).
       const req = createRequire(import.meta.url);
-      const { createTelegramBrain } = req('../services/telegram-brain.mjs');
+      const { createTelegramBrain } = req('./services/telegram-brain.mjs');
       const desktopService = createDesktopService(workspace);
       const brain = createTelegramBrain({
         desktop: desktopService,
-        resolveEngineChat: async messages => {
+        resolveEngineChat: async (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => {
           try {
             const status = await modelRuntime.status();
             const ready = (status.models as Array<{ id: string; status?: string }>).filter(m => m.status === 'running');
             if (!ready.length) return null;
             // Cipher-first doctrine: house model preferred when running.
             const pick = ready.find(m => String(m.id).includes('cipher')) ?? ready[0];
+            if (!pick) return null;
             return await modelRouter.chat(pick.id, messages, {});
           } catch {
             return null;

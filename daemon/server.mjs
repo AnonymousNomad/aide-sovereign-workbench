@@ -26,6 +26,8 @@ import { HandoffManager } from './handoff.mjs';
 import { buildScaffold, injectScaffold, composeDriftReminder, estimateTokens, HARNESS_VERSION } from '../harness/scaffold.mjs';
 import { createStateBus } from '../harness/cipher-state.mjs';
 
+const cipherBus = createStateBus(WORKSPACE);
+
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function matchMask(filePath, mask) {
@@ -382,6 +384,8 @@ const server = http.createServer(async (request, response) => {
       // Ship telemetry v0: intent -> verified-commit record (outcome latency foundation).
       await fs.mkdir(path.join(WORKSPACE, '.aide', 'metrics'), { recursive: true }).catch(() => {});
       await fs.appendFile(path.join(WORKSPACE, '.aide', 'metrics', 'ships.log'), JSON.stringify({ at: new Date().toISOString(), intent: String(input.intent || '').slice(0, 200), message: message.slice(0, 200) }) + '\n').catch(() => {});
+      // Loop C capture: every ship is a positive outcome for the learning loop.
+      cipherBus.append({ type: 'ship', message: message.slice(0, 200), files_count: input.files_count || 0 }).catch(() => {});
       return json(response, 200, { committed });
     }
     if (request.method === 'GET' && request.url === '/api/git/branches') {
@@ -435,7 +439,11 @@ const server = http.createServer(async (request, response) => {
       const t0 = performance.now();
       if (wantHarness && effective >= 1024) {
         const scaffold = buildScaffold({ contextTokens: effective });
-        let messages = injectScaffold(input.messages || [], scaffold);
+        // [learned] injection: past approved patterns inform current output
+        let learnedLines = [];
+        try { learnedLines = await cipherBus.getPreferences(3, 10); } catch {}
+        const learnedBlock = learnedLines.length ? '\n\n[learned from previous interactions]\n' + learnedLines.join('\n') : '';
+        let messages = injectScaffold(input.messages || [], { system: scaffold.system + learnedBlock });
         // Drift hook (collaborator input 2026-08-25): re-inject PART A when the
         // transcript passes half the served window — small models drift before
         // they run out of context.

@@ -673,11 +673,13 @@ async function saveCurrentFile() {
 
 $('#save-file').addEventListener('click', saveCurrentFile);
 
+const TREE_SKIP = new Set(['node_modules','.git','dist','build','assets','academy','.aide','logs','legacy-shell-backup','desktop','skills','training','benchmarks','capsules','community','plugins','providers','session','tasks','editor','artifacts','harness','blueprint','debuggers','languages']);
+
 async function loadTree() {
   try {
     const res = await jget(`${API}/api/workspace/tree`);
     const tree = $('#file-tree');
-    const render = (nodes, depth) => nodes.map(n => {
+    const render = (nodes, depth) => nodes.filter(n => n.kind !== 'directory' || !TREE_SKIP.has(n.name)).map(n => {
       if (n.kind === 'directory') {
         return `<div class="tree-dir" style="padding-left:${depth * 12}px">${esc(n.name)}/</div>` + render(n.children || [], depth + 1);
       }
@@ -1328,6 +1330,7 @@ function renderPlugins() {
 
 $('#plugins-button').addEventListener('click', () => { $('#plugins-panel').hidden = false; loadPluginsPanel(); });
 $('#plugins-close').addEventListener('click', () => { $('#plugins-panel').hidden = true; });
+$('#plugins-panel').addEventListener('click', e => { if (e.target === e.currentTarget) $('#plugins-panel').hidden = true; });
 
 function previewActiveMarkdown() {
   if (!editorState.path || !editorState.path.endsWith('.md')) return threadMsg('system', 'Open a .md file first, then preview.');

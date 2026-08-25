@@ -22,11 +22,12 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .chip.on .dot{background:var(--green);box-shadow:0 0 9px var(--green)}
 
 /* ---------- cockpit grid ---------- */
-.cockpit{flex:1;min-height:0;display:grid;grid-template-columns:340px minmax(360px,1fr) 280px}
+.cockpit{flex:1;min-height:0;display:grid;grid-template-columns:340px minmax(360px,1fr) 280px;overflow:hidden}
+.cockpit>*{overflow:hidden}
 .zone-title{color:var(--muted);font:9px var(--mono);letter-spacing:.14em;padding:12px 14px 8px}
 
 /* ---------- left: orchestrator ---------- */
-.orchestrator{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.orchestrator{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .thread{flex:1;overflow:auto;padding:4px 14px 10px;display:flex;flex-direction:column;gap:10px}
 .msg{max-width:100%;padding:9px 11px;border-radius:6px;font-size:12px;line-height:1.55}
 .msg b{font:9px var(--mono);letter-spacing:.08em;color:var(--blue)}
@@ -56,7 +57,7 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .tree-dir{color:var(--muted);padding-top:4px;padding-bottom:4px;white-space:nowrap}
 .tree-file{color:#b8c9cf;padding:3px 4px;cursor:pointer;white-space:nowrap;border-radius:3px}
 .tree-file:hover{background:#12222f;color:var(--text)}
-.editor-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.editor-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .editor-toolbar{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)}
 .editor-toolbar .spacer{flex:1}
 #save-file:not(:disabled){border-color:var(--green);color:var(--green)}
@@ -117,7 +118,7 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 .describe button:disabled{opacity:.4;cursor:not-allowed}
 
 /* ---------- center: workbench ---------- */
-.workbench{min-width:0;display:flex;flex-direction:column;position:relative;background:transparent}
+.workbench{min-width:0;display:flex;flex-direction:column;position:relative;background:transparent;overflow:hidden}
 .cold-card{margin:auto;width:min(430px,88%);border:1px solid #35526a;background:linear-gradient(150deg,#101d2b,#0a121b);box-shadow:0 22px 70px #000a;padding:30px;text-align:center}
 .cold-card h1{font:bold 22px var(--mono);margin:10px 0;color:#fff}
 .cold-card p{color:#b8c9cf;font-size:13px;min-height:38px}

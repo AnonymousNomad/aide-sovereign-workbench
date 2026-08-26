@@ -251,6 +251,17 @@
         "reviewer"
       ],
       "lora_adapter": "models/aide-house/frontier-lora.gguf"
+    },
+    {
+      "id": "qwen3-4b-minimax-m2.1-coder.q4_k_m",
+      "name": "Qwen3-4B-MiniMax-M2.1-Coder.q4_k_m",
+      "status": "ready",
+      "endpoint": "http://127.0.0.1:8090/v1",
+      "artifact_uri": "local://Qwen3-4B-MiniMax-M2.1-Coder.q4_k_m.gguf",
+      "model": "Qwen3-4B-MiniMax-M2.1-Coder.q4_k_m.gguf",
+      "context_tokens": 8192,
+      "repo_id": "manual",
+      "lora_adapter": "E:/FSI-FELON/models/aide_trio/merged/thinking_lora_full_f16.gguf"
     }
   ]
 }

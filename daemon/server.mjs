@@ -421,8 +421,8 @@ const server = http.createServer(async (request, response) => {
       if (input.approved !== true) throw new Error('explicit approval required — push uploads your commits to the remote');
       const branch = String(input.branch || '').trim() || 'main';
       const remote = String(input.remote || 'origin').trim();
-      if (!/^[\w.\-\/]+$/.test(branch)) throw new Error('invalid branch name');
-      if (!/^[\w.\-\/]+$/.test(remote)) throw new Error('invalid remote name');
+      if (!/^[\w.\-/]+$/.test(branch)) throw new Error('invalid branch name');
+      if (!/^[\w.\-/]+$/.test(remote)) throw new Error('invalid remote name');
       await fs.mkdir(path.join(WORKSPACE, '.aide', 'logs'), { recursive: true }).catch(() => {});
       await fs.appendFile(path.join(WORKSPACE, '.aide', 'logs', 'egress.log'), JSON.stringify({ action: 'git.push', remote, branch, at: new Date().toISOString() }) + '\n').catch(() => {});
       const out = await runGit(['push', remote, `${branch}:${branch}`]);

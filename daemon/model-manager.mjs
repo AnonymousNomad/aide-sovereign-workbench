@@ -6,6 +6,20 @@ import net from 'node:net';
 import os from 'node:os';
 import { scoreCandidate } from '../harness/gates.mjs';
 
+const GRAMMAR_DIR = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), '..', 'grammar');
+const grammarCache = new Map();
+
+export function loadGrammar(name) {
+  if (grammarCache.has(name)) return grammarCache.get(name);
+  try {
+    const content = readFileSync(path.join(GRAMMAR_DIR, `${name}.gbnf`), 'utf8');
+    grammarCache.set(name, content);
+    return content;
+  } catch {
+    return null;
+  }
+}
+
 // Backend auto-select per aide-backend-autoselect skill: probe candidate
 // binaries with --list-devices; empty output means a CPU-only build whose GPU
 // flags would be silently ignored.
@@ -364,10 +378,15 @@ export class ModelManager {
     const log = [];
     for (let attempt = 0; attempt < n; attempt++) {
       const temperature = attempt === 0 ? baseTemp : Math.min(baseTemp + attempt * 0.25, 1.2);
+      const chatBody = { ...(model.model ? { model: model.model } : {}), messages, temperature, max_tokens: Math.min(Number(options.max_tokens) || 512, 512) };
+      if (options.grammar) {
+        const g = loadGrammar(options.grammar);
+        if (g) chatBody.grammar = g;
+      }
       const response = await fetch(`${model.endpoint}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...(model.model ? { model: model.model } : {}), messages, temperature, max_tokens: Math.min(Number(options.max_tokens) || 512, 512) }),
+        body: JSON.stringify(chatBody),
         signal: AbortSignal.timeout(Number(options.timeout_ms) || 90_000)
       });
       if (!response.ok) throw new Error(`local runtime returned HTTP ${response.status}`);

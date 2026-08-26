@@ -139,6 +139,20 @@ test('battery: trajectory recorder captures assertion-stamped training rows', as
   record('trajectory-recorder', true, `${rows.length} rows, assertion=${JSON.stringify(executed[executed.length - 1].assertion)}`);
 });
 
+test('battery: executor seam — submit, list, resolve reject, verdict delivered', async () => {
+  const submitted = dc.submitPending({ action_raw: 'click(target=4)', class: 'WRITE', session_id: 'batt' });
+  assert.ok(submitted.approval_id);
+  const list = dc.listPending();
+  assert.equal(list.length, 1);
+  assert.equal(list[0].class, 'WRITE');
+  // resolve in a microtask while waitForVerdict holds
+  setTimeout(() => dc.resolvePending(submitted.approval_id, 'reject'), 50);
+  const verdict = await dc.waitForVerdict(submitted.approval_id, 5000);
+  assert.equal(verdict.verdict, 'rejected');
+  assert.equal(dc.listPending().length, 0);
+  record('executor-seam', true, `verdict=rejected id=${submitted.approval_id.slice(0, 12)}…`);
+});
+
 after(async () => {
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   const passed = results.filter(r => r.passed).length;

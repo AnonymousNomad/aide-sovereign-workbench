@@ -27,6 +27,49 @@ export function createDesktopControl({ workspace }) {
   const children = new Set();
   const panics = [];
   let turnCounter = 0;
+  // Executor seam (T2 contract): external desktop-agent submits actions,
+  // holds <=60s for a verdict rendered as an approval card in the cockpit.
+  const pendingApprovals = new Map(); // id -> {action_raw, class, session_id, created_at, resolver}
+
+  function submitPending({ action_raw, class: permClass, session_id = 'default' }) {
+    const id = `da-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const entry = {
+      approval_id: id,
+      action_raw: String(action_raw ?? '').slice(0, 300),
+      class: String(permClass ?? 'WRITE'),
+      session_id,
+      created_at: new Date().toISOString()
+    };
+    const deferred = {};
+    deferred.promise = new Promise(resolve => { deferred.resolve = resolve; });
+    pendingApprovals.set(id, { ...entry, deferred });
+    return { ...entry, promise: deferred.promise };
+  }
+
+  async function waitForVerdict(id, timeoutMs = 55_000) {
+    const entry = pendingApprovals.get(id);
+    if (!entry) throw new DesktopRefusedError('NOT_FOUND', `no pending approval ${id}`);
+    const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), timeoutMs));
+    const winner = await Promise.race([entry.deferred.promise.then(v => ({ v })), timeout.then(t => ({ t }))]);
+    if ('t' in winner && winner.t === 'timeout') return { verdict: 'timeout' };
+    return { verdict: winner.v.verdict };
+  }
+
+  function resolvePending(id, decision) {
+    const entry = pendingApprovals.get(id);
+    if (!entry) throw new DesktopRefusedError('NOT_FOUND', `no pending approval ${id}`);
+    pendingApprovals.delete(id);
+    entry.deferred.resolve({ verdict: decision === 'approve' ? 'approved' : 'rejected' });
+    void evidence('desktop', { op: 'executor_approval', target: entry.action_raw, decision });
+    return { ok: true, approval_id: id, verdict: decision === 'approve' ? 'approved' : decision };
+  }
+
+  function listPending() {
+    return [...pendingApprovals.values()].map(e => ({
+      approval_id: e.approval_id, action_raw: e.action_raw, class: e.class,
+      session_id: e.session_id, created_at: e.created_at
+    }));
+  }
 
   async function loadManifest() {
     if (manifest) return manifest;
@@ -235,12 +278,17 @@ export function createDesktopControl({ workspace }) {
         session_started_at: m?.session_started_at ?? null,
         grants: m?.grants ?? { apps: [], roots: [], window_titles: [] },
         tracked_children: children.size,
-        panicked: m ? panics.includes(m.session_started_at) : false
+        panicked: m ? panics.includes(m.session_started_at) : false,
+        pending_approvals: listPending()
       };
     },
     setGrants: saveManifest,
     act,
     panic,
+    submitPending,
+    waitForVerdict,
+    resolvePending,
+    listPending,
     _test: { children, panics } // battery access; not part of public contract
   };
 }

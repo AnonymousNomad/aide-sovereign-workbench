@@ -63,4 +63,30 @@ export const DesktopStatusResponse = z
 
 export const DesktopGrantsSetResponse = DesktopStatusResponse;
 
+export const DesktopPendingSubmit = z
+  .object({
+    action_raw: z.string().min(1).max(300),
+    class: z.enum(['READ', 'WRITE', 'OPEN', 'DESTRUCTIVE', 'FORBIDDEN']),
+    session_id: z.string().max(120).optional()
+  })
+  .strict();
+
+export const DesktopPendingEntry = z
+  .object({
+    approval_id: z.string(),
+    action_raw: z.string(),
+    class: z.string(),
+    session_id: z.string(),
+    created_at: z.string()
+  })
+  .strict();
+
+export const DesktopVerdictResult = z
+  .object({ verdict: z.enum(['approved', 'rejected', 'timeout']) })
+  .strict();
+
+export const ResolveBody = z
+  .object({ decision: z.enum(['approve', 'reject']) })
+  .strict();
+
 export type DesktopActionRequestT = z.infer<typeof DesktopActionRequest>;

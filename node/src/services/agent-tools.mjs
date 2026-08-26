@@ -97,8 +97,19 @@ function normalizeNewlines(text) {
   return String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }
 
+function repairBlockSyntax(text) {
+  let t = normalizeNewlines(text);
+  t = t.replace(/<{3,}\s*SEARCH\s*/g, '<<<<<<< SEARCH\n');
+  t = t.replace(/={3,}\s*\n/g, '=======\n');
+  t = t.replace(/>{3,}\s*REPLACE\s*/g, '>>>>>>> REPLACE\n');
+  t = t.replace(/<<<<<<< SEARCH(?!\n)/g, '<<<<<<< SEARCH\n');
+  t = t.replace(/=======\s*\n(?=>>>>>>>)/g, '=======\n');
+  t = t.replace(/>>>>>>> REPLACE(?!\n)/g, '>>>>>>> REPLACE\n');
+  return t;
+}
+
 export function parseSearchReplaceBlocks(blocksText) {
-  const text = normalizeNewlines(String(blocksText));
+  const text = repairBlockSyntax(blocksText);
   const blocks = [];
   const re = /(?:^|\n)[ \t]*<{5,}[ \t]*SEARCH[ \t]*\n([\s\S]*?)\n?[ \t]*={5,}[ \t]*\n([\s\S]*?)\n?[ \t]*>{5,}[ \t]*REPLACE/g;
   let match;

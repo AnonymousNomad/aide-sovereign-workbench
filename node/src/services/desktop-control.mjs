@@ -110,6 +110,75 @@ export function createDesktopControl({ workspace }) {
   }
 
   const ops = {
+    // Business-lane ops (drafts-first doctrine: AIDE creates drafts, humans
+    // send). COM via PowerShell -STA; typed UNAVAILABLE when Office absent.
+    async outlook_create_draft(grants, target, destination) {
+      let input;
+      try { input = JSON.parse(String(target || '{}')); }
+      catch { throw new DesktopRefusedError('VALIDATION', 'target must be JSON {to,subject,body}'); }
+      const to = String(input.to || '').trim();
+      const subject = String(input.subject || '').slice(0, 200);
+      const body = String(input.body || '').slice(0, 8000);
+      if (!to || !subject) throw new DesktopRefusedError('VALIDATION', 'draft requires to + subject');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.split(';')[0])) throw new DesktopRefusedError('VALIDATION', 'invalid recipient address');
+      const script = [
+        '$o = New-Object -ComObject Outlook.Application -ErrorAction Stop',
+        `$m = $o.CreateItem(0)`,
+        `$m.To = ${JSON.stringify(to)}`,
+        `$m.Subject = ${JSON.stringify(subject)}`,
+        `$m.Body = ${JSON.stringify(body)}`,
+        '$m.Save()',
+        'Write-Output "draft-saved"'
+      ].join('; ');
+      const out = await new Promise((resolve, reject) => {
+        execFile('powershell.exe', ['-NoProfile', '-STA', '-NonInteractive', '-Command', script],
+          { windowsHide: true, timeout: 30000 }, (err, stdout, stderr) => {
+            if (err) {
+              const msg = String(stderr || err.message);
+              if (msg.includes('0x80040154')) reject(new DesktopRefusedError('OUTLOOK_UNAVAILABLE', 'classic Outlook is not installed/signed-in (COM class not registered); drafts-first policy requires it'));
+              else reject(new Error(msg.slice(0, 300)));
+            } else resolve(String(stdout));
+          });
+      });
+      return out.includes('draft-saved') ? `draft saved to Outlook (${to})` : out;
+    },
+    async excel_generate_report(grants, target, destination) {
+      const root = grants.roots.find(r => isSubpath(r, String(destination)));
+      if (!root) throw new DesktopRefusedError('PATH_NOT_GRANTED', 'destination must be inside granted roots');
+      let input;
+      try { input = JSON.parse(String(target || '{}')); }
+      catch { throw new DesktopRefusedError('VALIDATION', 'target must be JSON {title, rows:[[...]]}'); }
+      const title = String(input.title || 'Report').slice(0, 100);
+      const rows = Array.isArray(input.rows) ? input.rows.slice(0, 5000) : null;
+      if (!rows || !rows.length) throw new DesktopRefusedError('VALIDATION', 'rows required');
+      // Build CSV payload in Node (no COM needed for data), then hand to Excel
+      // only for XLSX conversion IF Excel exists; else write .csv honestly.
+      const csvPath = path.join(path.dirname(path.resolve(destination)), `${title.replace(/[^\w.-]+/g, '_')}.csv`);
+      const csv = rows.map(r => Array.isArray(r) ? r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',') : `"${String(r).replace(/"/g, '""')}"`).join('\r\n');
+      await fs.writeFile(csvPath, csv, 'utf8');
+      try {
+        const script = [
+          '$e = New-Object -ComObject Excel.Application -ErrorAction Stop',
+          '$e.Visible = $false; $e.DisplayAlerts = $false',
+          `$w = $e.Workbooks.Open(${JSON.stringify(csvPath)})`,
+          `$w.SaveAs(${JSON.stringify(destination)}, 51)`, // xlOpenXMLWorkbook
+          '$w.Close($false); $e.Quit()',
+          'Write-Output "xlsx-written"'
+        ].join('; ');
+        const out = await new Promise((resolve, reject) => {
+          execFile('powershell.exe', ['-NoProfile', '-STA', '-NonInteractive', '-Command', script],
+            { windowsHide: true, timeout: 60000 }, (err, stdout) => {
+              if (err) reject(err); else resolve(String(stdout));
+            });
+        });
+        return out.includes('xlsx-written') ? `report written: ${destination}` : out;
+      } catch (error) {
+        if (String(error?.message || error).includes('0x80040154')) {
+          throw new DesktopRefusedError('EXCEL_UNAVAILABLE', 'Excel is not installed (COM class not registered); CSV written instead at ' + csvPath);
+        }
+        throw new DesktopRefusedError('CHILD_FAILED', `excel failed: ${String(error?.message || error).slice(0, 200)}`);
+      }
+    },
     async launch_app(grants, target) {
       const name = String(target || '').trim().toLowerCase().replace(/\.exe$/, '');
       const hit = grants.apps.find(a => a.toLowerCase().replace(/\.exe$/, '') === name);

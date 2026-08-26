@@ -153,6 +153,50 @@ test('battery: executor seam — submit, list, resolve reject, verdict delivered
   record('executor-seam', true, `verdict=rejected id=${submitted.approval_id.slice(0, 12)}…`);
 });
 
+test('battery: business ops degrade with typed errors when Office absent', async () => {
+  await dc.setGrants({
+    version: 1, enabled: true,
+    grants: { apps: [], roots: [dir], window_titles: [] },
+    session_started_at: new Date().toISOString(), ttl_minutes: 30, approved_by: 'operator-wizard'
+  });
+  // Outlook draft: on Office machines executes; here asserts typed UNAVAILABLE.
+  try {
+    const r = await dc.act({
+      op: 'outlook_create_draft', approved: true,
+      target: JSON.stringify({ to: 'test@example.com', subject: 'battery', body: 'probe' })
+    });
+    assert.match(r.output, /draft saved/); // Office-present machine path
+    record('outlook-draft-live', true, r.output);
+  } catch (e) {
+    assert.equal(e.code, 'OUTLOOK_UNAVAILABLE');
+    record('outlook-draft-degraded', true, 'typed OUTLOOK_UNAVAILABLE (no classic Outlook)');
+  }
+  // Excel: COM absent -> CSV fallback written INSIDE granted roots.
+  try {
+    const r = await dc.act({
+      op: 'excel_generate_report', approved: true,
+      target: JSON.stringify({ title: 'battery_report', rows: [['a', 'b'], [1, 2]] }),
+      destination: path.join(dir, 'report.xlsx')
+    });
+    if (r.output.includes('.xlsx')) record('excel-report-live', true, r.output);
+    else throw new Error('unexpected output');
+  } catch (e) {
+    if ((e.code ?? '') === 'EXCEL_UNAVAILABLE') {
+      const m = /CSV written instead at (.+)$/.exec(e.message);
+      assert.ok(m, 'fallback path reported');
+      const csvExists = await fs.access(m[1]).then(() => true, () => false);
+      assert.ok(csvExists, 'csv fallback actually written');
+      record('excel-csv-fallback', true, `csv at ${path.basename(m[1])}`);
+    } else throw e;
+  }
+  // Validation gate: bad recipient refused BEFORE any COM call
+  await assert.rejects(() => dc.act({
+    op: 'outlook_create_draft', approved: true,
+    target: JSON.stringify({ to: 'not-an-email', subject: 'x', body: 'y' })
+  }), /invalid recipient/);
+  record('business-validation-gates', true, 'bad recipient refused pre-COM');
+});
+
 after(async () => {
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   const passed = results.filter(r => r.passed).length;

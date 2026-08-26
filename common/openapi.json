@@ -2996,7 +2996,9 @@
                       "open_path",
                       "list_windows",
                       "focus_window",
-                      "move_file"
+                      "move_file",
+                      "outlook_create_draft",
+                      "excel_generate_report"
                     ]
                   },
                   "target": {

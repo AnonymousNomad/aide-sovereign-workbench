@@ -1,7 +1,6 @@
 import http from 'node:http';
 import net from 'node:net';
-import { createReadStream } from 'node:fs';
-import { promises as fs } from 'node:fs';
+import { createReadStream, promises as fs, mkdirSync, openSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -14,12 +13,21 @@ function spawnChild(label, args, extraEnv = {}) {
   // Detached + unref: backends must survive console-session teardowns and
   // tool-timeout tree kills (documented wedge lesson 2026-08-25). Stop them
   // explicitly via taskkill /IM node.exe /T or POST /api/models/stop.
-  const child = spawn(process.execPath, args, { cwd: root, env: { ...process.env, AIDE_WORKSPACE: process.env.AIDE_WORKSPACE || root, ...extraEnv }, stdio: 'ignore', detached: true, windowsHide: true });
+  // stderr/stdout persist to .aide/logs/<label>-*.log — a silent daemon death
+  // is undebuggable (legacy crash 2026-08-26 left zero trace under 'ignore').
+  const logsDir = path.join(root, '.aide', 'logs');
+  mkdirSync(logsDir, { recursive: true });
+  const out = openSync(path.join(logsDir, `${label}-out.log`), 'a');
+  const err = openSync(path.join(logsDir, `${label}-err.log`), 'a');
+  const child = spawn(process.execPath, args, { cwd: root, env: { ...process.env, AIDE_WORKSPACE: process.env.AIDE_WORKSPACE || root, ...extraEnv }, stdio: ['ignore', out, err], detached: true, windowsHide: true });
   child.unref();
   child.label = label;
   children.push(child);
   child.on('exit', code => {
-    if (code && code !== 143) console.error(`${label} exited with ${code}`);
+    if (code && code !== 143) {
+      console.error(`${label} exited with ${code}`);
+      appendFileSync(path.join(logsDir, `${label}-err.log`), `[start.mjs] ${label} exited code=${code} at ${new Date().toISOString()}\n`);
+    }
   });
   return child;
 }

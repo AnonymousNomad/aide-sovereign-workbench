@@ -60,3 +60,18 @@ Each phase skill MUST include, verbatim structure:
 3. Write the phase SKILL.md following "Per-phase skill spec" above.
 4. Implement contracts -> service -> routes -> wiring -> tests -> battery -> commit -> CI watch.
 5. Update AGENT_NOTES journal + continuous-improvement writebacks.
+
+## Re-prioritization 2026-08-25 (usage data, FlouState 11805 sessions + PanDev heartbeat + GitKraken/DORA 2026)
+
+- **Debug depth (was P5/HIGH) -> DEFER to post-release.** Measured reality: developers spend 1.4% of editor time in debugger UI; 75% never open it. Real debugging = console output + reading code, which the cockpit terminal drawer + diagnostics rail already cover. Do not build breakpoint UI before W9.
+- **Search & Replace (P2): split.** Find-in-files SHIPPED in cockpit E1. Replace-in-files stays HIGH - maintenance work is 23.7% of editor time and needs approval-gated multi-file rewrite via the existing diff pipeline (E1.1).
+- **Settings persistence: elevated to CRITICAL-adjacent.** Cockpit currently remembers nothing across reloads (selected engine, panel state). Session store exists daemon-side (/api/session GET/PUT); wire engine selection + UI state on boot.
+- **SCM UX (P4): partially shipped** - branches/history/push-consent live (E3). Remaining: gutter diff decorations (requires Monaco delta decorations vs HEAD content), inline blame (low usage evidence - defer).
+- **Palette/keybindings (P1): palette SHIPPED. Keybinding customization remains (user JSON overrides over hardcoded map) - MEDIUM, after settings persistence.
+- **New differentiator confirmed by DORA-2026 rework-rate adoption:** per-SHIP telemetry (shipped v0 in ships.log) + provenance chips are the AI-era parity surface VS Code lacks entirely - keep investing here over feature-count parity.
+- Editor depth P3: Monaco gives multi-cursor/folding free; minimap toggle + sticky scroll = trivial config flags when requested. Snippets = defer.
+
+## R-series added 2026-08-25 (evidence: Golubev et al. 2021, 1167 devs)
+
+- **Rename Symbol = #1 refactoring (85.8% IDE adoption, 65.7% regular)** + Find All References + format-on-save(opt-in) -> NEW skill aide-rseries-refactor governs; slots into cockpit BEFORE W6 (maintenance work = 23.7pct of editor time and these are its core tools).
+- Trust law from the study: PREVIEW + UNDO drive refactoring-tool adoption - the preview card is the product, never apply silently.

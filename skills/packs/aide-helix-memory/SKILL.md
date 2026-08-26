@@ -2,7 +2,17 @@
 
 Phase skill for AIDE X-series. Master router: aide-master-roadmap. The user's DNA-helix intuition formalized: every memory is a TWO-STRAND entry — FACT strand (the what) fused with PROVENANCE strand (when/where/from-whom/how-confident). One strand without the other is unusable: facts go stale, provenance without content is noise.
 
-Research base (2026): Letta/MemGPT OS-style hierarchy (message buffer / pinned core blocks / recall / archival; sleep-time async compaction; "memory = context engineering"), Mem0 ECAI 2025 (extract->consolidate->retrieve; 91% lower p95 latency vs full-context; multi-signal retrieval: semantic+BM25+entity fused), A-MEM Zettelkasten dynamic linking (new memories trigger evolution of neighbors), REMem (episodic time-aware gists + fact triples grounded to timeline; robust REFUSAL on unanswerable questions), unified-framework paper (4 stages: extraction/management/storage/retrieval; heat-based promotion short->mid->long), MemoryBank forgetting-curve decay.
+Research base (2026, refreshed 2026-08-25): Letta/MemGPT OS-style hierarchy (message buffer / pinned core blocks / recall / archival; sleep-time async compaction; "memory = context engineering"), Mem0 ECAI 2025 (extract->consolidate->retrieve; 91% lower p95 latency vs full-context; multi-signal retrieval: semantic+BM25+entity fused), A-MEM Zettelkasten dynamic linking (new memories trigger evolution of neighbors), REMem (episodic time-aware gists + fact triples grounded to timeline; robust REFUSAL on unanswerable questions), unified-framework paper (4 stages: extraction/management/storage/retrieval; heat-based promotion short->mid->long), MemoryBank forgetting-curve decay. NEW 2026-08-25 grounding (docs/MEMORY-30D-RESEARCH.md): sleep-time compute measured (arXiv:2504.13171 — same accuracy at ~5x less test-time compute, consolidation NEVER in turn path); Graphiti bi-temporal law (valid_at/invalid_at — supersede never delete); Claude Code auto-memory taxonomy (user/feedback/project/reference types, index-file load caps); OpenClaw pre-compaction flush (compaction = memory-FORMATION event); CrabTalk survey dual-store law (inspectable markdown profiles + searchable SQLite episodic/semantic); memory-induced hallucination rate = THE production metric (refusal calibration > recall@k). AIDE structural advantage: work events are captured DETERMINISTICALLY (cipher-state bus, ships.log, .traj.json, git) — extraction from text is the SECONDARY path for semantic facts only.
+
+## Event spine (deterministic strand — added 2026-08-25)
+
+Primary work-memory source is structured events, not chat extraction:
+`.aide/memory/events.jsonl` receives appends from cipher-state bus,
+ships.log mirror, agent-loop trajectory closes, git commits, and chat
+session closes. Day-digests roll up hot window deterministically.
+Window policy: HOT 0-7d full detail -> WARM 8-30d day-digests (the
+contributor's "remember 30 days back" tier) -> ARCHIVE >30d week-rollups,
+all retrievable via FTS/RAG, NOTHING deleted.
 
 ## Design (all local, all in .aide/memory/)
 

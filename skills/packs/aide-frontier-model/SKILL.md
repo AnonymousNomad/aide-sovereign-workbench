@@ -46,6 +46,25 @@ The v27 Kira recipe trained at seq_len 64–128 and drove persona phase loss to 
 Rule: the AIDE "frontier" slot needs ≥20 tok/s sustained (edge-deployment-ci skill)
 and ≤4GB VRAM so the IDE + daemon breathe. Anything slower becomes CPU-only utility.
 
+## GPU BACKEND FOR PASCAL (GTX 1060) — MEASURED 2026-08-23, MANDATORY
+
+| Backend | Result |
+|---|---|
+| CPU build (E:\llama-cpp) | ✅ coherent, ~4–7 tok/s on 4B — usable fallback, no CUDA dlls |
+| Official CUDA zip b9940 | ❌ **BROKEN on sm_61**: loads, health OKs, generates word-salad ("loadingN loadingN"), known failure class (llama.cpp #9019 wrong-arch → nonsense instead of crash; #19659 MoE cuBLAS corruption) |
+| **Official Vulkan zip b9940** | ✅✅ **31–41 tok/s**, all tests pass, coherent |
+
+Rules:
+1. Serve from `E:\llama-cpp-vulkan\` (Vulkan b9940) for ALL GPU inference.
+2. NEVER use the official CUDA zip on Pascal — fails silently as garbage text.
+3. Known open issue: after long multi-request sessions the HTTP listener dies
+   silently (process alive, port gone — verify with `netstat -ano | findstr 8088`).
+   Mitigation: restart server between heavy batches; use keep-alive sessions;
+   watch for upstream fix in newer builds.
+4. If server hangs at load: add `--no-mmap` (Windows AV × mmap interaction).
+5. Verify offload actually happened: `nvidia-smi` must show model-size VRAM
+   (a CPU-only binary ignores -ngl SILENTLY — check for ggml-cuda.dll/ggml-vulkan.dll).
+
 ## CONVERSION PIPELINE (do exactly this)
 
 1. Match toolchain to runtime: clone llama.cpp, checkout the SAME commit as the

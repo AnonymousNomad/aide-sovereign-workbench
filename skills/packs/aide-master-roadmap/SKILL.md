@@ -35,16 +35,41 @@ Nothing outside this scope gets built ahead of an in-scope gap; scope creep = di
 Session loading protocol (AUTO-LOAD, every session): (1) read AGENT_NOTES.md tail, (2) load hard-rules, (3) THIS router -> find `**CURRENT PHASE:**` below, (4) load ONLY that phase's listed skills, (5) work its exit gate to VERIFIED completion, (6) journal + commit, (7) move the marker. Never skip ahead, never run two phases at once, never claim a gate passed without observed output. PHASE-ENTRY SKILL GATE: before doing phase work, check each listed skill actually answers WHAT to do, HOW, WHY-this-way, DEPENDENCIES, and PITFALLS/THREATS backed by research; if any listed skill is missing, thin, or wrong, author/patch it FIRST - a phase never starts with a broken manual. Skills stay wired-together law: every slice keeps the served app usable end-to-end (contract-first via common/contracts, facade parity, verification-complete gates) so updates ship working, never half-migrated.
 
 - **W1 — MAKE THE SERVED APP ACTUALLY WORK** (usability blocker). Facade consumer-compat: unwrap `{ok,data}` adapter for ts-target responses (tests written 2026-08-24, must run green + commit); cold-boot `npm start` reliability proof; re-openable HELP/launch-guide in UI; REAL-UI evidence: file open/edit/save round-trip through :4777. Exit: screenshots/evidence in docs/evidence/, suite green, committed. Skills: aide-production-cutover, verification-complete.
-- **W2 — COCKPIT SHELL SLICE 1** (REDESIGN, governed by aide-smart-workbench-flow): backup old root shell -> rewrite index.html/app.js/styles.css clean (zero inherited hide-rules); three-zone layout; COLD state card w/ device fit + one Start button; describe box wired to /api/chat; status strip with next-action line; HELP re-openable walkthrough. Exit: operator starts a model and gets a chat reply in the NEW shell, evidence logged. Skills: aide-smart-workbench-flow, aide-ide-research.
-- **W3 — COCKPIT SLICES 2-3 (orchestrator loop visible)**: Plan card -> APPROVE gate -> Build stream -> Verify verdict cards; diff review for agent edits; verify rail (gates/diagnostics/git/files/HARNESS ON). Absorbs old A1b agent-loop UI. Exit: full Describe->Ship loop runs on a real task end-to-end in browser. Skills: aide-smart-workbench-flow, aide-offline-agent-loop, aide-veritas-layer.
-- **W4 — COCKPIT SLICES 4-5 (onboarding + sheets)**: contextual teach-by-doing checklist; model HUB sheet (device card, search, quant fit sheet, download progress, register, import) absorbing the old hub-loop phase; settings/BYOK sheets via palette. Skills: aide-smart-workbench-flow, aide-model-hub-acquisition, aide-device-benchmark-runner, aide-model-task-recommender.
-- **W5 — HARNESS ALWAYS-ON**: scaffold injection (condensed credo v1.1.0 + role SOP) into every /api/chat server-side; HARNESS ON badge truthful in rail; refusal-battery subset passes AND normal coding still succeeds. Skills: aide-credo-guardrail, aide-harness-prompt-scaffolding, aide-iron-suit-orchestrator.
-- **W6 — CUTOVER COMPLETION**: git-domain flips w/ method-aware routing decision, remaining dual-served batches w/ parity checks, legacy tail port-or-drop ledger, single-backend `npm start`. Skills: aide-production-cutover, aide-arch-git.
+- **W2 — COCKPIT SHELL SLICE 1** ✅ SHIPPED (cd06b33, live battery). 
+- **W3 — ORCHESTRATOR LOOP VISIBLE** ✅ SHIPPED mechanism-level (agent loop wired, gated BoN; operator browser pass still owed).
+- **W4 — HUB + TUNING** ✅ SHIPPED (files route, register/import bridges, MODELS panel, profiles+presets).
+- **W5 — HARNESS ALWAYS-ON** ✅ SHIPPED v2.1 (micro/full tiers, drift hook, compose telemetry, effectiveness battery w/ published negative->redesigned result). Full-tier rerun on operator fine-tune pending.
+- **R-SERIES — REFACTORING DEPTH** ✅ SHIPPED (F2 rename w/ previewed apply, Shift+F12 references, Ctrl+Shift+I format, format-on-save toggle). Evidence: 1167-dev study confirms rename = #1 refactoring.
+- **E-SERIES — POWER SURFACE** ✅ SHIPPED (Ctrl+K palette, Ctrl+Shift+F find-in-files, Ctrl+` terminal, LSP bridge, bounded delegation console, provenance source-ref links, ship telemetry v0).
+- **PLUGINS v1** ✅ SHIPPED (catalog install/trust from 20-preset catalog, three capability contributions: git-review/env-inspector/markdown-preview).
+- **PR — PHASE ROUTER** 🔜 QUEUED after Situation Object + BENCH verdicts. Skill: aide-phase-router.
+- **ORCH — ORCHESTRATOR AWARENESS** 🔜 QUEUED after PR. Situation engine (/api/orch/context), recommendation engine, BENCH productization, MONITOR sheet. Skill: aide-orchestrator-awareness.
+- **HM/CIPHER — HOUSE MODEL FLUID ENGINE TRACK** 🔜 QUEUED after ORCH. Static capable base + per-user LoRA adapters trained on verified AIDE trajectories via /lora-adapters hot-swap (<20ms), battery-gated promotion; three-tier learning ([learned] blocks -> nightly QLoRA -> full FT); Loop C events.jsonl feeds training data. Research-grounded on CLaaS/MERA/SIA/SLIFT/WER/ZOForLLMAgents. Skills: aide-cipher-house-model. NEW.
+- **W6 — CUTOVER CONVERGENCE** ⚙️ PARTIAL (TS runtime binary port ✅ e762237; router resolve fix ✅ 3377167; legacy-key compat + gated BoN port + /api/chat facade flip ✅ 28a14c3 LIVE-PROVEN; remaining: models-family ts ports [profile, register] then prefix flip).
 - **W7 — WORKSPACE KNOWLEDGE (A2 UI)**: hybrid RAG results in command palette/search; index status chip; embedder smoke on 1060. Skills: aide-offline-rag.
 - **W8 — RESILIENCE + NOTIFICATIONS SURFACE**: toast center, compound-run grouping, No-Brick-Wall recovery cards for every blocked state (cockpit law compliance sweep). Skills: aide-build-b4-notifications, aide-resilience-orchestrator.
-- **W9 — RELEASE ENGINEERING**: installer + bundled models, clean-install offline smoke, BYOK live consent smoke, synchronized release build. Skills: aide-arch-packaging-release, aide-release-engineering,aide-cloud-handoff.
+- **W9 — RELEASE ENGINEERING**: installer + bundled models, clean-install offline smoke, BYOK live consent smoke, synchronized release build. Shell decision: Tauri preferred if Rust toolchain installed in dedicated session; Electron as fallback (npm-only). Desktop staging pipeline already working (desktop/prepare.mjs + verify-prepare.mjs). Skills: aide-arch-packaging-release, aide-release-engineering, aide-cloud-handoff.
 
-**CURRENT PHASE: W2**
+**CURRENT PHASE: P6 DESKTOP CONTROL (operator-designated flagship; DC-a shipped+CI-green w/ cockpit panel, DC-b trajectory recorder live, /ask brain wired; remaining = T2 executor integration approval cards + business ops lane [outlook_draft_email/excel_generate] + DC-b screen-vision). P5 TELEGRAM bridge+wizard+brain SHIPPED (d5ebab8..1025919). Micro-Expert Collective skill authored (aide-micro-expert-collective), runner build queued. P0 LAUNCH SHELL next after P6 executor integration; P1-P4 follow ladder in docs/LAUNCH-AUDIT-2026-08-25.md. X1.c/d memory slices interleave. THINKING import ready, awaiting GPU-window journal announcement.**
+
+## Completed Phases Summary
+
+| Phase | What Shipped | Key Commits |
+|---|---|---|
+| W1 | Facade unwrap, HELP button, exit battery | 50e9044, 406875d |
+| W2 | Cockpit clean rewrite + binary serving root cause fix | cd06b33 |
+| W3 | Agent loop wiring, plan/approve/apply, diff review, rail badges | d5605ac |
+| W5 | Harness scaffold v2.1 micro/full tiers, drift reinjection, gated BoN | f5d7f1d |
+| R-series | F2 rename, Shift+F12 references, format-on-save | 862955f |
+| E1-E3 | Palette, search, terminal, SHIP flow, delegation console | 5b44886, 862955f |
+| Plugins v1 | Catalog install/trust, 3 capability contributions | ed806d4 |
+| Backend auto-select | --list-devices probe, Vulkan/CUDA/CPU resolution, --prio -1 | 514a387 |
+| House model files | Cipher base+LoRA copied into models/aide-house/, manifest entry ready | pending |
+
+## Pending Operator Actions
+
+- Fine-tune GGUFs landing → MODELS→IMPORT→battery rerun
+- Browser pass on cockpit = W3/W4 exit gate signoff
 
 ## Competitive Gap Matrix (what users WILL compare against)
 

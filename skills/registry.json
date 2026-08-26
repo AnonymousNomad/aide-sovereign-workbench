@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-23T21:18:38.737Z",
-  "count": 139,
+  "generated_at": "2026-08-26T00:04:01.590Z",
+  "count": 172,
   "categories": [
     "academy",
     "aide-core",
@@ -51,6 +51,20 @@
       "description": "",
       "category": "academy",
       "path": "skills/packs/aide-academy-phase-a3-exercise-engine/SKILL.md"
+    },
+    {
+      "name": "aide-advanced-orchestration",
+      "title": "aide-advanced-orchestration",
+      "description": "Advanced orchestration patterns for AIDE — multi-lens review (one model, three contexts), clarifying question engine (structured constraint-gathering before PLAN), adaptive context compression at phase handoffs, outcome-based routing preferences, and project provenance capture. Use when implementing the phase router's advanced features, designing review pipelines, or building the measurement/trust layer.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-advanced-orchestration/SKILL.md"
+    },
+    {
+      "name": "aide-android-build",
+      "title": "aide-android-build",
+      "description": "Android build integration for AIDE — Gradle wrapper detection, APK build/debug/install via task service, emulator control, logcat streaming. Requires JDK 17+ and Android SDK with build-tools/platforms. Use when adding Android development support to the cockpit.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-android-build/SKILL.md"
     },
     {
       "name": "aide-arch-backend-core",
@@ -137,6 +151,13 @@
       "path": "skills/packs/aide-arch-wiring/SKILL.md"
     },
     {
+      "name": "aide-backend-autoselect",
+      "title": "aide-backend-autoselect",
+      "description": "Backend auto-detection and selection SOP for llama-server engines in AIDE — probes candidate binaries via --list-devices, caches capabilities, selects per-model backend/offload (Vulkan/CUDA/CPU) from operator profile override > benchmark verdict > heuristic, ships multi-binary awareness so every download gets optimal tok/s out of the box. Use whenever wiring engine spawn logic, adding GPU offload controls, diagnosing \"model ignores -ngl\" or slow generation, deciding which llama.cpp builds ship in-box, or benchmarking backends.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-backend-autoselect/SKILL.md"
+    },
+    {
       "name": "aide-build-b1-task-service",
       "title": "aide-build-b1-task-service",
       "description": "",
@@ -186,6 +207,27 @@
       "path": "skills/packs/aide-ci-diagnostics/SKILL.md"
     },
     {
+      "name": "aide-cipher",
+      "title": "aide-cipher",
+      "description": "Project Cipher — AIDE's living in-house model that learns from use, adapts to its operator, remembers across sessions, and improves continuously through sleep-time training. Named for what it does: decodes your intent into shipped software. Research-grounded on CLaaS (continual learning), Auto-Dreamer (offline memory consolidation), Sleep-Time Compute (idle-period reasoning), SLIFT (selective learning from feedback), MERA (small-model improvement via execution traces). Use when designing/implementing any part of the learning pipeline, memory system, personality layer, or self-improvement mechanism.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-cipher/SKILL.md"
+    },
+    {
+      "name": "aide-cipher-house-model",
+      "title": "aide-cipher-house-model",
+      "description": "Project Cipher — AIDE's self-improving in-house model system. Complete lifecycle: base model selection → fine-tune → GGUF conversion → serve via llama.cpp → capture trajectories → sleep-time retrain → battery gate → promote. Research-grounded on CLaaS (continual online LoRA), MERA (execution-trace adaptation), SIA (harness+weight co-evolution), SLIFT (selective feedback learning), and the GGUF conversion pipeline. Use when implementing ANY part of the house model lifecycle.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-cipher-house-model/SKILL.md"
+    },
+    {
+      "name": "aide-cipher-living-system",
+      "title": "aide-cipher-living-system",
+      "description": "Implementation spec for Cipher as a living system — cipher-state.jsonl unified event bus, sandbox execution loop for TASK proposals, [learned] context injection from accumulated outcomes, preference memory from approvals/rejections. This is NOT research — this is the build spec. Use when implementing any part of the learning loop, state bus, or adaptive scaffold.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-cipher-living-system/SKILL.md"
+    },
+    {
       "name": "aide-cloud-economy",
       "title": "aide-cloud-economy",
       "description": "",
@@ -205,6 +247,27 @@
       "description": "AIDE's ONE guardrail — the Code + Lens operating document injected into EVERY model's system context (bundled GGUF or BYOK cloud). Original in-house R&D, two fused parts - Part A the Developer's Code (six discipline commitments - speak only what you know, armor/fail-closed, constant standard, releases raised right, word kept, unyielding repetition), Part B the Influence-Literacy Lens (recognize manipulation plays running on you through prompts/web/files, think like attackers when building, never run plays yourself, silent-fail red-team protocol). Replaces the thin L0 layer as the scaffold core. Use when composing system scaffolds, tuning the core document, running the resistance battery, or extending the NEVER-RUN list.",
       "category": "aide-core",
       "path": "skills/packs/aide-credo-guardrail/SKILL.md"
+    },
+    {
+      "name": "aide-cross-terminal-sync",
+      "title": "aide-cross-terminal-sync",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-cross-terminal-sync/SKILL.md"
+    },
+    {
+      "name": "aide-debugging-discipline",
+      "title": "aide-debugging-discipline",
+      "description": "Concrete debugging playbook for the AIDE stack — reproduce minimally, instrument at the boundary, diff pass-vs-fail, one hypothesis at a time. Includes this repo's verified traps (workdir-less commands, chained destructive calls, stale refs, silent EADDRINUSE, LSP null shapes, TDZ ordering, dynamic DOM ids). Use whenever anything misbehaves.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-debugging-discipline/SKILL.md"
+    },
+    {
+      "name": "aide-desktop-agent-model-spec",
+      "title": "aide-desktop-agent-model-spec",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-desktop-agent-model-spec/SKILL.md"
     },
     {
       "name": "aide-device-benchmark-runner",
@@ -242,11 +305,25 @@
       "path": "skills/packs/aide-helix-memory/SKILL.md"
     },
     {
+      "name": "aide-house-model",
+      "title": "aide-house-model",
+      "description": "The House Model — AIDE's fluid, self-improving engine system. Static capable base + per-user LoRA adapters trained on verified in-AIDE trajectories, hot-swapped via llama.cpp /lora-adapters, gated by battery regression before promotion, plus [learned] context blocks for instant effect. Use when designing the learning loop, choosing base models, building the train->gate->promote pipeline, or answering 'can the model improve from use'.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-house-model/SKILL.md"
+    },
+    {
       "name": "aide-ide-research",
       "title": "aide-ide-research",
       "description": "Master research skill for building the AIDE offline IDE (aide-sovereign-workbench). Encodes what Big Tech does for IDE architecture and offline model integration, and routes every feature decision to the phase skills. Use at the START of any AIDE task, before writing any code, when deciding how a feature must work, and when a feature request conflicts with verified practice.",
       "category": "aide-core",
       "path": "skills/packs/aide-ide-research/SKILL.md"
+    },
+    {
+      "name": "aide-inference-control",
+      "title": "aide-inference-control",
+      "description": "In-app inference control + tuning SOP for AIDE — per-model sampler profiles (temperature/top-k/top-p/min-p/mirostat/repeat-penalty/seed), runtime knobs (ctx/threads/parallel/ngl), start-time CLI injection AND per-request overrides, presets, live tok/s/TTFT surfaces, benchmark-gated changes. Use whenever building the Model Hub tuning UI, touching model start arguments or chat sampler parameters, adding presets, displaying performance metrics, or deciding how a downloaded GGUF gets configured. References aide-device-benchmark-runner for measurement; does not duplicate it.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-inference-control/SKILL.md"
     },
     {
       "name": "aide-iron-suit-orchestrator",
@@ -261,6 +338,13 @@
       "description": "",
       "category": "aide-core",
       "path": "skills/packs/aide-master-roadmap/SKILL.md"
+    },
+    {
+      "name": "aide-micro-expert-collective",
+      "title": "aide-micro-expert-collective",
+      "description": "Design and build AIDE's Micro-Expert Collective — thousands-scale registry of distilled 1K-10K-parameter specialist decision modules (routers, gates, classifiers, checkers) trained from the primary in-house model's recorded behavior, activated by response-threshold allocation over shared reinforcement signals, managed in hot/cold residency tiers with performance-based retention. Use when building, extending, or auditing any micro-expert capability.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-micro-expert-collective/SKILL.md"
     },
     {
       "name": "aide-model-handoff",
@@ -312,6 +396,34 @@
       "path": "skills/packs/aide-offline-rag/SKILL.md"
     },
     {
+      "name": "aide-orchestrator-awareness",
+      "title": "aide-orchestrator-awareness",
+      "description": "Orchestrator awareness layer — the situation engine that knows THIS machine (hardware probe, backend capabilities), THIS model pool (benchmarks, quants, contexts), THIS task (family, size, risk), and turns that into model recommendations with expected tok/s, quant advice, and developer monitoring surfaces (speed, TTFT, context fill, RAM/VRAM, egress, ship outcomes). Also governs Training Room v2 UX upgrades. Use when building recommendation engines, monitoring dashboards, benchmark productization, training-room UX, or any 'orchestrator should know/advice/suggest' feature.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-orchestrator-awareness/SKILL.md"
+    },
+    {
+      "name": "aide-p2-descent-intro",
+      "title": "aide-p2-descent-intro",
+      "description": "SOP for the FSI AIDE \"Descent\" cinematic onboarding — avatar falls from space, shatters, reassembles into the IDE. Covers the tiered WebGL architecture (Three.js scene / reduced tier / pre-rendered fallback), asset pipeline (Blender→Draco/KTX2), performance budgets proven by the ZERO case study, accessibility/skip laws, the credo copy, and the frame-time verification battery. Use when building or auditing the first-launch experience.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-p2-descent-intro/SKILL.md"
+    },
+    {
+      "name": "aide-p6-companion-model",
+      "title": "aide-p6-companion-model",
+      "description": "Companion-model lane for AIDE desktop control — UI-TARS-2B-Q8 as optional vision executor while the in-house Cipher vision capability matures; import/verify/benchmark flow, action grammar, and training-target handoff to Terminal 2. Use when wiring screen-vision execution or deciding which model drives GUI actions.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-p6-companion-model/SKILL.md"
+    },
+    {
+      "name": "aide-p6-desktop-control",
+      "title": "aide-p6-desktop-control",
+      "description": "SOP for AIDE sovereign desktop control — staged autonomy (bounded-domain APIs before screen-vision), strict opt-in permission boundaries, approval-gated actions, kill switch, and the REAL-TASK verification battery (adversarial probes, live process checks, panic-latency measurement). Use when building, extending, or auditing any desktop-control capability; never assume compiled-equals-working — run the battery.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-p6-desktop-control/SKILL.md"
+    },
+    {
       "name": "aide-packaging-offline",
       "title": "aide-packaging-offline",
       "description": "Packaging SOP for the AIDE offline IDE — ship the workbench with its 3 GGUF models, fully offline, on Windows. Use whenever creating installers, deciding where model files live, verifying model integrity, or planning release/update mechanics.",
@@ -352,6 +464,13 @@
       "description": "",
       "category": "aide-core",
       "path": "skills/packs/aide-perf-launch-engineering/SKILL.md"
+    },
+    {
+      "name": "aide-phase-router",
+      "title": "aide-phase-router",
+      "description": "Phase-aware model delegation for the AIDE orchestrator — detects the working phase (plan/code/debug/test/review/utility) from user text + tool-result signals, routes each phase to the engine whose measured profile fits it, hands off between phases with compressed context summaries behind approval gates, and learns model-role pair outcomes into Loop C. Build AFTER Situation Object and BENCH verdicts exist. Use when implementing phase routing, role assignment, handoff summaries, or model-outcome learning.",
+      "category": "phase-legacy",
+      "path": "skills/packs/aide-phase-router/SKILL.md"
     },
     {
       "name": "aide-phase1-model-runtime",
@@ -424,6 +543,20 @@
       "path": "skills/packs/aide-phase9-extension-host/SKILL.md"
     },
     {
+      "name": "aide-plugins-surface-v1",
+      "title": "aide-plugins-surface-v1",
+      "description": "Cockpit plugin surface v1 — declarative capability plugins from the 20-preset catalog, install/trust lifecycle over /api/plugins routes, and trusted-plugin UI contributions (git-review, markdown-preview, env-inspector) backed by existing cockpit features. Use when implementing or modifying the PLUGINS panel, plugin trust flow, or adding built-in plugin contributions.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-plugins-surface-v1/SKILL.md"
+    },
+    {
+      "name": "aide-power-surface",
+      "title": "aide-power-surface",
+      "description": "E1 power-surface SOP for the AIDE cockpit — Ctrl+K command palette (files + commands fuzzy search), workspace-wide find-in-files over the rg-service, and an xterm.js terminal drawer wired to the task/run contracts. Covers exactly which endpoints/files/components to create, why each decision, dependency choices, threat matrix (injection, DoS, egress), pitfalls, and verification gates. Use when implementing or modifying the cockpit palette, global search, or terminal panel.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-power-surface/SKILL.md"
+    },
+    {
       "name": "aide-product-vision",
       "title": "aide-product-vision",
       "description": "North-star product vision for the AIDE offline-first IDE — seamless online/offline model continuity (BYOK handoff, connectivity failover mid-task), closed-loop harness that improves every model via built-in SOP/credo layers, GGUF recommendations for every device/task, and an eventually fine-tuned house model with MCP tooling. Use at the START of any feature decision to test it against the vision, when prioritizing roadmap items, or before scoping any new capability.",
@@ -436,6 +569,13 @@
       "description": "SOP for wiring AIDE's new TS route stack (node/src/server.ts, all 110+ openapi routes) into production so `npm start` serves it — strangler-fig migration away from the legacy monolith daemon/server.mjs. Covers the verified two-server reality, route inventory reconciliation, facade routing, contract-test safety net, per-domain cutover phases with verification gates, rollback, and decommissioning. Use when starting the cutover work, when a shipped feature 404s in the real UI, when touching scripts/start.mjs or either server entrypoint, or before decommissioning any legacy module.",
       "category": "aide-core",
       "path": "skills/packs/aide-production-cutover/SKILL.md"
+    },
+    {
+      "name": "aide-project-replay",
+      "title": "aide-project-replay",
+      "description": "Project provenance and replay system — captures the full cognitive history of every build (intent, decisions, model handoffs, approvals, rejections, gate results) as a queryable timeline. V1 = structured capture (already flowing via ships.log and provenance JSONL). V2 = narrative renderer with search/filter/jump. Use when designing provenance schemas, building replay UI, or answering 'show me how this was built'.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-project-replay/SKILL.md"
     },
     {
       "name": "aide-provider-connect",
@@ -459,6 +599,27 @@
       "path": "skills/packs/aide-resilience-orchestrator/SKILL.md"
     },
     {
+      "name": "aide-responsive-a11y",
+      "title": "aide-responsive-a11y",
+      "description": "D1 responsive + accessibility foundation for the AIDE cockpit — breakpoint ladder (1440/1200/1000/820/640), rail collapse behavior, complete aria-labels, Esc-focus-return law for overlays, aria-live status strip, contrast spot-checks. Use when touching cockpit layout/CSS, adding any control, or auditing keyboard/screen-reader behavior. Research base: JetBrains a11y 2026, W3C ARIA APG keyboard interface, WebAIM, Vercel web-interface-guidelines.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-responsive-a11y/SKILL.md"
+    },
+    {
+      "name": "aide-rseries-refactor",
+      "title": "aide-rseries-refactor",
+      "description": "R-series cockpit milestones — Rename Symbol (F2) with previewed multi-file apply via LSP workspace edits, Find All References view, and format-document/on-save. Research-grounded priorities (rename = #1 refactor at 85.8% adoption; preview+undo drives trust). Use when implementing editor refactoring, references view, or formatter wiring in the AIDE cockpit.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-rseries-refactor/SKILL.md"
+    },
+    {
+      "name": "aide-security-hardening",
+      "title": "aide-security-hardening",
+      "description": "Security hardening for AIDE — secret detection pre-commit, vulnerability scanning via Semgrep integration, SBOM generation, secure coding SOPs, and supply-chain audit. Use when implementing security features, auditing code for vulnerabilities, or building the security layer of the IDE.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-security-hardening/SKILL.md"
+    },
+    {
       "name": "aide-skill-curation",
       "title": "aide-skill-curation",
       "description": "",
@@ -478,6 +639,13 @@
       "description": "",
       "category": "aide-core",
       "path": "skills/packs/aide-supply-chain-audit/SKILL.md"
+    },
+    {
+      "name": "aide-the-quad",
+      "title": "aide-the-quad",
+      "description": "THE QUAD — closed-loop architecture binding Cockpit (trust+telemetry), Harness (discipline+verification), Orchestrator (execution+authority), and Model (cognition) with three reinforcement loops. Governs any feature touching component sync, the improvement flywheel, unified discipline sourcing, warm-start/offline readiness, or calibration data. Use before adding cross-component features or changing prompt/scaffold sources.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-the-quad/SKILL.md"
     },
     {
       "name": "aide-training-phase-b1-dataset-studio",
@@ -501,6 +669,20 @@
       "path": "skills/packs/aide-training-phase-b3-eval-export/SKILL.md"
     },
     {
+      "name": "aide-trio-integration",
+      "title": "aide-trio-integration",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-trio-integration/SKILL.md"
+    },
+    {
+      "name": "aide-trio-tuning",
+      "title": "aide-trio-tuning",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-trio-tuning/SKILL.md"
+    },
+    {
       "name": "aide-unified-diff-repair",
       "title": "aide-unified-diff-repair",
       "description": "SOP for fixing the README scorecard blocker — bundled models pass function/planning smoke tests but FAIL strict unified-diff formatting. Covers the two-sided fix (harness-side tolerance+repair loop in the agent-loop parser, and model-side data/training fix via format-targeted post-training), decision rules for which side to fix, and the verification battery that proves the scorecard claim changes honestly. Use when working on diff/SEARCH-REPLACE parsing, when smoke tests fail on formatting, when planning the next post-training round, or before updating README claims.",
@@ -520,6 +702,13 @@
       "description": "",
       "category": "aide-core",
       "path": "skills/packs/aide-vscode-parity-roadmap/SKILL.md"
+    },
+    {
+      "name": "aide-windows-dev-reality",
+      "title": "aide-windows-dev-reality",
+      "description": "Verified Windows-specific traps for developing/testing aide-sovereign-workbench on THIS dev box (win32, node 26, cmd.exe npm) — bash-only globs in scripts, libuv UV_HANDLE_CLOSING native asserts, tree-kill law for engine processes, ephemeral ports, node --test flags that matter. Use when local runs fail but CI ubuntu passes, when tests hang or crash natively on Windows, or before writing any script/glob that must run on both platforms.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-windows-dev-reality/SKILL.md"
     },
     {
       "name": "anti-trash-data-doctrine",
@@ -576,6 +765,20 @@
       "description": "Design and implement curriculum learning for small from-scratch LLM pretraining. Covers difficulty metrics (compression ratio, MTLD, Flesch Reading Ease, code complexity), curriculum strategies (vanilla, pacing-based, interleaved), pacing functions (linear, concave, convex), and CL-as-warmup. Use when designing the pretraining data ordering for the 150M rebuild, choosing difficulty signals, or debugging curriculum-related training instability.",
       "category": "general",
       "path": "skills/packs/curriculum-learning-design/SKILL.md"
+    },
+    {
+      "name": "desktop-agent-eval-battery",
+      "title": "desktop-agent-eval-battery",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/desktop-agent-eval-battery/SKILL.md"
+    },
+    {
+      "name": "desktop-control-trajectory-generation",
+      "title": "desktop-control-trajectory-generation",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/desktop-control-trajectory-generation/SKILL.md"
     },
     {
       "name": "developer-code-and-credo",
@@ -683,6 +886,13 @@
       "path": "skills/packs/model-engineering/SKILL.md"
     },
     {
+      "name": "model-merge-doctrine",
+      "title": "model-merge-doctrine",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/model-merge-doctrine/SKILL.md"
+    },
+    {
       "name": "model-scaling",
       "title": "model-scaling",
       "description": "Size-feasibility discipline for FSI-FELON models on THIS machine (GTX 1060 6GB, i7-8750H, 16GB RAM). Codifies the 8/7 measured probe: hard size ceiling is ~150M (139.7M chosen), the ~5GB VRAM spill threshold, the GQA head-divisibility constraint, and the measured config candidates. Use BEFORE choosing a model size, changing a config, or budgeting a corpus/VRAM for any training run. Hard rule from user (8/7): NEVER go bigger than 100-150M. Probe first, don't assume.",
@@ -709,6 +919,13 @@
       "description": "Implement SOD (Step-wise On-policy Distillation), ATOD (Annealed Turn-aware OPD), and Direct-OPD for small model post-training. Covers step-level divergence reweighting, annealed OPD-RL schedules, turn-level disagreement-uncertainty gating, and weak-to-strong policy shift transfer. Use when running Stage 2 (distillation) of the post-training pipeline, choosing between OPD variants, or implementing the distillation trainer for the 150M rebuild.",
       "category": "general",
       "path": "skills/packs/on-policy-distillation/SKILL.md"
+    },
+    {
+      "name": "one-heavy-job",
+      "title": "one-heavy-job",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/one-heavy-job/SKILL.md"
     },
     {
       "name": "original-trace-engineering",
@@ -982,6 +1199,20 @@
       "description": "Defensive human-factor, persuasion, cognitive-accessibility, and cybersecurity synthesis for website and Shopify generation. Use whenever designing, auditing, curating, or training web/Shopify specs, copy, motion, conversion flows, or security behavior.",
       "category": "general",
       "path": "skills/packs/web-human-systems-security/SKILL.md"
+    },
+    {
+      "name": "windows-desktop-sandbox-harness",
+      "title": "windows-desktop-sandbox-harness",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/windows-desktop-sandbox-harness/SKILL.md"
+    },
+    {
+      "name": "windows-training-hang-triage",
+      "title": "windows-training-hang-triage",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/windows-training-hang-triage/SKILL.md"
     },
     {
       "name": "zero-dup-high-quality",

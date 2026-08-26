@@ -1,0 +1,46 @@
+{
+  "sources": [
+    {
+      "name": "code_executable_specs",
+      "source_file": "E:\\neciconnect\\novel\\data\\test_10k.jsonl",
+      "rows_kept": 0,
+      "rows_total": 9982,
+      "dups": 0,
+      "bad": 9982
+    },
+    {
+      "name": "code_curated_v2",
+      "source_file": "E:\\neciconnect\\novel\\data\\curated_v2\\train.jsonl",
+      "rows_kept": 18500,
+      "rows_total": 18500,
+      "dups": 0,
+      "bad": 0
+    },
+    {
+      "name": "reasoning_dualmind_kd",
+      "source_file": "E:\\neciconnect\\novel\\data\\kd_corpus\\trek_kd_v5.jsonl",
+      "rows_kept": 1744,
+      "rows_total": 5000,
+      "dups": 3256,
+      "bad": 0
+    },
+    {
+      "name": "terminal_agent",
+      "source_file": "E:\\jeni_train\\laptop-training\\train-merged.jsonl",
+      "rows_kept": 2275,
+      "rows_total": 2275,
+      "dups": 0,
+      "bad": 0
+    },
+    {
+      "name": "code_kira_sft",
+      "source_file": "L:\\kira_training\\phase1\\kira_phase1_sft.jsonl",
+      "rows_kept": 0,
+      "rows_total": 100000,
+      "dups": 0,
+      "bad": 100000
+    }
+  ],
+  "total_rows": 22519,
+  "created": "2026-08-24T16:49:39"
+}

@@ -342,6 +342,13 @@ const server = http.createServer(async (request, response) => {
       }
       const allowed = new Set(['node', 'npm', 'npx', 'git', 'py', 'python', 'python3', 'cargo', 'rustc']);
       if (!allowed.has(program)) throw new Error('terminal command is not allowlisted');
+      const DENIED_FLAGS = { node: /^(-e|--eval|--input|--check)$/, npx: /^(-y|--call|--global|--offline)$/, python: /^(-c|--exec|-m|--module|-B)$/, 'python3': /^(-c|--exec|-m|--module|-B)$/, py: /^(-c|--exec|-m|--module|-B)$/ };
+      const flagValidator = DENIED_FLAGS[program];
+      if (flagValidator) {
+        for (const arg of args) {
+          if (flagValidator.test(arg)) throw new Error(`flag '${arg}' is not permitted on '${program}' for security`);
+        }
+      }
       const result = await new Promise(resolve => execFile(program, args, { cwd: WORKSPACE, timeout: 30_000, maxBuffer: 512 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, NODE_PATH: process.env.NODE_PATH } }, (error, stdout, stderr) => resolve({ code: error?.code ?? 0, stdout, stderr })));
       return json(response, 200, result);
     }
@@ -413,9 +420,12 @@ const server = http.createServer(async (request, response) => {
       const input = await body(request);
       if (input.approved !== true) throw new Error('explicit approval required — push uploads your commits to the remote');
       const branch = String(input.branch || '').trim() || 'main';
+      const remote = String(input.remote || 'origin').trim();
+      if (!/^[\w.\-\/]+$/.test(branch)) throw new Error('invalid branch name');
+      if (!/^[\w.\-\/]+$/.test(remote)) throw new Error('invalid remote name');
       await fs.mkdir(path.join(WORKSPACE, '.aide', 'logs'), { recursive: true }).catch(() => {});
-      await fs.appendFile(path.join(WORKSPACE, '.aide', 'logs', 'egress.log'), JSON.stringify({ action: 'git.push', remote: input.remote || 'origin', branch, at: new Date().toISOString() }) + '\n').catch(() => {});
-      const out = await runGit(['push', input.remote || 'origin', `${branch}:${branch}`]);
+      await fs.appendFile(path.join(WORKSPACE, '.aide', 'logs', 'egress.log'), JSON.stringify({ action: 'git.push', remote, branch, at: new Date().toISOString() }) + '\n').catch(() => {});
+      const out = await runGit(['push', remote, `${branch}:${branch}`]);
       return json(response, 200, { pushed: true, output: String(out).slice(0, 400) });
     }
     if (request.method === 'GET' && request.url === '/api/tasks') return json(response, 200, { tasks: taskManager.list(), active: taskManager.status() });

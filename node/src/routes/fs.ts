@@ -181,6 +181,7 @@ export function routeForSearchReplace(workspace: WorkspaceService): Route {
       const excludes = excludeSet(request.include);
       let filesChanged = 0;
       let occurrences = 0;
+      const SENSITIVE_PATHS = /^(credentials|secret|\.env|\.aide\/credentials|\.aide\/telegram|\.dpapi)/i;
       const walk = async (dir: string): Promise<void> => {
         if (occurrences >= SEARCH_MAX_OCCURRENCES) return;
         for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
@@ -192,6 +193,7 @@ export function routeForSearchReplace(workspace: WorkspaceService): Route {
             continue;
           }
           const relative = path.relative(workspace.root, full).split(path.sep).join('/');
+          if (SENSITIVE_PATHS.test(relative)) continue;
           if (fileMask && !matchMask(relative, fileMask)) continue;
           const stat = await fs.stat(full);
           if (stat.size > SEARCH_MAX_FILE_BYTES) continue;

@@ -1413,7 +1413,39 @@ async function renderDesktopPanel() {
     setStrip('Desktop control disabled.');
     await renderDesktopPanel();
   };
+  // Pending executor approvals (T2 seam): render + poll while panel is open.
+  const pendBlock = $('#dc-pending-block');
+  const pendList = $('#dc-pending-list');
+  const pending = status.pending_approvals || [];
+  if (!pending.length) {
+    pendBlock.hidden = true;
+  } else {
+    pendBlock.hidden = false;
+    pendList.innerHTML = pending.map(p =>
+      `<div style="margin:6px 0;padding:8px;border:1px solid #333;background:#0d0d0d">` +
+      `<span class="badge ${p.class === 'DESTRUCTIVE' ? 'warn' : 'on'}">${esc(p.class)}</span> ` +
+      `<code class="small">${esc(p.action_raw)}</code><br>` +
+      `<button class="primary" data-dc-res="${esc(p.approval_id)}" data-dc-decision="approve" style="margin-top:6px">APPROVE</button> ` +
+      `<button data-dc-res="${esc(p.approval_id)}" data-dc-decision="reject" style="background:#111;border:1px solid #a33;color:#ff9b9b;padding:6px 12px;font-family:var(--mono);cursor:pointer;margin-left:6px">REJECT</button>` +
+      `</div>`).join('');
+    pendList.querySelectorAll('[data-dc-res]').forEach(btn => {
+      btn.onclick = async () => {
+        await jpost(`${API}/api/desktop/pending/resolve`, { approval_id: btn.dataset.dcRes, decision: btn.dataset.dcDecision });
+        setStrip(`Desktop action ${btn.dataset.dcDecision}d.`);
+        await renderDesktopPanel();
+      };
+    });
+  }
+  clearInterval(dcPollTimer);
+  dcPollTimer = setInterval(() => {
+    if ($('#desktop-panel').hidden) { clearInterval(dcPollTimer); return; }
+    jget(`${API}/api/desktop/status`).then(s => {
+      const nowPending = (s.pending_approvals || []).length;
+      if (nowPending !== pending.length) renderDesktopPanel();
+    }).catch(() => {});
+  }, 3000);
 }
+let dcPollTimer = null;
 
 async function openSkillsPanel() {
   $('#skills-panel').hidden = false;

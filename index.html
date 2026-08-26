@@ -259,6 +259,10 @@
     <div id="dc-active" hidden>
       <div style="margin-bottom:10px"><span class="badge on">ENABLED</span> <span class="muted small" id="dc-statusline"></span></div>
       <div class="small" id="dc-grants-summary" style="margin-bottom:12px"></div>
+      <div id="dc-pending-block" hidden style="margin-bottom:12px">
+        <h2 style="font:bold 13px var(--mono);color:#ffb0b0;margin:0 0 6px">PENDING APPROVALS</h2>
+        <div id="dc-pending-list"></div>
+      </div>
       <button id="dc-panic" style="background:#5a1010;border:1px solid #a33;color:#ffb0b0;padding:8px 14px;font-family:var(--mono);cursor:pointer">PANIC — REVOKE EVERYTHING NOW</button>
       <button id="dc-disable" style="margin-left:8px;background:#111;border:1px solid #333;color:var(--fg);padding:8px 14px;font-family:var(--mono);cursor:pointer">DISABLE GRACEFULLY</button>
     </div>

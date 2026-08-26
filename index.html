@@ -8,21 +8,21 @@
 </head>
 <body class="state-cold">
 
-<header class="topbar">
+<header class="topbar" role="banner">
   <div class="brand">AIDE <span>SOVEREIGN WORKBENCH</span></div>
-  <div class="chip" id="engine-chip"><i class="dot"></i><span id="engine-name">NO ENGINE</span></div>
+  <div class="chip" id="engine-chip"><i class="dot"></i><span id="engine-name" aria-live="polite">NO ENGINE</span></div>
   <div class="spacer"></div>
-  <button class="topbtn" id="skills-button" title="Built-in SOP packs">SKILLS</button>
-    <button class="topbtn" id="plugins-button" title="Local plugins">PLUGINS</button>
-    <button class="topbtn" id="models-button" title="Engines, downloads, import">MODELS</button>
-<button class="topbtn" id="stop-engine" hidden title="Stop the running engine and free memory">STOP ENGINE</button>
-  <button class="topbtn" id="help-button" title="How AIDE works">HELP</button>
+  <button class="topbtn" id="skills-button" title="Built-in SOP packs" aria-label="Open skills panel">SKILLS</button>
+    <button class="topbtn" id="plugins-button" title="Local plugins" aria-label="Open plugins panel">PLUGINS</button>
+    <button class="topbtn" id="models-button" title="Engines, downloads, import" aria-label="Open models panel">MODELS</button>
+<button class="topbtn" id="stop-engine" hidden title="Stop the running engine and free memory" aria-label="Stop engine">STOP ENGINE</button>
+  <button class="topbtn" id="help-button" title="How AIDE works" aria-label="Open help">HELP</button>
 </header>
 
-<main class="cockpit">
+<main class="cockpit" role="main">
   <section class="orchestrator">
     <div class="zone-title">ORCHESTRATOR</div>
-    <div id="thread" class="thread">
+    <div id="thread" class="thread" aria-live="polite" aria-label="Conversation thread">
       <div class="msg system">Describe what you want. AIDE plans, you approve, work is verified before anything touches your project.</div>
     </div>
     <form id="describe-form" class="describe">
@@ -85,41 +85,41 @@
     </div>
   </section>
 
-  <aside class="rail">
+  <aside class="rail" role="complementary" aria-label="Mission checklist and status">
     <div class="zone-title">MISSION CHECKLIST</div>
     <ol class="checklist" id="checklist">
       <li data-step="1"><span>Pick the recommended engine</span><b class="st"></b></li>
       <li data-step="2"><span>Start it — wait for green</span><b class="st"></b></li>
       <li data-step="3"><span>Describe a task</span><b class="st"></b></li>
     </ol>
-    <div class="rail-block"><span class="k">HARNESS</span><span class="badge off" id="harness-badge">STANDBY</span></div>
-    <div class="rail-block" style="cursor:pointer" id="delegation-toggle" title="Toggle how much authority the agent gets"><span class="k">DELEGATION</span><span class="badge on" id="delegation-badge">STANDARD</span></div>
-    <div class="rail-block"><span class="k">CLOUD</span><span class="badge off" id="cloud-state">CHECKING…</span></div>
-    <div class="rail-block" style="cursor:pointer" id="fos-toggle" title="Format TS/JS/JSON/CSS/HTML when saving"><span class="k">FORMAT ON SAVE</span><span class="badge off" id="fos-badge">OFF</span></div>
+    <div class="rail-block"><span class="k">HARNESS</span><span class="badge off" id="harness-badge" aria-live="polite">STANDBY</span></div>
+    <div class="rail-block" style="cursor:pointer" id="delegation-toggle" role="button" tabindex="0" title="Toggle how much authority the agent gets" aria-pressed="false"><span class="k">DELEGATION</span><span class="badge on" id="delegation-badge">STANDARD</span></div>
+    <div class="rail-block"><span class="k">CLOUD</span><span class="badge off" id="cloud-state" aria-live="polite">CHECKING…</span></div>
+    <div class="rail-block" style="cursor:pointer" id="fos-toggle" role="button" tabindex="0" title="Format TS/JS/JSON/CSS/HTML when saving" aria-pressed="false"><span class="k">FORMAT ON SAVE</span><span class="badge off" id="fos-badge">OFF</span></div>
     <div class="rail-block"><span class="k">EGRESS</span><span class="badge off">LOCAL ONLY</span></div>
-    <div class="rail-block"><span class="k">GIT</span><span class="badge off" id="git-badge">—</span></div>
-    <div class="rail-block"><span class="k">DIAGNOSTICS</span><span class="badge off" id="diag-badge">—</span></div>
+    <div class="rail-block"><span class="k">GIT</span><span class="badge off" id="git-badge" aria-live="polite">—</span></div>
+    <div class="rail-block"><span class="k">DIAGNOSTICS</span><span class="badge off" id="diag-badge" aria-live="polite">—</span></div>
     <div class="rail-block muted small">Terminal · extensions wire in over upcoming updates.</div>
   </aside>
 </main>
 
-<footer class="strip"><span id="strip-text">Booting…</span></footer>
+<footer class="strip" role="contentinfo"><span id="strip-text" aria-live="polite">Booting…</span></footer>
 
-<section id="help-panel" class="overlay" hidden>
+<section id="help-panel" class="overlay" role="dialog" aria-modal="true" aria-labelledby="help-heading" hidden>
   <div class="panel-card">
     <div class="eyebrow">AIDE / HOW IT WORKS</div>
-    <h2>Three moves.</h2>
+    <h2 id="help-heading">Three moves.</h2>
     <ol class="help-steps">
       <li><b>START</b> — one button starts the best local model for this machine. Everything stays on this computer.</li>
       <li><b>DESCRIBE</b> — tell the orchestrator what you want. It plans before touching anything.</li>
       <li><b>APPROVE</b> — nothing changes without your approval. Verification results appear in the right rail.</li>
     </ol>
     <p class="muted">Cloud models arrive later — strictly opt-in, clearly labeled, never required.</p>
-    <button id="help-close" class="primary">GOT IT</button>
+    <button id="help-close" class="primary" aria-label="Close help">GOT IT</button>
   </div>
 </section>
 
-<section id="models-panel" class="overlay" hidden>
+<section id="models-panel" class="overlay" role="dialog" aria-modal="true" hidden>
   <div class="panel-card wide">
     <div class="eyebrow">MODELS / ENGINES &amp; HUB</div>
     <h2>Engines</h2>
@@ -155,7 +155,7 @@
   </div>
 </section>
 
-<section id="command-palette" class="overlay cmdk" hidden>
+<section id="command-palette" class="overlay cmdk" role="dialog" aria-modal="true" hidden>
   <div class="cmdk-box">
     <input id="cmdk-input" placeholder="Type a command (>), or a file name…" autocomplete="off" spellcheck="false">
     <div id="cmdk-results" class="cmdk-results"></div>
@@ -163,7 +163,7 @@
   </div>
 </section>
 
-<section id="search-overlay" class="overlay cmdk" hidden>
+<section id="search-overlay" class="overlay cmdk" role="dialog" aria-modal="true" hidden>
   <div class="cmdk-box wide">
     <div class="hub-row">
       <input id="gs-query" placeholder="Find in workspace…" autocomplete="off" spellcheck="false">
@@ -176,7 +176,7 @@
   </div>
 </section>
 
-<section id="git-sheet" class="overlay" hidden>
+<section id="git-sheet" class="overlay" role="dialog" aria-modal="true" hidden>
   <div class="panel-card">
     <div class="eyebrow">GIT — BRANCHES &amp; HISTORY</div>
     <div class="hub-row">
@@ -194,7 +194,7 @@
   </div>
 </section>
 
-<section id="skills-panel" class="overlay cmdk" hidden>
+<section id="skills-panel" class="overlay cmdk" role="dialog" aria-modal="true" hidden>
   <div class="cmdk-box wide">
     <div class="eyebrow">SKILLS — 139 SOP PACKS IN THE BOX</div>
     <div class="hub-row">
@@ -206,7 +206,7 @@
   </div>
 </section>
 
-<section id="plugins-panel" class="overlay cmdk" hidden>
+<section id="plugins-panel" class="overlay cmdk" role="dialog" aria-modal="true" hidden>
   <div class="cmdk-box wide">
     <div class="eyebrow">PLUGINS — LOCAL, OPT-IN, CAPABILITY-GATED</div>
     <div id="plugins-installed" class="hub-results"></div>
@@ -216,7 +216,7 @@
   </div>
 </section>
 
-<section id="telegram-panel" class="overlay cmdk" hidden>
+<section id="telegram-panel" class="overlay cmdk" role="dialog" aria-modal="true" hidden>
   <div class="cmdk-box wide">
     <div class="eyebrow">TELEGRAM BRIDGE — YOUR BOT · YOUR MACHINE · TRANSPORT ONLY</div>
     <div id="tg-body" class="hub-results"><div class="muted">Loading…</div></div>
@@ -240,7 +240,7 @@
   </div>
 </section>
 
-<section id="desktop-panel" class="overlay cmdk" hidden>
+<section id="desktop-panel" class="overlay cmdk" role="dialog" aria-modal="true" hidden>
   <div class="cmdk-box wide">
     <div class="eyebrow">DESKTOP CONTROL — STRICT OPT-IN · SESSION-SCOPED · DENY-BY-DEFAULT</div>
     <div id="desktop-body" class="hub-results"><div class="muted">Loading…</div></div>

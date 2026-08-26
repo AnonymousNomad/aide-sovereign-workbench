@@ -1,0 +1,12 @@
+# SEARCH/REPLACE proposal grammar (aide-sandbox-loop)
+# Constrains model output to EXACTLY one proposal block.
+# Structure tokens are fixed; content lines allow broad printable chars
+# while forbidding the marker sequences themselves (practical approximation).
+root        ::= "<!-- SR: " path " -->\n<<<<<<< SEARCH\n" searchbody "\n=======\n" replacebody "\n>>>>>>> REPLACE\n"?
+path        ::= [a-zA-Z0-9_./\\-]+
+searchbody  ::= searchline+
+replacebody ::= replaceline+
+searchline  ::= srline
+replaceline ::= srline
+srline      ::= srlastchar [^\n]* "\n"
+srlastchar  ::= [^#\n]

@@ -383,6 +383,8 @@ function setDelegation(mode) {
   localStorage.setItem('aide.delegation', mode);
   const b = $('#delegation-badge');
   if (b) { b.textContent = mode.toUpperCase(); b.className = 'badge' + (mode === 'strict' ? ' warn' : ' on'); }
+  const t = $('#delegation-toggle');
+  if (t) t.setAttribute('aria-pressed', mode === 'strict' ? 'true' : 'false');
 }
 setDelegation(delegationMode);
 
@@ -1128,6 +1130,13 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && k === 'k') { e.preventDefault(); (async () => { await fileList(); $('#command-palette').hidden = false; $('#cmdk-input').value = ''; renderCmdk(''); $('#cmdk-input').focus(); })(); }
   else if ((e.ctrlKey || e.metaKey) && e.shiftKey && k === 'f') { e.preventDefault(); $('#search-overlay').hidden = false; $('#gs-query').focus(); }
   else if ((e.ctrlKey || e.metaKey) && k === '`') { e.preventDefault(); toggleTerminal(); }
+  else if (e.key === 'Escape') {
+    const overlays = ['help-panel','models-panel','command-palette','search-overlay','git-sheet','skills-panel','plugins-panel','telegram-panel','desktop-panel'];
+    for (const id of overlays) {
+      const el = document.getElementById(id);
+      if (el && !el.hidden) { el.hidden = true; break; }
+    }
+  }
 });
 
 // ---------- Global search ----------
@@ -1484,6 +1493,7 @@ $('#delegation-toggle').addEventListener('click', () => {
   setDelegation(delegationMode === 'standard' ? 'strict' : 'standard');
   setStrip(`Delegation: ${delegationMode.toUpperCase()} — ${delegationMode === 'strict' ? 'every tool call asks you first.' : 'read-only tools run without asking; writes always ask.'}`);
 });
+$('#delegation-toggle').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#delegation-toggle').click(); } });
 
 $('#fos-toggle').addEventListener('click', () => {
   formatOnSave = !formatOnSave;
@@ -1491,7 +1501,9 @@ $('#fos-toggle').addEventListener('click', () => {
   const b = $('#fos-badge');
   b.textContent = formatOnSave ? 'ON' : 'OFF';
   b.className = 'badge ' + (formatOnSave ? 'on' : 'off');
+  $('#fos-toggle').setAttribute('aria-pressed', formatOnSave ? 'true' : 'false');
 });
+$('#fos-toggle').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#fos-toggle').click(); } });
 
 // ---------- Plugins surface v1 (declarative capability plugins) ----------
 const PLUGIN_CONTRIBUTIONS = {

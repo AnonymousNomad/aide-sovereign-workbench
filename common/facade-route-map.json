@@ -4,6 +4,7 @@
     "/api/byok": "ts",
     "/api/commands": "ts",
     "/api/desktop": "ts",
+    "/api/experts": "ts",
     "/api/editor": "ts",
     "/api/health": "ts",
     "/api/hooks": "ts",

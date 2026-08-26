@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { createExpertRegistry } = require(path.join(root, 'harness', 'micro-experts.mjs'));
+const { taskRouterFeatures: features } = require(path.join(root, 'harness', 'expert-featurizers.mjs'));
 
 const WORKSPACE = process.argv[2] || root;
 
@@ -83,21 +84,7 @@ function mulberry32(a) {
   };
 }
 
-function features(msg) {
-  const words = msg.split(/\s+/).filter(Boolean);
-  const lc = msg.toLowerCase();
-  return {
-    len_chars: msg.length / 200,
-    len_words: words.length / 40,
-    question: /\?/.test(msg) ? 1 : 0,
-    path_like: /[\w-]+\.[a-z]{1,4}\b|\/[a-z]/i.test(msg) ? 1 : 0,
-    verb_fix: /\b(fix|debug|broken|crash|fails?|error)\b/i.test(msg) ? 1 : 0,
-    verb_build: /\b(build|create|implement|add|write|make|generate|scaffold)\b/i.test(msg) ? 1 : 0,
-    verb_plan: /\b(plan|architect|design|roadmap|break down|phases)\b/i.test(msg) ? 1 : 0,
-    verb_explain: /\b(explain|what|how|why|document|difference)\b/i.test(msg) ? 1 : 0,
-    code_fence: /```/.test(msg) ? 1 : 0
-  };
-}
+
 
 async function main() {
   const rng = mulberry32(20260825);
@@ -160,4 +147,5 @@ async function main() {
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
+
 

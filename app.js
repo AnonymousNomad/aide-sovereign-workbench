@@ -119,6 +119,13 @@ async function sendDescribe(value) {
   threadMsg('user', value);
   const pending = threadMsg('pending', 'Thinking locally… nothing leaves this machine.');
   setStrip('Working on your request…');
+  // Micro-expert advisory (never authoritative): task-router classifies intent
+  // locally in microseconds; chip shows the read so the operator sees the read.
+  void jpost(`${API}/api/experts/intent`, { message: value }).then(r => {
+    if (!r?.phase) return;
+    pending.insertAdjacentHTML('beforeend',
+      ` <div><span class="prov-chip">ROUTED ${esc(r.phase.toUpperCase())}</span><span class="muted small"> micro-expert advisory · ${(r.confidence * 100).toFixed(0)}% · ${esc(r.expert)}</span></div>`);
+  }).catch(() => {});
   try {
     const r = await fetch(`${API}/api/chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

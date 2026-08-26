@@ -3380,6 +3380,68 @@
         }
       }
     },
+    "/api/experts/intent": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "expert": {
+                      "type": "string"
+                    },
+                    "phase": {
+                      "type": "string",
+                      "enum": [
+                        "debug",
+                        "question",
+                        "plan",
+                        "code"
+                      ]
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "expert",
+                    "phase",
+                    "confidence"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/file": {
       "get": {
         "responses": {

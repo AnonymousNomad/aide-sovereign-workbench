@@ -48,6 +48,7 @@ import { routesForOrch } from './routes/orch.ts';
 import { routesForMemory, createMemoryService } from './routes/memory.ts';
 import { routesForDesktop, createDesktopService } from './routes/desktop.ts';
 import { routesForTelegram, createTelegramBridgeService } from './routes/telegram.ts';
+import { routesForExperts, createExpertsService } from './routes/experts.ts';
 import { createRequire } from 'node:module';
 import { createOrchService } from './services/orch-context.mjs';
 import { createAgentTools } from './services/agent-tools.mjs';
@@ -382,7 +383,8 @@ export async function buildRoutes(workspace: string, version: string, options: B
       });
       return [
         ...routesForDesktop(desktopService),
-        ...routesForTelegram(createTelegramBridgeService(workspace, input => brain.onCommand(input)))
+        ...routesForTelegram(createTelegramBridgeService(workspace, input => brain.onCommand(input))),
+        ...routesForExperts(createExpertsService(workspace))
       ];
     })(),
     ...routesForAgent(agentLoop, {

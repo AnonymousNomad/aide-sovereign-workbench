@@ -54,7 +54,6 @@ before(async () => {
 });
 
 after(async () => {
-  httpServer.closeAllConnections();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
   for (let attempt = 0; attempt < 10; attempt++) {
     try {

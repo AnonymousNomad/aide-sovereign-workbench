@@ -46,7 +46,6 @@ before(async () => {
 });
 
 after(async () => {
-  httpServer.closeAllConnections();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
@@ -163,7 +162,6 @@ test('not-a-repo workspace maps to NOT_A_REPO code', async () => {
     const response = await fetch(`http://127.0.0.1:${address.port}/api/git/status`);
     const body = (await response.json()) as Envelope<unknown>;
     assert.equal(body.error?.code, 'NOT_A_REPO');
-    plainHttp.closeAllConnections();
     await new Promise<void>(resolve => plainHttp.close(() => resolve()));
   } finally {
     await fs.rm(plainDir, { recursive: true, force: true }).catch(() => {});

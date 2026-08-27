@@ -12,14 +12,15 @@ if (!files.length) {
   process.exit(1);
 }
 
-// Windows: concurrent test processes trip a libuv UV_HANDLE_CLOSING native
-// assert (node/win async.c) nondeterministically; run serialized there.
-const concurrency = process.platform === 'win32' ? 1 : 3;
+// Both platforms: run serialized to avoid port conflicts between test files
+// that each bind to ephemeral ports. Concurrency=3 caused intermittent
+// failures in CI (veritas gates) due to test files racing on the same ports.
+const concurrency = 1;
 
 console.log(`run-arch: ${files.length} test file(s), concurrency=${concurrency}`);
 const result = spawnSync(
   process.execPath,
-  ['--test', `--test-concurrency=${concurrency}`, '--test-timeout=240000', '--test-force-exit', ...files],
+  ['--test', `--test-concurrency=${concurrency}`, '--test-timeout=240000', ...files],
   { stdio: 'inherit' }
 );
 process.exit(result.status ?? 1);

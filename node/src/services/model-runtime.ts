@@ -397,8 +397,22 @@ export class ModelRuntime {
         '--prio', '-1',
         ...samplerArgs(profile)
       ];
-      const alreadyUpBinary = await this.verifyEndpointModel(id).catch(() => ({ ready: false as const, status: '', served_models: [] }));
+      const alreadyUpBinary = await this.verifyEndpointModel(id).catch(async () => {
+        if (await this.endpointPortOpen(model)) {
+          return { ready: false as const, status: 'conflict' as const, served_models: [] as never[], error: `port ${this.endpointPort(model).port} occupied by foreign server` };
+        }
+        return { ready: false as const, status: '' as const, served_models: [] as never[] };
+      });
       if (alreadyUpBinary.ready) return { id, status: 'running', endpoint: model.endpoint };
+      if (alreadyUpBinary.status === 'conflict') {
+        const from = model.endpoint;
+        const port = await allocateFreePort();
+        model.endpoint = `http://127.0.0.1:${port}/v1`;
+        this.logger?.warn('model endpoint occupied by a foreign server; relocating to a free port', { id, from, to: model.endpoint, error: alreadyUpBinary.error ?? 'unknown occupant' });
+        if (model.ingested === true) await this.persistIngested();
+        endpointUrl.port = String(port);
+        binaryArgs[5] = String(port);
+      }
       const child = this.spawnChild(llamaBinary, binaryArgs, { stdio: ['ignore', 'ignore', 'pipe'], detached: true });
       this.processes.set(id, child);
       this.onStatusChange(id, 'starting');

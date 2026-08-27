@@ -25,7 +25,6 @@ before(async () => {
 });
 
 after(async () => {
-  httpServer.closeAllConnections();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
 });
 

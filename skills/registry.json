@@ -158,6 +158,13 @@
       "path": "skills/packs/aide-backend-autoselect/SKILL.md"
     },
     {
+      "name": "aide-engine-lifecycle-doctrine",
+      "title": "aide-engine-lifecycle-doctrine",
+      "description": "Engine lifecycle & contention doctrine for llama-server under AIDE — why engines die with silent \"exit code=1, zero stderr\", the scoped-kill law (never taskkill /IM llama-server.exe), the memory drain-wait before spawn, the early-exit retry guard, the twin-orchestrator hazard (legacy daemon 4779 vs arch-ts 4778 both managing the same manifest), port-hijack via SO_REUSEADDR, and the exact diagnostic drill to find a machine-wide engine killer. Use whenever engines die unexpectedly, chat returns 409 NOT_READY, a model won't stay loaded, an external job coexists with AIDE engines, or before adding any process-kill logic anywhere.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-engine-lifecycle-doctrine/SKILL.md"
+    },
+    {
       "name": "aide-build-b1-task-service",
       "title": "aide-build-b1-task-service",
       "description": "",

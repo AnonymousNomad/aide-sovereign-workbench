@@ -497,12 +497,39 @@ export class ModelManager {
     }
     if (!this.binaryPath) throw new Error('Local model setup required: install llama-server and set AIDE_LLAMA_SERVER.');
     await fs.access(this.binaryPath).catch(() => { throw new Error(`Local model setup required: llama-server was not found at ${this.binaryPath}.`); });
-    const freeRam = os.freemem();
-    if (freeRam < FREE_RAM_FLOOR_BYTES) {
-      throw new Error(`Not enough free memory to start ${model.name} (${Math.round(freeRam / 1048576)} MB free, need ${Math.round(FREE_RAM_FLOOR_BYTES / 1048576)} MB). Stop another running engine (STOP ENGINE button) or wait for heavy jobs to finish, then try again.`);
+    // Floor gate. If we are below the floor but we MANAGE running engines,
+    // stopping them is a legitimate way to free memory; an unmanaged external
+    // engine is not ours to kill, so refuse with the actionable message.
+    const freeRamBefore = os.freemem();
+    const hadManagedEngines = this.processes.size > 0;
+    if (freeRamBefore < FREE_RAM_FLOOR_BYTES && !hadManagedEngines) {
+      throw new Error(`Not enough free memory to start ${model.name} (${Math.round(freeRamBefore / 1048576)} MB free, need ${Math.round(FREE_RAM_FLOOR_BYTES / 1048576)} MB). Stop another running engine (STOP ENGINE button) or wait for heavy jobs to finish, then try again.`);
     }
-    await this.stopAll();
-    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--log-disable', '--prio', '-1', '--jinja', '-ngl', '999', '--no-mmap', ...this.samplerArgs(this.loadProfile(id)), ...this.runtimeArgs(this.loadProfile(id))];
+    if (hadManagedEngines) await this.stopAll();
+    // LAW: a freshly killed engine does not return its commit charge to the OS
+    // instantly. Spawning a multi-GB mmap load into that transient hole causes
+    // commit exhaustion: the engine dies with exit code 1 and ZERO stderr, and
+    // the whole machine thrashes (2026-08-27: cipher 4 GB q8_0 vs resident
+    // qwen reproduced both the wedge and the silent death live; llama.cpp
+    // issue #26822 shows the same silent-failure family on Windows). Never
+    // spawn until memory has actually drained.
+    if (hadManagedEngines || freeRamBefore < FREE_RAM_FLOOR_BYTES) {
+      const drained = await this.waitForMemoryDrain();
+      if (!drained.drained) {
+        throw new Error(`Memory did not recover after stopping engines (${Math.round(drained.freeRam / 1048576)} MB free, need ${Math.round(FREE_RAM_FLOOR_BYTES / 1048576)} MB). Close heavy applications and try again.`);
+      }
+    }
+    // LAW: never re-add --no-mmap. In this VMware-SVGA/Pascal-WDDM environment
+    // the monolithic private-memory read wedges or silently exits the engine at
+    // heavy-init (2026-08-27); default mmap paging streams weights into VRAM in
+    // ~72s and binds HTTP normally (proof: logs/iso-mmap.err.log vs every
+    // --no-mmap attempt dying with zero stderr).
+    // ngl comes ONLY from profile runtimeArgs (ngl:999 in profiles). Never
+    // hardcode '-ngl' here too — it duplicated the profile flag and emitted
+    // llama.cpp 'DEPRECATED: argument -ngl specified multiple times' plus
+    // 'common_fit_params: failed to fit params ... n_gpu_layers already set by
+    // user to 999, abort'. No-profile models fall back to llama.cpp 'auto' fit.
+    const args = ['-m', file, '--host', '127.0.0.1', '--port', String(endpoint.port || 8080), '--ctx-size', String(model.context_tokens || 2048), '--threads', '4', '--parallel', '1', '--no-warmup', '--prio', '-1', '--jinja', ...this.samplerArgs(this.loadProfile(id)), ...this.runtimeArgs(this.loadProfile(id))];
     // LoRA adapter hot-load: apply fine-tuned weights alongside base at inference
     if (model.lora_adapter) {
       const loraAbs = path.isAbsolute(model.lora_adapter) ? model.lora_adapter : path.resolve(this.modelDir, '..', model.lora_adapter);
@@ -515,14 +542,33 @@ export class ModelManager {
     // Detached: own process group -> immune to console Ctrl+C events that
     // killed engines with STATUS_CONTROL_C_EXIT when unrelated tool calls
     // timed out (2026-08-25, exit code 3221225786).
-    const child = this.spawnProcess(binaryForRun, args, { stdio: ['ignore', 'ignore', 'pipe'], detached: true });
+    // Ensure binary directory is set as cwd so Windows DLL search finds backend DLLs (e.g. ggml-vulkan.dll)
+    const binaryDir = path.dirname(binaryForRun);
     const stderrLog = path.resolve(this.modelDir, '..', 'logs', `engine-${id}.err.log`);
-    child.stderr?.pipe(createWriteStream(stderrLog, { flags: 'a' }));
-    this.processes.set(id, child);
-    child.once('exit', (code, signal) => {
-      this.processes.delete(id);
-      fs.appendFile(stderrLog, `[exit code=${code} signal=${signal}]\n`).catch(() => {});
-    });
+    // Early-exit guard with one retry. The lethal window is the first seconds
+    // of load: under memory/VRAM contention the engine dies with exit code 1
+    // and empty stderr (2026-08-27 live reproduction). If it survives 8s it is
+    // past the danger window and waitReady() takes over readiness gating.
+    let child = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      child = this.spawnProcess(binaryForRun, args, { cwd: binaryDir, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
+      child.stderr?.pipe(createWriteStream(stderrLog, { flags: 'a' }));
+      this.processes.set(id, child);
+      child.once('exit', (code, signal) => {
+        this.processes.delete(id);
+        fs.appendFile(stderrLog, `[exit code=${code} signal=${signal}]\n`).catch(() => {});
+      });
+      const early = await new Promise(resolve => {
+        const timer = setTimeout(() => resolve(null), 8000);
+        child.once('exit', (code, signal) => { clearTimeout(timer); resolve({ code, signal }); });
+      });
+      if (!early) break; // survived the danger window
+      if (attempt === 2) {
+        throw new Error(`${model.name} engine exited immediately (code ${early.code}${early.signal ? `, signal ${early.signal}` : ''}). See logs/engine-${id}.err.log. On this machine the dominant cause is memory or device contention while another engine holds RAM/VRAM — free resources (STOP ENGINE) and try again.`);
+      }
+      console.error(`[backend] ${id} engine died early (code ${early.code}); draining memory and retrying once`);
+      await this.waitForMemoryDrain();
+    }
     return { id, status: 'starting', endpoint: model.endpoint };
   }
 
@@ -590,6 +636,20 @@ export class ModelManager {
     return pids.length > 0;
   }
 
+  // Poll until the OS actually reports the floor as free. A killed engine
+  // releases its commit charge asynchronously; spawning a replacement model
+  // load before that drain is what produced the silent exit-code-1 deaths
+  // (see LAW comment in start()).
+  async waitForMemoryDrain(minFreeBytes = FREE_RAM_FLOOR_BYTES, timeoutMs = 20_000) {
+    const deadline = Date.now() + timeoutMs;
+    let last = os.freemem();
+    while (Date.now() < deadline) {
+      last = os.freemem();
+      if (last >= minFreeBytes) return { drained: true, freeRam: last };
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    return { drained: false, freeRam: last };
+  }
   async stopAll() {
     for (const id of [...this.processes.keys()]) await this.stop(id);
   }

@@ -4,6 +4,7 @@ desktop/target/
 models/*.gguf
 models/*.safetensors
 *.log
+logs/
 artifacts/veritas.md
 .DS_Store
 .env

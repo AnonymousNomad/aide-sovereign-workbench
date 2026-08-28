@@ -165,6 +165,41 @@
       "path": "skills/packs/aide-engine-lifecycle-doctrine/SKILL.md"
     },
     {
+      "name": "aide-context-retrieval-wiring",
+      "title": "aide-context-retrieval-wiring",
+      "description": "Wire the built-but-unwired codebase index (BM25+RRF+optional dense embeddings) into the chat path so answers are grounded in the real workspace — retrieval injection, embed-function supply, freshness loop, @codebase tool, token budgets, jail-safe reads.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-context-retrieval-wiring/SKILL.md"
+    },
+    {
+      "name": "aide-tab-autocomplete",
+      "title": "aide-tab-autocomplete",
+      "description": "Inline tab-autocomplete (FIM) for AIDE using the in-box SmolLM2-360M on a dedicated low-latency engine — Monaco ghost text, prefix/suffix windowing, debouncing, accept/reject telemetry, keep-warm lifecycle. Closes the #1 daily-use gap vs Cursor/Copilot/Windsurf Tab.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-tab-autocomplete/SKILL.md"
+    },
+    {
+      "name": "aide-mcp-inbox-surface",
+      "title": "aide-mcp-inbox-surface",
+      "description": "Build AIDE's in-box MCP server (stdio, all-local) exposing jailed daemon capabilities as tools, consume approved MCP servers inside AIDE, package as .mcpb — reusing path jails and approval gates; tool-poisoning and exfiltration defenses included.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-mcp-inbox-surface/SKILL.md"
+    },
+    {
+      "name": "aide-agent-harness-convergence",
+      "title": "aide-agent-harness-convergence",
+      "description": "Converge AIDE's three parallel agent runtimes into one harness contract with VS Code 2026 parity — plan mode, permission slider, hooks, subagents, sessions/handoff, memory — while keeping twin-orchestrator process isolation and the sandbox single-implementation law.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-agent-harness-convergence/SKILL.md"
+    },
+    {
+      "name": "aide-desktop-control-cipher",
+      "title": "aide-desktop-control-cipher",
+      "description": "Close the desktop-control loop with the in-house model — serve Cipher as the policy model via grammar-constrained actions, expand trajectory categories with verified generation, feed operator verdicts back into QLoRA training, keep grants/panic absolute.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-desktop-control-cipher/SKILL.md"
+    },
+    {
       "name": "aide-build-b1-task-service",
       "title": "aide-build-b1-task-service",
       "description": "",

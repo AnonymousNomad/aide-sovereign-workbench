@@ -207,6 +207,27 @@
       "path": "skills/packs/aide-desktop-control-cipher/SKILL.md"
     },
     {
+      "name": "aide-architect-editor-pattern",
+      "title": "aide-architect-editor-pattern",
+      "description": "The two-call decomposition for any agentic surface that needs higher quality from a smaller model — Architect reasons + plans (no file changes, no tools), Editor translates the plan into exact edits. Born from Aider's architect/editor mode. Use when a small/medium model is bottlenecked on direct editing; when chat quality is plateauing on 4B-7B models; when the user asks for think-harder; when a subagent would normally be spawned but the work is small enough to inline. Same model can serve both roles (Aider's explicit finding). Backed by aide-architect-editor-implementation (the code map) and tested in tests/arch/agent-architect-editor.test.ts.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-architect-editor-pattern/SKILL.md"
+    },
+    {
+      "name": "aide-architect-editor-implementation",
+      "title": "aide-architect-editor-implementation",
+      "description": "Engineering playbook for shipping the architect/editor pattern in AIDE. Companion to aide-architect-editor-pattern (the doctrine). The code map: agent-loop.mjs integration points, plan parser, agent:plan event, /architect slash command, the 6 arch tests, the 2-PR rollout. Use when actually building the feature.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-architect-editor-implementation/SKILL.md"
+    },
+    {
+      "name": "aide-workflow-gap-roadmap",
+      "title": "aide-workflow-gap-roadmap",
+      "description": "The full competitive gap analysis for AIDE's workflow / orchestrator / architecture, ordered by leverage x effort. Born 2026-08-28 from Cursor / VS Code / Claude Code / Cline / Aider / Windsurf / Replit research. 6 gaps ranked: (1) architect/editor split [SKIPPED, shipped], (2) subagents, (3) plan-mode tool whitelist + worktree, (4) auto-memory, (5) custom modes / harnesses, (6) hook system. Use when planning workflow features, when triaging what to ship next, when comparing AIDE to rivals.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-workflow-gap-roadmap/SKILL.md"
+    },
+    {
       "name": "aide-build-b1-task-service",
       "title": "aide-build-b1-task-service",
       "description": "",

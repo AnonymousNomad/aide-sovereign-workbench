@@ -28,6 +28,9 @@ const PARAM_ALIASES = {
 
 const MAX_TRANSCRIPT_MESSAGES = 80;
 const ARGS_PREVIEW_CAP = 2000;
+const MAX_ARCHITECT_CYCLES = 8; // per-session cap on architect/editor two-call turns
+const MAX_PLAN_BYTES = 8192; // emit ceiling; longer plans get truncated with a marker
+const PLAN_BLOCK_RE = /(^|\n)##\s+Plan\s*\n([\s\S]*?)(?=\n##\s+\S|$)/i;
 
 export class AgentSessionError extends Error {
   constructor(code, message) {
@@ -119,7 +122,49 @@ function buildSystemPrompt(mode, tools) {
   ].join('\n');
 }
 
-export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = () => {}, maxIterations = 25, maxMistakes = 3 }) {
+// Architect/Editor pattern (aide-architect-editor-pattern). The architect
+// call is the model's "think harder" pass; the editor call is the same
+// model's "translate the plan into exact tool calls" pass. Same model can
+// serve both (Aider's explicit finding) — the second call just sees the
+// plan as a contract and is freed from having to also re-plan.
+const ARCHITECT_PROMPT_SUFFIX = [
+  '',
+  'ARCHITECT MODE (this turn only):',
+  'Read first, plan second, never edit. Respond with a single fenced',
+  '## Plan block describing the next 1-3 tool calls in plain English.',
+  'Do NOT emit any <tool> blocks in this turn — that is the editor\'s job.',
+  'Keep the plan under 4 KiB. If the user asked for a single trivial',
+  'tool call you may emit that tool directly and skip the plan; this',
+  'turn will be treated as the editor pass.'
+].join('\n');
+
+const EDITOR_PROMPT_PREFIX = [
+  'EDITOR MODE: the architect produced the following plan for this turn.',
+  'Translate it into AIDE XML tool calls (the same format documented',
+  'in the system prompt). Do NOT re-reason; the plan is the contract.',
+  'If a step in the plan is impossible in the current state, call',
+  'attempt_completion with a short summary explaining the block.',
+  '',
+  '## Architect plan',
+  ''
+].join('\n');
+
+// Extract the ## Plan block from a model reply. Returns the inner text
+// trimmed, or null if the reply is a single self-closing plan, no plan
+// at all, or the plan is too small to be meaningful.
+function parsePlanBlock(reply) {
+  const text = String(reply ?? '');
+  if (!/##\s+Plan\b/i.test(text)) return null;
+  const m = PLAN_BLOCK_RE.exec(text);
+  if (!m) return null;
+  const inner = String(m[2] ?? '').trim();
+  if (inner.length < 8) return null; // too short to be a real plan
+  return inner.length > MAX_PLAN_BYTES
+    ? inner.slice(0, MAX_PLAN_BYTES) + '\n\n[plan truncated for token budget]'
+    : inner;
+}
+
+export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = () => {}, maxIterations = 25, maxMistakes = 3, architectEditor = false }) {
   const { tools, rootAbs } = createAgentTools({ workspace, rg });
   const registry = new Map(tools.map(tool => [tool.name, tool]));
   const toolSchemas = Object.fromEntries(tools.map(tool => [tool.name, tool.params]));
@@ -141,7 +186,45 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       while (session.iterations < maxIterations && session.state === 'running') {
         session.iterations += 1;
         trimTranscript(session);
-        const reply = await (session.chatFn ?? chatFn)(session.transcript.map(message => ({ role: message.role, content: message.content })));
+        // Architect/Editor: when architectEditor is on AND we have
+        // cycles left, prefix the system prompt with the ARCHITECT
+        // framing so the model returns a plan instead of tool calls.
+        const isArchitectTurn = session.architectEditor
+          && session.architectCycles < MAX_ARCHITECT_CYCLES
+          && session.mode !== 'plan';
+        const transcriptForCall = session.transcript.map(message => ({ role: message.role, content: message.content }));
+        if (isArchitectTurn) {
+          // Append the architect framing as a user-side reminder so
+          // the model's existing system prompt is unchanged (and
+          // the plan-then-edit contract is preserved across turns).
+          transcriptForCall.push({ role: 'user', content: ARCHITECT_PROMPT_SUFFIX });
+        }
+        let reply = await (session.chatFn ?? chatFn)(transcriptForCall);
+        // Architect/Editor second call: if the architect produced a
+        // plan and no tool calls, call again as the editor with the
+        // plan as a system-prefix. The plan is also surfaced as an
+        // `agent:plan` event so the cockpit can render it as a card.
+        if (isArchitectTurn) {
+          session.architectCycles += 1;
+          let calls;
+          try { calls = parseToolCalls(reply, toolSchemas); }
+          catch { calls = []; }
+          const plan = parsePlanBlock(reply);
+          // Fast-path: architect collapsed into editor (it emitted
+          // tool calls directly OR the plan was empty). Use as-is.
+          if (calls.length > 0 || plan === null) {
+            // If a plan exists alongside tool calls, keep the plan
+            // for the next turn but treat this turn as the editor.
+            if (plan) session.lastPlan = plan;
+          } else {
+            // Plan exists, no tool calls: do the editor pass.
+            session.lastPlan = plan;
+            emit({ event: 'plan', session_id: session.id, plan, cycle: session.architectCycles, max_cycles: MAX_ARCHITECT_CYCLES });
+            const editorTranscript = session.transcript.map(message => ({ role: message.role, content: message.content }));
+            editorTranscript.push({ role: 'user', content: EDITOR_PROMPT_PREFIX + plan });
+            reply = await (session.chatFn ?? chatFn)(editorTranscript);
+          }
+        }
         session.transcript.push({ role: 'assistant', content: reply });
         emit({ event: 'message', session_id: id, text: reply.slice(0, 4000) });
 
@@ -382,7 +465,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
   }
 
   return {
-    start(task, mode = 'act', chatFnOverride = null) {
+    start(task, mode = 'act', chatFnOverride = null, options = {}) {
       const session = {
         id: randomUUID(),
         task,
@@ -397,6 +480,14 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         startedAt: new Date().toISOString(),
         toolLog: [],
         chatFn: typeof chatFnOverride === 'function' ? chatFnOverride : null,
+        // Architect/Editor pattern (aide-architect-editor-pattern). The
+        // option is opt-in per session so the one-call path is the
+        // default. Cycles are bounded by MAX_ARCHITECT_CYCLES to keep
+        // cost predictable; after the cap, the loop falls through to
+        // the one-call path automatically.
+        architectEditor: options.architectEditor === true || architectEditor === true,
+        architectCycles: 0,
+        lastPlan: null,
         transcript: []
       };
       sessions.set(session.id, session);

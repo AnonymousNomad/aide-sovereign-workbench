@@ -29,5 +29,6 @@ export declare function createAgentTools(options: {
   rg: {
     available(): boolean;
     search(options: { query: string; maxResults?: number }): Promise<{ matches: Array<{ path: string; line_number: number; line_text: string }>; truncated: boolean }>;
-  };
+  } | null;
+  desktop?: unknown;
 }): { tools: AgentToolDef[]; rootAbs: string };

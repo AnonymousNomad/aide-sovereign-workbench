@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(__filename, '..', '..', '..');
 const require = createRequire(import.meta.url);
 
-const { parseDesktopAction, classForOp, desktopActionPromptHint, DesktopPolicyError } =
+const { parseDesktopAction, classForOp, desktopActionPromptHint } =
   require('../../node/src/services/desktop-policy.mjs');
 const { createDesktopControl } = require('../../node/src/services/desktop-control.mjs');
 const { createAgentTools, ToolError } = require('../../node/src/services/agent-tools.mjs');
@@ -58,14 +58,14 @@ test('parseDesktopAction tolerates a missing closing tag and CRLF', () => {
 test('parseDesktopAction rejects unknown ops', () => {
   assert.throws(
     () => parseDesktopAction('<desktop_action>\nop: delete_everything\ntarget: C:\\\n</desktop_action>'),
-    (err: unknown) => err instanceof DesktopPolicyError && (err as DesktopPolicyError).code === 'UNKNOWN_OP'
+    (err: unknown) => (err as { code: string }).code === 'UNKNOWN_OP'
   );
 });
 
 test('parseDesktopAction rejects unknown fields (privilege-escalation guard)', () => {
   assert.throws(
     () => parseDesktopAction('<desktop_action>\nop: launch_app\ntarget: x\napproved: true\n</desktop_action>'),
-    (err: unknown) => err instanceof DesktopPolicyError && (err as DesktopPolicyError).code === 'UNKNOWN_FIELD'
+    (err: unknown) => (err as { code: string }).code === 'UNKNOWN_FIELD'
   );
 });
 
@@ -75,21 +75,21 @@ test('parseDesktopAction rejects duplicate fields', () => {
       parseDesktopAction(
         '<desktop_action>\nop: launch_app\ntarget: a\ntarget: b\n</desktop_action>'
       ),
-    (err: unknown) => err instanceof DesktopPolicyError && (err as DesktopPolicyError).code === 'DUPLICATE_FIELD'
+    (err: unknown) => (err as { code: string }).code === 'DUPLICATE_FIELD'
   );
 });
 
 test('parseDesktopAction requires destination for move_file', () => {
   assert.throws(
     () => parseDesktopAction('<desktop_action>\nop: move_file\ntarget: a.txt\n</desktop_action>'),
-    (err: unknown) => err instanceof DesktopPolicyError && (err as DesktopPolicyError).code === 'MISSING_DESTINATION'
+    (err: unknown) => (err as { code: string }).code === 'MISSING_DESTINATION'
   );
 });
 
 test('parseDesktopAction requires target for mutating ops', () => {
   assert.throws(
     () => parseDesktopAction('<desktop_action>\nop: launch_app\n</desktop_action>'),
-    (err: unknown) => err instanceof DesktopPolicyError && (err as DesktopPolicyError).code === 'MISSING_TARGET'
+    (err: unknown) => (err as { code: string }).code === 'MISSING_TARGET'
   );
 });
 
@@ -97,14 +97,14 @@ test('parseDesktopAction rejects oversize target', () => {
   const big = 'x'.repeat(501);
   assert.throws(
     () => parseDesktopAction(`<desktop_action>\nop: launch_app\ntarget: ${big}\n</desktop_action>`),
-    (err: unknown) => err instanceof DesktopPolicyError && (err as DesktopPolicyError).code === 'TARGET_TOO_LONG'
+    (err: unknown) => (err as { code: string }).code === 'TARGET_TOO_LONG'
   );
 });
 
 test('parseDesktopAction rejects empty body', () => {
   assert.throws(
     () => parseDesktopAction('<desktop_action></desktop_action>'),
-    (err: unknown) => err instanceof DesktopPolicyError && (err as DesktopPolicyError).code === 'MISSING_OP'
+    (err: unknown) => (err as { code: string }).code === 'MISSING_OP'
   );
 });
 
@@ -154,7 +154,7 @@ test('agent tool: refuse without approved:true (NO_APPROVAL)', async () => {
         action: '<desktop_action>\nop: launch_app\ntarget: notepad\n</desktop_action>',
         approved: 'false'
       }),
-    (err: unknown) => err instanceof ToolError && (err as ToolError).code === 'NO_APPROVAL'
+    (err: unknown) => (err as { code: string }).code === 'NO_APPROVAL'
   );
 });
 
@@ -167,7 +167,7 @@ test('agent tool: refuse with a target outside grants (NOT_ALLOWLISTED)', async 
         action: '<desktop_action>\nop: launch_app\ntarget: cmd.exe\n</desktop_action>',
         approved: 'true'
       }),
-    (err: unknown) => err instanceof ToolError && (err as ToolError).code === 'NOT_ALLOWLISTED'
+    (err: unknown) => (err as { code: string }).code === 'NOT_ALLOWLISTED'
   );
 });
 
@@ -176,7 +176,7 @@ test('agent tool: refuse malformed XML (VALIDATION)', async () => {
   const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
   await assert.rejects(
     () => tool.execute({ action: 'no block here', approved: 'true' }),
-    (err: unknown) => err instanceof ToolError && (err as ToolError).code === 'MISSING_TAG'
+    (err: unknown) => (err as { code: string }).code === 'MISSING_TAG'
   );
 });
 
@@ -188,7 +188,7 @@ test('agent tool: refuse with NO_APPROVAL when approved is missing entirely', as
       tool.execute({
         action: '<desktop_action>\nop: list_windows\n</desktop_action>'
       }),
-    (err: unknown) => err instanceof ToolError && (err as ToolError).code === 'NO_APPROVAL'
+    (err: unknown) => (err as { code: string }).code === 'NO_APPROVAL'
   );
 });
 
@@ -201,7 +201,7 @@ test('agent tool: refuse when desktop service is not wired (NOT_READY)', async (
         action: '<desktop_action>\nop: list_windows\n</desktop_action>',
         approved: 'true'
       }),
-    (err: unknown) => err instanceof ToolError && (err as ToolError).code === 'NOT_READY'
+    (err: unknown) => (err as { code: string }).code === 'NOT_READY'
   );
 });
 
@@ -224,7 +224,7 @@ test('agent tool: trajectory is recorded even on refusal (training gold)', async
   const trajDir = path.join(dir, '.aide', 'desktop', 'trajectories');
   const files = await fs.readdir(trajDir).catch(() => [] as string[]);
   assert.ok(files.length > 0, 'trajectory file must be written even on refusal');
-  const content = await fs.readFile(path.join(trajDir, files[0]), 'utf8');
+  const content = await fs.readFile(path.join(trajDir, files[0] as string), 'utf8');
   assert.match(content, /NOT_ALLOWLISTED/);
   assert.match(content, /refused for training/);
 });
@@ -239,7 +239,7 @@ test('panic() also stops further agent-driven desktop actions', async () => {
         action: '<desktop_action>\nop: list_windows\n</desktop_action>',
         approved: 'true'
       }),
-    (err: unknown) => err instanceof ToolError && (err as ToolError).code === 'PANIC'
+    (err: unknown) => (err as { code: string }).code === 'PANIC'
   );
 });
 

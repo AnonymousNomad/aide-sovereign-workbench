@@ -373,6 +373,13 @@ export async function buildRoutes(workspace: string, version: string, options: B
     embed: embedFn,
     onEvent: event => options.events?.publish('index', event)
   });
+  // Desktop service is created lazily in the IIFE below (it can depend on
+  // things resolved at runtime). The IIFE also writes the live instance into
+  // this module-scope binding so the agent loop's dispatchTool closure
+  // (further down) can hand the SAME instance to createAgentTools(). Without
+  // this, a second createDesktopService() would mean two distinct grants
+  // stores — grants set via the REST API would not gate the agent path.
+  let desktopServiceRef: unknown = null;
   // Freshness: fs watcher → 5s debounce → incremental reindex. Opt-in via
   // options.watchIndex (server boot only; see BuildRoutesOptions note). .aide
   // is filtered or the index's own persist writes would retrigger forever.
@@ -456,6 +463,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
       // Desktop + Telegram share ONE desktop service instance (single grants
       // state). The /ask brain composes: Telegram NL -> model proposal bounded
       // to grants -> YES/NO confirm -> desktop execution (evidence+trajectory).
+      // The same desktop service is also handed to the agent loop so the
+      // <desktop_action> tool can call act() with the same grants/panic
+      // guarantees — single source of desktop truth, per the doctrine.
       const req = createRequire(import.meta.url);
       const { createTelegramBrain } = req('./services/telegram-brain.mjs');
       const desktopService = createDesktopService(workspace);
@@ -475,6 +485,11 @@ export async function buildRoutes(workspace: string, version: string, options: B
           }
         }
       });
+      // Lift desktopService into the surrounding scope so the agent loop's
+      // dispatchTool closure (below) can pass it to createAgentTools().
+      // The same instance is the only one in the process — grants/panic
+      // state stay consistent across every surface that drives the desktop.
+      desktopServiceRef = desktopService;
       return [
         ...routesForDesktop(desktopService),
         ...routesForTelegram(createTelegramBridgeService(workspace, input => brain.onCommand(input))),
@@ -489,7 +504,10 @@ export async function buildRoutes(workspace: string, version: string, options: B
       dispatchTool: async (name: string, args: Record<string, string>, opts: { sandbox?: string }) => {
         const ALIASES: Record<string, string> = { str_replace_editor: 'replace_in_file', execute_bash: 'run_command', think: '__think' };
         const resolved = ALIASES[name] || name;
-        const MUTATING = new Set(['write_file', 'replace_in_file', 'run_command']);
+        // desktop_action is the agent's bridge into the desktop service; it
+        // is mutating, so it requires approved:true. The desktop service
+        // performs its own allowlist + grants + panic checks on top of this.
+        const MUTATING = new Set(['write_file', 'replace_in_file', 'run_command', 'desktop_action']);
         if (MUTATING.has(resolved) && !args.approved && !opts.sandbox) {
           throw Object.assign(new Error(`tool ${resolved} is mutating and requires approved: true`), { code: 'VALIDATION' });
         }
@@ -499,7 +517,8 @@ export async function buildRoutes(workspace: string, version: string, options: B
           await fs.mkdir(sandboxPath, { recursive: true });
           rootForTools = sandboxPath;
         }
-        const toolSet = createAgentTools({ workspace: rootForTools, rg: rgService }) as any;
+        const desktopForAgent = desktopServiceRef;
+        const toolSet = createAgentTools({ workspace: rootForTools, rg: rgService, desktop: desktopForAgent }) as any;
         const toolMap = new Map(toolSet.tools.map((t: any) => [t.name as string, t]));
         const tool = (toolMap.get(resolved) as any);
         if (!tool) throw Object.assign(new Error(`unknown tool ${name}`), { code: 'VALIDATION' });

@@ -279,7 +279,7 @@ function runChild(command, args, workspace, timeoutMs) {
   });
 }
 
-export function createAgentTools({ workspace, rg }) {
+export function createAgentTools({ workspace, rg, desktop = null } = {}) {
   const rootAbs = path.resolve(workspace);
 
   async function jailedRead(relPath) {
@@ -413,6 +413,62 @@ export function createAgentTools({ workspace, rg }) {
       readOnly: false,
       async execute() {
         return { ok: true, output: 'switch requested' };
+      }
+    },
+    {
+      name: 'desktop_action',
+      description: 'Propose a single desktop action (launch_app, open_path, list_windows, focus_window, move_file, outlook_create_draft, excel_generate_report). Goes through the operator approval flow; deny-by-default on out-of-grants targets. Output the proposal inside <desktop_action>...</desktop_action> with op:/target:/destination:/note: fields. Approved must be true (the agent approval flow sets it).',
+      params: ['action', 'approved'],
+      readOnly: false,
+      required: ['action', 'approved'],
+      async execute(args) {
+        if (!desktop) {
+          throw new ToolError('NOT_READY', 'desktop service is not wired on this AIDE instance');
+        }
+        // Defer to the desktop-policy module so the DSL is single-sourced
+        // with telegram-brain.mjs and any future training applies to both.
+        const { parseDesktopAction, classForOp } = await import('./desktop-policy.mjs');
+        let proposal;
+        try {
+          proposal = parseDesktopAction(args.action);
+        } catch (parseError) {
+          // Surface the policy error verbatim — the agent sees it as a
+          // structured failure and can correct (e.g. "op: typo" → retry).
+          throw new ToolError(
+            (parseError && parseError.code) || 'VALIDATION',
+            `desktop_action parse: ${parseError && parseError.message ? parseError.message : 'unknown'}`
+          );
+        }
+        if (args.approved !== 'true' && args.approved !== true) {
+          // Same path as telegram-brain: gate execution on operator approval.
+          // We expose a structured refusal so the agent loop can show a card.
+          throw new ToolError(
+            'NO_APPROVAL',
+            `desktop_action requires approved: true. Proposed: ${proposal.op}(target="${proposal.target ?? ''}"${proposal.destination ? `, destination="${proposal.destination}"` : ''}) [class=${proposal.class}; risks=${proposal.risks.join(',')}]`
+          );
+        }
+        // Execute. DesktopRefusedError codes pass through; other errors
+        // become CHILD_FAILED. Trajectory is recorded inside desktop.act.
+        try {
+          const result = await desktop.act({
+            op: proposal.op,
+            target: proposal.target,
+            destination: proposal.destination,
+            approved: true,
+            note: proposal.note
+              ? `agent-approved: ${proposal.note}`
+              : 'agent-approved (no note)'
+          });
+          return {
+            ok: result.ok === true,
+            output: `executed ${proposal.op} (${result.latency_ms ?? 0}ms): ${String(result.output ?? '').slice(0, 800)}`,
+            terminal: false
+          };
+        } catch (error) {
+          const code = error && error.code ? error.code : 'CHILD_FAILED';
+          const message = error && error.message ? error.message : 'desktop action failed';
+          throw new ToolError(code, `desktop_action ${proposal.op}: ${message} [class=${classForOp(proposal.op)}]`);
+        }
       }
     },
     {

@@ -91,9 +91,22 @@ coexist and chat returns 200 in 768 ms.
 - E:\pip_temp\opencode\supervisor_v2.py: single-writer law (`kill_stale_generators`)
   — kills duplicate gen instances by design; do not run the corpus job manually
   while the supervisor lives, or your instance gets killed (correctly).
-- node/src/services/model-runtime.ts `start()` — arch twin; needs the same
-  drain-wait + early-exit guard ported (queued; UI chat works today via the
-  legacy daemon's engine + arch probe because both read the same manifest).
+- node/src/services/model-runtime.ts `start()` — arch twin PORTED (2026-08-27):
+  pre-spawn memory re-check + `waitForMemoryDrain()` + 8s early-exit guard with
+  one retry and stderr-tail in the error. Arch test suite green
+  (tests/arch/model-runtime.test.ts, ARCH_TEST_EXIT=0).
+- VULKAN PROBE CONTENTION (2026-08-27, live-verified): the Vulkan build's
+  `--list-devices` HANGS while any engine is loaded on this box and returns
+  instantly when none is. probeBackend therefore must never cache failures
+  (fixed — only successful parses are cached) and degrades to the CPU binary
+  with a loud warning. Practical rule: probe/start models when no engine is
+  up, or accept the CPU fallback for that start. The old permanent empty-cache
+  silently pinned cipher to the CPU build (1.38 tok/s) for a daemon's whole
+  life — watch for `[backend] ... GPU flags will be SILENTLY IGNORED` in the
+  daemon log; it means the vulkan probe ran while an engine was resident.
+  Verified: daemon restart with engines stopped → probe returns
+  `Vulkan0: NVIDIA GeForce GTX 1060 (6245 MiB, 5473 MiB free)` → cipher serves
+  via E:\llama-cpp-vulkan with device=Vulkan0, chat 200 in 1.66s.
 
 ## Threat matrix
 

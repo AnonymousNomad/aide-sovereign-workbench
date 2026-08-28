@@ -139,10 +139,22 @@ export class ModelManager {
   probeBackend(binaryPath) {
     if (this.backendCaps.has(binaryPath)) return Promise.resolve(this.backendCaps.get(binaryPath));
     return new Promise(resolve => {
-      const timer = setTimeout(() => { this.backendCaps.set(binaryPath, []); resolve([]); }, 10_000);
+      // LAW: a probe that times out or errors must NOT be cached. The Vulkan
+      // build's --list-devices hangs while another engine is active (WDDM
+      // contention, observed 2026-08-27) — caching the empty result then
+      // silently degraded every later start to the CPU-only binary, where
+      // -ngl is SILENTLY IGNORED (1.38 tok/s instead of ~47). Only successful
+      // parses are cached; failures retry on the next start.
+      const timer = setTimeout(() => {
+        console.error(`[backend] --list-devices probe timed out for ${binaryPath}; result NOT cached (will retry next start)`);
+        resolve([]);
+      }, 10_000);
       execFile(binaryPath, ['--list-devices'], { windowsHide: true, timeout: 9_000 }, (error, stdout) => {
         clearTimeout(timer);
-        if (error && !stdout) { this.backendCaps.set(binaryPath, []); return resolve([]); }
+        if (error && !stdout) {
+          console.error(`[backend] --list-devices probe failed for ${binaryPath}: ${error.message}; result NOT cached`);
+          return resolve([]);
+        }
         const devices = parseListDevices(String(stdout || ''));
         this.backendCaps.set(binaryPath, devices);
         resolve(devices);
@@ -173,7 +185,10 @@ export class ModelManager {
       if (known) return { path: candidate, device: profile.runtime.device };
       return this.binaryPath;
     }
-    if (devices.length === 0) return this.binaryPath;
+    if (devices.length === 0) {
+      console.error(`[backend] profile requests backend=${family} but ${candidate} reports no devices (CPU-only build or probe timeout) - falling back to ${this.binaryPath}; GPU flags will be SILENTLY IGNORED by a CPU build`);
+      return this.binaryPath;
+    }
     return { path: candidate, device: devices[0].selector };
   }
 

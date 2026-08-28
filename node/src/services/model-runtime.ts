@@ -413,19 +413,41 @@ export class ModelRuntime {
         endpointUrl.port = String(port);
         binaryArgs[5] = String(port);
       }
-      const child = this.spawnChild(llamaBinary, binaryArgs, { stdio: ['ignore', 'ignore', 'pipe'], detached: true });
-      this.processes.set(id, child);
-      this.onStatusChange(id, 'starting');
-      const stderrLog = path.join(this.workspace, '.aide', 'logs', `engine-${id}.err.log`);
-      await fs.mkdir(path.dirname(stderrLog), { recursive: true }).catch(() => {});
-      let stderrTail = '';
-      child.stderr?.on('data', chunk => { stderrTail = (stderrTail + String(chunk)).slice(-8192); });
-      child.once('exit', (code, signal) => {
-        this.processes.delete(id);
-        this.warmed.delete(id);
-        void fs.appendFile(stderrLog, `${stderrTail}[exit code=${code} signal=${signal}]\n`).catch(() => {});
-        this.onStatusChange(id, 'stopped');
-      });
+      // Doctrine (aide-engine-lifecycle-doctrine): re-check memory right
+      // before spawn — the gate above ran before endpoint verification and a
+      // concurrent engine load can have consumed RAM since. A killed engine
+      // releases commit asynchronously; spawning a multi-GB mmap load into
+      // that transient hole causes commit exhaustion and machine-wide thrash
+      // (reproduced 2026-08-27).
+      if ((await probeHardware()).freeRamBytes < RAM_GUARD_BYTES) {
+        await this.waitForMemoryDrain();
+      }
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const child = this.spawnChild(llamaBinary, binaryArgs, { stdio: ['ignore', 'ignore', 'pipe'], detached: true });
+        this.processes.set(id, child);
+        this.onStatusChange(id, 'starting');
+        const stderrLog = path.join(this.workspace, '.aide', 'logs', `engine-${id}.err.log`);
+        await fs.mkdir(path.dirname(stderrLog), { recursive: true }).catch(() => {});
+        let stderrTail = '';
+        child.stderr?.on('data', chunk => { stderrTail = (stderrTail + String(chunk)).slice(-8192); });
+        child.once('exit', (code, signal) => {
+          this.processes.delete(id);
+          this.warmed.delete(id);
+          void fs.appendFile(stderrLog, `${stderrTail}[exit code=${code} signal=${signal}]\n`).catch(() => {});
+          this.onStatusChange(id, 'stopped');
+        });
+        // Early-exit guard: the lethal window is the first seconds of load.
+        const early = await new Promise<{ code: number | null; signal: NodeJS.Signals | null } | null>(resolve => {
+          const timer = setTimeout(() => resolve(null), 8000);
+          child.once('exit', (code, signal) => { clearTimeout(timer); resolve({ code, signal }); });
+        });
+        if (early === null) break; // survived the danger window
+        if (attempt === 2) {
+          throw new ModelRuntimeError('CHILD_FAILED', `${model.name} engine exited immediately (code ${early.code}${early.signal ? `, signal ${early.signal}` : ''}). stderr tail: ${stderrTail.slice(-400) || '(empty — likely killed externally; audit the machine for /IM kill logic; see .aide/logs/engine-' + id + '.err.log)'}`);
+        }
+        this.logger?.warn('engine died early; draining memory and retrying once', { id, code: early.code, signal: early.signal });
+        await this.waitForMemoryDrain();
+      }
       return { id, status: 'starting', endpoint: model.endpoint };
     }
     if (!this.pythonReady) await this.probePython();
@@ -473,6 +495,21 @@ export class ModelRuntime {
       this.onStatusChange(id, 'stopped');
     });
     return { id, status: 'starting', endpoint: model.endpoint };
+  }
+
+  // Doctrine (aide-engine-lifecycle-doctrine): a killed engine releases its
+  // commit charge asynchronously; spawning a replacement model load before
+  // that drain caused commit exhaustion, machine-wide thrash and the silent
+  // exit-code-1 deaths (2026-08-27). Poll until the floor is actually free.
+  private async waitForMemoryDrain(minFreeBytes: number = RAM_GUARD_BYTES, timeoutMs = 20_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let last = minFreeBytes;
+    while (Date.now() < deadline) {
+      last = (await probeHardware()).freeRamBytes;
+      if (last >= minFreeBytes) return;
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    throw new ModelRuntimeError('NOT_READY', `Memory did not recover after stopping engines (${Math.round(last / 1048576)} MB free, need ${Math.round(minFreeBytes / 1048576)} MB). Close heavy applications and try again.`);
   }
 
   async stop(id: string): Promise<{ id: string; status: string }> {

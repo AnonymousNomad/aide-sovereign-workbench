@@ -3,6 +3,10 @@
 // runs the REAL bridge against it via TELEGRAM_API_BASE override.
 // Probes: connect+encrypt-at-rest, isolated polling ingest, durable spool,
 // allowlist enforcement, command reply. Exit 1 on any failure.
+//
+// Honest-gate discipline (R8): the battery MUST exit non-zero on any failing
+// assertion. It is invoked under `node --test --test-force-exit` so lingering
+// poll/socket handles never mask, and a real failure stops the release gate.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
@@ -14,13 +18,36 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { createTelegramBridge } = require('../node/src/services/telegram.mjs');
 
+if (process.platform !== 'win32') {
+  // DPAPI token protection shells out to powershell.exe — a Windows-only
+  // facility. Skip honestly on other platforms instead of failing on a
+  // missing binary (CI must stay green where it cannot run the battery).
+  test('telegram battery skipped on non-Windows (powershell DPAPI prerequisite)', () => {
+    assert.ok(true);
+  });
+  process.exit(0);
+}
+
+// Poll `check()` until it returns a truthy value or `ms` elapses. Fixed-sleep
+// waits race the slow DPAPI-unwrap + sendMessage + poll-loop path on real
+// machines (HDD), producing flaky failures on correct behavior. Polling keeps
+// the SAME assertion while making the battery deterministic.
+async function until(check, ms, step = 100) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    const v = await check();
+    if (v) return v;
+    await new Promise((r) => setTimeout(r, step));
+  }
+  return null;
+}
+
 let dir;
 let bridge;
 let server;
 let sentMessages = [];
 let queuedUpdates = [];
 const TOKEN = '123456:battERYtoken_token';
-
 function startMockApi() {
   return new Promise(resolve => {
     server = http.createServer((req, res) => {
@@ -73,22 +100,27 @@ test('connect verifies token and stores it DPAPI-encrypted at rest', async () =>
 test('polling ingests allowlisted messages into durable spool before handling', async () => {
   bridge.authorizeChat(111);
   queuedUpdates.push({ update_id: 10, message: { chat: { id: 111 }, text: '/ping' } });
-  // wait for one poll cycle (mock returns immediately, cutting the long-poll)
-  let spool = '';
-  for (let i = 0; i < 30; i += 1) {
-    spool = await fs.readFile(path.join(dir, '.aide', 'telegram', 'spool.jsonl'), 'utf8').catch(() => '');
-    if (spool.includes('/ping')) break;
-    await new Promise(r => setTimeout(r, 200));
-  }
-  assert.match(spool, /\/ping/, 'update durably spooled');
-  await new Promise(r => setTimeout(r, 300));
-  assert.ok(sentMessages.some(m => m.text === 'pong — AIDE is alive and local.'), 'command replied');
+  // wait until the update is durably spooled (crash-safe before handling)
+  const spool = await until(async () => {
+    const s = await fs.readFile(path.join(dir, '.aide', 'telegram', 'spool.jsonl'), 'utf8').catch(() => '');
+    return s.includes('/ping') ? s : null;
+  }, 10000);
+  assert.match(spool || '', /\/ping/, 'update durably spooled');
+  // the reply flows through DPAPI-unwrap + sendMessage; poll (not a fixed sleep)
+  const replied = await until(
+    () => sentMessages.some(m => m.text === 'pong — AIDE is alive and local.'),
+    10000
+  );
+  assert.ok(replied, 'command replied');
 });
 
 test('unknown chats are ignored silently and counted', async () => {
   queuedUpdates.push({ update_id: 11, message: { chat: { id: 999 }, text: '/ping' } });
-  await new Promise(r => setTimeout(r, 600));
-  const status = await bridge.status();
+  const st = await until(async () => {
+    const s = await bridge.status();
+    return s.ignored_unknown_chats >= 1 ? s : null;
+  }, 10000);
+  const status = st || (await bridge.status());
   assert.equal(status.chat_ids.includes(999), false);
   assert.ok(status.ignored_unknown_chats >= 1);
   assert.ok(!sentMessages.some(m => m.chat_id === 999), 'never replies to strangers');
@@ -96,20 +128,25 @@ test('unknown chats are ignored silently and counted', async () => {
 
 test('status command reports local-only posture', async () => {
   queuedUpdates.push({ update_id: 12, message: { chat: { id: 111 }, text: '/status' } });
-  await new Promise(r => setTimeout(r, 600));
-  const statusMsg = sentMessages.filter(m => m.text.startsWith('AIDE status')).pop();
+  const statusMsg = await until(() => {
+    const m = sentMessages.filter(x => x.text.startsWith('AIDE status')).pop();
+    return m || null;
+  }, 10000);
   assert.ok(statusMsg, 'status reply sent');
   assert.match(statusMsg.text, /fully local/);
 });
 
 test('offset acks prevent redelivery', async () => {
-  const offset = Number(await fs.readFile(path.join(dir, '.aide', 'telegram', 'offset.txt'), 'utf8'));
+  const offset = await until(async () => {
+    const o = await fs.readFile(path.join(dir, '.aide', 'telegram', 'offset.txt'), 'utf8').catch(() => null);
+    return o ? Number(o) : null;
+  }, 10000);
   assert.equal(offset, 13); // last update_id 12 + 1
 });
 
 after(async () => {
-  await bridge.disconnect().catch(() => {});
+  await bridge?.disconnect().catch(() => {});
+  await new Promise(resolve => server?.close?.(resolve));
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   console.log('\nTELEGRAM BATTERY: complete');
-  setImmediate(() => process.exit(0)); // long-poll keeps the loop alive; force clean exit
 });

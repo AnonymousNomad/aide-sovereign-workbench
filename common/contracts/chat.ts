@@ -59,6 +59,11 @@ export const HarnessMeta = z
     approx_prompt_tokens: z.number().int().nonnegative().optional(),
     compose_ms: z.number().optional(),
     memory_bytes: z.number().int().nonnegative().optional(),
+    // Workspace grounding (aide-context-retrieval-wiring): retrieval outcome
+    // surfaced to the cockpit — hits count, honest degradation flag, budget.
+    context_hits: z.number().int().nonnegative().optional(),
+    context_degraded: z.boolean().optional(),
+    context_tokens: z.number().int().nonnegative().optional(),
     reason: z.string().optional()
   })
   .strict();

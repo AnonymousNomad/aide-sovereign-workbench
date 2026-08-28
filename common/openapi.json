@@ -1669,6 +1669,19 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
+                        "context_hits": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "context_degraded": {
+                          "type": "boolean"
+                        },
+                        "context_tokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
                         "reason": {
                           "type": "string"
                         }

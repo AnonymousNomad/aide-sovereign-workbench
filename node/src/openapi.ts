@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import { watch as fsWatch } from 'node:fs';
 import os from 'node:os';
 import { logEgress } from '../../node/src/services/egress-journal.mjs';
 import path from 'node:path';
@@ -95,6 +96,10 @@ export interface BuildRoutesOptions {
   providerService?: ProviderService;
   agentChatFn?: (messages: Array<{ role: string; content: string }>) => Promise<string>;
   indexEmbedFn?: (texts: string[]) => Promise<number[][]>;
+  // Opt-in index freshness watcher (server boot only). buildRoutes must stay
+  // side-effect-free for tests/CLI: a recursive fs.watch pins the workspace
+  // dir on Windows and breaks mkdtemp cleanup in test after() hooks.
+  watchIndex?: boolean;
   byokSecretStore?: { setKey(id: string, key: string): void; getKey(id: string): string | null; deleteKey(id: string): boolean; listProviderIds(): string[] };
 }
 
@@ -214,6 +219,74 @@ export function generateOpenApi(routes: Route[], info: { title: string; version:
   };
 }
 
+function recursiveWatch(): boolean {
+  // Recursive fs.watch is supported on Windows/macOS only; Linux callers get a
+  // non-recursive watcher (top-level entries) — still better than nothing.
+  return process.platform === 'win32' || process.platform === 'darwin';
+}
+
+type EmbedFn = (texts: string[]) => Promise<number[][]>;
+
+// Embeddings gate: llama-server only answers /v1/embeddings when started with
+// --embeddings (verified live 2026-08-27 → HTTP 501 otherwise). Probe ONCE at
+// boot (awaited by buildRoutes BEFORE the index service exists — the index
+// service treats a null-returning embed as a hard error, so it must receive
+// either a real function or null). Null verdict = stay BM25-only with the
+// honest degraded flag. Never fake dense mode, never probe per-request.
+export function createEmbedGate(events?: EventHub): { resolve(): Promise<EmbedFn | null> } {
+  let verdict: Promise<EmbedFn | null> | null = null;
+  function probe(): Promise<EmbedFn | null> {
+    if (verdict === null) {
+      verdict = (async () => {
+        const base = process.env.AIDE_EMBEDDINGS_URL;
+        if (!base) {
+          events?.publish('index', { type: 'embed-disabled', reason: 'AIDE_EMBEDDINGS_URL not set' });
+          return null;
+        }
+        try {
+          const response = await fetch(`${base}/v1/embeddings`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ input: ['probe'], model: 'default' }),
+            signal: AbortSignal.timeout(3000)
+          });
+          if (!response.ok) throw new Error(`embeddings probe HTTP ${response.status}`);
+          const data = await response.json() as { data?: Array<{ embedding?: number[] }> };
+          const vec = data?.data?.[0]?.embedding;
+          if (!Array.isArray(vec) || vec.length === 0) throw new Error('embeddings probe returned no vector');
+          events?.publish('index', { type: 'embed-enabled', dim: vec.length });
+          const fn: EmbedFn = async (texts: string[]): Promise<number[][]> => {
+            const out: number[][] = [];
+            for (let i = 0; i < texts.length; i += 16) {
+              const batch = texts.slice(i, i + 16);
+              const r = await fetch(`${base}/v1/embeddings`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ input: batch, model: 'default' })
+              });
+              if (!r.ok) throw new Error(`embeddings HTTP ${r.status}`);
+              const d = await r.json() as { data?: Array<{ embedding?: number[] }> };
+              const vectors = (d?.data ?? []).map(x => x.embedding);
+              if (vectors.length !== batch.length) throw new Error('embeddings batch size mismatch');
+              for (const v of vectors) {
+                if (!Array.isArray(v)) throw new Error('embeddings response missing a vector');
+                out.push(v);
+              }
+            }
+            return out;
+          };
+          return fn;
+        } catch (error) {
+          events?.publish('index', { type: 'embed-disabled', reason: String((error as Error)?.message ?? error).slice(0, 200) });
+          return null;
+        }
+      })();
+    }
+    return verdict;
+  }
+  return { resolve: probe };
+}
+
 export async function buildRoutes(workspace: string, version: string, options: BuildRoutesOptions = {}): Promise<Route[]> {
   const fsService = new WorkspaceService(workspace);
   const repoRoot = path.resolve(fileURLToPath(import.meta.url), '..', '..', '..');
@@ -292,11 +365,32 @@ export async function buildRoutes(workspace: string, version: string, options: B
     }),
     onEvent: event => options.events?.publish('agent', event)
   });
+  // Resolve the embeddings gate BEFORE the index service exists (see gate
+  // comment): real fn = dense+BM25, null = BM25-only with honest degraded flag.
+  const embedFn = options.indexEmbedFn ?? (await createEmbedGate(options.events).resolve());
   const indexService = createIndexService({
     workspace,
-    embed: options.indexEmbedFn ?? null,
+    embed: embedFn,
     onEvent: event => options.events?.publish('index', event)
   });
+  // Freshness: fs watcher → 5s debounce → incremental reindex. Opt-in via
+  // options.watchIndex (server boot only; see BuildRoutesOptions note). .aide
+  // is filtered or the index's own persist writes would retrigger forever.
+  if (options.events && options.watchIndex === true) {
+    let freshnessTimer: NodeJS.Timeout | null = null;
+    try {
+      const watcher = fsWatch(workspace, { recursive: recursiveWatch() }, (_event, filename) => {
+        const rel = typeof filename === 'string' ? filename : String(filename ?? '');
+        if (rel.startsWith('.aide') || rel.startsWith('.git') || rel.startsWith('node_modules') || rel.startsWith('dist') || rel.startsWith('out')) return;
+        if (freshnessTimer) clearTimeout(freshnessTimer);
+        freshnessTimer = setTimeout(() => {
+          freshnessTimer = null;
+          void indexService.reindex().catch(() => { /* BUSY or scan error: next event retries */ });
+        }, 5000);
+      });
+      watcher.unref();
+    } catch { /* watcher optional (e.g. unsupported fs) */ }
+  }
   const handoffService = createHandoffService({ workspace, agentLoop });
   const secretStore = options.byokSecretStore ?? createSecretStore({ secretsPath: path.join(os.homedir(), '.aide', 'secrets.json') });
   const byokService = createByokService({ workspace, secretStore, fetchImpl: null, onEgress: entry => logEgress(workspace, { action: entry.kind, url: `https://${entry.host ?? 'unknown'}/`, provider_id: entry.provider_id, role: entry.role }) });
@@ -316,7 +410,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForRoutes(modelRouter),
     routeForRoute(modelRouter),
     routeForFit(),
-    routeForChat(modelRouter, modelRuntime, workspace),
+    routeForChat(modelRouter, modelRuntime, workspace, indexService),
     routeForChatStream(modelRouter),
     routeForChatHistory(chatStore),
     routeForChatHistorySave(chatStore),

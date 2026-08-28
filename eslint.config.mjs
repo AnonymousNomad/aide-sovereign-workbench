@@ -1,4 +1,12 @@
-﻿export default [
+﻿// AIDE project: use the @typescript-eslint parser directly so .ts
+// files don't stall eslint on first run (the prior config had no
+// .ts block and npx eslint <staged .ts file> would spin in parsing).
+// The typescript-eslint meta-package is CJS; using the individual
+// parser+plugin keeps the config ESM-friendly.
+import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+
+export default [
   {
     ignores: [
       "**/node_modules/",
@@ -52,4 +60,28 @@
       "no-useless-escape": "error",
     },
   },
+  // TypeScript files: use the @typescript-eslint parser so eslint
+  // doesn't try to parse TS as JS. Without this block, npx eslint
+  // on a staged .ts file spins forever (verified 2026-08-28).
+  {
+    files: ["**/*.ts"],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: "module",
+      parser: tsParser,
+      parserOptions: {
+        ecmaFeatures: { jsx: true }
+      }
+    },
+    plugins: {
+      '@typescript-eslint': tsPlugin
+    },
+    rules: {
+      "no-unused-vars": "off",  // typescript-eslint handles this
+      "no-undef": "off",        // TS already enforces this
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    },
+  },
 ];
+
+

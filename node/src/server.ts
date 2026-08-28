@@ -230,7 +230,7 @@ export async function main(): Promise<void> {
   server.addShutdownHook(() => dapManager.stopAll());
   const modelRuntime = await createModelRuntime(repoRoot, workspace, { events: server.events, logger: server.logger });
   server.addShutdownHook(() => modelRuntime.stopAll());
-  const routes = await buildRoutes(workspace, version, { events: server.events, logger: server.logger, lspManager: manager, dapManager, modelRuntime });
+  const routes = await buildRoutes(workspace, version, { events: server.events, logger: server.logger, lspManager: manager, dapManager, modelRuntime, watchIndex: true });
   for (const route of routes) server.route(route);
   await server.listen(port);
   server.logger.info('arch daemon listening', { port, workspace });

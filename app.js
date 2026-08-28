@@ -678,6 +678,7 @@ function switchToTab(path) {
   $('#open-file-name').textContent = path.split('/').pop();
   lspMaybeOpen(path, tab.model.getValue());
   renderTabBar();
+  updateStatusBar();
 }
 
 function closeTab(path) {
@@ -697,6 +698,16 @@ function closeTab(path) {
   renderTabBar();
 }
 
+function updateStatusBar() {
+  const model = monacoInstance.editor?.getModel();
+  if (!model) return;
+  const lang = model.getLanguageId();
+  const langLabel = { javascript: 'JavaScript', typescript: 'TypeScript', json: 'JSON', css: 'CSS', html: 'HTML', markdown: 'Markdown', python: 'Python', plaintext: 'Plain Text' }[lang] || lang;
+  $('#status-lang').textContent = langLabel;
+  const pos = monacoInstance.editor.getPosition();
+  if (pos) $('#status-pos').textContent = `Ln ${pos.lineNumber}, Col ${pos.column}`;
+}
+
 function openInEditor(path, content) {
   loadMonaco(() => {
     const container = $('#editor-container');
@@ -711,6 +722,13 @@ function openInEditor(path, content) {
           lspState.versions.set(activeTab, version);
           lspNotify('textDocument/didChange', { textDocument: { uri: LSP_URI(activeTab), version }, contentChanges: [{ text: monacoInstance.editor.getValue() }] });
         }, 400);
+      });
+      monacoInstance.editor.onDidChangeCursorPosition(e => {
+        const pos = e.position;
+        $('#status-pos').textContent = `Ln ${pos.lineNumber}, Col ${pos.column}`;
+      });
+      monacoInstance.editor.onDidChangeModel(() => {
+        updateStatusBar();
       });
     }
     // Already open? Just switch to it.

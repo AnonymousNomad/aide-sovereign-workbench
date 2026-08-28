@@ -152,6 +152,9 @@ body{margin:0;display:flex;flex-direction:column;background:radial-gradient(circ
 
 /* ---------- bottom strip ---------- */
 .strip{flex:0 0 auto;height:30px;border-top:1px solid var(--line);display:flex;align-items:center;padding:0 16px;background:#0a141d;font:10px var(--mono);letter-spacing:.06em;color:var(--amber)}
+.strip-spacer{flex:1}
+.strip-item{margin-left:16px;opacity:.7;cursor:default;user-select:none}
+.strip-item:hover{opacity:1}
 
 /* ---------- overlay ---------- */
 .overlay{position:fixed;inset:0;z-index:30;background:#040a0fd9;display:grid;place-items:center;padding:20px}

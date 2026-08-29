@@ -420,7 +420,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForChat(modelRouter, modelRuntime, workspace, indexService),
     routeForChatStream(modelRouter),
     routeForChatHistory(chatStore),
-    routeForChatHistorySave(chatStore),
+    routeForChatHistorySave(chatStore, workspace),
     routeForProvidersList(providerService),
     routeForProviderConnect(providerService),
     routeForProviderDisconnect(providerService),

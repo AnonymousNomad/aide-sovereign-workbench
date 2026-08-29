@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-08-26T00:04:01.590Z",
-  "count": 172,
+  "count": 187,
   "categories": [
     "academy",
     "aide-core",
@@ -240,6 +240,13 @@
       "description": "MCP (Model Context Protocol) servers that improve AIDE's harness / orchestrator workflow when added to the Cline or Claude Code runtime. Research base 2026: modelcontextprotocol.io, github.com/modelcontextprotocol/servers (89.9k stars), mcp.so marketplace. 3 tiers ranked by leverage: Tier 1 (memory, filesystem, git) ship first; Tier 2 (fetch, sequential-thinking, time, everything) high value; Tier 3 (github, postgres, brave, gdrive) only if AIDE grows a product surface. Includes Windows config syntax (npx via cmd /c), 6-row threat matrix, 5 pitfalls (don't wrap AIDE's in-process services as MCP, the official memory server is a complement not a replacement for memory-recall.mjs, etc.). Use when adding a real external capability to the Cline runtime.",
       "category": "aide-ops",
       "path": "skills/packs/aide-mcp-server-recommendations/SKILL.md"
+    },
+    {
+      "name": "aide-agent-workflow-sop",
+      "title": "aide-agent-workflow-sop",
+      "description": "The census-research-install-verify SOP for 'improve your own tooling' sessions: 5-gate loop (census what's installed, research official docs, deliberate install as config, smoke-test everything, wire+commit with evidence). Contains the verified 2026-08-29 environment census (6 MCP servers in user mcp.json, 24 VS Code extensions, node v26.4.0/npm 11.17.0/git 2.54.0/uvx), 2026 VS Code MCP facts (agent plugins bundling MCP servers, trust dialogs, chat.mcp.autostart, MCP Registry API v0.1 namespaced server.json), memory-vs-MCP-memory doctrine, and 6 verified pitfalls (PowerShell mangling, Cline cache staleness, 40s tsc backgrounding with literal temp paths, TS narrowing after awaits, editor insert_line duplication, silent push no-ops). Use at the start of any plugin/MCP/skill installation session or when a tooling change needs verification evidence.",
+      "category": "aide-ops",
+      "path": "skills/packs/aide-agent-workflow-sop/SKILL.md"
     },
     {
       "name": "aide-plugin-author-guide",

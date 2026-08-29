@@ -1,7 +1,7 @@
 import type { ModelRuntime } from './model-runtime.ts';
 import type { ProviderService } from './providers.ts';
 import { BUILTIN_PROVIDERS } from './providers.ts';
-import { fitHistory } from './history-fit.ts';
+import { fitHistory, estimateTokens } from './history-fit.ts';
 import type { ChatMessageT } from '../../../common/contracts/chat.ts';
 import type { RouteFallbackT, RouteStatusT } from '../../../common/contracts/routing.ts';
 
@@ -49,6 +49,7 @@ export interface RouteChatResult {
   usedApprox: number;
   dropped: number;
   truncatedSystem: boolean;
+  overflowTrimmed?: boolean;
 }
 
 const PROBE_TTL_MS = 30_000;
@@ -221,9 +222,37 @@ export class ModelRouter {
     return { route: fallback, selection };
   }
 
+  // Fit history against the engine's EFFECTIVE served window, not the
+  // manifest's declared context_tokens. llama-server clamps n_ctx for some
+  // artifacts; fitting against the declared value produced HTTP-400 overflow
+  // failures in the 2026-08-28 audit (C1/D1). Falls back to the declared
+  // value when the served window has not been probed yet (legacy parity).
+  // The newest turn is always delivered: if it alone exceeds the budget its
+  // head is trimmed, because the engine rejects oversized prompts outright.
+  private fitForRoute(route: ModelRoute, messages: ChatMessageT[], maxTokens: number | undefined): { fit: ReturnType<typeof fitHistory>; overflowTrimmed: boolean } {
+    const reserve = maxTokens ?? 512;
+    const modelId = route.providerType === 'local' ? route.id.slice('local:'.length) : null;
+    const served = modelId !== null ? this.runtime.getEffectiveBudget(modelId, reserve) : null;
+    if (served === null) {
+      return { fit: fitHistory(messages, route.contextLength, maxTokens !== undefined ? { maxTokens } : {}), overflowTrimmed: false };
+    }
+    const budget = Math.max(1, served - reserve);
+    const fit = fitHistory(messages, served, maxTokens !== undefined ? { maxTokens } : {});
+    let overflowTrimmed = false;
+    const newest = fit.messages[fit.messages.length - 1];
+    if (newest !== undefined && estimateTokens(newest.content) > budget) {
+      const keepChars = budget * 4;
+      const trimmedContent = newest.content.slice(Math.max(0, newest.content.length - keepChars));
+      fit.messages = [...fit.messages.slice(0, -1), { ...newest, content: trimmedContent }];
+      fit.estimatedTokens = Math.max(1, fit.estimatedTokens - estimateTokens(newest.content) + estimateTokens(trimmedContent));
+      overflowTrimmed = true;
+    }
+    return { fit, overflowTrimmed };
+  }
+
   async chat(routeId: string, messages: ChatMessageT[], options: { maxTokens?: number | undefined; temperature?: number | undefined; timeoutMs?: number | undefined } = {}): Promise<RouteChatResult> {
     const { route, selection } = await this.resolve(routeId);
-    const fit = fitHistory(messages, route.contextLength, options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {});
+    const { fit, overflowTrimmed } = this.fitForRoute(route, messages, options.maxTokens);
     const chatOptions = normalizeOptions(options);
     let result: { text: string; modelId: string; tokens?: number; timingMs: number };
     try {
@@ -246,13 +275,14 @@ export class ModelRouter {
       dropped: fit.dropped,
       truncatedSystem: fit.truncatedSystem
     };
+    if (overflowTrimmed) out.overflowTrimmed = true;
     if (result.tokens !== undefined) out.tokens = result.tokens;
     return out;
   }
 
   async chatStream(routeId: string, messages: ChatMessageT[], onDelta: (delta: string) => void, signal: AbortSignal, options: { maxTokens?: number | undefined } = {}): Promise<RouteChatResult> {
     const { route, selection } = await this.resolve(routeId);
-    const fit = fitHistory(messages, route.contextLength, options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {});
+    const { fit, overflowTrimmed } = this.fitForRoute(route, messages, options.maxTokens);
     const chatOptions = normalizeOptions(options);
     let result: { text: string; modelId: string; tokens?: number; timingMs: number };
     if (route.providerType === 'local') {
@@ -277,6 +307,7 @@ export class ModelRouter {
       dropped: fit.dropped,
       truncatedSystem: fit.truncatedSystem
     };
+    if (overflowTrimmed) out.overflowTrimmed = true;
     if (result.tokens !== undefined) out.tokens = result.tokens;
     return out;
   }

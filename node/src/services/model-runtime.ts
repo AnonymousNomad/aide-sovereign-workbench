@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { probeGguf } from './gguf.ts';
 import { fitModel } from './model-fit.ts';
 import { probeHardware } from './hardware.ts';
+import { estimateTokens } from './history-fit.ts';
 import type { ModelFitReportT } from '../../../common/contracts/models.ts';
 
 export class ModelRuntimeError extends Error {
@@ -553,7 +554,6 @@ export class ModelRuntime {
     const declared = Number(this.models.get(id)?.context_tokens);
     return Number.isFinite(declared) && declared > 0 ? declared : null;
   }
-
   async refreshServedContext(id: string): Promise<void> {
     const model = this.models.get(id);
     if (!model) return;
@@ -569,6 +569,49 @@ export class ModelRuntime {
     }
   }
 
+  // Effective context budget for an upcoming completion: what the engine
+  // ACTUALLY serves (clamped n_ctx) minus the completion reserve. Manifest
+  // context_tokens can overstate the served window (llama-server clamps to
+  // train ctx for some artifacts), which produced hard HTTP-400 overflows in
+  // the 2026-08-28 capability audit (C1/D1 empty-output aborts). Callers fit
+  // history against THIS number, never the declared manifest value.
+  getEffectiveBudget(id: string, reserveTokens: number): number | null {
+    const model = this.models.get(id);
+    if (!model) return null;
+    const served = this.servedCtx.get(id);
+    const context = served ?? (Number.isFinite(model.context_tokens) && model.context_tokens > 0 ? model.context_tokens : null);
+    if (context === null) return null;
+    const budget = Math.floor(context - reserveTokens);
+    return budget > 0 ? budget : null;
+  }
+
+  // Retry a failed completion once with history re-fit to the effective
+  // window. llama.cpp rejects an overflowing prompt with HTTP 400; without
+  // this rescue the router surfaced a 504 with zero output (audit B3/G1).
+  // The newest user turn is always preserved; oldest history is dropped.
+  private refitForOverflow(id: string, messages: Array<{ role: string; content: string }>, reserveTokens: number): Array<{ role: string; content: string }> | null {
+    const budget = this.getEffectiveBudget(id, reserveTokens);
+    if (budget === null) return null;
+    const newest = messages[messages.length - 1];
+    if (newest === undefined) return null;
+    const kept: Array<{ role: string; content: string }> = [];
+    let used = estimateTokens(newest.content);
+    if (used > budget) {
+      // Single oversized turn: hard-truncate its head, keep the tail.
+      const keepChars = budget * 4;
+      kept.push({ role: newest.role, content: newest.content.slice(Math.max(0, newest.content.length - keepChars)) });
+      return kept;
+    }
+    for (let index = messages.length - 2; index >= 0; index--) {
+      const message = messages[index]!;
+      const cost = estimateTokens(message.content);
+      if (used + cost > budget) continue;
+      kept.unshift(message);
+      used += cost;
+    }
+    return kept;
+  }
+
   async chat(id: string, messages: Array<{ role: string; content: string }>, options: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {}): Promise<{ text: string; modelId: string; tokens?: number; timingMs: number }> {
     const model = this.models.get(id);
     if (!model) throw new ModelRuntimeError('CHILD_FAILED', 'model is not allowlisted');
@@ -581,17 +624,31 @@ export class ModelRuntime {
     const warmed = await this.warmup(id);
     if (!warmed) throw new ModelRuntimeError('NOT_READY', 'model still warming up; try again in a few seconds');
     const started = Date.now();
-    const response = await fetch(`${model.endpoint}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model.model,
-        messages,
-        temperature: options.temperature ?? 0.2,
-        max_tokens: Math.min(options.maxTokens ?? 512, 512)
-      }),
-      signal: AbortSignal.timeout(Math.min(options.timeoutMs ?? 90_000, 300_000))
-    });
+    const attemptRequest = async (payloadMessages: Array<{ role: string; content: string }>): Promise<Response> =>
+      fetch(`${model.endpoint}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: model.model,
+          messages: payloadMessages,
+          temperature: options.temperature ?? 0.2,
+          max_tokens: Math.min(options.maxTokens ?? 512, 512)
+        }),
+        signal: AbortSignal.timeout(Math.min(options.timeoutMs ?? 90_000, 300_000))
+      });
+    let response = await attemptRequest(messages);
+    if (response.status === 400) {
+      // Overflow rescue: the engine rejected the prompt (llama.cpp returns
+      // HTTP 400 when prompt + max_tokens exceed the served window). Re-fit
+      // history against the effective context and retry ONCE — never surface
+      // an empty-output 504 when the newest turn itself fits.
+      const reserve = Math.min(options.maxTokens ?? 512, 512);
+      const refit = this.refitForOverflow(id, messages, reserve);
+      if (refit !== null && refit.length < messages.length) {
+        this.logger?.warn('completion overflowed served context; retrying with refit history', { id, messages: messages.length, refit: refit.length });
+        response = await attemptRequest(refit);
+      }
+    }
     if (!response.ok) throw new ModelRuntimeError('CHILD_FAILED', `local runtime returned HTTP ${response.status}`);
     const payload = await response.json().catch(() => {
       throw new ModelRuntimeError('CHILD_FAILED', 'local runtime returned non-JSON');
@@ -619,18 +676,31 @@ export class ModelRuntime {
     }
     const warmed = await this.warmup(id);
     if (!warmed) throw new ModelRuntimeError('NOT_READY', 'model still warming up; try again in a few seconds');
-    const response = await fetch(`${model.endpoint}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model.model,
-        messages,
-        temperature: options.temperature ?? 0.2,
-        max_tokens: Math.min(options.maxTokens ?? 512, 512),
-        stream: true
-      }),
-      signal
-    });
+    const attemptRequest = async (payloadMessages: Array<{ role: string; content: string }>): Promise<Response> =>
+      fetch(`${model.endpoint}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: model.model,
+          messages: payloadMessages,
+          temperature: options.temperature ?? 0.2,
+          max_tokens: Math.min(options.maxTokens ?? 512, 512),
+          stream: true
+        }),
+        signal
+      });
+    let response = await attemptRequest(messages);
+    if (response.status === 400) {
+      // Overflow rescue (same semantics as chat()): refit to the effective
+      // window and retry once. Streaming requests overflowed the audit's
+      // 3072 window hardest — scaffold + long prompt + 512 reserve.
+      const reserve = Math.min(options.maxTokens ?? 512, 512);
+      const refit = this.refitForOverflow(id, messages, reserve);
+      if (refit !== null && refit.length < messages.length) {
+        this.logger?.warn('stream overflowed served context; retrying with refit history', { id, messages: messages.length, refit: refit.length });
+        response = await attemptRequest(refit);
+      }
+    }
     if (!response.ok || response.body === null) throw new ModelRuntimeError('CHILD_FAILED', `local runtime returned HTTP ${response.status}`);
     const reader = response.body.getReader();
     const decoder = new TextDecoder();

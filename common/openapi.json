@@ -11848,6 +11848,96 @@
         }
       }
     },
+    "/api/telegram/start": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connected": {
+                      "type": "boolean"
+                    },
+                    "bot_username": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "chat_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "seen_chats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "chat_id": {
+                            "type": "number"
+                          },
+                          "first_name": {
+                            "type": "string"
+                          },
+                          "last_seen": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "chat_id",
+                          "first_name",
+                          "last_seen"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "last_poll_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "poll_cycles": {
+                      "type": "number"
+                    },
+                    "ignored_unknown_chats": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "connected",
+                    "bot_username",
+                    "chat_ids",
+                    "seen_chats",
+                    "running",
+                    "last_poll_at",
+                    "poll_cycles",
+                    "ignored_unknown_chats"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/telegram/status": {
       "get": {
         "responses": {

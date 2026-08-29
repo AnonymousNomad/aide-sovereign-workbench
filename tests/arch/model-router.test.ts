@@ -38,6 +38,18 @@ class FakeRuntime {
     return { ready: this.ready.has(id) };
   }
 
+  servedWindow: number | null = null;
+
+  // Mirrors ModelRuntime.getEffectiveBudget: null until a served window has
+  // been probed, otherwise effective window minus the completion reserve.
+  getEffectiveBudget(id: string, reserveTokens: number): number | null {
+    const entry = this.entries.find(candidate => candidate.id === id);
+    if (entry === undefined || !this.ready.has(id)) return null;
+    const window = this.servedWindow ?? entry.context_tokens;
+    const budget = Math.floor(window - reserveTokens);
+    return budget > 0 ? budget : null;
+  }
+
   async chat(id: string, messages: Array<{ role: string; content: string }>): Promise<{ text: string; modelId: string; timingMs: number }> {
     return { text: `local:${id}:${messages.length}`, modelId: id, timingMs: 1 };
   }
@@ -173,6 +185,46 @@ test('chatStream emits deltas and reports the answering model on fallback', asyn
   const result = await router.chatStream('local:a', [{ role: 'user', content: 'hi' }], delta => deltas.push(delta), new AbortController().signal);
   assert.deepEqual(deltas, ['stream:b:1'], 'streamed from the fallback model');
   assert.equal(result.modelId, 'local:b');
+test('chat fits history against the effective served window, not the declared context', async () => {
+  // Declared 8192, engine serves 1024 (clamped n_ctx). Without effective
+  // fitting the router would send the full history and the engine would
+  // reject it with HTTP 400 (audit failures C1/D1, 2026-08-28).
+  const runtime = new FakeRuntime();
+  runtime.entries = [entry('a', 'ready', ['chat'], 8192)];
+  runtime.ready.add('a');
+  runtime.servedWindow = 1024;
+  const router = makeRouter(runtime, new FakeProviders());
+  const result = await router.chat('local:a', [
+    { role: 'user', content: 'q1' },
+    { role: 'assistant', content: 'y'.repeat(30000) },
+    { role: 'user', content: 'keep this question' }
+  ]);
+  assert.equal(result.modelId, 'local:a');
+  assert.ok(result.usedApprox <= (1024 - 512) + 8, 'history fit inside the effective window budget');
+});
+
+test('overflowTrimmed is set when the newest turn alone exceeds the budget', async () => {
+  const runtime = new FakeRuntime();
+  runtime.entries = [entry('a', 'ready', ['chat'], 8192)];
+  runtime.ready.add('a');
+  runtime.servedWindow = 1024;
+  const router = makeRouter(runtime, new FakeProviders());
+  const result = await router.chat('local:a', [
+    { role: 'user', content: 'z'.repeat(12000) }
+  ]);
+  assert.equal(result.overflowTrimmed, true, 'oversized newest turn is head-trimmed, not hard-failed');
+  assert.ok(result.usedApprox <= 512 + 8);
+});
+
+test('declared context is used when no served window has been probed', async () => {
+  const runtime = new FakeRuntime();
+  runtime.entries = [entry('a', 'ready', ['chat'], 2048)];
+  runtime.ready.add('a');
+  const router = makeRouter(runtime, new FakeProviders());
+  const result = await router.chat('local:a', [{ role: 'user', content: 'hi' }]);
+  assert.equal(result.overflowTrimmed, undefined);
+  assert.ok(result.text.startsWith('local:a:'));
+});
 });
 
 test('chat throws RouterError down when the route is unknown', async () => {

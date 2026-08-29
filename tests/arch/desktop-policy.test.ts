@@ -3,11 +3,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import { promises as fs } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
-const __filename = fileURLToPath(import.meta.url);
-const REPO_ROOT = path.resolve(__filename, '..', '..', '..');
 const require = createRequire(import.meta.url);
 
 const { parseDesktopAction, classForOp, desktopActionPromptHint } =

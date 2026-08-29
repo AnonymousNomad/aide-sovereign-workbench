@@ -47,6 +47,8 @@ import { createHubService } from '../../node/src/services/modelhub.mjs';
 import { routesForModelHub } from './routes/modelhub.ts';
 import { routesForOrch } from './routes/orch.ts';
 import { routesForMemory, createMemoryService } from './routes/memory.ts';
+import { routesForWorkbenches } from './routes/workbenches.ts';
+import { WorkbenchManager } from '../../workbenches/manager.mjs';
 import { routesForDesktop, createDesktopService } from './routes/desktop.ts';
 import { routesForTelegram, createTelegramBridgeService } from './routes/telegram.ts';
 import { routesForExperts, createExpertsService } from './routes/experts.ts';
@@ -101,6 +103,10 @@ export interface BuildRoutesOptions {
   // dir on Windows and breaks mkdtemp cleanup in test after() hooks.
   watchIndex?: boolean;
   byokSecretStore?: { setKey(id: string, key: string): void; getKey(id: string): string | null; deleteKey(id: string): boolean; listProviderIds(): string[] };
+  // Opt-in online doctrine: server names listed here are permitted egress
+  // for online (offline: false) MCP servers. Default = none. The WorkbenchManager
+  // uses this as the consent signal when setTrust(server, true) is called.
+  workbenchEgressAllowlist?: string[];
 }
 
 export function lspEntryPath(repoRoot: string): string {
@@ -459,6 +465,24 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForProblems(workspace),
     ...routesForOrch(createOrchService({ workspace: workspace, runtime: modelRuntime })),
     ...routesForMemory(createMemoryService(workspace)),
+    ...routesForWorkbenches(new WorkbenchManager({
+      workspace,
+      // exactOptionalPropertyTypes: pass `null` (not `undefined`) to the
+      // optional logger slot on WorkbenchManager. openapi's BuildRoutesOptions
+      // declares logger as `Logger | undefined`, but the manager's contract
+      // is `logger?: ... | null`.
+      logger: options.logger ?? null,
+      // Opt-in online doctrine: trusting an offline:false MCP server requires
+      // an explicit consent signal. The default returns false (no consent),
+      // which the manager treats as fail-closed for online server trust. The
+      // consent signal is published to the egress journal when granted so the
+      // decision is auditable.
+      egressConsent: (server) => {
+        const allowed = Array.isArray(options.workbenchEgressAllowlist) && options.workbenchEgressAllowlist.includes(server);
+        logEgress(workspace, { action: allowed ? 'workbench.egress.granted' : 'workbench.egress.denied', url: `mcp://${server}/`, role: 'workbench' });
+        return allowed;
+      }
+    })),
     ...((): Route[] => {
       // Desktop + Telegram share ONE desktop service instance (single grants
       // state). The /ask brain composes: Telegram NL -> model proposal bounded

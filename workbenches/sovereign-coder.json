@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0.0",
+  "id": "sovereign-coder",
+  "name": "Sovereign Coder",
+  "version": "0.1.0",
+  "description": "Privacy-first daily coding loop for AIDE: fully local by default, every online touch is an explicit opt-in. Bundles the local model lane, the agent workflow SOP, and curated plugin/skill/MCP recommendations into one installable workbench.",
+  "privacy_doctrine": {
+    "offline_by_default": true,
+    "opt_in_online": true,
+    "notes": "No route in this bundle performs network egress. Cloud lanes exist only as disabled-by-default recommendations the operator must explicitly enable."
+  },
+  "defaults": {
+    "offline": true
+  },
+  "plugins": [
+    "workspace-health",
+    "git-review",
+    "git-history",
+    "branch-manager",
+    "test-runner",
+    "task-dashboard",
+    "problem-triage",
+    "assistant-context",
+    "patch-review",
+    "env-inspector"
+  ],
+  "skills": [
+    "aide-agent-workflow-sop",
+    "aide-credo-guardrail",
+    "aide-plugins-surface-v1"
+  ],
+  "mcp_servers": [
+    {
+      "name": "filesystem",
+      "transport": "stdio",
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem", "${workspaceFolder}"],
+      "offline": true,
+      "trust": "builtin"
+    },
+    {
+      "name": "memory",
+      "transport": "stdio",
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-memory"],
+      "offline": true,
+      "trust": "builtin"
+    },
+    {
+      "name": "git",
+      "transport": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "${workspaceFolder}"],
+      "offline": true,
+      "trust": "builtin"
+    },
+    {
+      "name": "github",
+      "transport": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "offline": false,
+      "trust": "untrusted"
+    },
+    {
+      "name": "netdata",
+      "transport": "http",
+      "url": "https://app.netdata.cloud/mcp/",
+      "offline": false,
+      "trust": "untrusted"
+    }
+  ],
+  "recommended_models": {
+    "chat": "qwen3-4b-minimax-m2.1-coder.q4_k_m",
+    "coder": "aide-cipher-4b",
+    "autocomplete": "qwen-coder-0.5b-q4",
+    "fast-chat": "smollm2-360m-q8"
+  },
+  "setup": [
+    "Read the aide-agent-workflow-sop skill before the first session.",
+    "Verify the recommended local models: GET /api/models shows status ready for the ids listed in recommended_models.",
+    "MCP servers install disabled. Review each entry, then trust individually before any tool call.",
+    "Online MCP entries (offline: false) require explicit consent per the egress doctrine; keep them untrusted unless the task needs them.",
+    "Optional: install aider or ck via uv for the on-parity local refactor/review pair — both run fully offline."
+  ]
+}

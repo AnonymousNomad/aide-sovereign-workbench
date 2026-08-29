@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-26T00:04:01.590Z",
-  "count": 187,
+  "generated_at": "2026-08-29T00:00:00.000Z",
+  "count": 188,
   "categories": [
     "academy",
     "aide-core",
@@ -331,6 +331,13 @@
       "description": "Implementation spec for Cipher as a living system — cipher-state.jsonl unified event bus, sandbox execution loop for TASK proposals, [learned] context injection from accumulated outcomes, preference memory from approvals/rejections. This is NOT research — this is the build spec. Use when implementing any part of the learning loop, state bus, or adaptive scaffold.",
       "category": "aide-core",
       "path": "skills/packs/aide-cipher-living-system/SKILL.md"
+    },
+    {
+      "name": "aide-cipher-self-healing-sop",
+      "title": "aide-cipher-self-healing-sop",
+      "description": "Standard operating procedure for Project Cipher's self-healing loop — the state bus, the [learned] block injection, the verification battery, the sleep-time training cycle, and the operator changelog. The runbook for 'how does Cipher get better?' — every step is verifiable. Use when wiring any new component that touches approvals/rejections, when designing new 'learned' sources, when running or extending the verification battery, when investigating why a QLoRA cycle was archived, or when the operator asks about the self-healing mechanism.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-cipher-self-healing-sop/SKILL.md"
     },
     {
       "name": "aide-cloud-economy",

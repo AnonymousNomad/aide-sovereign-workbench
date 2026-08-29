@@ -228,6 +228,20 @@
       "path": "skills/packs/aide-workflow-gap-roadmap/SKILL.md"
     },
     {
+      "name": "aide-plugin-author-guide",
+      "title": "aide-plugin-author-guide",
+      "description": "How to build an AIDE plugin — manifest contract, capability model, spawn-protocol rules, the Windows-stdin gotcha that bit the skills-inspector prototype, the --permission capability model, and the right testing pattern (spawnSync first, then manager-level). Use when authoring any new plugin under plugins/, when debugging a plugin that exits 0 with no output, or when porting an existing CLI tool into the plugin system.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-plugin-author-guide/SKILL.md"
+    },
+    {
+      "name": "aide-inhouse-only-policy-hook",
+      "title": "aide-inhouse-only-policy-hook",
+      "description": "The doctrine that AIDE's desktop-control act() MUST route the policy inference through the in-house model (Cipher v1, 4B) — never a cloud model, never a BYOK provider. Why this is the differentiator (a small model fine-tuned on a verified desktop-control trajectory corpus is more reliable on that exact task than a giant cloud model with no domain adaptation), how to gate it in routes/desktop.ts and the agent's desktop_action tool, and how the operator-overrides-the-safety-rails exception works for the rare case where the operator chooses a different model. Use when wiring the policy hook, when the desktop service gains a new caller, when reviewing desktop safety, or when a user asks why their cloud provider doesn't work for desktop control.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-inhouse-only-policy-hook/SKILL.md"
+    },
+    {
       "name": "aide-build-b1-task-service",
       "title": "aide-build-b1-task-service",
       "description": "",

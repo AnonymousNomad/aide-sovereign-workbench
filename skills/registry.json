@@ -235,6 +235,13 @@
       "path": "skills/packs/aide-aide-stack-launch-and-recover/SKILL.md"
     },
     {
+      "name": "aide-mcp-server-recommendations",
+      "title": "aide-mcp-server-recommendations",
+      "description": "MCP (Model Context Protocol) servers that improve AIDE's harness / orchestrator workflow when added to the Cline or Claude Code runtime. Research base 2026: modelcontextprotocol.io, github.com/modelcontextprotocol/servers (89.9k stars), mcp.so marketplace. 3 tiers ranked by leverage: Tier 1 (memory, filesystem, git) ship first; Tier 2 (fetch, sequential-thinking, time, everything) high value; Tier 3 (github, postgres, brave, gdrive) only if AIDE grows a product surface. Includes Windows config syntax (npx via cmd /c), 6-row threat matrix, 5 pitfalls (don't wrap AIDE's in-process services as MCP, the official memory server is a complement not a replacement for memory-recall.mjs, etc.). Use when adding a real external capability to the Cline runtime.",
+      "category": "aide-ops",
+      "path": "skills/packs/aide-mcp-server-recommendations/SKILL.md"
+    },
+    {
       "name": "aide-plugin-author-guide",
       "title": "aide-plugin-author-guide",
       "description": "How to build an AIDE plugin — manifest contract, capability model, spawn-protocol rules, the Windows-stdin gotcha that bit the skills-inspector prototype, the --permission capability model, and the right testing pattern (spawnSync first, then manager-level). Use when authoring any new plugin under plugins/, when debugging a plugin that exits 0 with no output, or when porting an existing CLI tool into the plugin system.",

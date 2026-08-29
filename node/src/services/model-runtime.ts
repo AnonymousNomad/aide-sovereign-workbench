@@ -37,14 +37,24 @@ function readProfileSidecar(file: string): { samplers?: Record<string, number>; 
   }
 }
 
-function resolveLlamaBinary(workspace: string): string | null {
+export function resolveLlamaBinary(workspace: string): { path: string; vulkan: boolean } | null {
   const exe = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
-  const candidates = [
-    process.env.AIDE_LLAMA_SERVER,
-    path.join(workspace, 'runtime', exe),
-    'E:\\llama-cpp\\llama-server.exe'
-  ].filter((candidate): candidate is string => Boolean(candidate));
-  return candidates.find(candidate => existsSync(candidate)) ?? null;
+  const candidates: Array<{ path: string; vulkan: boolean }> = [
+    process.env.AIDE_LLAMA_SERVER ? { path: process.env.AIDE_LLAMA_SERVER, vulkan: false } : null,
+    { path: path.join(workspace, 'runtime', exe), vulkan: false },
+    // CPU fallback (operator override path). Kept before Vulkan so that any
+    // operator-installed binary keeps priority over the bundled Vulkan build.
+    { path: 'E:\\llama-cpp\\llama-server.exe', vulkan: false },
+    // Bundled Vulkan build: a sibling ggml-vulkan.dll in the same directory
+    // signals Vulkan support, and llama-server --version confirms the build.
+    // Track this separately so the spawn layer can add -ngl 999 by default.
+    { path: 'E:\\llama-cpp-vulkan\\llama-server.exe', vulkan: true }
+  ].filter((candidate): candidate is { path: string; vulkan: boolean } => candidate !== null && existsSync(candidate.path));
+  for (const candidate of candidates) {
+    if (candidate.vulkan && !existsSync(path.join(path.dirname(candidate.path), 'ggml-vulkan.dll'))) continue;
+    return candidate;
+  }
+  return null;
 }
 
 function samplerArgs(profile: ReturnType<typeof readProfileSidecar>): string[] {
@@ -383,21 +393,40 @@ export class ModelRuntime {
     }
     // Binary llama-server first (verified engine path); Python llama_cpp.server
     // remains a fallback for hosts without the binary.
-    const llamaBinary = resolveLlamaBinary(this.workspace);
-    if (llamaBinary) {
+    const llamaResolution = resolveLlamaBinary(this.workspace);
+    if (llamaResolution) {
+      const llamaBinary = llamaResolution.path;
+      const llamaBinaryDir = path.dirname(llamaBinary);
       const endpointUrl = new URL(model.endpoint);
       const profile = readProfileSidecar(model.file);
-      const binaryArgs = [
+      // For a Vulkan build, the sidecar may not set ngl; default to offload-all
+      // so the model actually uses the GPU. CPU builds must NOT default to ngl,
+      // since llama-server interprets -ngl > 0 on a CPU binary as an error.
+      const profileNgl = Number(profile.runtime?.ngl);
+      // LAWS (aide-inhouse-model-runtime SOP, verified 2026-08-27 A/B):
+      //   - --no-warmup REQUIRED: without it the Vulkan warmup epoch
+      //     crashes the process (exit code 1, empty stderr).
+      //   - cwd: binaryDir REQUIRED: Node spawn without cwd means the Windows
+      //     loader cannot find ggml-vulkan.dll / llama.dll sibling to the
+      //     binary, causing STATUS_DLL_NOT_FOUND (exit code 1).
+      //   - --no-mmap is FORBIDDEN: the monolithic private-memory path
+      //     wedges at heavy-init or dies with 0xFFFFFFFF and zero stderr on
+      //     VMware-SVGA / Pascal-WDDM. Default mmap streams pages lazily and
+      //     survives. NEVER add it back.
+      const baseArgs = [
         '-m', model.file,
         '--host', '127.0.0.1',
         '--port', String(endpointUrl.port || 8080),
         '--ctx-size', String(model.context_tokens || 2048),
         '--threads', '4',
         '--parallel', '1',
-        '--log-disable',
-        '--prio', '-1',
-        ...samplerArgs(profile)
+        '--no-warmup',
+        '--prio', '-1'
       ];
+      const sampler = samplerArgs(profile);
+      const binaryArgs = llamaResolution.vulkan && !Number.isFinite(profileNgl)
+        ? [...baseArgs, '-ngl', '999', ...sampler]
+        : [...baseArgs, ...sampler];
       const alreadyUpBinary = await this.verifyEndpointModel(id).catch(async () => {
         if (await this.endpointPortOpen(model)) {
           return { ready: false as const, status: 'conflict' as const, served_models: [] as never[], error: `port ${this.endpointPort(model).port} occupied by foreign server` };
@@ -424,7 +453,9 @@ export class ModelRuntime {
         await this.waitForMemoryDrain();
       }
       for (let attempt = 1; attempt <= 2; attempt++) {
-        const child = this.spawnChild(llamaBinary, binaryArgs, { stdio: ['ignore', 'ignore', 'pipe'], detached: true });
+        // cwd MUST be the binary's directory so the Windows loader finds
+        // ggml-vulkan.dll / llama.dll siblings (aide-inhouse-model-runtime SOP).
+        const child = this.spawnChild(llamaBinary, binaryArgs, { cwd: llamaBinaryDir, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
         this.processes.set(id, child);
         this.onStatusChange(id, 'starting');
         const stderrLog = path.join(this.workspace, '.aide', 'logs', `engine-${id}.err.log`);

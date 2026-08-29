@@ -10,6 +10,7 @@ export type TelegramService = {
   connect(input: unknown): Promise<unknown>;
   authorizeChat(chatId: number): Promise<unknown>;
   disconnect(): Promise<unknown>;
+  startPolling(): Promise<unknown>;
 };
 
 const z = require('zod') as typeof import('zod');
@@ -65,6 +66,10 @@ export function routesForTelegram(service: TelegramService): Route[] {
       handler: async ({ body }) => {
         try {
           await service.authorizeChat((body as { chat_id: number }).chat_id);
+          // Make sure polling is on after a chat is authorized (handles the
+          // case where the arch was restarted with a saved config but the
+          // polling loop never started).
+          await (service as { startPolling?: () => Promise<unknown> }).startPolling?.();
           return await service.status();
         } catch (error) { throw fail(error); }
       }
@@ -76,6 +81,17 @@ export function routesForTelegram(service: TelegramService): Route[] {
       handler: async () => {
         try {
           await service.disconnect();
+          return await service.status();
+        } catch (error) { throw fail(error); }
+      }
+    },
+    {
+      method: 'POST',
+      path: '/api/telegram/start',
+      response: StatusEnvelope,
+      handler: async () => {
+        try {
+          await (service as { startPolling?: () => Promise<unknown> }).startPolling!();
           return await service.status();
         } catch (error) { throw fail(error); }
       }

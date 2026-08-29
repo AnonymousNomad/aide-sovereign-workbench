@@ -47,11 +47,21 @@ export async function telegramFetch(base, token, method, body, timeoutMs = 35000
       signal: controller.signal
     });
     const payload = await response.json().catch(() => ({}));
-    if (!payload.ok) throw new Error(`telegram ${method} failed: ${payload.description || response.status}`);
+    if (!payload.ok) {
+      const err = new Error(`telegram ${method} failed: ${payload.description || response.status}`);
+      err.name = 'TelegramApiError';
+      throw err;
+    }
     return payload.result;
   } catch (error) {
-    if (error instanceof Error) error.message = stripToken(error.message);
-    throw error;
+    // Never mutate error.message — some built-in errors have it as a getter
+    // and assigning throws "Cannot set property message of which has only a getter".
+    // Wrap into a new sanitized Error instead.
+    const raw = (error && error.message) ? String(error.message) : String(error);
+    const wrapped = new Error(stripToken(raw));
+    wrapped.name = (error && error.name) ? error.name : 'TelegramBridgeError';
+    if (error && error.stack) wrapped.originalStack = String(error.stack);
+    throw wrapped;
   } finally {
     clearTimeout(timer);
   }
@@ -212,6 +222,13 @@ export function createTelegramBridge({ workspace, onCommand }) {
       running = true;
       abort = new AbortController();
       void pollLoop();
+    },
+
+    async startPolling() {
+      const cfg = await loadConfig();
+      if (!cfg?.token_b64) throw new Error('telegram not connected');
+      this.ensurePolling();
+      return { ok: true, running };
     },
 
     status: async () => {

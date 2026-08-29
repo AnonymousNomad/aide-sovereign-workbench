@@ -228,6 +228,13 @@
       "path": "skills/packs/aide-workflow-gap-roadmap/SKILL.md"
     },
     {
+      "name": "aide-aide-stack-launch-and-recover",
+      "title": "aide-aide-stack-launch-and-recover",
+      "description": "The recovery procedure for the AIDE 3-service + 1-engine stack (arch 4778 / legacy 4779 / facade 4777 / cipher 8091) when it's dead, half-alive, or the telegram bot is connected but `running: false`. Captures the 7-row threat matrix and 7 pitfalls learned from the 2026-08-29 outage: never `taskkill /IM node.exe`, `connected: true, running: false` means call `/api/telegram/start` not `/api/telegram/connect`, Node 22+ `Error.message` getter fix in telegram.mjs, the 25s long-poll can starve `/api/telegram/status` so use `curl -m 40`. Use when /api/health is unresponsive, when fewer than 4 node.exe are running, when arch-err.log shows EADDRINUSE, when the bot stops receiving messages.",
+      "category": "aide-ops",
+      "path": "skills/packs/aide-aide-stack-launch-and-recover/SKILL.md"
+    },
+    {
       "name": "aide-plugin-author-guide",
       "title": "aide-plugin-author-guide",
       "description": "How to build an AIDE plugin — manifest contract, capability model, spawn-protocol rules, the Windows-stdin gotcha that bit the skills-inspector prototype, the --permission capability model, and the right testing pattern (spawnSync first, then manager-level). Use when authoring any new plugin under plugins/, when debugging a plugin that exits 0 with no output, or when porting an existing CLI tool into the plugin system.",

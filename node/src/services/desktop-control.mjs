@@ -340,6 +340,15 @@ export function createDesktopControl({ workspace }) {
 
   return {
     status: async () => {
+      // Contract: DesktopStatusResponse in common/contracts/desktop.ts
+      // (lines 53-62) is .strict() with `additionalProperties: false`. The
+      // previous return included `pending_approvals: listPending()` which
+      // is NOT in the contract — that field is exposed via the dedicated
+      // `GET /api/desktop/pending` route, not the status one. Returning it
+      // here caused the route to fail with HTTP 500 (BAD_RESPONSE: contains
+      // unrecognized keys). Per aide-debugging-discipline (verified trap
+      // "Strict zod rejects legacy keys") + AGENT_NOTES line 8 documented
+      // "desktop control returns 502 on /api/desktop/status" root cause.
       const m = await loadManifest();
       return {
         enabled: Boolean(m?.enabled),
@@ -347,8 +356,7 @@ export function createDesktopControl({ workspace }) {
         session_started_at: m?.session_started_at ?? null,
         grants: m?.grants ?? { apps: [], roots: [], window_titles: [] },
         tracked_children: children.size,
-        panicked: m ? panics.includes(m.session_started_at) : false,
-        pending_approvals: listPending()
+        panicked: m ? panics.includes(m.session_started_at) : false
       };
     },
     setGrants: saveManifest,

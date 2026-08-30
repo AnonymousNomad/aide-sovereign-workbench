@@ -22,6 +22,7 @@
     "view-switch-contract": "node scripts/view-switch-contract.mjs",
     "capsule": "node capsules/create.mjs",
     "doctor": "node scripts/doctor.mjs",
+    "selfheal": "node scripts/selfheal.mjs",
     "verify:model-bundle": "node scripts/verify-model-bundle.mjs",
     "start": "node scripts/start.mjs",
     "desktop:dev": "tauri dev --config desktop/tauri.conf.json",

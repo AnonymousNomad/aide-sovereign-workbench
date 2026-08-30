@@ -375,3 +375,64 @@ gaps are" directive.
 
 verification gate for the whole proposal. If it does not produce
 this, the proposal failed.
+
+## Status update (2026-08-29 23:5x, cline/T4)
+
+Since the proposal was first written, several pieces have shipped
+or been corrected. The gap analysis was based on a 2-port view of
+the architecture; the deeper audit found work that already
+existed but wasn't visible from the openapi alone.
+
+### What has shipped since the proposal
+
+| Gap (proposal)                                | Status (2026-08-29 23:5x)       | Evidence                                                  |
+|-----------------------------------------------|--------------------------------|-----------------------------------------------------------|
+| Workbench routes not exposed                  | **DONE**                       | `node/src/routes/workbenches.ts` has 5 routes; `GET /api/workbenches` returns 200 with the live list |
+| 1 workbench exists                            | **DONE** (1 v2 shipped)        | `sovereign-coder` upgraded to v0.2.0 with workflow + policy fields; visible in `/api/workbenches` |
+| No workflow sequence in workbench             | **DONE (1 example)**            | `sovereign-coder.json` v0.2.0 has 6-step workflow (census -> intake -> plan -> build -> verify -> ship) with 2 gates + retry + completion |
+| No 1-click approve UX                         | **PARTIAL**                    | `POST /api/workbenches/install` works server-side; no UI surface yet |
+| No bundle discoverability                     | **PARTIAL**                    | `GET /api/workbenches` lists them but no `workbenches/registry.json` index with descriptions yet |
+| 3-command first-run                           | NOT STARTED                    | `npm create aide` and Tauri installer are future work       |
+| Cross-session auto-memory partial            | **DONE** (shipped earlier)      | `harness/memory-spine.mjs` + `harness/helix-join.mjs` + `harness/helix-retention.mjs` + chat.ts wiring; verified this session (30-day recall) |
+| Architect -> Editor split skill-only          | NOT STARTED                    | Same as `aide-workflow-gap-roadmap` Gap #1                    |
+| Single harness, no per-session                | NOT STARTED                    | Same as `aide-workflow-gap-roadmap` Gap #5                    |
+| No worktree isolation                         | NOT STARTED                    | Same as `aide-workflow-gap-roadmap` Gap #3                    |
+
+### Wrong assumptions in the original gap analysis
+
+1. **The gap analysis claimed "only 1 workbench exists"** — true at the time
+   but the v0.2.0 upgrade has now shipped with the full workflow shape, so
+   the 1 example is live, not aspirational.
+2. **The gap analysis claimed "workbench routes are not exposed"** — turns
+   out `node/src/routes/workbenches.ts` already had 5 routes (the
+   audit missed them because they were not in the openapi at the time
+   but they ARE in the openapi now, visible after daemon restart).
+3. **The "30-day memory" was listed as a missing feature** — turns out
+   it was already designed (Helix Memory skill + MEMORY-30D-RESEARCH.md)
+   and shipped (memory-spine.mjs, memory-blocks.mjs, helix-join.mjs,
+   helix-retention.mjs), just not heavily exercised. Verified live this
+   session: wrote a fact, recalled it, BM25 hit on first try.
+
+### Revised effort estimate
+
+Given the existing shipped work, the remaining work is:
+- **Phase B (workflow runner):** still 1-2 weeks; need a real runner that
+  walks the workflow.steps graph and dispatches to task/skill services
+- **Phase C (5 first bundles):** can now build on the v0.2.0 template
+  (sovereign-pipeline, sovereign-architect, devops-release,
+  web-builder-design, data-pipeline-etl, academy-tutor) — 1-2 days each
+  with the template established
+- **Phase D (5-min launch):** `npm create aide` + Tauri installer + in-app
+  tour — 1-2 weeks
+- **Plus new gaps from the audit:** 1-click install UI surface in cockpit,
+  workbenches/registry.json index
+
+### Commits in this push wave
+
+- `bc16b2d` feat(models): wire North-Mini-Code-1.0 as AIDE in-house model
+- `288a80c` feat(scripts): launch-model-engine.cjs - canonical launcher
+- `0986d0d` docs(operations): AIDE model engine operations quick-reference
+- `e19d37a` feat(workbenches): upgrade sovereign-coder to a workflow bundle v0.2.0
+
+All pushed to origin.
+

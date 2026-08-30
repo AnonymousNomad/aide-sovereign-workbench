@@ -751,3 +751,47 @@ body {
   font-size: 11px;
   color: var(--dim);
 }
+/* Workbenches view (cline/T4, 2026-08-29) */
+.workbenches-panel-root { padding: 12px; overflow: auto; }
+.workbenches-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.workbenches-header h2 { margin: 0; font-size: 14px; color: var(--dim); }
+.workbench-refresh { background: transparent; border: 1px solid var(--border); color: var(--fg); padding: 2px 8px; cursor: pointer; border-radius: 4px; }
+.workbench-refresh:hover { background: var(--hover); }
+.workbench-list { display: flex; flex-direction: column; gap: 12px; }
+.workbench-loading, .workbench-empty, .workbench-error { padding: 12px; color: var(--dim); font-size: 12px; }
+.workbench-error { color: var(--err); }
+.workbench-card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.workbench-card.enabled { border-color: var(--ok); }
+.workbench-card.not-installed { border-color: var(--dim); }
+.workbench-card-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.workbench-card-id { font-weight: bold; font-size: 14px; color: var(--fg); }
+.workbench-card-version { font-size: 11px; color: var(--dim); font-family: monospace; }
+.workbench-card-status { display: flex; gap: 6px; margin-bottom: 8px; }
+.badge { font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: bold; letter-spacing: 0.5px; }
+.badge-ok { background: var(--ok-dim); color: var(--ok); }
+.badge-pending { background: var(--dim-dim); color: var(--dim); }
+.badge-warn { background: var(--warn-dim); color: var(--warn); }
+.workbench-card-desc { font-size: 12px; color: var(--fg-dim); margin-bottom: 8px; line-height: 1.4; }
+.workbench-card-counts { display: flex; gap: 12px; font-size: 11px; color: var(--dim); margin-bottom: 8px; }
+.workbench-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.workbench-card-issues { background: var(--warn-dim); border-left: 3px solid var(--warn); padding: 6px 8px; margin-bottom: 8px; font-size: 11px; }
+.workbench-issue { color: var(--warn); margin-top: 2px; }
+.workbench-btn-primary, .workbench-btn-secondary, .workbench-btn-danger { font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; border: 1px solid; }
+.workbench-btn-primary { background: var(--ok); color: var(--bg); border-color: var(--ok); font-weight: bold; }
+.workbench-btn-primary:hover { opacity: 0.85; }
+.workbench-btn-primary:disabled { opacity: 0.5; cursor: wait; }
+.workbench-btn-secondary { background: transparent; color: var(--fg); border-color: var(--border); }
+.workbench-btn-secondary:hover { background: var(--hover); }
+.workbench-btn-danger { background: transparent; color: var(--err); border-color: var(--err); }
+.workbench-btn-danger:hover { background: var(--err-dim); }
+
+.import-file {
+  font-size: 11px;
+  color: var(--fg);
+}
+
+.import-status {
+  font-size: 11px;
+  color: var(--dim);
+}
+

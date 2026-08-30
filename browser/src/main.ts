@@ -17,6 +17,7 @@ import { registerLspProviders } from './editor/lsp-providers.ts';
 import { createChatPanel } from './chat/chat.ts';
 import { createProvidersPanel } from './providers/providers.ts';
 import { createByokPanel } from './byok/byok.ts';
+import { createWorkbenchesPanel } from './workbenches/workbenches.ts';
 import type { DiagnosticsEventT } from '../../common/contracts/events.ts';
 import type { LspStatusEventT } from '../../common/contracts/lsp.ts';
 import { connectEvents } from './services/ws.ts';
@@ -96,6 +97,7 @@ async function boot(): Promise<void> {
   void chatPanel.refreshModels();
   createProvidersPanel(shell.providersPanel, { onToast: (code, message) => showToast(shell.statusRight, code, message) });
   createByokPanel(shell.byokPanel, { onToast: (code, message) => showToast(shell.statusRight, code, message) });
+  createWorkbenchesPanel(shell.workbenchesPanel, { onToast: (code, message) => showToast(shell.statusRight, code, message) });
 
   const events = connectEvents(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`, {
     onStatus: connected => {

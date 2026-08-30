@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-08-29T00:00:00.000Z",
+  "category_count": 4,
+  "bundles": [
+    {
+      "id": "sovereign-coder",
+      "name": "Sovereign Coder",
+      "version": "0.2.0",
+      "category": "aide-core",
+      "tags": [
+        "coding",
+        "local-first",
+        "offline",
+        "sovereign-agent",
+        "workflow"
+      ],
+      "short": "Privacy-first daily coding loop. Local-only by default. 6-step workflow: census -> intake -> plan -> build -> verify -> ship.",
+      "when_to_use": "You are writing or modifying code. You want the sovereign agent to plan first, emit a unified diff, run veritas gates, and let you review before any change is applied.",
+      "estimated_minutes": 5,
+      "workflow_steps": 6,
+      "gates": 2
+    },
+    {
+      "id": "sovereign-pipeline",
+      "name": "Sovereign Pipeline",
+      "version": "0.1.0",
+      "category": "training-ecosystem",
+      "tags": [
+        "training",
+        "fine-tuning",
+        "qlora",
+        "gguf",
+        "offline",
+        "pipeline",
+        "sovereign-agent"
+      ],
+      "short": "End-to-end training/data/eval loop. Local GPU only. 5-step workflow: census -> ingest -> sft (QLoRA) -> export (GGUF) -> register.",
+      "when_to_use": "You want to fine-tune a local model on your own data. You need a recipe that goes from raw data to a verified, registered adapter on disk, with battery-gated promotion.",
+      "estimated_minutes": 240,
+      "workflow_steps": 5,
+      "gates": 2
+    },
+    {
+      "id": "sovereign-architect",
+      "name": "Sovereign Architect",
+      "version": "0.1.0",
+      "category": "aide-core",
+      "tags": [
+        "design",
+        "spec",
+        "plan",
+        "architecture",
+        "docs",
+        "offline",
+        "sovereign-agent"
+      ],
+      "short": "Design/spec/plan lane. 5-step workflow: intake -> spec -> plan -> graph -> review. Pairs with sovereign-coder.",
+      "when_to_use": "You have a vague intent and need a spec, a phased plan, an architecture graph, and a recommended next workflow bundle. Pairs with sovereign-coder: architect plans, coder builds.",
+      "estimated_minutes": 30,
+      "workflow_steps": 5,
+      "gates": 2
+    }
+  ],
+  "planned": [
+    {
+      "id": "sovereign-devops",
+      "name": "Sovereign DevOps",
+      "category": "devops",
+      "planned": "lint + test + docker build + e2e + release notes + sign + publish"
+    },
+    {
+      "id": "sovereign-web",
+      "name": "Sovereign Web",
+      "category": "web-builder",
+      "planned": "spec render + canary + screenshot diff + a11y + Shopify"
+    },
+    {
+      "id": "sovereign-data",
+      "name": "Sovereign Data",
+      "category": "data",
+      "planned": "extract + transform (YAML recipe) + load + validate + hash + archive"
+    },
+    {
+      "id": "sovereign-academy",
+      "name": "Sovereign Academy",
+      "category": "academy",
+      "planned": "build 5-lesson interactive course from topic + skill level"
+    }
+  ]
+}

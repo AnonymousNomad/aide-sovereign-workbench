@@ -1,0 +1,179 @@
+{
+  "schema_version": "1.0.0",
+  "id": "sovereign-pipeline",
+  "name": "Sovereign Pipeline",
+  "version": "0.1.0",
+  "description": "Privacy-first training/data/eval loop for AIDE. Fully local by default. Bundles the local model lane (North-Mini-Code 1.0 as the sovereign agent), the training SOP, dataset ingestion + dedupe skills, QLoRA runner, GGUF export, and battery-driven promotion. The bundle is the canonical recipe for going from raw data to a verified, registered adapter on disk.",
+  "privacy_doctrine": {
+    "offline_by_default": true,
+    "opt_in_online": true,
+    "notes": "No route in this bundle performs network egress. Cloud training is disabled by default; local GPU/CPU only."
+  },
+  "defaults": {
+    "offline": true
+  },
+  "category": "training-ecosystem",
+  "tags": [
+    "training",
+    "fine-tuning",
+    "qlora",
+    "gguf",
+    "offline",
+    "pipeline",
+    "sovereign-agent"
+  ],
+  "depends_on": {
+    "models": [
+      "north-mini-code-1.0"
+    ],
+    "mcp_servers": [
+      "filesystem",
+      "git"
+    ],
+    "external_tools": [
+      "llama-server.exe",
+      "python 3.10+ with torch+qlora deps"
+    ]
+  },
+  "plugins": [
+    "task-dashboard",
+    "dependency-audit",
+    "test-runner",
+    "env-inspector"
+  ],
+  "skills": [
+    "training-sop",
+    "zero-dup-high-quality",
+    "aide-training-phase-b1-dataset-studio",
+    "aide-training-phase-b2-qlora-runner",
+    "aide-training-phase-b3-eval-export",
+    "aide-cipher-living-system",
+    "process-hygiene-sop",
+    "aide-veritas-layer"
+  ],
+  "policy": {
+    "credo_excerpt": [
+      "Earn trust through evidence, never verbal confidence alone.",
+      "Follow the assigned SOP and stop when a gate fails.",
+      "A generated answer is a proposal until Veritas validates it."
+    ],
+    "dos": [
+      "Verify every dataset row is unique against the corpus index before staging (zero-dup-high-quality).",
+      "Run Veritas after every stage transition.",
+      "Log every training run to .aide/trajectories/ with sha256 of inputs.",
+      "Use a checkpoint before any weight mutation.",
+      "Run the full battery on the new adapter before promoting."
+    ],
+    "donts": [
+      "Do not start a training run if GPU memory pressure > 80%.",
+      "Do not modify weights in-place; always checkpoint first.",
+      "Do not trust a model's claim that a training run succeeded without eval battery results.",
+      "Do not train on data with no provenance.",
+      "Do not skip dedup just because the corpus is small."
+    ],
+    "dependencies": [
+      "Python 3.10+ with torch 2.7.1+cu118, transformers, peft, trl, bitsandbytes",
+      "CUDA 12.x driver or Vulkan runtime",
+      "GPU with >= 8 GB free VRAM (16 GB recommended)",
+      "Base model: North-Mini-Code 1.0 GGUF at E:/models/north-mini-code/",
+      "Training data in .aide/training-data/<run-id>/ (auto-created)",
+      "Git workspace for the adapter (recommended; not required)"
+    ],
+    "estimated_minutes": 240
+  },
+  "workflow": {
+    "entry": "census",
+    "steps": [
+      {
+        "id": "census",
+        "label": "Census: confirm model, GPU, data, deps",
+        "command": "task",
+        "task_id": "doctor",
+        "veritas_gate": "doctor-pass",
+        "description": "Run aide-doctor: model engine up, GPU + Vulkan detected, training deps installed, dataset dir writable."
+      },
+      {
+        "id": "ingest",
+        "label": "Ingest + dedupe training data",
+        "command": "skill",
+        "skill_id": "aide-training-phase-b1-dataset-studio",
+        "veritas_gate": "zero-dup-pass",
+        "description": "Read source data, dedupe vs the corpus index, write manifest with row counts + sha256 of inputs + dedup pass rate."
+      },
+      {
+        "id": "sft",
+        "label": "Run QLoRA SFT",
+        "command": "skill",
+        "skill_id": "aide-training-phase-b2-qlora-runner",
+        "veritas_gate": "training-loss-decreasing",
+        "description": "Configure QLoRA (4-bit, rank 16, alpha 32). Train until loss is monotonically decreasing. Checkpoint every N steps."
+      },
+      {
+        "id": "export",
+        "label": "Export adapter to GGUF",
+        "command": "skill",
+        "skill_id": "aide-training-phase-b3-eval-export",
+        "veritas_gate": "gguf-quantization-valid",
+        "description": "Merge adapter into base, quantize to Q4_K_M, write to E:/models/<run-id>/adapter.gguf, generate .profile.json sidecar."
+      },
+      {
+        "id": "register",
+        "label": "Register adapter + run battery",
+        "command": "task",
+        "task_id": "test",
+        "veritas_gate": "battery-gain",
+        "description": "Add to models/manifest.json, restart daemons, run aide-task-verification-battery, confirm new adapter scores >= base on same prompts."
+      }
+    ],
+    "gates": [
+      "veritas",
+      "human-approval"
+    ],
+    "retry": {
+      "max_per_step": 1,
+      "max_total": 3
+    },
+    "completion_criterion": "adapter registered in manifest.json AND battery-gain > 0 AND veritas passed all 5 steps AND human approved the promotion"
+  },
+  "mcp_servers": [
+    {
+      "name": "filesystem",
+      "transport": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}/.aide/training-data"
+      ],
+      "offline": true,
+      "trust": "builtin"
+    },
+    {
+      "name": "git",
+      "transport": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-server-git",
+        "--repository",
+        "${workspaceFolder}"
+      ],
+      "offline": true,
+      "trust": "builtin"
+    }
+  ],
+  "recommended_models": {
+    "reason": "north-mini-code-1.0",
+    "build": "north-mini-code-1.0",
+    "verify": "north-mini-code-1.0",
+    "fast-coder": "qwen-coder-1.5b-q4"
+  },
+  "setup": [
+    "Read the training-sop skill before the first session.",
+    "Verify the recommended local models: GET /api/models shows status ready.",
+    "MCP servers install disabled. Trust each one with `aide-bundle trust sovereign-pipeline <server>`.",
+    "Confirm GPU has >= 8 GB free VRAM before starting a training run.",
+    "The training data must live in .aide/training-data/<run-id>/ (one dir per run)."
+  ]
+}

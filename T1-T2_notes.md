@@ -628,6 +628,56 @@ Actor: opencode (T2) | Status: research complete, decision locked, download not 
 
 ---
 
+## [2026-08-29 ~19:30] T2: LFM2.5 PIVOT REVERTED -- user wants BIGGER model, but model name ambiguous
+Actor: opencode (T2) | Status: BLOCKED on user disambiguation, nothing started
+
+**Earlier this session** I pivoted to LFM2.5-2.6B based on benchmarks. Downloads completed (BF16 5.41GB + GGUF Q4_K_M 1.67GB). torch hang in venv_cipher (2/2 reproducible) -- investigated root cause, likely Defender scan deadlock on the just-downloaded 12GB of model files. No fix attempted yet per R8.
+
+**User then sent new directive (verbatim):** "I did some more research for my in-house model and I made another judgment call and this is the model we're gonna go with for in-house model liquid The liquid model is not big enough to carry full workflows beginning to end Umm desktop control and everything else I needed to do was just not big enough MiniMax-M2.1-Coder-12B)"
+
+**User followup (verbatim):** "No I sent you the exact name of the model that I'm talking about It's not the Quinn model that you're talking that you think I told you the exact name of the model"
+
+**Research per R2 (no guessing):**
+
+| Source | What it is | Verdict |
+|---|---|---|
+| `MiniMax-AI` org on HF | 67 followers, 25 follows; only public models: 2.7B+ vision models, 229B LLM (no coder), 427B M3 | NO 12B coder exists here |
+| `MiniMaxAI` org on HF | 10,083 followers; has MiniMax-H3 (33B video), MiniMax-M3 (427B MM), MiniMax-M2/M2.1/M2.5/M2.7 (229B each), MiniMax-Music3 (2B audio) | NO 12B coder exists here either |
+| AGENT_NOTES line 1066 (2026-08-26) | User directive: "HOUSE BASE SWAP TO North-Mini-Code-1.0" -- unsloth/North-Mini-Code-1.0-GGUF, Cohere Labs 30B-A3B MoE, 10.5GB UD-Q2_K_XL | MATCHES disk below |
+| `E:\models\north-mini-code\North-Mini-Code-1.0-UD-Q2_K_XL.gguf` | 10.48GB on disk. cohere2moe arch. base = "North Mini 1.0" by CohereLabs. unsloth-quant. apache-2.0. | This is the in-house replacement on disk. NOT 12B. |
+| `E:\aide-sovereign-workbench\models\Qwen3-4B-MiniMax-M2.1-Coder.q4_k_m.gguf` | 2.5GB on disk. qwen3 arch. base = "Qwen3 4b Thinking 2507 Unsloth Bnb 4bit" -- a Qwen3-4B-Thinking distilled with "MiniMax-M2.1-Coder" naming. 4B not 12B. | Smaller, OLDER in-house model. NOT 12B. |
+| `E:\models\house-model\` | torch-2.7.1 wheel + PERSONALITY-ROADMAP.md (Qwen3-4B QLoRA plan) + cipher_base/fable5/lfm25_gguf (just downloaded) | Mixed: T2's downloads + the original personality-training plan |
+
+**Disambiguation needed (3 possibilities):**
+1. User means the **North-Mini-Code-1.0** (Cohere Labs 30B-A3B MoE) on disk. "12B" was a slip; the user is referring to "the bigger model" that replaced Qwen3-4B per 8/26 directive. The 30B-A3B name is "Mini" (3B active at inference), but the FULL model has 30B params -- user might have remembered "12" from somewhere or just misspoken. Note: the actual UD-Q2_K_XL GGUF is 10.5GB -- on our 6GB card, this needs MoE expert offloading (active 3B at a time = fits) per the 8/26 note.
+2. User means the **Qwen3-4B-MiniMax-M2.1-Coder** on disk. "12B" was a slip. This is 4B, the OLDER in-house model before the North swap.
+3. There's a real 12B model somewhere I haven't found.
+
+**Per R2: I am NOT guessing. I am NOT starting a download, build, or training round until the user confirms which model.**
+
+**What I HAVE done this session that survives the model change:**
+- LFM2.5-2.6B BF16 5.41GB at `E:\models\house-model\cipher_base\`
+- AyoubChLin/lfm2.5-2.6b-fable5-coding-agent BF16 5.41GB at `E:\models\house-model\fable5\`
+- LFM2.5-2.6B-GGUF Q4_K_M 1.67GB at `E:\models\house-model\lfm25_gguf\`
+- cipher_v2 SFT corpus 4741 rows at `E:\felon_workspace\cipher_v2\sft_train.jsonl`
+- build_cipher_v2_corpus.py (the converter) at `E:\felon_workspace\`
+- P7 announcements recorded above
+- These are recoverable inputs to a new fine-tune round on whatever model the user picks.
+
+**What I have NOT done this session:**
+- No training run (torch hang blocked)
+- No engine started
+- No fine-tune adapter produced
+- No model change to AIDE manifest
+
+**T1 status (from running processes):**
+- 3 llama-servers running (T1 work, not mine): port 8081 (Qwen3.5-4B), 8082 (smollm2), 8090 (Qwen3-4B-MiniMax-M2.1-Coder.q4_k_m -- THE QWEN ONE, likely a re-spawn of the manifest's qwen3-4b-minimax entry)
+- AIDE stack up: facade 4777, arch 4778
+- cipher engine OFF (no 8091 listener)
+- E: 19.8GB free
+
+---
+
 
 ## [2026-08-29 23:0x] T2 (cline/T4): NEW MODEL FROM T1 ONLINE + daemon port bug fixed + 2 commits shipped
 

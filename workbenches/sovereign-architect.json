@@ -1,0 +1,181 @@
+{
+  "schema_version": "1.0.0",
+  "id": "sovereign-architect",
+  "name": "Sovereign Architect",
+  "version": "0.1.0",
+  "description": "Privacy-first design/spec/plan lane for AIDE. Fully local. The sovereign agents thinking lane: turns a vague user intent into a written spec, a phased plan, an architecture graph, and a verifiable test contract. Pairs with sovereign-coder: the architect lane plans, the coder lane builds.",
+  "privacy_doctrine": {
+    "offline_by_default": true,
+    "opt_in_online": true,
+    "notes": "No network egress. All design artifacts are stored locally."
+  },
+  "defaults": {
+    "offline": true
+  },
+  "category": "aide-core",
+  "tags": [
+    "design",
+    "spec",
+    "plan",
+    "architecture",
+    "docs",
+    "offline",
+    "sovereign-agent"
+  ],
+  "depends_on": {
+    "models": [
+      "north-mini-code-1.0"
+    ],
+    "mcp_servers": [
+      "filesystem",
+      "memory"
+    ],
+    "external_tools": [
+      "markdown renderer",
+      "graphviz or mermaid CLI"
+    ]
+  },
+  "plugins": [
+    "markdown-preview",
+    "blueprint-export",
+    "assistant-context",
+    "json-schema",
+    "local-notes"
+  ],
+  "skills": [
+    "aide-architect-editor-pattern",
+    "aide-advanced-orchestration",
+    "aide-context-retrieval-wiring",
+    "aide-master-roadmap",
+    "aide-product-vision",
+    "aide-vscode-parity-roadmap",
+    "aide-helix-memory",
+    "aide-veritas-layer",
+    "comprehension-engineering"
+  ],
+  "policy": {
+    "credo_excerpt": [
+      "Earn trust through evidence, never verbal confidence alone.",
+      "Follow the assigned SOP and stop when a gate fails.",
+      "A generated answer is a proposal until Veritas validates it."
+    ],
+    "dos": [
+      "Always write the spec before the plan.",
+      "Every plan must have measurable acceptance criteria (gates).",
+      "Reference real skills + plugins + bundles by name.",
+      "Use blueprint/graph.mjs to render the architecture as a graph.",
+      "Use Helix Memory to recall prior decisions."
+    ],
+    "donts": [
+      "Do not skip the spec because the user said just build it.",
+      "Do not propose plugins that arent in the registry.",
+      "Do not propose skills that arent validated.",
+      "Do not write a plan thats longer than the user can review in 10 minutes.",
+      "Do not commit to a model thats not on disk in E:/models/."
+    ],
+    "dependencies": [
+      "north-mini-code-1.0 loaded in the engine",
+      "Helix Memory for cross-session recall",
+      "Spec templates in .aide/specs/ (auto-created)",
+      "Graphviz or mermaid CLI for diagrams",
+      "Markdown renderer in the cockpit"
+    ],
+    "estimated_minutes": 30
+  },
+  "workflow": {
+    "entry": "intake",
+    "steps": [
+      {
+        "id": "intake",
+        "label": "Intake: parse the user intent",
+        "command": "skill",
+        "skill_id": "aide-advanced-orchestration",
+        "veritas_gate": "intake-completeness",
+        "description": "Run the multi-lens intake: 3 contexts. Capture success criteria, constraints, open questions."
+      },
+      {
+        "id": "spec",
+        "label": "Write the spec",
+        "command": "skill",
+        "skill_id": "comprehension-engineering",
+        "veritas_gate": "spec-completeness",
+        "description": "Produce a DESIGN.md with scope, non-scope, data model, API surface, acceptance criteria."
+      },
+      {
+        "id": "plan",
+        "label": "Produce the phased plan",
+        "command": "skill",
+        "skill_id": "aide-master-roadmap",
+        "veritas_gate": "plan-completeness",
+        "description": "Break the spec into 3-7 phases. Each phase: goal, dependencies, work, exit-gate."
+      },
+      {
+        "id": "graph",
+        "label": "Render the architecture graph",
+        "command": "skill",
+        "skill_id": "aide-context-retrieval-wiring",
+        "veritas_gate": "graph-rendered",
+        "description": "Use blueprint/graph.mjs to render a textual graph. Save to .aide/specs/<topic>.graph.txt + mermaid source."
+      },
+      {
+        "id": "review",
+        "label": "Human review + bundle recommendation",
+        "command": "skill",
+        "skill_id": "aide-veritas-layer",
+        "veritas_gate": "human-approved",
+        "description": "Show spec + plan + graph to the human. Recommend the next workflow bundle to run."
+      }
+    ],
+    "gates": [
+      "veritas",
+      "human-approval"
+    ],
+    "retry": {
+      "max_per_step": 1,
+      "max_total": 3
+    },
+    "completion_criterion": "spec saved to .aide/specs/<topic>.md AND plan rendered to <topic>.graph.txt AND human approved the recommended next bundle"
+  },
+  "mcp_servers": [
+    {
+      "name": "filesystem",
+      "transport": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}/.aide/specs"
+      ],
+      "offline": true,
+      "trust": "builtin"
+    },
+    {
+      "name": "memory",
+      "transport": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "offline": true,
+      "trust": "builtin"
+    }
+  ],
+  "recommended_models": {
+    "reason": "north-mini-code-1.0",
+    "build": "north-mini-code-1.0",
+    "verify": "north-mini-code-1.0",
+    "fast-coder": "qwen-coder-1.5b-q4"
+  },
+  "setup": [
+    "Read the aide-architect-editor-pattern skill before the first session.",
+    "Verify the recommended local models: GET /api/models shows status ready.",
+    "MCP servers install disabled. Trust each one with aide-bundle trust sovereign-architect <server>.",
+    "Specs and graphs are written to .aide/specs/ (auto-created on first run).",
+    "Pair with sovereign-coder: architect plans, coder builds."
+  ]
+}

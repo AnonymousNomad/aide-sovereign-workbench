@@ -674,3 +674,76 @@ Actor: cline/T4 | Status: NEW MODEL VERIFIED RUNNING, daemon fix COMMITTED, 2 co
 **Status: T2 UNBLOCKED for whatever the user wants next.**
 
 via skill: aide-task-verification-battery, professional-developer, aide-engine-lifecycle-doctrine, aide-debugging-discipline, hard-rules, project-governance
+
+
+
+## [2026-08-29 23:3x] T2 (cline/T4): WORKFLOW BUNDLE ARCHITECTURE PROPOSAL SHIPPED
+
+Actor: cline/T4 | Status: PROPOSAL COMMITTED (`3f66721`)
+
+**What I did this turn (per the user directive "do some more research find out where our gaps are what we need to do we haven't done and make sure we're staying in line"):**
+
+1. **INVENTORIED the AIDE foundation** (verified by reading the live repo this session):
+   - Harness closed loop (orchestrator.mjs)
+   - SOPs per role (harness/sops.json, 5 roles)
+   - Veritas gates (harness/veritas.mjs, 4 task classes)
+   - Workbench manager (workbenches/manager.mjs, fail-closed install/trust)
+   - 1 workbench: sovereign-coder
+   - 188 skills across 13 categories
+   - 20 plugins with capability-scoped execution
+   - Tasks (allowlisted npm/node/python/cargo)
+   - Capsules (reproducible recipe packaging)
+   - 4 daemons (all live and verified)
+   - UI at 4173 (Monaco + Vite)
+   - 265 architecture tests + 17 e2e tests, CI green
+
+2. **IDENTIFIED 10 GAPS** (real, source-cited):
+   - Workbench routes not exposed (no /api/workbenches)
+   - Only 1 workbench exists
+   - Workbench = static recipe, no workflow sequence
+   - No 1-click approve bundle UX
+   - No bundle discoverability
+   - First-run is 3 commands (not 0)
+   - Cross-session auto-memory is partial
+   - Architect->Editor is skill-only (Gap #1 in workflow-gap-roadmap)
+   - Single harness, no per-session harness selection
+   - No worktree isolation
+
+3. **PROPOSED the Workflow Bundle abstraction**: a strict superset of the existing Workbench with workflow (steps, gates, retry, completion) + policy (credo, dos, don'ts, dependencies) + depends_on + category/tags fields. Includes a worked example for a training-pipeline bundle.
+
+4. **SEQUENCED the work into 4 PHASES** (with rough effort):
+   - Phase A: shippable workbench routes (1-2 weeks)
+   - Phase B: workflow runner (1-2 weeks)
+   - Phase C: 5 first bundles (parallel, 2-10 weeks)
+   - Phase D: 5-minute onboarding (1-2 weeks)
+
+5. **DEFINED the success metric**: download to first test passing in <= 5 minutes.
+
+6. **LISTED 5 OPEN QUESTIONS** for the user.
+
+7. **PROPOSED 6 FIRST BUNDLES**:
+   - sovereign-coder (promote existing)
+   - training-pipeline (worked example)
+   - devops-release
+   - web-builder-design
+   - data-pipeline-etl
+   - academy-tutor
+
+**Commit this turn:**
+- `3f66721` docs(architecture): Workflow Bundle proposal (1 file, 377 insertions, pre-commit hook passed)
+
+**What I did NOT do (per the user directive - this was a research turn):**
+- Did NOT write any new code files
+- Did NOT modify workbench, plugin, task, harness, or skill files
+- Did NOT touch T1's model swap
+- Did NOT block on engine warmup
+
+**What t1 needs to know:**
+- The architecture proposal is in `docs/WORKFLOW-BUNDLE-ARCHITECTURE.md` on main
+- T1's model swap work continues independently
+- The proposal does NOT touch the model swap; it's pure architecture
+- If the user adopts the proposal, Phase A starts with `/api/workbenches` routes in arch
+
+**Status: T2 IDLE for user direction. Proposal awaits user feedback on the 5 open questions.**
+
+via skill: aide-workflow-gap-roadmap, aide-agent-workflow-sop, aide-production-readiness-plan, professional-developer, project-governance

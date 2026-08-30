@@ -676,6 +676,47 @@ Actor: opencode (T2) | Status: BLOCKED on user disambiguation, nothing started
 - cipher engine OFF (no 8091 listener)
 - E: 19.8GB free
 
+
+## [2026-08-29 23:5x] T2 (cline/T4): NORTH-MINI-CODE-1.0 WIRED INTO AIDE IN-HOUSE SLOT
+
+Actor: cline/T4 | Status: COMMIT `bc16b2d` on main, ahead by 8 commits
+
+**What I did this turn (one item, fully verified):**
+
+1. **Symlinked** `E:\aide-sovereign-workbench\models\aide-house\North-Mini-Code-1.0-UD-Q2_K_XL.gguf` -> `E:\models\north-mini-code\North-Mini-Code-1.0-UD-Q2_K_XL.gguf` (10GB, no copy). Verified size = 9994.5 MB.
+
+2. **Wrote profile sidecar** at `models/aide-house/North-Mini-Code-1.0-UD-Q2_K_XL.gguf.profile.json`. Preset: `deterministic` (temp 0.3, top_p 0.85, min_p 0.1) chosen for Q2_K_XL quantization to reduce hallucination. Runtime: vulkan + ngl 999 (consistent with other profiles).
+
+3. **Updated `models/manifest.json`**: renamed `aide-cipher-4b` -> `aide-cipher-v1` (DEPRECATED marker, displayName updated, port 8091 retained for back-compat). Added `north-mini-code-1.0` entry: lane=house, roles=chat/coder/planning/reviewer, endpoint :8084 (per user's ROADMAP.md), 30B params / 3B active MoE, CohereLabs provenance, 32K context, Q2_K_XL quantization. AIDE sovereign-agent system prompt embedded. 9 models total.
+
+4. **Updated `workbenches/sovereign-coder.json`**: `recommended_models.chat` and `.coder` now `north-mini-code-1.0` (the in-house sovereign). Added `recommended_models.fast-coder` = qwen3-4b-minimax-m2.1-coder (the user's prior M2.1 choice, kept as backup). `autocomplete` + `fast-chat` unchanged.
+
+5. **Real-task verification (not smoke)**:
+   - 4 daemons restarted, all bound (4173/4777/4778/4779)
+   - `GET /api/models/status` -> 9 models, including `north-mini-code-1.0` with status:ready and `aide-cipher-v1` marked DEPRECATED
+   - `GET /api/models/routes` -> 17 routes including `local:north-mini-code-1.0` with correct metadata (32768 ctx, gguf-metadata, chat/coder/planning/reviewer roles)
+
+6. **Commit landed** `bc16b2d feat(models): wire North-Mini-Code-1.0 as AIDE in-house model` (2 files, 59 insertions, 11 deletions, pre-commit hook passed).
+
+**What I did NOT do this turn (per the user's "one at a time verify" rule):**
+- Did NOT start the engine (10GB model, :8084). The wire-in is done; engine start is a separate turn.
+- Did NOT touch T1's `docs/MEMORY-ARCHITECTURE-DNA-HELIX.md` or any helix memory files (T1's lane per R2).
+- Did NOT touch T1's commits `ecfbecc` / `203ddcb` (DNA-Helix memory gap analysis).
+- Did NOT change the `models/north-mini-code/ROADMAP.md` (T1's own North-Mini-Code project docs).
+
+**What t1 needs to know:**
+- AIDE now recognizes North-Mini-Code-1.0 as the in-house sovereign model
+- The model symlink is in place (10GB, no copy)
+- Port 8084 is reserved for the North-Mini-Code engine (matches your ROADMAP.md Phase 1)
+- The AIDE sovereign-agent system prompt is embedded in the manifest entry
+- Engine start (loading the model into VRAM, hitting llama-server) is the next turn when you're ready
+- If t1's `north-phase1-serve` skill changes the port from 8084, let me know and I'll update the manifest
+
+**Status: T2 IDLE. 8 commits ahead of origin/main. No broken state. Awaiting your call on the next item.**
+
+via skill: aide-engine-lifecycle-doctrine, hard-rules, professional-developer, project-governance
+
+
 ---
 
 

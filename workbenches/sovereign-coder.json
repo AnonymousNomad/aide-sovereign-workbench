@@ -2,8 +2,8 @@
   "schema_version": "1.0.0",
   "id": "sovereign-coder",
   "name": "Sovereign Coder",
-  "version": "0.1.0",
-  "description": "Privacy-first daily coding loop for AIDE: fully local by default, every online touch is an explicit opt-in. Bundles the local model lane (North-Mini-Code 1.0 as the in-house sovereign agent), the agent workflow SOP, and curated plugin/skill/MCP recommendations into one installable workbench.",
+  "version": "0.2.0",
+  "description": "Privacy-first daily coding loop for AIDE: fully local by default, every online touch is an explicit opt-in. Bundles the local model lane (North-Mini-Code 1.0 as the in-house sovereign agent), the agent workflow SOP, and curated plugin/skill/MCP recommendations into one installable workbench. Now ships with a sequenced workflow (intake -> plan -> build -> verify -> ship) that any plugged-in model can execute via the harness.",
   "privacy_doctrine": {
     "offline_by_default": true,
     "opt_in_online": true,
@@ -97,5 +97,118 @@
     "MCP servers install disabled. Review each entry, then trust individually before any tool call.",
     "Online MCP entries (offline: false) require explicit consent per the egress doctrine; keep them untrusted unless the task needs them.",
     "Optional: install aider or ck via uv for the on-parity local refactor/review pair — both run fully offline."
-  ]
+  ],
+  "category": "aide-core",
+  "tags": [
+    "coding",
+    "local-first",
+    "offline",
+    "sovereign-agent",
+    "workflow"
+  ],
+  "depends_on": {
+    "models": [
+      "north-mini-code-1.0"
+    ],
+    "mcp_servers": [
+      "filesystem",
+      "memory",
+      "git"
+    ],
+    "external_tools": [
+      "llama-server.exe",
+      "node 26+"
+    ]
+  },
+  "policy": {
+    "credo_excerpt": [
+      "Earn trust through evidence, never verbal confidence alone.",
+      "Follow the assigned SOP and stop when a gate fails.",
+      "A generated answer is a proposal until Veritas validates it."
+    ],
+    "dos": [
+      "Read aide-agent-workflow-sop before the first chat session.",
+      "Architect before editing (plan first, emit diff second).",
+      "Run veritas-layer after every patch.",
+      "Trust MCP servers one at a time, only as needed.",
+      "Prefer the in-house north-mini-code-1.0 for chat + coder."
+    ],
+    "donts": [
+      "Do not approve a patch without running the diff against the user intent.",
+      "Do not enable the online MCP servers (github, netdata) without explicit consent.",
+      "Do not switch away from the offline default unless the task requires it.",
+      "Do not skip veritas gates even when the human approved the patch.",
+      "Do not use a fast model for coder role (it produces garbage on real projects)."
+    ],
+    "dependencies": [
+      "Node.js 26+",
+      "llama-server.exe (E:/llama-cpp/llama-server.exe or the cuda12 build)",
+      "North-Mini-Code-1.0 GGUF on disk at E:/models/north-mini-code/",
+      "Working .aide/memory/ directory (auto-created on first run)",
+      "Git workspace (recommended; not required for the in-memory workflows)"
+    ],
+    "estimated_minutes": 5
+  },
+  "workflow": {
+    "entry": "census",
+    "steps": [
+      {
+        "id": "census",
+        "label": "Census: confirm model, MCP, tools, memory",
+        "command": "task",
+        "task_id": "doctor",
+        "veritas_gate": "doctor-pass",
+        "description": "Run aide-doctor to confirm the model engine is up, MCP servers are reachable, and the 30-day memory spine is healthy."
+      },
+      {
+        "id": "intake",
+        "label": "Intake: normalize the user request + pin core blocks",
+        "command": "skill",
+        "skill_id": "aide-agent-workflow-sop",
+        "veritas_gate": "intake-completeness",
+        "description": "Apply the agent-workflow SOP: parse the user task, identify the workspace, set permissions, identify success criteria."
+      },
+      {
+        "id": "plan",
+        "label": "Plan: architect mode, no file edits",
+        "command": "skill",
+        "skill_id": "aide-architect-editor-pattern",
+        "veritas_gate": "plan-completeness",
+        "description": "The reason-model produces a plan (constraints, files, risks, test checklist). No edits. Plan is the architect lane."
+      },
+      {
+        "id": "build",
+        "label": "Build: emit unified diff only",
+        "command": "skill",
+        "skill_id": "aide-architect-editor-pattern",
+        "veritas_gate": "patch-parse",
+        "description": "The build-model produces a unified diff. Never direct file writes. Patch is the editor lane."
+      },
+      {
+        "id": "verify",
+        "label": "Verify: veritas gates + independent reviewer",
+        "command": "skill",
+        "skill_id": "veritas-layer",
+        "veritas_gate": "veritas-pass",
+        "description": "Run Veritas: parse, tests, typecheck, security, path, diff scope. An independent verifier approves or blocks."
+      },
+      {
+        "id": "ship",
+        "label": "Ship: human review + apply + journal",
+        "command": "task",
+        "task_id": "test",
+        "veritas_gate": "review-acknowledged",
+        "description": "The human reviews the patch (harness/credo.md oath). On approval: apply, journal to .aide/memory/, run veritas once more."
+      }
+    ],
+    "gates": [
+      "veritas",
+      "human-approval"
+    ],
+    "retry": {
+      "max_per_step": 1,
+      "max_total": 3
+    },
+    "completion_criterion": "all 6 steps passed veritas AND human approved the patch AND .aide/memory/sessions.jsonl updated"
+  }
 }

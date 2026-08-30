@@ -108,6 +108,6 @@ Before claiming "done":
 ## File Locations
 - Skills: `C:\Users\Grey_\.agents\skills\`
 - Models: `E:\models\house-model\`
-- llama.cpp: `E:\llama-cpp-b10636\`
+- llama.cpp: `E:\llama-cpp\`
 - Project: `E:\aide-sovereign-workbench\`
 - Corpus: `E:\models\house-model\corpus\`

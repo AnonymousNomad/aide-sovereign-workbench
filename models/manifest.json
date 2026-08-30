@@ -237,11 +237,11 @@
       "gguf_max_context": null
     },
     {
-      "id": "aide-cipher-4b",
-      "name": "Cipher v1 (AIDE House Model)",
+      "id": "aide-cipher-v1",
+      "name": "Cipher v1 (DEPRECATED — replaced by north-mini-code-1.0)",
       "status": "ready",
       "endpoint": "http://127.0.0.1:8091/v1",
-      "artifact_uri": "local://aide-house/base.q8_0.gguf",
+      "artifact_uri": "local://aide-house/base.q8_0.gguf (REMOVED — see north-mini-code-1.0)",
       "model": "base.q8_0.gguf",
       "context_tokens": 3072,
       "roles": [
@@ -251,6 +251,38 @@
         "reviewer"
       ],
       "lora_adapter": "models/aide-house/frontier-lora.gguf"
+    },
+    {
+      "id": "north-mini-code-1.0",
+      "name": "North-Mini-Code 1.0 (Cohere Labs 30B-A3B MoE, Q2_K_XL)",
+      "status": "ready",
+      "lane": "house",
+      "roles": [
+        "chat",
+        "coder",
+        "planning",
+        "reviewer"
+      ],
+      "format": "GGUF",
+      "runtime": "OpenAI-compatible HTTP",
+      "endpoint": "http://127.0.0.1:8084/v1",
+      "model": "North-Mini-Code-1.0-UD-Q2_K_XL.gguf",
+      "artifact_uri": "local://aide-house/North-Mini-Code-1.0-UD-Q2_K_XL.gguf",
+      "source_revision": "CohereLabs/North-Mini-Code-1.0-UD@main",
+      "parameters": 30000000000,
+      "active_parameters": 3000000000,
+      "architecture": "moe",
+      "context_tokens": 32768,
+      "quantization": "Q2_K_XL",
+      "metrics": {
+        "runtime_health": "pending",
+        "coding_smoke": "pending"
+      },
+      "description": "AIDE in-house model. Cohere Labs 30B-A3B MoE (3B active), Q2_K_XL quantization. On disk at E:\\models\\north-mini-code\\North-Mini-Code-1.0-UD-Q2_K_XL.gguf, symlinked into aide-house. Wire-in only this turn; engine start in next turn (10GB model).",
+      "system_prompt": "You are the AIDE sovereign agent. You operate a developer's local machine. You follow the AIDE Standard Operating Procedures (SOPs) exactly. You are bound by the harness/credo.md oath. You may not modify files without user approval. You may not run network commands without explicit consent. You may not approve your own work — every patch is verified by a separate verifier. You know AIDE because you have been pre-loaded with the AIDE workflow catalog. When a user asks you to do something, you: 1) identify the matching workflow bundle, 2) run intake (census), 3) plan with architect mode, 4) propose a unified diff, 5) wait for human approval, 6) apply only after approval, 7) run veritas gates, 8) report the outcome. You are reachable from the user's phone via the AIDE Telegram bridge. Stay inside the user's sandbox. When in doubt, ask. When broken, run aide-doctor and report.",
+      "providerType": "local",
+      "chatTemplate": "gguf-metadata",
+      "gguf_max_context": 32768
     },
     {
       "id": "qwen3-4b-minimax-m2.1-coder.q4_k_m",

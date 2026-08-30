@@ -3,7 +3,7 @@
   "id": "sovereign-coder",
   "name": "Sovereign Coder",
   "version": "0.1.0",
-  "description": "Privacy-first daily coding loop for AIDE: fully local by default, every online touch is an explicit opt-in. Bundles the local model lane, the agent workflow SOP, and curated plugin/skill/MCP recommendations into one installable workbench.",
+  "description": "Privacy-first daily coding loop for AIDE: fully local by default, every online touch is an explicit opt-in. Bundles the local model lane (North-Mini-Code 1.0 as the in-house sovereign agent), the agent workflow SOP, and curated plugin/skill/MCP recommendations into one installable workbench.",
   "privacy_doctrine": {
     "offline_by_default": true,
     "opt_in_online": true,
@@ -34,7 +34,13 @@
       "name": "filesystem",
       "transport": "stdio",
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-filesystem", "${workspaceFolder}"],
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}"
+      ],
       "offline": true,
       "trust": "builtin"
     },
@@ -42,7 +48,12 @@
       "name": "memory",
       "transport": "stdio",
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-memory"],
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
       "offline": true,
       "trust": "builtin"
     },
@@ -50,7 +61,11 @@
       "name": "git",
       "transport": "stdio",
       "command": "uvx",
-      "args": ["mcp-server-git", "--repository", "${workspaceFolder}"],
+      "args": [
+        "mcp-server-git",
+        "--repository",
+        "${workspaceFolder}"
+      ],
       "offline": true,
       "trust": "builtin"
     },
@@ -70,10 +85,11 @@
     }
   ],
   "recommended_models": {
-    "chat": "qwen3-4b-minimax-m2.1-coder.q4_k_m",
-    "coder": "aide-cipher-4b",
+    "chat": "north-mini-code-1.0",
+    "coder": "north-mini-code-1.0",
     "autocomplete": "qwen-coder-0.5b-q4",
-    "fast-chat": "smollm2-360m-q8"
+    "fast-chat": "smollm2-360m-q8",
+    "fast-coder": "qwen3-4b-minimax-m2.1-coder.q4_k_m"
   },
   "setup": [
     "Read the aide-agent-workflow-sop skill before the first session.",

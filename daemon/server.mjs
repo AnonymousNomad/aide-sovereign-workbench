@@ -40,7 +40,11 @@ function matchMask(filePath, mask) {
 }
 
 const HOST = '127.0.0.1';
-const PORT = Number(process.env.AIDE_DAEMON_PORT || 4777);
+// 2026-08-29 cline/T4: defaults to 4779 (legacy slot) to avoid colliding with
+// the facade on 4777. start.mjs sets AIDE_DAEMON_PORT=4779 explicitly, but the
+// standalone default must also be 4779 so that ad-hoc `node daemon/server.mjs`
+// does not crash with EADDRINUSE on 4777 (bug seen this session).
+const PORT = Number(process.env.AIDE_DAEMON_PORT || 4779);
 const AIDE_HOME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORKSPACE = path.resolve(process.env.AIDE_WORKSPACE || AIDE_HOME);
 const STATE_DIR = path.join(WORKSPACE, '.aide');

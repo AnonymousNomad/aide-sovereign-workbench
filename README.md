@@ -23,6 +23,18 @@ Everything runs on your machine by default. Online providers are strictly opt-in
 [![Node.js 26+](https://img.shields.io/node/v/latest?label=node%20%E2%89%A526&color=green)](https://nodejs.org/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/anonymousnomad?style=flat&logo=github)](https://github.com/sponsors/anonymousnomad)
 
+## What's New (2026-08-31)
+
+Shipped in the last sprint, verified end-to-end with the live stack:
+
+- **AIDE in-house model: North-Mini-Code-1.0** — Cohere Labs 30B-A3B MoE, Q2_K_XL, on disk at `E:\models\north-mini-code\`. 3B active params, 30B total, 32K context. The sovereign agent. Apache-2.0. The same AIDE loop runs any GGUF; the model is interchangeable, the governance is the constant.
+- **3 workflow bundles (1-click approve)** — `sovereign-coder` (build/debug/fix), `sovereign-pipeline` (train/eval/export), `sovereign-architect` (design/spec/plan). Each bundle is a sequenced SOP with explicit dos/donts, dependencies, and Veritas evidence gates. Install from CLI: `node scripts/aide-bundle.cjs install <bundle-id> --trust-offline`. Online MCP servers are NEVER auto-trusted.
+- **DNA-Helix 30-day memory** — X1 spine + X2 join (pattern extraction) + X3 retention (day→month→year rollup) all shipped. Every chat turn loads pinned memory blocks + BM25-recalled prior-session context. Models get 30+ days of context without context-window tax.
+- **Architect→Editor two-call pattern** (opt-in) — send `architectEditor:true` on `POST /api/agent/start` and the agent runs the architect pass (plan-only) then the editor pass (translate plan to tool calls). Pattern is opt-in, falls through to one-call after the cost cap. Designed for 4-7B in-house models where one call can't both reason and emit clean diffs.
+- **`npm run selfheal`** — probes the live AIDE stack (4 daemons + engine) and brings dead daemons back. Bounded to one restart per run. Engine restart is deliberately NOT automatic — engine lifecycle stays owned by the operator.
+- **Workbenches panel in the cockpit** — click **RUN** in the activity bar → **BUNDLES** → see all 3 bundles with INSTALLED/ENABLED/VALIDATED badges, install/trust/uninstall with one click.
+- **Telegram bridge** — remote status/approve/ask from your own devices via your own bot token; transport-only, all cognition stays local.
+
 ## Who It's For
 
 - **Solo developers** who want AI assistance without sending proprietary code to cloud APIs

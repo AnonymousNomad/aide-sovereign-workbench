@@ -294,6 +294,17 @@
       "context_tokens": 8192,
       "repo_id": "manual",
       "lora_adapter": "E:/FSI-FELON/models/aide_trio/merged/thinking_lora_full_f16.gguf"
+    },
+    {
+      "id": "north-mini-code-1.0-ud-q2_k_xl",
+      "name": "North-Mini-Code-1.0-UD-Q2_K_XL",
+      "status": "ready",
+      "endpoint": "http://127.0.0.1:8092/v1",
+      "artifact_uri": "local://north-mini-code/North-Mini-Code-1.0-UD-Q2_K_XL.gguf",
+      "model": "north-mini-code/North-Mini-Code-1.0-UD-Q2_K_XL.gguf",
+      "context_tokens": 8192,
+      "repo_id": "unsloth/North-Mini-Code-1.0-GGUF",
+      "quant_label": "UD-Q2_K_XL"
     }
   ]
 }

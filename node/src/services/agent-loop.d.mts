@@ -6,7 +6,7 @@ export declare class AgentSessionError extends Error {
 }
 
 export interface AgentLoopService {
-  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null): { session_id: string };
+  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, opts?: { architectEditor?: boolean }): { session_id: string };
   decide(sessionId: string, approvalId: string, decision: 'approve' | 'reject' | 'abort'): { ok: boolean };
   status(sessionId: string): AgentStatusResponseT;
   list(): AgentStatusResponseT[];

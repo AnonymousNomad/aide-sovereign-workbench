@@ -43,7 +43,7 @@ function wrap(handler: (ctx: RouteContext) => Promise<unknown> | unknown): (ctx:
 export function routesForAgent(service: AgentLoopService, options: { resolveProviderChatFn?: (role: 'plan' | 'act') => ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, dispatchTool?: (name: string, args: Record<string, string>, opts: { sandbox?: string }) => Promise<{ ok: boolean; output: string; terminal?: boolean }> } = {}): Route[] {
   return [
     { method: 'POST', path: '/api/agent/start', body: AgentStartRequest, response: AgentStartResponse, handler: wrap(async ({ body }) => {
-      const request = body as { task: string; mode?: 'plan' | 'act'; chat_source?: 'local' | 'provider' };
+      const request = body as { task: string; mode?: 'plan' | 'act'; chat_source?: 'local' | 'provider'; architectEditor?: boolean };
       let chatFnOverride: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | undefined;
       if (request.chat_source === 'provider') {
         if (!options.resolveProviderChatFn) throw new RouteError('NOT_READY', 'no provider resolver wired');
@@ -59,7 +59,7 @@ export function routesForAgent(service: AgentLoopService, options: { resolveProv
         if (!resolved) throw new RouteError('NOT_READY', `no provider chat available for role ${role}`);
         chatFnOverride = resolved;
       }
-      return service.start(request.task, request.mode ?? 'act', chatFnOverride);
+      return service.start(request.task, request.mode ?? 'act', chatFnOverride, { architectEditor: request.architectEditor === true });
     }) },
     { method: 'POST', path: '/api/agent/decision', body: AgentDecisionRequest, response: AgentDecisionResponse, handler: wrap(async ({ body }) => {
       const request = body as { session_id: string; approval_id: string; decision: 'approve' | 'reject' | 'abort' };

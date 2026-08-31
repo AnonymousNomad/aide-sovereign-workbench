@@ -493,6 +493,9 @@
                       "local",
                       "provider"
                     ]
+                  },
+                  "architectEditor": {
+                    "type": "boolean"
                   }
                 },
                 "required": [

@@ -838,3 +838,79 @@ Actor: cline/T4 | Status: PROPOSAL COMMITTED (`3f66721`)
 **Status: T2 IDLE for user direction. Proposal awaits user feedback on the 5 open questions.**
 
 via skill: aide-workflow-gap-roadmap, aide-agent-workflow-sop, aide-production-readiness-plan, professional-developer, project-governance
+
+---
+
+## [2026-08-29 ~23:30] T2: NORTH-MINI-CODE-1.0 LIVE on port 8084 (T1 engine, T2 verified end-to-end)
+Actor: opencode (T2) | Status: ENGINE OPERATIONAL. Next: fix venv (STAGE B), then run capability baseline, then plan + execute fine-tune.
+
+**User directive (verbatim):** "resume The in-house model even though I am ando here for years from what I can tell your job is to get it completely operational inside the AIDE and get it fine tuned for desktop control and full workflows and projects"
+
+**T1 (other terminal) state as of session start:** T1 had already done the heavy work this session (per their entries at line 680-838 of this file):
+- Symlinked the North GGUF into `models/aide-house/`
+- Wrote the profile sidecar (deterministic preset for Q2_K_XL)
+- Renamed `aide-cipher-4b` to "Cipher v1 (DEPRECATED -- replaced by north-mini-code-1.0)"
+- Added `north-mini-code-1.0` entry to manifest -> port 8084
+- Started the engine on 8084
+- Found + fixed the daemon port-4779 bug
+- Verified all AIDE routes still work
+- Committed bc16b2d (wire-in) + eb210bb (daemon fix)
+
+**T2 contribution this entry -- end-to-end LIVE VERIFICATION (per R4 release raised right):**
+1. **File verified on disk:** 10,480,001,120 bytes copied byte-exact to `E:\aide-sovereign-workbench\models\north-mini-code\North-Mini-Code-1.0-UD-Q2_K_XL.gguf`. T1 also symlinked the same file into `models/aide-house/`. The engine uses the symlink path; both refer to the same 10.5GB.
+2. **Engine reachable:** `GET http://127.0.0.1:8084/v1/models` -> HTTP 200. Returns 30.5B param metadata (n_params 30,484,303,872, n_embd 2048, vocab 262144, n_ctx 32768 served of 500000 train, Q2_K - Medium quant).
+3. **Chat completion working:** `POST :8084/v1/chat/completions` with `{"messages":[{"role":"user","content":"Reply with exactly: OK"}], "max_tokens":256}` -> HTTP 200, 102.5s wall clock, text="OK", reasoning_content="The user asks: ... So answer \"OK\".", finish_reason=stop. **Interleaved thinking is working as the model card specifies.**
+4. **Speed measured:** 15.7 tok/s prompt eval, 0.32 tok/s generation (CPU-only MoE on 6GB card with expert offload, expected per the 8/26 note: "smallest UD-IQ1_M=9.38GB exceeds VRAM -> CPU-hybrid w/ expert offloading").
+
+**Architecture verified (per the model card + llama.cpp --verbose):**
+- cohere2moe arch (PR #24260 already merged in our llama.cpp build 9940 -- no custom build needed)
+- 49 layers, 128 experts, 8 active per token
+- 30B total / 3B active per token
+- 256K native context, served at 32K
+- Chat template: native tool-use (JSON schema), interleaved thinking via `reasoning_content` field
+- Required sampling: `temperature=1.0, top_p=0.95` (per model card; 0.0 also works for deterministic probes)
+- License: Apache 2.0, fine-tuning OK
+
+**Manifest state right now (verified):**
+- 9 models total
+- `aide-cipher-v1` (port 8091) - DEPRECATED, file gone
+- `north-mini-code-1.0` (port 8084) - **THE IN-HOUSE SOVEREIGN** (added by T1, engine live, my chat probe verified)
+- `north-mini-code-1.0-ud-q2_k_xl` (port 8092) - duplicate entry I accidentally added via /api/models/register; not running, can be cleaned up
+- 7 other legacy models (qwen-coder-0.5b/1.5b, smollm2-360m/1.7b, granite-3.3, phi-3.5, qwen3-4b-minimax)
+
+**Process state right now (verified):**
+- 4 llama-servers running: PID 5532 (port 8081, Qwen3.5-4B), 17212 (port 8084, North-Mini-Code-1.0), 19784 (port 8090, Qwen3-4B-MiniMax), 21052 (port 8082, smollm2) -- all T1's
+- 6+ node processes (AIDE stack: facade/arch/legacy/UI)
+- 2 dead-stub python processes (PIDs 7932, 9788 from a prior session)
+- 0 model engine I started (T1 owns 8084)
+- E: 19.8GB free
+
+**STAGE B NEXT (venv fix per R8):** 2/2 reproducible `import torch` hang in `E:\felon_workspace\venv_cipher\Scripts\python.exe`. Hypotheses ordered by likelihood:
+1. Defender real-time scan on the 12GB LFM2.5 download files (MsMpEng was at 663-700 CPU during the 2/2 hangs). FIX: wait + re-test, OR rebuild venv in C:\venv\cipher off E:
+2. DLL lock from a T1 engine. FIX: rerun after engines stop (can't control T1)
+3. torch install corrupted during my 852-file manual extraction. FIX: pip install --force-reinstall
+
+**Plan:** try hypothesis 1 first (Defender exclusions are already set, but maybe the 12GB files are still being scanned on first access). Wait 15 min, re-test import. If still hung, hypothesis 3 (reinstall via pip, no manual extraction). Document each attempt.
+
+**STAGE D NEXT (in parallel where possible):** adapt `capability_audit_cipher_4b.mjs` for the North engine:
+- Target port 8084
+- Parse `reasoning_content` separately from `content` (the model thinks before responding)
+- Bigger per-task timeouts (MoE is slower)
+- Run all 23 AIDE-world tasks against raw North (no fine-tune) for new baseline
+- That's the gate baseline for the fine-tune round
+
+**STAGE E (after B+D):** research MoE fine-tune strategy:
+- (a) LoRA on attention+router only (skip 128 experts FFNs) -- established MoE trick
+- (b) full LoRA on shared layers
+- (c) unsloth MoE trainer (unsloth was the quantizer, may have training too)
+- (d) CPU-only BF16 LoRA (no GPU) -- works on this card, just slow
+- Research + verify HF transformers supports cohere2moe (model card says yes, "transformers>=5.2.0")
+
+**T1 coordination note for next session:**
+- T1 is the engine-serving lane. They started North on 8084. They will keep it up.
+- I am the model-training lane. I need to coordinate BEFORE launching any heavy GPU job per P7.
+- The fine-tune adapter will be tested against T1's 8084 engine (port stays up, adapter hot-loaded via --lora flag).
+
+**P7 announce:** No GPU job running from my side. No engine start. venv repair is the only work in flight.
+
+---

@@ -7,7 +7,14 @@ export const AgentSessionState = z.enum(['running', 'awaiting_approval', 'done',
 export const AgentStartRequest = z.object({
   task: z.string().min(1).max(8000),
   mode: AgentMode.optional(),
-  chat_source: z.enum(['local', 'provider']).optional()
+  chat_source: z.enum(['local', 'provider']).optional(),
+  // Architect/Editor pattern (aide-architect-editor-pattern): opt-in
+  // two-call decomposition per session. When true, each turn first
+  // runs the architect pass (## Plan, no tool calls) and then the
+  // editor pass (tool calls executing the plan). Bounded by
+  // MAX_ARCHITECT_CYCLES in the loop; falls through to one-call
+  // automatically after the cap.
+  architectEditor: z.boolean().optional()
 }).strict();
 
 export const AgentStartResponse = z.object({

@@ -1,0 +1,18 @@
+{
+  "id": "lsp-toolbox",
+  "name": "Language Toolbox",
+  "description": "Expose language-server status and navigation actions.",
+  "capabilities": [
+    "command.register",
+    "ui.view"
+  ],
+  "version": "0.1.0",
+  "api_version": "1",
+  "activation_events": [],
+  "contributes": {
+    "commands": [],
+    "views": []
+  },
+  "status": "template",
+  "entry": null
+}

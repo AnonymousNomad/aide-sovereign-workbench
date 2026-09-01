@@ -14,7 +14,14 @@ export const AgentStartRequest = z.object({
   // editor pass (tool calls executing the plan). Bounded by
   // MAX_ARCHITECT_CYCLES in the loop; falls through to one-call
   // automatically after the cap.
-  architectEditor: z.boolean().optional()
+  architectEditor: z.boolean().optional(),
+  // Expert advisory (aide-micro-expert-collective skill, audit Week 1
+  // item #7): when true, the route layer consults the task-router
+  // micro-expert (1K-10K param distilled specialist) BEFORE the main
+  // model call and prepends the result to the system prompt as a
+  // non-blocking hint. The main model is never blocked on the expert.
+  // Per the existing intent handler pattern: ADVISORY only, never gates.
+  expertAdvisory: z.boolean().optional()
 }).strict();
 
 export const AgentStartResponse = z.object({

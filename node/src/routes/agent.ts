@@ -56,10 +56,20 @@ function wrap(handler: (ctx: RouteContext) => Promise<unknown> | unknown): (ctx:
   };
 }
 
-export function routesForAgent(service: AgentLoopService, options: { resolveProviderChatFn?: (role: 'plan' | 'act') => ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, dispatchTool?: (name: string, args: Record<string, string>, opts: { sandbox?: string }) => Promise<{ ok: boolean; output: string; terminal?: boolean }> } = {}): Route[] {
+export function routesForAgent(service: AgentLoopService, options: {
+  resolveProviderChatFn?: (role: 'plan' | 'act') => ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null;
+  dispatchTool?: (name: string, args: Record<string, string>, opts: { sandbox?: string }) => Promise<{ ok: boolean; output: string; terminal?: boolean }>;
+  // Expert advisory: when set, the route layer consults this micro-expert
+  // (e.g. task-router) BEFORE the main model call and prepends the result
+  // to the system prompt. Per aide-micro-expert-collective + the
+  // Veritas hierarchy unchanged rule: ADVISORY only, never blocks.
+  // (aide-subagent-dispatch PR A wires this for the expert inference; PR B
+  // is the agent-loop runtime.)
+  consultExpert?: (task: string) => Promise<{ expert: string; phase: string; confidence: number } | null>;
+} = {}): Route[] {
   return [
     { method: 'POST', path: '/api/agent/start', body: AgentStartRequest, response: AgentStartResponse, handler: wrap(async ({ body }) => {
-      const request = body as { task: string; mode?: 'plan' | 'act'; chat_source?: 'local' | 'provider'; architectEditor?: boolean };
+      const request = body as { task: string; mode?: 'plan' | 'act'; chat_source?: 'local' | 'provider'; architectEditor?: boolean; expertAdvisory?: boolean };
       let chatFnOverride: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | undefined;
       if (request.chat_source === 'provider') {
         if (!options.resolveProviderChatFn) throw new RouteError('NOT_READY', 'no provider resolver wired');
@@ -74,6 +84,42 @@ export function routesForAgent(service: AgentLoopService, options: { resolveProv
         }
         if (!resolved) throw new RouteError('NOT_READY', `no provider chat available for role ${role}`);
         chatFnOverride = resolved;
+      }
+      // Expert advisory (aide-micro-expert-collective skill, audit Week 1
+      // item #7): when expertAdvisory:true AND the chat_source is 'local'
+      // (we have a local chat to wrap), consult the task-router micro-expert
+      // BEFORE the main call and prepend the result to the system prompt.
+      // Non-blocking: 200ms timeout; failures are silent. The main model
+      // sees the advisory as a system-prompt block; if the expert is
+      // missing/slow, the main call proceeds unchanged.
+      if (request.expertAdvisory && options.consultExpert && chatFnOverride) {
+        const inner = chatFnOverride;
+        chatFnOverride = async (messages) => {
+          let advisory: { expert: string; phase: string; confidence: number } | null = null;
+          try {
+            const ac = new AbortController();
+            const timer = setTimeout(() => ac.abort(), 200);
+            // extract user task: take the last user message content as the input
+            const lastUser = [...messages].reverse().find(m => m.role === 'user');
+            const taskForExpert = lastUser?.content ?? '';
+            advisory = await Promise.race([
+              options.consultExpert!(taskForExpert),
+              new Promise<null>((resolve) => { ac.signal.addEventListener('abort', () => resolve(null)); })
+            ]);
+            clearTimeout(timer);
+          } catch { /* silent: never block on the expert */ }
+          if (advisory && advisory.expert) {
+            const block = `[EXPERT ADVISORY]\nroute: ${advisory.phase}\nexpert: ${advisory.expert}\nconfidence: ${advisory.confidence.toFixed(3)}\n[END ADVISORY]\n\n`;
+            // prepend to the first system message (or inject a new one)
+            const idx = messages.findIndex(m => m.role === 'system');
+            if (idx >= 0) {
+              const sysMsg = messages[idx];
+              return inner([...messages.slice(0, idx), { ...sysMsg, content: block + sysMsg.content }, ...messages.slice(idx + 1)]);
+            }
+            return inner([{ role: 'system', content: block }, ...messages]);
+          }
+          return inner(messages);
+        };
       }
       return service.start(request.task, request.mode ?? 'act', chatFnOverride, { architectEditor: request.architectEditor === true });
     }) },

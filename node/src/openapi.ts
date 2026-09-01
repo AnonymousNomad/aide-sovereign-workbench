@@ -525,6 +525,21 @@ export async function buildRoutes(workspace: string, version: string, options: B
         if (!byokService.getConsent()) throw Object.assign(new Error('BYOK egress consent is disabled'), { code: 'FORBIDDEN' });
         return byokService.resolveChatFn(role);
       },
+      // Expert advisory wire-in (aide-micro-expert-collective skill, audit
+      // Week 1 item #7). When the agent is started with `expertAdvisory:true`,
+      // the route layer consults the task-router micro-expert before each
+      // main model call and prepends a [EXPERT ADVISORY] block to the system
+      // prompt. Non-blocking: any failure here is silent. ADVISORY ONLY,
+      // never gates the main model (per Veritas hierarchy unchanged rule).
+      consultExpert: async (task) => {
+        try {
+          const result = await expertsService.intent(task);
+          if (result && result.expert && result.confidence > 0.3) {
+            return { expert: result.expert, phase: result.phase, confidence: result.confidence };
+          }
+        } catch { /* silent: never block on the expert */ }
+        return null;
+      },
       dispatchTool: async (name: string, args: Record<string, string>, opts: { sandbox?: string }) => {
         const ALIASES: Record<string, string> = { str_replace_editor: 'replace_in_file', execute_bash: 'run_command', think: '__think' };
         const resolved = ALIASES[name] || name;

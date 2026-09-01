@@ -110,3 +110,39 @@ None new. Node stdlib only (fs, crypto for hashing). Training uses a ≤100-line
 6. Train-serve consistency: extractor function identity asserted (same module reference both paths).
 7. Evidence: every transition and every gate decision lands in memory spine.
 Gate: all green + one LIVE end-to-end demo — a describe-box message routed by `task-router` picks the same phase the primary model would pick, observed through :4777.
+
+
+## FIRST-TRAIN RECIPE (verified 2026-09-01, `scripts/train-first-experts.mjs`)
+
+What: bootstrap `diff-risk-gate` + `request-intent-classifier` from a deterministic
+synthetic corpus (400 rows each, 320 train / 80 holdout, seeded mulberry32 corpus
+PRNG + `Math.random` seeded around `trainFromRows` because `initWeights` uses bare
+`Math.random`). task-router was already trained (0.978, teacher `l1-regex-bootstrap`)
+— never retrain a verified artifact.
+
+Why: production logs were too sparse (13 events); battery's round-trip gate proves
+the bootstrap pattern; determinism makes experts reproducible from the committed
+script (`.aide/` is gitignored — the script IS the artifact).
+
+How (the pattern, verified end-to-end):
+1. Rows carry `role`/`domain` on EVERY row; manifest gets `name`/`domain`/`role`
+   AFTER `trainFromRows` (battery-canonical; `trainFromRows` reads `rows[0]` only).
+2. Holdout gate: agreement via pure `registry.inferSync(manifest, feats)` on the
+   80-row holdout; **refuse to save below 0.90** (PRUNE floor). Expect refusals:
+   diff-risk-gate was refused at 0.80 and 0.8875 before reaching 1.00 — fix the
+   feature space / label separation, NEVER lower the floor.
+3. Label-signal separation is the failure mode that matters: a corpus row whose
+   class carries no featurizer signal (e.g. a "review" diff with no `test|spec`
+   match) is unlearnable. Debug with the featurizer, not the threshold.
+4. Provenance into `meta`: `teacher: 'featurizer-signal-bootstrap'`, `holdout_n`,
+   `holdout_agreement` — every saved expert self-describes how it was born.
+5. Validate in a temp workspace first (`AIDE_WORKSPACE=<tmp>`), then real; the two
+   outputs must be byte-identical (that IS the determinism proof for training).
+6. Featurizer evolution is additive + shared: `user_input_flow` was added to
+   `harness/expert-featurizers.mjs` (both paths import it — consistency law).
+
+Current registry state: task-router (route, 0.978), diff-risk-gate (gate, 1.00
+holdout, 227 params), request-intent-classifier (classify, 1.00 holdout, 211 params).
+Serve paths: task-router wired at `node/src/routes/experts.ts`; the other two are
+registered but their serve-side wire-in is the next audit item (use the same
+shared-featurizer import pattern, advisory-only, never gating).

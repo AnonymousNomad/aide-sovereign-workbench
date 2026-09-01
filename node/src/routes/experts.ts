@@ -6,10 +6,12 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { createExpertRegistry } = require('../../../harness/micro-experts.mjs');
-const { taskRouterFeatures } = require('../../../harness/expert-featurizers.mjs');
+const { taskRouterFeatures, diffRiskFeatures, requestIntentFeatures } = require('../../../harness/expert-featurizers.mjs');
 
 export type ExpertsService = {
   intent(message: string): Promise<{ expert: string; phase: string; confidence: number }>;
+  diffRisk(diff: string): Promise<{ expert: string; risk: string; confidence: number }>;
+  classifyRequest(message: string): Promise<{ expert: string; intent: string; confidence: number }>;
   list(): Promise<Array<{ name: string; role: string; domain: string; params: number; state: string; updated_at: number | null }>>;
   get(name: string): Promise<unknown | null>;
   train(rows: Array<{ features: Record<string, number>; label: string; role: string; domain: string }>): Promise<{ name: string; agreement: number; params: number }>;
@@ -60,6 +62,31 @@ export function createExpertsService(workspace: string): ExpertsService {
       }
     },
     async list() { return readManifests(); },
+    // Same shape as intent(): allocate -> featurize -> infer. ADVISORY ONLY.
+    async diffRisk(diff) {
+      try {
+        const expert = await registry.allocate('agent.proposal.diff');
+        if (!expert) throw new RouteError('NOT_FOUND', 'no micro-expert covers agent.proposal.diff');
+        const features = diffRiskFeatures(diff);
+        const result = await registry.infer(expert, features);
+        return { expert, risk: result.class, confidence: Number(result.confidence.toFixed(3)) };
+      } catch (error) {
+        if (error instanceof RouteError) throw error;
+        throw new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'diff-risk inference failed');
+      }
+    },
+    async classifyRequest(message) {
+      try {
+        const expert = await registry.allocate('telegram.message');
+        if (!expert) throw new RouteError('NOT_FOUND', 'no micro-expert covers telegram.message');
+        const features = requestIntentFeatures(message);
+        const result = await registry.infer(expert, features);
+        return { expert, intent: result.class, confidence: Number(result.confidence.toFixed(3)) };
+      } catch (error) {
+        if (error instanceof RouteError) throw error;
+        throw new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'request-intent inference failed');
+      }
+    },
     async get(name) {
       try { return await registry._test?.hot?.get(name) ?? null; } catch { return null; }
     },
@@ -132,6 +159,18 @@ const StatsResponse = z.object({
   threshold: z.number().int().gte(0), state: z.string()
 }).strict();
 const StateResponse = z.object({ name: z.string(), state: z.string() }).strict();
+const DiffRiskBody = z.object({ diff: z.string().min(1).max(60_000) }).strict();
+const DiffRiskResponse = z.object({
+  expert: z.string(),
+  risk: z.enum(['low', 'review', 'block']),
+  confidence: z.number().min(0).max(1)
+}).strict();
+const ClassifyBody = z.object({ message: z.string().min(1).max(4000) }).strict();
+const ClassifyResponse = z.object({
+  expert: z.string(),
+  intent: z.enum(['system', 'business', 'code']),
+  confidence: z.number().min(0).max(1)
+}).strict();
 
 // ADVISORY layer: results inform orchestration surfaces; they never gate or
 // block anything on their own (approval hierarchy unchanged).
@@ -143,6 +182,22 @@ export function routesForExperts(service: ExpertsService): Route[] {
       body: IntentBody,
       response: IntentResponse,
       handler: async ({ body }) => service.intent((body as { message: string }).message)
+    },
+    {
+      // ADVISORY: risk class for a proposed diff — evidence for Veritas, never a gate.
+      method: 'POST',
+      path: '/api/experts/diff-risk',
+      body: DiffRiskBody,
+      response: DiffRiskResponse,
+      handler: async ({ body }) => service.diffRisk((body as { diff: string }).diff)
+    },
+    {
+      // ADVISORY: local intent classification for inbound bridge messages.
+      method: 'POST',
+      path: '/api/experts/classify-request',
+      body: ClassifyBody,
+      response: ClassifyResponse,
+      handler: async ({ body }) => service.classifyRequest((body as { message: string }).message)
     },
     {
       method: 'GET',

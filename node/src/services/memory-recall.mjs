@@ -26,7 +26,7 @@ const STOP_WORDS = new Set([
 function tokenize(s) {
   if (!s) return [];
   return String(s).toLowerCase()
-    .replace(/[^a-z0-9_\-\.\/]+/g, ' ')
+    .replace(/[^a-z0-9_\-./]+/g, ' ')
     .split(/\s+/)
     .filter(t => t.length >= 2 && !STOP_WORDS.has(t));
 }

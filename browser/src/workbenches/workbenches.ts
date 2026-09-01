@@ -6,6 +6,21 @@
 // from the user. The data comes from GET /api/workbenches; the
 // actions go through POST /api/workbenches/{install,trust,uninstall}.
 
+// Local DOM element factory (T2 — workbenches.ts is mid-flight; this
+// shim keeps the typecheck green until the real helper lands).
+type ElChild = Node | string | number;
+function el(tag: string, attrs: Record<string, string> = {}, children: ElChild[] = []): HTMLElement {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') node.className = String(v);
+    else node.setAttribute(k, String(v));
+  }
+  for (const c of children) {
+    node.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+  }
+  return node;
+}
+
 interface BundleSummary {
   id: string;
   name: string;
@@ -33,11 +48,12 @@ interface BundleDetailResponse {
 }
 
 async function api<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined
-  });
+  const init: RequestInit = { method };
+  if (body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, init);
   if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}`);
   return (await res.json()) as T;
 }
@@ -91,20 +107,20 @@ export function createWorkbenchesPanel(root: HTMLElement, opts: { onToast: (code
     if (wb.mcp_count !== undefined) counts.appendChild(el('span', {}, [`${wb.mcp_count} MCP${wb.online_mcp_count ? ` (${wb.online_mcp_count} online)` : ''}`]));
     const actions = el('div', { class: 'workbench-card-actions' });
     if (!wb.installed) {
-      const installBtn = el('button', { type: 'button', class: 'workbench-btn-primary' }, ['INSTALL']);
+      const installBtn = el('button', { type: 'button', class: 'workbench-btn-primary' }, ['INSTALL']) as HTMLButtonElement;
       installBtn.addEventListener('click', () => { void install(wb.id, installBtn); });
       actions.appendChild(installBtn);
     } else {
       if (wb.mcp_servers) {
         for (const s of wb.mcp_servers) {
           if (s.offline && !s.trusted) {
-            const t = el('button', { type: 'button', class: 'workbench-btn-secondary' }, [`Trust ${s.name}`]);
+            const t = el('button', { type: 'button', class: 'workbench-btn-secondary' }, [`Trust ${s.name}`]) as HTMLButtonElement;
             t.addEventListener('click', () => { void trust(wb.id, s.name); });
             actions.appendChild(t);
           }
         }
       }
-      const uninstallBtn = el('button', { type: 'button', class: 'workbench-btn-danger' }, ['Uninstall']);
+      const uninstallBtn = el('button', { type: 'button', class: 'workbench-btn-danger' }, ['Uninstall']) as HTMLButtonElement;
       uninstallBtn.addEventListener('click', () => { void uninstall(wb.id); });
       actions.appendChild(uninstallBtn);
     }

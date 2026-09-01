@@ -134,3 +134,72 @@ export type AgentStartRequestT = z.infer<typeof AgentStartRequest>;
 export type AgentApprovalT = z.infer<typeof AgentApproval>;
 export type AgentStatusResponseT = z.infer<typeof AgentStatusResponse>;
 export type AgentStreamEventT = z.infer<typeof AgentStreamEvent>;
+
+// Subagent dispatch contracts (aide-subagent-dispatch skill, PR A).
+// A subagent is a child AgentLoopService with a narrowed toolPolicy that
+// returns a summary as a tool_result. The parent sees the summary, not the
+// child's transcript. Default-deny on every tool except read + search.
+
+export const AgentSubagentRole = z.enum([
+  'researcher', 'coder', 'tester', 'reviewer', 'documenter', 'custom'
+]);
+
+export const AgentSubagentToolPolicy = z.object({
+  allow_read: z.boolean().default(true),
+  allow_search: z.boolean().default(true),
+  allow_write: z.boolean().default(false),
+  allow_edit: z.boolean().default(false),
+  allow_run_command: z.boolean().default(false),
+  allow_subagent_spawn: z.boolean().default(false),
+  allow_desktop: z.boolean().default(false),
+  allow_provider: z.boolean().default(false),
+  allow_network: z.boolean().default(false),
+  max_iterations: z.number().int().gte(1).lte(20).default(8),
+  max_mistakes: z.number().int().gte(1).lte(5).default(3),
+  workspace_jail: z.string().regex(/^[a-z0-9_\-\/]{1,128}$/).optional()
+}).strict();
+
+export const AgentSubagentSpawnRequest = z.object({
+  parent_session_id: z.string().min(1),
+  task: z.string().min(1).max(8000),
+  role: AgentSubagentRole,
+  policy: AgentSubagentToolPolicy.optional(),
+  model: z.string().min(1).max(128).optional(),
+  scratch_dir: z.string().regex(/^[a-z0-9_\-\/]{1,128}$/).optional()
+}).strict();
+
+export const AgentSubagentSpawnResponse = z.object({
+  child_session_id: z.string().min(1),
+  parent_session_id: z.string().min(1),
+  role: z.string(),
+  status: z.enum(['spawned', 'running', 'done', 'aborted', 'error'])
+}).strict();
+
+export const AgentSubagentStatus = z.object({
+  child_session_id: z.string().min(1),
+  parent_session_id: z.string().min(1),
+  role: z.string(),
+  status: z.enum(['running', 'done', 'aborted', 'error']),
+  iterations: z.number().int().gte(0),
+  mistake_count: z.number().int().gte(0),
+  files_changed: z.array(z.string()),
+  result_summary: z.string(),
+  evidence: z.array(z.object({
+    kind: z.string(),
+    ref: z.string(),
+    ok: z.boolean()
+  })),
+  started_at: z.number().int(),
+  ended_at: z.number().int().nullable()
+}).strict();
+
+export const AgentSubagentListResponse = z.object({
+  subagents: z.array(AgentSubagentStatus)
+}).strict();
+
+export type AgentSubagentRoleT = z.infer<typeof AgentSubagentRole>;
+export type AgentSubagentToolPolicyT = z.infer<typeof AgentSubagentToolPolicy>;
+export type AgentSubagentSpawnRequestT = z.infer<typeof AgentSubagentSpawnRequest>;
+export type AgentSubagentSpawnResponseT = z.infer<typeof AgentSubagentSpawnResponse>;
+export type AgentSubagentStatusT = z.infer<typeof AgentSubagentStatus>;
+export type AgentSubagentListResponseT = z.infer<typeof AgentSubagentListResponse>;

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import { promises as fs } from 'node:fs';
-import { pathToFileURL } from 'node:url';
 import { resolveLlamaBinary } from '../../node/src/services/model-runtime.ts';
 
 test('returns null when no candidate directory exists', async () => {

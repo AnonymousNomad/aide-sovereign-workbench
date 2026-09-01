@@ -37,7 +37,11 @@ export const DesktopActionResult = z
     decision: z.enum(['executed', 'refused', 'expired', 'panic']),
     reason: z.string().optional(),
     output: z.string().optional(),
-    latency_ms: z.number().int().nonnegative()
+    latency_ms: z.number().int().nonnegative(),
+    // Per-op auto-assertion: { pass: boolean, check: string } e.g. {pass:true,check:'process_alive:notepad.exe'}
+    // Recorded into training trajectories; surfaced in the result for the model
+    // and the operator to verify the action took real effect.
+    assertion: z.object({ pass: z.boolean(), check: z.string() }).optional()
   })
   .strict();
 

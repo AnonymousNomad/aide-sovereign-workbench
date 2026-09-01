@@ -8,15 +8,31 @@ import {
   AgentStatusResponse,
   AgentSessionsListResponse,
   AgentToolInvokeRequest,
-  AgentToolObservation
+  AgentToolObservation,
+  AgentSubagentSpawnRequest,
+  AgentSubagentSpawnResponse,
+  AgentSubagentListResponse,
+  AgentSubagentStatus,
+  type AgentSubagentSpawnRequestT,
+  type AgentSubagentStatusT
 } from '../../../common/contracts/agent.ts';
 import { RouterError } from '../services/model-router.ts';
 
 type AgentLoopService = {
-  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null): { session_id: string };
+  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, opts?: { architectEditor?: boolean }): { session_id: string };
   decide(sessionId: string, approvalId: string, decision: 'approve' | 'reject' | 'abort'): { ok: boolean };
   status(sessionId: string): unknown;
   list(): unknown[];
+};
+
+// Subagent dispatch service (aide-subagent-dispatch skill, PR A wiring).
+// PR A defines the route surface; PR B fills in the runtime that calls
+// agent-loop.mjs. Until then, spawn() returns NOT_READY so the route
+// contract is live and discoverable.
+type AgentSubagentService = {
+  spawn(request: AgentSubagentSpawnRequestT): Promise<{ child_session_id: string; status: 'spawned' | 'running' }>;
+  list(parentSessionId?: string): AgentSubagentStatusT[];
+  status(childSessionId: string): AgentSubagentStatusT | null;
 };
 
 function toRouteError(error: unknown): RouteError {
@@ -76,6 +92,50 @@ export function routesForAgent(service: AgentLoopService, options: { resolveProv
       const request = body as { name: string; arguments?: Record<string, string>; sandbox?: string; approved?: boolean };
       const opts = request.sandbox !== undefined ? { sandbox: request.sandbox } : {};
       return options.dispatchTool(request.name, request.arguments ?? {}, opts);
+    }) }
+  ];
+}
+
+// Subagent dispatch routes (aide-subagent-dispatch skill, PR A wiring).
+// The contract surface is live: spawn / list / status. The runtime that
+// fulfills spawn() lands in PR B (modifies agent-loop.mjs to dispatch
+// subagent_spawn via the new tool type). Until PR B is wired, all three
+// routes return NOT_READY with a clear "subagent dispatch not wired on
+// this instance" message. The contracts ARE the wire-in (per the skill's
+// design): the route surface is discoverable, type-checked, and tested
+// before the runtime exists.
+//
+// Threat matrix covered by the tests/arch/agent-subagent.test.ts:
+//  1. spawn() with valid body returns NOT_READY (PR A); PR B swaps to child_id
+//  2. spawn() with invalid body returns 400 BAD_REQUEST
+//  3. list() with no parent_session_id returns []
+//  4. list() with parent_session_id returns parent's children (PR B)
+//  5. status() with unknown child_session_id returns 404 NOT_FOUND
+//  6. status() with known child returns the AgentSubagentStatus (PR B)
+export function routesForAgentSubagent(subagentService: AgentSubagentService | null): Route[] {
+  return [
+    { method: 'POST', path: '/api/agent/subagent', body: AgentSubagentSpawnRequest, response: AgentSubagentSpawnResponse, handler: wrap(async ({ body }) => {
+      if (!subagentService) {
+        throw new RouteError('NOT_READY', 'subagent dispatch not wired on this instance (PR A: contracts live, runtime in PR B of aide-subagent-dispatch)');
+      }
+      const request = body as AgentSubagentSpawnRequestT;
+      return subagentService.spawn(request);
+    }) },
+    { method: 'GET', path: '/api/agent/subagent', response: AgentSubagentListResponse, handler: wrap(async ({ query }: RouteContext) => {
+      if (!subagentService) {
+        return { subagents: [] };
+      }
+      const parentSessionId = (query as { parent_session_id?: string }).parent_session_id;
+      return { subagents: subagentService.list(parentSessionId) };
+    }) },
+    { method: 'GET', path: '/api/agent/subagent/status', query: AgentSubagentStatus, response: AgentSubagentStatus, handler: wrap(async ({ query }: RouteContext) => {
+      const childId = (query as { child_session_id: string }).child_session_id;
+      if (!subagentService) {
+        throw new RouteError('NOT_READY', 'subagent dispatch not wired on this instance');
+      }
+      const status = subagentService.status(childId);
+      if (!status) throw new RouteError('NOT_FOUND', `unknown child session: ${childId}`);
+      return status;
     }) }
   ];
 }

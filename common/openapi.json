@@ -649,6 +649,538 @@
         ]
       }
     },
+    "/api/agent/subagent": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "child_session_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parent_session_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "spawned",
+                        "running",
+                        "done",
+                        "aborted",
+                        "error"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "child_session_id",
+                    "parent_session_id",
+                    "role",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parent_session_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "task": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "researcher",
+                      "coder",
+                      "tester",
+                      "reviewer",
+                      "documenter",
+                      "custom"
+                    ]
+                  },
+                  "policy": {
+                    "type": "object",
+                    "properties": {
+                      "allow_read": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "allow_search": {
+                        "default": true,
+                        "type": "boolean"
+                      },
+                      "allow_write": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "allow_edit": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "allow_run_command": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "allow_subagent_spawn": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "allow_desktop": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "allow_provider": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "allow_network": {
+                        "default": false,
+                        "type": "boolean"
+                      },
+                      "max_iterations": {
+                        "default": 8,
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20
+                      },
+                      "max_mistakes": {
+                        "default": 3,
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5
+                      },
+                      "workspace_jail": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9_\\-\\/]{1,128}$"
+                      }
+                    },
+                    "required": [
+                      "allow_read",
+                      "allow_search",
+                      "allow_write",
+                      "allow_edit",
+                      "allow_run_command",
+                      "allow_subagent_spawn",
+                      "allow_desktop",
+                      "allow_provider",
+                      "allow_network",
+                      "max_iterations",
+                      "max_mistakes"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "scratch_dir": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_\\-\\/]{1,128}$"
+                  }
+                },
+                "required": [
+                  "parent_session_id",
+                  "task",
+                  "role"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subagents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "child_session_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "parent_session_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "running",
+                              "done",
+                              "aborted",
+                              "error"
+                            ]
+                          },
+                          "iterations": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "mistake_count": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "files_changed": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "result_summary": {
+                            "type": "string"
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "ref": {
+                                  "type": "string"
+                                },
+                                "ok": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "ref",
+                                "ok"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "started_at": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "ended_at": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "child_session_id",
+                          "parent_session_id",
+                          "role",
+                          "status",
+                          "iterations",
+                          "mistake_count",
+                          "files_changed",
+                          "result_summary",
+                          "evidence",
+                          "started_at",
+                          "ended_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "subagents"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agent/subagent/status": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "child_session_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parent_session_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "done",
+                        "aborted",
+                        "error"
+                      ]
+                    },
+                    "iterations": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "mistake_count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "files_changed": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "result_summary": {
+                      "type": "string"
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string"
+                          },
+                          "ref": {
+                            "type": "string"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "ref",
+                          "ok"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "started_at": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "ended_at": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "child_session_id",
+                    "parent_session_id",
+                    "role",
+                    "status",
+                    "iterations",
+                    "mistake_count",
+                    "files_changed",
+                    "result_summary",
+                    "evidence",
+                    "started_at",
+                    "ended_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "child_session_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "ended_at",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "name": "evidence",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "ok": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "ref",
+                  "ok"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          {
+            "name": "files_changed",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "iterations",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "mistake_count",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "parent_session_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "result_summary",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "started_at",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "running",
+                "done",
+                "aborted",
+                "error"
+              ]
+            }
+          }
+        ]
+      }
+    },
     "/api/agent/tool": {
       "post": {
         "responses": {
@@ -2985,6 +3517,22 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "assertion": {
+                      "type": "object",
+                      "properties": {
+                        "pass": {
+                          "type": "boolean"
+                        },
+                        "check": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "pass",
+                        "check"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [

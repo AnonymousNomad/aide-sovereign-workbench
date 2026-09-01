@@ -41,3 +41,11 @@ models/tinyllamas/
 
 models/aide-house/
 .aider*
+
+# Closed-loop self-improvement: training signal contains the user's failures on
+# the user's tasks. Local-only per the No-Phone-Home law.
+.aide/training/signal-*.jsonl
+
+# North-Mini-Code-1.0 in-house model GGUF (10.5GB). Managed by AIDE's model
+# engine, not git. Symlink in models/aide-house/ is the engine's expected path.
+models/north-mini-code/

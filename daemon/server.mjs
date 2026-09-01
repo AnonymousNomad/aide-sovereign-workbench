@@ -586,7 +586,36 @@ const server = http.createServer(async (request, response) => {
   }
 });
 
+// Telegram auto-restart hook (per aide-aide-stack-launch-and-recover skill).
+// When the daemon restarts, the in-memory polling flag resets to false but
+// the DPAPI-protected bot token persists on disk. Re-issue start() so the
+// bridge resumes without the user having to manually POST /api/telegram/start
+// after every restart. Failures are non-fatal: a stale token is logged and
+// the daemon still serves; the user can re-authorize via /api/telegram/authorize.
+const TELEGRAM_CONFIG = path.join(STATE_DIR, 'telegram', 'config.json');
+const telegramAutoRestart = async () => {
+  try {
+    const raw = await fs.readFile(TELEGRAM_CONFIG, 'utf8').catch(() => null);
+    if (!raw) return; // no prior config; user has not authorized Telegram yet
+    const config = JSON.parse(raw);
+    if (!config || config.connected !== true || !config.token) return;
+    // Reach into the arch /api/telegram/start endpoint over loopback.
+    // The arch daemon (4778) owns the Telegram service; the legacy daemon
+    // (this process, 4779) just kicks the bridge on boot.
+    const res = await fetch(`http://127.0.0.1:${process.env.AIDE_ARCH_PORT || 4778}/api/telegram/start`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({})
+    }).catch(() => null);
+    if (res && res.ok) console.log('[aide] telegram bridge auto-restarted (was connected before daemon restart)');
+    else console.warn('[aide] telegram auto-restart skipped: arch daemon not reachable on 4778');
+  } catch (e) {
+    console.warn('[aide] telegram auto-restart failed:', e?.message || e);
+  }
+};
+
 server.listen(PORT, HOST, () => {
   console.log(`AIDE local daemon listening on http://${HOST}:${PORT}`);
   console.log(`workspace: ${WORKSPACE}`);
+  // Best-effort Telegram resume. Never blocks daemon startup.
+  setTimeout(telegramAutoRestart, 500);
 });

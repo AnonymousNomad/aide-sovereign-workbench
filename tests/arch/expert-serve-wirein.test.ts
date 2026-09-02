@@ -60,7 +60,7 @@ test('expert serve wire-in: diff-risk + classify-request advisory routes', async
   ] as Array<[string, string, string, (t: string) => Record<string, number>, Array<[string, string]>]>) {
     const rows: Array<{ features: Record<string, number>; label: string; role: string; domain: string }> = [];
     for (let i = 0; i < 120; i++) {
-      const [text, label] = corpus[i % corpus.length];
+      const [text, label] = corpus[i % corpus.length] as [string, string];
       rows.push({ features: featurizer(text), label, role, domain });
     }
     const orig = Math.random;

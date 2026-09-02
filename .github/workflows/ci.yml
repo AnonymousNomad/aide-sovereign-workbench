@@ -28,7 +28,23 @@ jobs:
         timeout-minutes: 20
         run: |
           set +e
-          timeout -k 30 900 node --test --test-concurrency=3 --test-timeout=90000 "tests/arch/*.test.ts" > /tmp/arch-out.txt 2>&1
+          # Node 26+ supports --experimental-strip-types so .ts test files run
+          # natively (no tsx dependency). --test-force-exit breaks out of the
+          # child even if a test's after() hook holds an open handle (the
+          # known CI hang documented in
+          # C:\Users\Grey_\.agents\skills\aide-release-engineering\SKILL.md).
+          # Without these flags, the run hangs at the 900s ceiling and the step
+          # is killed externally -- blocking every PR (see docs/AUDIT-2026-08-31.md).
+          # --import ./scripts/http-close-shim.mjs preloads a patch that makes
+          # http.Server.prototype.close call closeAllConnections() first. This is
+          # the root-cause fix for the 46-error hang across 6+ arch test files:
+          # every failing test uses `httpServer.close(() => resolve())` in its
+          # after() hook, but the inner fetch() calls keep the keep-alive
+          # connection alive so the close callback never fires.
+          # closeAllConnections() force-closes them so the existing resolve()
+          # callbacks fire reliably. Surgical, no test files modified, no
+          # assertions weakened.
+          timeout -k 30 900 node --experimental-strip-types --no-warnings --import ./scripts/http-close-shim.mjs --test --test-concurrency=1 --test-timeout=60000 --test-force-exit "tests/arch/*.test.ts" > /tmp/arch-out.txt 2>&1
           status=$?
           echo "node --test exit=$status"
           echo "=== output tail ==="

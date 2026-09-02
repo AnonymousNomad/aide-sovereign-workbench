@@ -98,6 +98,84 @@ export const WorkbenchUninstallResponse = z
   })
   .strict();
 
+// Worktree-isolation contracts (PR A of aide-worktree-isolation). Shadow git
+// worktree per session: agent writes to the worktree, user approves the merge.
+export const WorktreeInfo = z
+  .object({
+    id: z.string().regex(/^[a-z0-9-]{1,64}$/),
+    branch: z.string().regex(/^aide-shadow\/[a-z0-9-]{1,64}$/),
+    base_ref: z.string().min(1).max(200),
+    path: z.string().min(1).max(1000),
+    created_at: z.number().int().gte(0),
+    diff_stats: z
+      .object({
+        files_changed: z.number().int().gte(0),
+        insertions: z.number().int().gte(0),
+        deletions: z.number().int().gte(0)
+      })
+      .strict()
+      .optional()
+  })
+  .strict();
+
+export const WorktreeCreateRequest = z
+  .object({
+    id: z.string().regex(/^[a-z0-9-]{1,64}$/),
+    base_ref: z.string().min(1).max(200).optional()
+  })
+  .strict();
+
+export const WorktreeCreateResponse = z
+  .object({
+    worktree: WorktreeInfo
+  })
+  .strict();
+
+export const WorktreeListResponse = z
+  .object({
+    worktrees: z.array(WorktreeInfo).max(100)
+  })
+  .strict();
+
+export const WorktreeMergeRequest = z
+  .object({
+    id: z.string().regex(/^[a-z0-9-]{1,64}$/),
+    strategy: z.enum(['merge', 'squash', 'rebase']).default('squash'),
+    commit_message: z.string().min(1).max(2000).default('Merge shadow worktree via AIDE')
+  })
+  .strict();
+
+export const WorktreeMergeResponse = z
+  .object({
+    id: z.string(),
+    strategy: z.enum(['merge', 'squash', 'rebase']),
+    commit_sha: z.string().min(1).max(64),
+    message: z.string().max(2000)
+  })
+  .strict();
+
+export const WorktreeDiscardRequest = z
+  .object({
+    id: z.string().regex(/^[a-z0-9-]{1,64}$/)
+  })
+  .strict();
+
+export const WorktreeDiscardResponse = z
+  .object({
+    id: z.string(),
+    state: z.literal('discarded')
+  })
+  .strict();
+
+
 export type WorkbenchListResponseT = z.infer<typeof WorkbenchListResponse>;
 export type WorkbenchDetailResponseT = z.infer<typeof WorkbenchDetailResponse>;
 export type WorkbenchUninstallResponseT = z.infer<typeof WorkbenchUninstallResponse>;
+export type WorktreeInfoT = z.infer<typeof WorktreeInfo>;
+export type WorktreeCreateRequestT = z.infer<typeof WorktreeCreateRequest>;
+export type WorktreeCreateResponseT = z.infer<typeof WorktreeCreateResponse>;
+export type WorktreeListResponseT = z.infer<typeof WorktreeListResponse>;
+export type WorktreeMergeRequestT = z.infer<typeof WorktreeMergeRequest>;
+export type WorktreeMergeResponseT = z.infer<typeof WorktreeMergeResponse>;
+export type WorktreeDiscardRequestT = z.infer<typeof WorktreeDiscardRequest>;
+export type WorktreeDiscardResponseT = z.infer<typeof WorktreeDiscardResponse>;

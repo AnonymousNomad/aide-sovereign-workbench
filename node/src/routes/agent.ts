@@ -110,11 +110,19 @@ export function routesForAgent(service: AgentLoopService, options: {
           } catch { /* silent: never block on the expert */ }
           if (advisory && advisory.expert) {
             const block = `[EXPERT ADVISORY]\nroute: ${advisory.phase}\nexpert: ${advisory.expert}\nconfidence: ${advisory.confidence.toFixed(3)}\n[END ADVISORY]\n\n`;
-            // prepend to the first system message (or inject a new one)
-            const idx = messages.findIndex(m => m.role === 'system');
-            if (idx >= 0) {
-              const sysMsg = messages[idx];
-              return inner([...messages.slice(0, idx), { ...sysMsg, content: block + sysMsg.content }, ...messages.slice(idx + 1)]);
+            // prepend the advisory to the existing system message in place
+            // (preserves the original message order). The findIndex + guard
+            // handles the noUncheckedIndexedAccess narrowing cleanly.
+            const sysIdx = messages.findIndex(m => m.role === 'system');
+            if (sysIdx >= 0) {
+              const sysMsg = messages[sysIdx];
+              if (sysMsg) {
+                return inner([
+                  ...messages.slice(0, sysIdx),
+                  { ...sysMsg, content: block + sysMsg.content },
+                  ...messages.slice(sysIdx + 1)
+                ]);
+              }
             }
             return inner([{ role: 'system', content: block }, ...messages]);
           }

@@ -386,6 +386,10 @@ export async function buildRoutes(workspace: string, version: string, options: B
   // this, a second createDesktopService() would mean two distinct grants
   // stores — grants set via the REST API would not gate the agent path.
   let desktopServiceRef: unknown = null;
+  // Single instance of the experts service, same source-of-truth pattern as
+  // desktopServiceRef. The /api/experts/* routes and the agent loop's
+  // consultExpert callback both close over this one instance.
+  const expertsService = createExpertsService(workspace);
   // Freshness: fs watcher → 5s debounce → incremental reindex. Opt-in via
   // options.watchIndex (server boot only; see BuildRoutesOptions note). .aide
   // is filtered or the index's own persist writes would retrigger forever.
@@ -517,7 +521,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
       return [
         ...routesForDesktop(desktopService),
         ...routesForTelegram(createTelegramBridgeService(workspace, input => brain.onCommand(input))),
-        ...routesForExperts(createExpertsService(workspace))
+        ...routesForExperts(expertsService)
       ];
     })(),
     ...routesForAgent(agentLoop, {

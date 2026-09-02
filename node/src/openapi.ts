@@ -47,7 +47,7 @@ import { createHubService } from '../../node/src/services/modelhub.mjs';
 import { routesForModelHub } from './routes/modelhub.ts';
 import { routesForOrch } from './routes/orch.ts';
 import { routesForMemory, createMemoryService } from './routes/memory.ts';
-import { routesForWorkbenches } from './routes/workbenches.ts';
+import { routesForWorkbenches, routesForWorktree } from './routes/workbenches.ts';
 import { WorkbenchManager } from '../../workbenches/manager.mjs';
 import { routesForDesktop, createDesktopService } from './routes/desktop.ts';
 import { routesForTelegram, createTelegramBridgeService } from './routes/telegram.ts';
@@ -487,6 +487,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
         return allowed;
       }
     })),
+    // Worktree isolation: 4 shadow-worktree routes (PR A of aide-worktree-isolation).
+    // Workspace is the per-session cwd, same as the rest of the routes.
+    ...routesForWorktree(workspace),
     ...((): Route[] => {
       // Desktop + Telegram share ONE desktop service instance (single grants
       // state). The /ask brain composes: Telegram NL -> model proposal bounded

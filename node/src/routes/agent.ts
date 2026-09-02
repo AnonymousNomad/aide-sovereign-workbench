@@ -13,6 +13,7 @@ import {
   AgentSubagentSpawnResponse,
   AgentSubagentListResponse,
   AgentSubagentStatus,
+  AgentSubagentStatusQuery,
   type AgentSubagentSpawnRequestT,
   type AgentSubagentStatusT
 } from '../../../common/contracts/agent.ts';
@@ -182,7 +183,7 @@ export function routesForAgentSubagent(subagentService: AgentSubagentService | n
       const parentSessionId = (query as { parent_session_id?: string }).parent_session_id;
       return { subagents: subagentService.list(parentSessionId) };
     }) },
-    { method: 'GET', path: '/api/agent/subagent/status', query: AgentSubagentStatus, response: AgentSubagentStatus, handler: wrap(async ({ query }: RouteContext) => {
+    { method: 'GET', path: '/api/agent/subagent/status', query: AgentSubagentStatusQuery, response: AgentSubagentStatus, handler: wrap(async ({ query }: RouteContext) => {
       const childId = (query as { child_session_id: string }).child_session_id;
       if (!subagentService) {
         throw new RouteError('NOT_READY', 'subagent dispatch not wired on this instance');

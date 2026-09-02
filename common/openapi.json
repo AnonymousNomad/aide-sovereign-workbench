@@ -496,6 +496,9 @@
                   },
                   "architectEditor": {
                     "type": "boolean"
+                  },
+                  "expertAdvisory": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -644,538 +647,6 @@
             "schema": {
               "type": "string",
               "minLength": 1
-            }
-          }
-        ]
-      }
-    },
-    "/api/agent/subagent": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "child_session_id": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "parent_session_id": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "role": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "spawned",
-                        "running",
-                        "done",
-                        "aborted",
-                        "error"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "child_session_id",
-                    "parent_session_id",
-                    "role",
-                    "status"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "parent_session_id": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "task": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 8000
-                  },
-                  "role": {
-                    "type": "string",
-                    "enum": [
-                      "researcher",
-                      "coder",
-                      "tester",
-                      "reviewer",
-                      "documenter",
-                      "custom"
-                    ]
-                  },
-                  "policy": {
-                    "type": "object",
-                    "properties": {
-                      "allow_read": {
-                        "default": true,
-                        "type": "boolean"
-                      },
-                      "allow_search": {
-                        "default": true,
-                        "type": "boolean"
-                      },
-                      "allow_write": {
-                        "default": false,
-                        "type": "boolean"
-                      },
-                      "allow_edit": {
-                        "default": false,
-                        "type": "boolean"
-                      },
-                      "allow_run_command": {
-                        "default": false,
-                        "type": "boolean"
-                      },
-                      "allow_subagent_spawn": {
-                        "default": false,
-                        "type": "boolean"
-                      },
-                      "allow_desktop": {
-                        "default": false,
-                        "type": "boolean"
-                      },
-                      "allow_provider": {
-                        "default": false,
-                        "type": "boolean"
-                      },
-                      "allow_network": {
-                        "default": false,
-                        "type": "boolean"
-                      },
-                      "max_iterations": {
-                        "default": 8,
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 20
-                      },
-                      "max_mistakes": {
-                        "default": 3,
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 5
-                      },
-                      "workspace_jail": {
-                        "type": "string",
-                        "pattern": "^[a-z0-9_\\-\\/]{1,128}$"
-                      }
-                    },
-                    "required": [
-                      "allow_read",
-                      "allow_search",
-                      "allow_write",
-                      "allow_edit",
-                      "allow_run_command",
-                      "allow_subagent_spawn",
-                      "allow_desktop",
-                      "allow_provider",
-                      "allow_network",
-                      "max_iterations",
-                      "max_mistakes"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "model": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  "scratch_dir": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9_\\-\\/]{1,128}$"
-                  }
-                },
-                "required": [
-                  "parent_session_id",
-                  "task",
-                  "role"
-                ],
-                "additionalProperties": false
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "responses": {
-          "200": {
-            "description": "success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "subagents": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "child_session_id": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "parent_session_id": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "role": {
-                            "type": "string"
-                          },
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "running",
-                              "done",
-                              "aborted",
-                              "error"
-                            ]
-                          },
-                          "iterations": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "mistake_count": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "files_changed": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "result_summary": {
-                            "type": "string"
-                          },
-                          "evidence": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "kind": {
-                                  "type": "string"
-                                },
-                                "ref": {
-                                  "type": "string"
-                                },
-                                "ok": {
-                                  "type": "boolean"
-                                }
-                              },
-                              "required": [
-                                "kind",
-                                "ref",
-                                "ok"
-                              ],
-                              "additionalProperties": false
-                            }
-                          },
-                          "started_at": {
-                            "type": "integer",
-                            "minimum": -9007199254740991,
-                            "maximum": 9007199254740991
-                          },
-                          "ended_at": {
-                            "anyOf": [
-                              {
-                                "type": "integer",
-                                "minimum": -9007199254740991,
-                                "maximum": 9007199254740991
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "child_session_id",
-                          "parent_session_id",
-                          "role",
-                          "status",
-                          "iterations",
-                          "mistake_count",
-                          "files_changed",
-                          "result_summary",
-                          "evidence",
-                          "started_at",
-                          "ended_at"
-                        ],
-                        "additionalProperties": false
-                      }
-                    }
-                  },
-                  "required": [
-                    "subagents"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/agent/subagent/status": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "child_session_id": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "parent_session_id": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "role": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "running",
-                        "done",
-                        "aborted",
-                        "error"
-                      ]
-                    },
-                    "iterations": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "mistake_count": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "files_changed": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "result_summary": {
-                      "type": "string"
-                    },
-                    "evidence": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "kind": {
-                            "type": "string"
-                          },
-                          "ref": {
-                            "type": "string"
-                          },
-                          "ok": {
-                            "type": "boolean"
-                          }
-                        },
-                        "required": [
-                          "kind",
-                          "ref",
-                          "ok"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "started_at": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "ended_at": {
-                      "anyOf": [
-                        {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "child_session_id",
-                    "parent_session_id",
-                    "role",
-                    "status",
-                    "iterations",
-                    "mistake_count",
-                    "files_changed",
-                    "result_summary",
-                    "evidence",
-                    "started_at",
-                    "ended_at"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "child_session_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "ended_at",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          {
-            "name": "evidence",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string"
-                  },
-                  "ref": {
-                    "type": "string"
-                  },
-                  "ok": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "ref",
-                  "ok"
-                ],
-                "additionalProperties": false
-              }
-            }
-          },
-          {
-            "name": "files_changed",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          {
-            "name": "iterations",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991
-            }
-          },
-          {
-            "name": "mistake_count",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 9007199254740991
-            }
-          },
-          {
-            "name": "parent_session_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "result_summary",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "role",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "started_at",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "running",
-                "done",
-                "aborted",
-                "error"
-              ]
             }
           }
         ]
@@ -4176,6 +3647,282 @@
         }
       }
     },
+    "/api/experts": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "experts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "domain": {
+                            "type": "string"
+                          },
+                          "params": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "state": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "role",
+                          "domain",
+                          "params",
+                          "state",
+                          "updated_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "experts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experts/classify-request": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "expert": {
+                      "type": "string"
+                    },
+                    "intent": {
+                      "type": "string",
+                      "enum": [
+                        "system",
+                        "business",
+                        "code"
+                      ]
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "expert",
+                    "intent",
+                    "confidence"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experts/diff-risk": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "expert": {
+                      "type": "string"
+                    },
+                    "risk": {
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "review",
+                        "block"
+                      ]
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "expert",
+                    "risk",
+                    "confidence"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "diff": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60000
+                  }
+                },
+                "required": [
+                  "diff"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experts/freeze": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experts/infer": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "class": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "class",
+                    "confidence"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "features": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "features"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/experts/intent": {
       "post": {
         "responses": {
@@ -4230,6 +3977,162 @@
                 },
                 "required": [
                   "message"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experts/stats": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "invocations": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "threshold": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "invocations",
+                    "threshold",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experts/thaw": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experts/train": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "agreement": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "params": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "agreement",
+                    "params"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rows": {
+                    "minItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "features": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "default": "classify",
+                          "type": "string"
+                        },
+                        "domain": {
+                          "default": "user",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "features",
+                        "label",
+                        "role",
+                        "domain"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "rows"
                 ],
                 "additionalProperties": false
               }
@@ -13651,6 +13554,335 @@
               "schema": {
                 "type": "object",
                 "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workbench/worktree/create": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "worktree": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9-]{1,64}$"
+                        },
+                        "branch": {
+                          "type": "string",
+                          "pattern": "^aide-shadow\\/[a-z0-9-]{1,64}$"
+                        },
+                        "base_ref": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200
+                        },
+                        "path": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1000
+                        },
+                        "created_at": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "diff_stats": {
+                          "type": "object",
+                          "properties": {
+                            "files_changed": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "insertions": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "deletions": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "files_changed",
+                            "insertions",
+                            "deletions"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "branch",
+                        "base_ref",
+                        "path",
+                        "created_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "worktree"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]{1,64}$"
+                  },
+                  "base_ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workbench/worktree/discard": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "const": "discarded"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]{1,64}$"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workbench/worktree/list": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "worktrees": {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]{1,64}$"
+                          },
+                          "branch": {
+                            "type": "string",
+                            "pattern": "^aide-shadow\\/[a-z0-9-]{1,64}$"
+                          },
+                          "base_ref": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "path": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 1000
+                          },
+                          "created_at": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "diff_stats": {
+                            "type": "object",
+                            "properties": {
+                              "files_changed": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "insertions": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "deletions": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "files_changed",
+                              "insertions",
+                              "deletions"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "branch",
+                          "base_ref",
+                          "path",
+                          "created_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "worktrees"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workbench/worktree/merge": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "strategy": {
+                      "type": "string",
+                      "enum": [
+                        "merge",
+                        "squash",
+                        "rebase"
+                      ]
+                    },
+                    "commit_sha": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "message": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "strategy",
+                    "commit_sha",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]{1,64}$"
+                  },
+                  "strategy": {
+                    "default": "squash",
+                    "type": "string",
+                    "enum": [
+                      "merge",
+                      "squash",
+                      "rebase"
+                    ]
+                  },
+                  "commit_message": {
+                    "default": "Merge shadow worktree via AIDE",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "id",
+                  "strategy",
+                  "commit_message"
+                ],
                 "additionalProperties": false
               }
             }

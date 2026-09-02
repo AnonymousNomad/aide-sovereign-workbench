@@ -204,9 +204,14 @@ export const AgentSubagentListResponse = z.object({
   subagents: z.array(AgentSubagentStatus)
 }).strict();
 
+export const AgentSubagentStatusQuery = z.object({
+  child_session_id: z.string().min(1)
+}).strict();
+
 export type AgentSubagentRoleT = z.infer<typeof AgentSubagentRole>;
 export type AgentSubagentToolPolicyT = z.infer<typeof AgentSubagentToolPolicy>;
 export type AgentSubagentSpawnRequestT = z.infer<typeof AgentSubagentSpawnRequest>;
 export type AgentSubagentSpawnResponseT = z.infer<typeof AgentSubagentSpawnResponse>;
 export type AgentSubagentStatusT = z.infer<typeof AgentSubagentStatus>;
 export type AgentSubagentListResponseT = z.infer<typeof AgentSubagentListResponse>;
+export type AgentSubagentStatusQueryT = z.infer<typeof AgentSubagentStatusQuery>;

@@ -57,7 +57,7 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@tauri-apps/cli": "^2.11.4",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "@types/ws": "^8.18.1",
     "eslint": "^10.8.1",
     "typescript-eslint": "^8.68.0",

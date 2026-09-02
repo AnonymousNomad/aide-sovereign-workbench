@@ -1,0 +1,24 @@
+# cipher-state-bus
+# cmd: E:\nodejs\node-v26.4.0-win-x64\node.exe --test tests/arch/cipher-state-bus.test.ts
+# exit: 0
+# at: 2026-09-02T00:15:53.799Z
+
+--- stdout ---
+✔ append writes one JSON line per event with an ISO timestamp (11.2156ms)
+✔ readState filters by type and limit (newest first) (9.3592ms)
+✔ getPreferences emits [learned] lines only for patterns with count>=3 and >=60% approved (10.4606ms)
+✔ getPreferences returns [] on a fresh workspace (no false positives) (1.6907ms)
+✔ getPreferences is sorted by approved-count desc and capped at limit (26.0776ms)
+✔ append failures never throw (bus is best-effort) (4.8251ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 203.1371
+
+
+--- stderr ---
+

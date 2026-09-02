@@ -1,0 +1,19 @@
+# agent-expert-advisory
+# cmd: E:\nodejs\node-v26.4.0-win-x64\node.exe --test tests/arch/agent-expert-advisory.test.ts
+# exit: 0
+# at: 2026-09-02T00:15:53.072Z
+
+--- stdout ---
+✔ tests\arch\agent-expert-advisory.test.ts (137.4721ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 146.8612
+
+
+--- stderr ---
+

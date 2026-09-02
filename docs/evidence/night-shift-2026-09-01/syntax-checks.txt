@@ -1,0 +1,18 @@
+# syntax-checks
+# cmd: cmd /c node --check node/src/routes/experts.ts && node --check node/src/routes/agent.ts && node --check common/contracts/agent.ts && node --check common/contracts/workbench.ts && node --check node/src/services/worktree.mjs && node --check scripts/train-first-experts.mjs && node --check harness/expert-featurizers.mjs
+# exit: 1
+# at: 2026-09-02T00:15:54.215Z
+
+--- stdout ---
+
+
+--- stderr ---
+E:\aide-sovereign-workbench\node\src\services\worktree.mjs:47
+export function createWorktreeService({ workspace }) {
+^^^^^^
+
+SyntaxError: Unexpected token 'export'
+    at checkSyntax (node:internal/main/check_syntax:72:5)
+
+Node.js v26.4.0
+

@@ -1,0 +1,35 @@
+# expert-serve-wirein
+# cmd: E:\nodejs\node-v26.4.0-win-x64\node.exe --test tests/arch/expert-serve-wirein.test.ts
+# exit: 1
+# at: 2026-09-02T00:15:52.849Z
+
+--- stdout ---
+✖ expert serve wire-in: diff-risk + classify-request advisory routes (305.0487ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 453.452
+
+✖ failing tests:
+
+test at tests\arch\expert-serve-wirein.test.ts:46:1
+✖ expert serve wire-in: diff-risk + classify-request advisory routes (305.0487ms)
+  SyntaxError: Unexpected token 'export'
+      at compileSourceTextModule (node:internal/modules/esm/utils:354:16)
+      at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:90:18)
+      at #translate (node:internal/modules/esm/loader:437:20)
+      at ModuleLoader.loadAndTranslateForImportInRequiredESM (node:internal/modules/esm/loader:400:33)
+      at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:561:36)
+      at afterResolve (node:internal/modules/esm/loader:610:52)
+      at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:616:12)
+      at ModuleJobSync.syncLink (node:internal/modules/esm/module_job:164:33)
+      at ModuleJobSync.link (node:internal/modules/esm/module_job:497:17)
+      at new ModuleJobSync (node:internal/modules/esm/module_job:487:26)
+
+
+--- stderr ---
+

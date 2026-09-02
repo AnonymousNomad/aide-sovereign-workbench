@@ -1,0 +1,32 @@
+# experts-battery
+# cmd: E:\nodejs\node-v26.4.0-win-x64\node.exe scripts/experts-battery.mjs
+# exit: 0
+# at: 2026-09-02T00:15:53.531Z
+
+--- stdout ---
+PASS determinism — class=high conf=1.000
+✔ determinism: identical inputs give byte-identical inference (87.5625ms)
+PASS round-trip — probe accuracy 96.7%
+✔ round-trip train->validate>=0.95->deploy->infer matches labels (186.6128ms)
+PASS param-cap — 10000 param ceiling
+✔ param cap enforced at save (0.8471ms)
+PASS threshold-reallocation — dormant recruited via rising stimulus
+✔ threshold reallocation: dormant specialist is recruited when stimulus rises (68.5498ms)
+PASS freeze-thaw — service restored from dormant tier
+✔ freeze/thaw lifecycle restores service (24.1338ms)
+PASS extractor-consistency — single-module toVector shared by both paths
+✔ train-serve consistency: single extractor module identity (0.2573ms)
+
+EXPERTS BATTERY: 6/6 passed
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 382.6128
+
+
+--- stderr ---
+

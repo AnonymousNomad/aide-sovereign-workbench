@@ -23,6 +23,61 @@ Everything runs on your machine by default. Online providers are strictly opt-in
 [![Node.js 26+](https://img.shields.io/node/v/latest?label=node%20%E2%89%A526&color=green)](https://nodejs.org/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/anonymousnomad?style=flat&logo=github)](https://github.com/sponsors/anonymousnomad)
 
+## What's New (2026-09-01)
+
+Shipped since the 2026-08-31 update, verified by commit SHA and the night-shift
+evidence battery (see `docs/evidence/night-shift-2026-09-01/`):
+
+- **Micro-Expert Collective — full REST surface** — 7 new advisory routes
+  (`list`, `train`, `infer`, `stats`, `freeze`, `thaw`, plus the pre-existing
+  `intent`) wired through `node/src/routes/experts.ts` and the existing
+  `createExpertRegistry` (`harness/micro-experts.mjs`, 6/6 battery
+  passing). Each request/response is zod-strict; ONLINE trust is unchanged
+  (advisory only, never gates). Commit `4ac1e5e`.
+- **Expert advisory into the agent loop** — opt-in `expertAdvisory: true` on
+  `POST /api/agent/start` consults the `task-router` micro-expert
+  **before** the main model call, prepends a non-blocking
+  `[EXPERT ADVISORY]` block to the system prompt, and falls through
+  silently on any failure (200 ms timeout). The agent loop's
+  approval-hierarchy is unchanged. Commit `c1d4922`.
+- **Three first micro-experts trained and served** — `task-router` (route,
+  0.978 agreement, pre-existing), `diff-risk-gate` (gate, 1.00 holdout,
+  3 classes: low / review / block), `request-intent-classifier`
+  (classify, 1.00 holdout, 3 classes: system / business / code). The
+  two new experts are served through `POST /api/experts/diff-risk` and
+  `POST /api/experts/classify-request` (advisory-only). The
+  deterministic bootstrap is at `scripts/train-first-experts.mjs`; the
+  trained manifests are local artifacts under `.aide/experts/`
+  (gitignored) — the script is the committed, reproducible source of
+  truth. Commits `68eac22` (training) and `6a76351` (serve wire-in).
+- **Shared featurizers across train and serve** —
+  `harness/expert-featurizers.mjs` now exports three featurizers
+  (`taskRouterFeatures`, `diffRiskFeatures`, `requestIntentFeatures`).
+  The training scripts and the serving routes import the **same**
+  function from the **same** module — the train-serve consistency
+  law. Verified by the experts-battery's `extractor-consistency` gate.
+
+## What's In Progress (honest limits)
+
+This is a pre-production release candidate. The following are in active
+work, not shipped:
+
+- **DNA-Helix memory: X1 shipped, X2/X3 in design.** X1 (episodic spine
+  + semantic blocks + BM25 recall over sessions) is live in the agent
+  loop. The cross-day join (X2) and day-31 retention rollup (X3) are
+  tracked in `docs/MEMORY-ARCHITECTURE-DNA-HELIX.md`. The "30-day
+  memory" claim in this README scopes to X1 only.
+- **Worktree isolation: skill written, runtime in PR review.** The
+  design is at `skills/packs/aide-worktree-isolation/SKILL.md`. The
+  service + 4 routes are staged in the working tree and not yet
+  merged to `main`. The merge is gated on the test battery going
+  green end-to-end.
+- **Desktop installer:** the launch shell decision is recorded in
+  `docs/CIPHER-LIVING-SYSTEM.md` (Tauri was blocked; Electron
+  selected). No installer is published; the project runs as a
+  browser+daemon on `http://127.0.0.1:4173/` per the Quickstart
+  below.
+
 ## What's New (2026-08-31)
 
 Shipped in the last sprint, verified end-to-end with the live stack:

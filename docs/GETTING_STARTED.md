@@ -2,7 +2,9 @@
 
 ## Local Mode
 
-1. Install Node.js 20 or newer.
+1. Install Node.js 26 or newer (the README's `engines` floor is `>=20`; the
+   26+ floor is the verified runtime per `package.json` and
+   `docs/AUDIT-2026-08-31.md`).
 2. Run `npm install`.
 3. Run `npm run doctor`.
 4. Run `npm start`.

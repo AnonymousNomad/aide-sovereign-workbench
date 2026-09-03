@@ -50,6 +50,7 @@ import { routesForMemory, createMemoryService } from './routes/memory.ts';
 import { routesForWorkbenches, routesForWorktree } from './routes/workbenches.ts';
 import { WorkbenchManager } from '../../workbenches/manager.mjs';
 import { routesForOnboarding } from './routes/onboarding.ts';
+import { routesForSystemMap } from './routes/system-map.ts';
 import { routesForDesktop, createDesktopService } from './routes/desktop.ts';
 import { routesForTelegram, createTelegramBridgeService } from './routes/telegram.ts';
 import { routesForExperts, createExpertsService } from './routes/experts.ts';
@@ -491,14 +492,14 @@ export async function buildRoutes(workspace: string, version: string, options: B
     // Worktree isolation: 4 shadow-worktree routes (PR A of aide-worktree-isolation).
     // Workspace is the per-session cwd, same as the rest of the routes.
     ...routesForWorktree(workspace),
-<<<<<<< HEAD
     // Onboarding walkthrough: 4 routes (PR A of aide-onboarding-walkthrough).
     // READ-ONLY from the system map side; the walkthrough state machine is
     // the only writer. The 4 routes are: GET state, PUT state, POST next,
     // POST complete. Persisted atomically to <workspace>/.aide/onboarding-state.json.
     ...routesForOnboarding(workspace),
-=======
->>>>>>> origin/main
+    // System map: 1 read-only snapshot route (PR A of aide-system-map).
+    // Fan-out to the 8 subsystem probes; never mutates state, never caches.
+    ...routesForSystemMap(workspace),
     ...((): Route[] => {
       // Desktop + Telegram share ONE desktop service instance (single grants
       // state). The /ask brain composes: Telegram NL -> model proposal bounded

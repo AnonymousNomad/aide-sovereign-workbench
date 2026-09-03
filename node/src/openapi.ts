@@ -491,11 +491,14 @@ export async function buildRoutes(workspace: string, version: string, options: B
     // Worktree isolation: 4 shadow-worktree routes (PR A of aide-worktree-isolation).
     // Workspace is the per-session cwd, same as the rest of the routes.
     ...routesForWorktree(workspace),
+<<<<<<< HEAD
     // Onboarding walkthrough: 4 routes (PR A of aide-onboarding-walkthrough).
     // READ-ONLY from the system map side; the walkthrough state machine is
     // the only writer. The 4 routes are: GET state, PUT state, POST next,
     // POST complete. Persisted atomically to <workspace>/.aide/onboarding-state.json.
     ...routesForOnboarding(workspace),
+=======
+>>>>>>> origin/main
     ...((): Route[] => {
       // Desktop + Telegram share ONE desktop service instance (single grants
       // state). The /ask brain composes: Telegram NL -> model proposal bounded

@@ -11145,6 +11145,95 @@
         }
       }
     },
+    "/api/system-map/snapshot": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "snapshot": {
+                      "type": "object",
+                      "properties": {
+                        "generated_at": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "subsystems": {
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "enum": [
+                                  "inhouse_model",
+                                  "workbenches",
+                                  "skills",
+                                  "agent_loop",
+                                  "micro_experts",
+                                  "helix_memory",
+                                  "veritas_selfheal",
+                                  "byok_desktop"
+                                ]
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "live",
+                                  "offline",
+                                  "degraded",
+                                  "not_wired"
+                                ]
+                              },
+                              "detail": {
+                                "type": "string",
+                                "maxLength": 500
+                              },
+                              "last_updated": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "doctrine": {
+                                "type": "string",
+                                "maxLength": 64
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "state",
+                              "detail",
+                              "last_updated",
+                              "doctrine"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "generated_at",
+                        "subsystems"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "snapshot"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks": {
       "get": {
         "responses": {

@@ -4,27 +4,71 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function familyOf(routePath) {
-  const segments = routePath.split('/').filter(Boolean);
-  return '/' + segments.slice(0, 2).join('/');
-}
-
 const FLIPS = {
   exact: {
     '/api/file': 'ts',
-    '/api/file/write': 'ts'
+    '/api/file/write': 'ts',
+    '/api/chat': 'ts'
   }
 };
 
+function pathWithoutQuery(routePath) {
+  return routePath.split('?')[0];
+}
+
+function legacyHandlesPath(routePath, legacyExactRoutes, legacyPrefixRoutes) {
+  if (legacyExactRoutes.includes(routePath)) return true;
+  for (const rawPrefix of legacyPrefixRoutes) {
+    const prefix = pathWithoutQuery(rawPrefix);
+    if (rawPrefix.includes('?')) {
+      if (routePath === prefix) return true;
+    } else if (routePath === prefix || routePath.startsWith(prefix + '/')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function prefixCanOwn(prefix, legacyExactRoutes, legacyPrefixRoutes, unsafeTsPaths) {
+  if (legacyExactRoutes.some(route => route === prefix || route.startsWith(prefix + '/'))) return false;
+  for (const rawPrefix of legacyPrefixRoutes) {
+    const legacyPrefix = pathWithoutQuery(rawPrefix);
+    if (rawPrefix.includes('?')) {
+      if (legacyPrefix === prefix) return false;
+    } else if (
+      legacyPrefix === prefix ||
+      legacyPrefix.startsWith(prefix + '/') ||
+      prefix.startsWith(legacyPrefix + '/')
+    ) {
+      return false;
+    }
+  }
+  return !unsafeTsPaths.some(route => route === prefix || route.startsWith(prefix + '/'));
+}
+
+function safePrefixFor(routePath, legacyExactRoutes, legacyPrefixRoutes, unsafeTsPaths) {
+  const segments = routePath.split('/').filter(Boolean);
+  for (let length = 2; length <= segments.length; length += 1) {
+    const candidate = '/' + segments.slice(0, length).join('/');
+    if (prefixCanOwn(candidate, legacyExactRoutes, legacyPrefixRoutes, unsafeTsPaths)) return candidate;
+  }
+  return routePath;
+}
+
+export function extractLegacyRoutes(source) {
+  return {
+    exact: [...source.matchAll(/request\.method\s*===\s*'([A-Z]+)'\s*&&\s*request\.url(?:\.split\('[^']*'\)\[0\])?\s*===\s*'([^']+)'/g)].map(match => match[2]),
+    prefixes: [...source.matchAll(/request\.url\.startsWith\('([^']+)'\)/g)].map(match => match[1])
+  };
+}
+
 export function deriveRouteMap({ tsRoutes, legacyExactRoutes, legacyPrefixRoutes }) {
-  const legacyPaths = new Set([...legacyExactRoutes, ...legacyPrefixRoutes]);
-  const tsFamilies = new Set(tsRoutes.map(familyOf));
-  const legacyFamilies = new Set([...legacyPaths].map(familyOf));
+  const uniqueTsRoutes = [...new Set(tsRoutes)];
+  const unsafeTsPaths = uniqueTsRoutes.filter(route => legacyHandlesPath(route, legacyExactRoutes, legacyPrefixRoutes));
   const prefixes = {};
-  for (const family of [...tsFamilies].sort()) {
-    if (family === '/') continue;
-    const collides = [...legacyPaths].some(p => p === family || p.startsWith(family + '/'));
-    if (!collides) prefixes[family] = 'ts';
+  for (const route of uniqueTsRoutes.filter(candidate => !unsafeTsPaths.includes(candidate)).sort()) {
+    const prefix = safePrefixFor(route, legacyExactRoutes, legacyPrefixRoutes, unsafeTsPaths);
+    prefixes[prefix] = 'ts';
   }
   const exact = {};
   for (const [route, target] of Object.entries(FLIPS.exact)) {
@@ -38,8 +82,7 @@ export async function main() {
   const openapi = JSON.parse(await readFile(path.join(ROOT, 'common', 'openapi.json'), 'utf8'));
   const tsRoutes = Object.keys(openapi.paths || {});
   const source = await readFile(path.join(ROOT, 'daemon', 'server.mjs'), 'utf8');
-  const legacyExactRoutes = [...source.matchAll(/request\.method\s*===\s*'[A-Z]+'\s*&&\s*request\.url(?:\.split\('[^']*'\)\[0\])?\s*===\s*'([^']+)'/g)].map(m => m[1]);
-  const legacyPrefixRoutes = [...source.matchAll(/request\.url\.startsWith\('([^']+)'\)/g)].map(m => m[1]);
+  const { exact: legacyExactRoutes, prefixes: legacyPrefixRoutes } = extractLegacyRoutes(source);
   if (tsRoutes.length === 0 || (legacyExactRoutes.length + legacyPrefixRoutes.length) < 60) {
     throw new Error(`extraction came up short: ts=${tsRoutes.length} legacy=${legacyExactRoutes.length}+${legacyPrefixRoutes.length}`);
   }
@@ -47,7 +90,7 @@ export async function main() {
   const outPath = path.join(ROOT, 'common', 'facade-route-map.json');
   await writeFile(outPath, JSON.stringify(routeMap, null, 2) + '\n');
   console.log(`ts routes: ${tsRoutes.length}, legacy exact: ${legacyExactRoutes.length}, legacy prefixes: ${legacyPrefixRoutes.length}`);
-  console.log(`ts-only families routed to ts (${Object.keys(routeMap.prefixes).length}): ${Object.keys(routeMap.prefixes).join(', ')}`);
+  console.log(`TS-owned facade prefixes (${Object.keys(routeMap.prefixes).length}): ${Object.keys(routeMap.prefixes).join(', ')}`);
   console.log(`written: ${outPath}`);
 }
 

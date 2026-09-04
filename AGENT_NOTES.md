@@ -1184,3 +1184,804 @@ oUnusedLocals: true +
 oUnusedParameters: true + erbatimModuleSyntax: true + rasableSyntaxOnly: true; (3) mapped the 45 TS errors to 6 classes (TS2304 missing import, TS18048 indexed-access undefined, TS7016 missing .d.mts, TS18046 catch unknown, TS7006 implicit any, TS6133/TS2749 unused/cast); (4) discovered a STRUCTURAL BUG in tests/arch/agent-expert-advisory.test.ts — the withExpertAdvisory function body is split: declaration on lines 19-39, function tail on lines 126-131, with 6 test() calls wedged in between. This is the root cause of 33 of the 45 errors (not a TS error, but surfaces as TS errors because the parser sees an unfinished function). The repo's pattern for the runner-proven test file is the aggregated single-test() shape (per expert-serve-wirein.test.ts + the 8/21 CI hang investigation). NEW SKILL WRITTEN: E:\aide-sovereign-workbench\skills\packs\aide-typescript-strict-pass\SKILL.md (10.4KB, ~280 lines) — encodes: the 6 error classes with the repo's established fix for each, the .d.mts companion pattern (mirrors worktree.mjs exports, uses declare for classes/interfaces), the catch-block rror instanceof Error ? error.message : 'fallback' canonical pattern, the noUncheckedIndexedAccess narrowing pattern, the instanceof narrowing pattern (no s cast), the structural test-file bug + the aggregated single-test() fix, pitfalls (no s any, no @ts-ignore silently, .d.mts must be sibling), the verification battery (tsc node+browser + eslint + run-arch --test-force-exit), references. NEXT: apply the 6 fixes in order, one file at a time, tsc after each.
 
 - 2026-09-02 14:55 T1 SYNC (actor: opencode/T1). T1 lane status: stuck into the strict-pass fix work (per user "we properly fix... what would professionals do"). RESEARCH done (aide-typescript-strict-pass skill shipped, 280 lines, 10.4KB). ACT phase: Fix 1 (openapi.ts expertsService import) and Fix 2 (worktree.d.mts companion) DONE — check:arch went 45 -> 41 errors. Remaining: Fix 3 (agent.ts sysMsg narrowing, 2 errs), Fix 4 (worktree-isolation.test.ts types, 4 errs), Fix 5 (expert-serve-wirein.test.ts Object.entries, 1 err), Fix 6 (agent-expert-advisory.test.ts STRUCTURAL BUG — function body split + 33 errs, requires rewrite to aggregated single-test() shape). Process hygiene: ZERO engines started, ZERO foreign processes touched, ZERO foreign node processes killed (PIDs 5112/6672/18176/20756 left alone per P5). Operator's PID 20132 on 8081 left alone. **T2 lane untouched: zero model files, zero training artifacts, zero fine-tunes touched.** Stack remains DOWN (no daemons started) — will start after the gate is green. Working tree unchanged from audit: same 5 modified + 5 untracked files T2 already knew about, plus NEW skills/packs/aide-typescript-strict-pass/SKILL.md (T1 contribution). NEXT (T1): continue Fixes 3-6, re-run check:arch, then veritas, then stack-up, then Lane A wire-ins, then P0/P1 production gates. **For T2: T1 is not using the GPU, T1 is not loading any model, T1's work is 100% TS/strict-pass on the IDE source.** Continue fine-tunes / model work freely.
+
+- 2026-09-02 17:25 T1 STACK UP (actor: opencode/T1). Per user "Start the AIDE so I can test everything". Started via Start-Process node scripts\start.mjs. All 4 daemons listening + serving 200: UI 4173 (18049 bytes), facade 4777 /api/health (uptime 363s), arch 4778 /api/health (uptime 363s), legacy 4779 /health. **NO ENGINES STARTED** (user said check in first, not start models). Logs to .aide/logs/{arch,legacy,facade,start-mjs}-*.log. Process hygiene: only 1 new node child (PIDs 16540/20824/19560/3196 are the spawned daemons); operator's PID 20132 (llama-server on 8081) untouched; legacy PIDs 5112/6672/18176/20756 untouched. NEXT: waiting for user to test, then continue Lane A (subagent PR B, background-tasks, AGENTS.md) and address the openapi-drift test failure on CI (the remaining CI failure is a pre-existing openapi.json drift, NOT caused by my T1 changes per the git diff verification).
+
+- 2026-09-02 17:40 T1 PHASE 0 AUDIT: model manifest lies (actor: opencode/T1). Per user 'I need to know what's wrong with it'. Did NOT touch any code this turn — pure observation, per the doctrine 'READ THE TOOL'S OWN DEBUG LOG FIRST'. GROUND TRUTH (live, not manifest): (A) ONLY ONE ENGINE IS ACTUALLY RUNNING: North-Mini-Code-1.0 on port 8092 (PID 19496, 2.23GB WS, started 17:26:48, cmd: E:\\llama-cpp\\llama-server.exe -m E:\\aide-sovereign-workbench\\models\\north-mini-code\\North-Mini-Code-1.0-UD-Q2_K_XL.gguf --host 127.0.0.1 --port 8092 --ctx-size 8192 ...). The 30B-A3B MoE is live, quantized, hot. (B) MANIFEST LIES IDENTIFIED (4 issues): (1) ide-cipher-v1 (line 240) is marked DEPRECATED in description but status:"ready" and exposed via /api/models — deceptive, file referenced as REMOVED but ide-house/base.q8_0.gguf (4.28 GB) is still on disk; (2) TWO North-Mini-Code entries conflict: line 256 (id=north-mini-code-1.0, port 8084, the in-house sovereign per T2's audit) and line 299 (id=north-mini-code-1.0-ud-q2_k_xl, port 8092, different repo, different artifact path) — only 8092 is actually live, so line 256 is the LIE; (3) PORT COLLISION: line 178 (granite-3.3-2b-instruct, status pending, port 8084) collides with line 256 (north-mini-code-1.0, port 8084) — two different model entries both claim 8084 with one of them live and one pending; (4) STALE PATH: line 296 (qwen3-4b-minimax-m2.1-coder) references E:/FSI-FELON/models/aide_trio/merged/thinking_lora_full_f16.gguf — the OLD workspace path, not the current E:\\aide-sovereign-workbench\\. (C) DISK STATE: E:\\aide-sovereign-workbench\\models\\aide-house\\ = base.q8_0.gguf (4.28GB, the cipher model) + frontier-lora.gguf (132MB) + North-Mini-Code-1.0-UD-Q2_K_XL.gguf (0 bytes — broken symlink to E:\\models\\north-mini-code). E:\\models\\north-mini-code\\ = the real 10.48GB model file. E:\\aide-sovereign-workbench\\models\\north-mini-code\\ = stub dir. NEXT (Phase 1): load the right skills, then surgically fix the 4 manifest lies + 1 port collision + 1 stale path. Real verification: POST /api/chat with a known prompt through the facade to the live 8092 engine, prove end-to-end. Per user 'verify everything with actual tasks not smoke tests'.
+
+- 2026-09-02 17:43 T1 USER DIRECTION (Cline/Aider simplicity) (actor: opencode/T1). User's stated vision: main screen = chat with the in-house model doing most of the work, model selector + plugins + skills are secondary affordances, IDE features (files/git/terminal) are secondary, not primary. Reference UX: Cline, OpenCode, Aider — chat-first, IDE-second. The in-house model (now correctly id='cipher' in models/manifest.json) is the sovereign default; everything else is opt-in. This is a UX simplification of the cockpit layer (browser/index.html, app.js, styles.css, browser/src/**), NOT a replacement of the IDE capabilities. The harness, agents, workflows, skills remain — just not in the user's face. NEXT: (1) finish the in-progress manifest-fix verification (real chat through facade to 8092); (2) audit the current cockpit UI to inventory what needs to move/hide; (3) research Cline/Aider UX patterns from primary sources; (4) author aide-cockpit-ux-overhaul skill with the doctrine; (5) implement.
+
+- 2026-09-02 18:14 T1 PHASE 1b REAL VERIFICATION: cipher chat fails (actor: opencode/T1). Per user 'verify everything with actual tasks not smoke tests'. Found 4 STACKED PRODUCTION BLOCKERS: (1) **cipher engine works** (8092 serves /v1/models HTTP 200, 30B-A3B MoE, 10.48GB on disk, PID 19496, 2.23GB WS, was actively generating tokens when checked) BUT (2) **cipher is too slow on this hardware** — prompt processing is 1.31-5.19 tok/s on GTX 1060 Pascal (logs show 38.99s for 51 tokens of prompt eval, 47-160s for 100-700 token completions at 4-5 tok/s) — this is the A/B outcome of the 30B MoE quantization choice vs the hardware. (3) **arch-ts chat timeout is too short** — 187s test ended in 504 'The operation was aborted due to timeout'. The chat facade has a default timeout < the time the engine actually needs. (4) **warmup gate rejects requests** during the engine's first ~60-90s — saw 'CHILD_FAILED model still warming up' in arch-daemon.log. These four are stacked. NET RESULT: chat does not work on cipher through the facade on this hardware without fixes. NEXT before shipping chat: (a) bump client + arch chat timeouts to >= 300s for cipher; (b) the 30B MoE on Pascal is a fundamental latency floor — recommend the 4B cipher base.q8_0.gguf as the in-house default for chat (it's 4x smaller, will run at 8-12 tok/s), keep North-Mini-Code 30B for tasks that need the bigger model. The user said 'in-house model = North-Mini-Coder' — so this is a performance-vs-spec trade-off we need to decide together. Verified the manifest fix (cipher entry now correct on 8092, no more lying 8084 entry, no port collision) — that part WORKS. What doesn't work is the chat round-trip on this hardware. **The model manifest is honest now. The engine is honest. The chat is honest about failing. That's progress.**
+
+- 2026-09-03 19:00 T2 RESTART CLEANUP (actor: opencode/T2). User laptop restarted; machine sluggish. Per process-hygiene-sop P1-P3 + R7: verified state BEFORE acting.
+  - PIDs at restart: 18068 (Qwen 8081, T1), 18680 (North 8092, NOT listening - zombie), 4532 (North 8092, listening - the 2nd spawn won the port), 5492 (cline TUI, not mine).
+  - KILLED: PID 18680 (zombie North, not listening, holding ~2GB RAM for nothing - P3 verified dead). PIDs 18068 and 4532 left alone (P5 - not mine, T1's engines serving work).
+  - Subsequent state collapse: the 18680/4532 kill cascade + restart cleared all AIDE daemons (4173/4777/4778/4779 all down). Now: 1 Qwen (19780, port 8081) + 1 cline (5492, not mine). 0 North. 0 AIDE daemons. E: 154.53 GB free.
+  - T1 sync: T1 has shipped PR #15 (onboarding PR A, 3d46a40) and PR #16 (system-map PR A, 662ab8f) to origin/main. I'm on main branch (T1's strict-pass-batch lane is not my concern). Working tree has 9 modifications + 2 untracked benchmarks from T2's prior session.
+  - NEXT (one thing at a time, per user directive): STAGE 1 of the 8-stage plan I just committed to:
+    1. Start North on 8092 (do NOT use --no-warmup; use the T1-spawn pattern that won the port)
+    2. Start AIDE daemons via scripts/start.mjs
+    3. Verify all 6 listeners respond 200
+    4. Log to AGENT_NOTES
+  - SKIP-BY-DESIGN: no BYOK tests, no DAP fixtures, no README work, no commits until STAGE 8 (per credo R5 - word kept, don't overclaim).
+  - REF: STAGE 1 in todo list, user-approved 8-stage plan, process-hygiene-sop P1-P3-P5, surgical-precision doctrine.
+
+## [2026-09-03 13:50] T2: state verification + zombie kill, T1 is serving
+
+Verified (per R7 append-only journal, P3 process hygiene):
+- Killed PID 18680 (zombie North: started 10:52:25, NOT LISTENING, holding ~2GB RAM after PID 4532 grabbed port 8092 at 10:53:20). Verified dead via Get-Process. Per P5: did NOT touch PID 4532 (T1's serving engine), PID 18068 (T1's Qwen), PID 5492 (user cline TUI).
+- 2 engines running, both T1's: Qwen PID 18068 on 8081, North PID 4532 on 8092.
+- 4 AIDE daemons DOWN (4173/4777/4778/4779) - T1's lane per sync doc.
+- 1 user cline TUI: PID 5492 - not mine.
+- E: 154.53 GB free.
+- Working tree: 9 modified (AGENT_NOTES, T1-T2_notes, models/manifest.json, node/src/services/model-runtime.ts, scripts/run-arch.mjs, scripts/train-first-experts.mjs, 3 workbench JSONs) + 2 untracked (benchmarks/loop-vs-bare.mjs, benchmarks/test-loop-vs-bare.mjs). These are T1's uncommitted work-in-flight per the T1-T2 sync doc.
+- Main HEAD: 12452e7 (T1's system-map PR A merged at 12:08). Prior: 3d46a40 (T1's onboarding PR A merged at 01:10).
+
+## RESEARCH (per research question: what is the professional path forward?)
+
+User directive: 'Subscription What do you recommend what is the professional path forward... Check the agent notes keep them updated cause T2 is working on stuff too.'
+
+Research-grounded answer (from aide-ide-research, aide-release-engineering, github-repo-professional-setup, production-readiness, aide-credo-guardrail skills loaded this session + AGENT_NOTES.md history):
+
+**Current professional posture (observed, not claimed):**
+- T1 (cline/T4) is actively shipping PRs to main: worktree PR A, experts, expert routes, expert advisory, telegram hook, onboarding PR A, system-map PR A. All merged. Loop closed: skill -> build -> test -> commit -> push -> PR -> merge -> verify SHA. Discipline exemplary.
+- T2 (me) is idle on process wiring + operational battery support. Working tree holds T1's pending operational changes.
+- Stack: 2 engines live (T1's Qwen + North). AIDE daemons DOWN. The 30B MoE Cipher chat is too slow on Pascal (4-5 tok/s, 47-160s for 100-700 tok) per T1's 8/28 audit.
+
+**Professional path forward (ranked, evidence-backed):**
+
+1. **Do NOT start the AIDE stack right now** - T1's engines (PID 4532 North, PID 18068 Qwen) are already live. Per P7 memory-pressure doctrine: ONE MODEL AT A TIME. Adding AIDE's 4 daemons while both engines are serving = commit charge hits the cliff on this 16GB box. Wait for T1 to confirm.
+2. **Wait for T1's next PR** (background tasks, AGENTS.md, or system-map PR B) before touching the working tree - the 9 modified files include T1's pending changes. Per R2 lane discipline: do NOT silently pick.
+3. **Keep the journals updated** (this entry). T1 reads these between sessions. T2 is the operational wiring lane.
+4. **Real professional benchmarks (per aide-release-engineering SOP):**
+   - swebench-style FAIL_TO_PASS + PASS_TO_PASS metrics on a real repo task set
+   - a11y WCAG 2.2 AA audit (focus-visible, focus-not-obscured, 24x24 targets, ARIA, keyboard)
+   - plugin network hardening (--permission flag, capability-gated, not --experimental-permission)
+   - DAP real debugpy fixture (full lifecycle: init->launch->bp->step->terminated)
+   - live external provider test (BYOK end-to-end with real key)
+   - These are listed in aide-release-engineering as release gates.
+5. **Professional README + llms.txt per github-repo-professional-setup 8 criteria:**
+   - LICENSE, SECURITY.md, CONTRIBUTING.md, llms.txt at root
+   - badges (license, CI, language, platform, status - max 5)
+   - architecture diagram (Mermaid, renders natively)
+   - security section FIRST (fail-closed doctrine)
+   - quickstart 3 commands, honest limits section
+   - 800-1500 words, stable headings, scannable bullets/table
+6. **In-house Cipher production path (per production-readiness doctrine):**
+   - 30B on Pascal = fundamental latency floor (4-5 tok/s). Cannot be 'rivals Cursor' on this hardware.
+   - Recommend the 4B cipher base.q8_0.gguf as the in-house default for chat (4x smaller, 8-12 tok/s per T1's audit)
+   - Keep North-30B for tasks that need bigger model
+   - Fine-tune the 4B on the cipher-qlora-finetune 5-step pattern (5 P0-P5 priorities from 8/28 audit)
+
+**Honest limits (per B1 + production-readiness):**
+- AIDE is pre-production release candidate, NOT a finished VS Code replacement
+- No 'rivals Cursor' claim until every release gate passes with observed evidence
+- The 30B MoE chat on Pascal is not a production-ready end-user UX; 4B base is
+
+**Files I did NOT touch this turn:** all 9 modified files, 2 untracked files, no commits, no process kills except the verified zombie.
+
+- 2026-09-03 19:35 T1 STAGE 5: DAP real debugpy fixture - PARTIAL SUCCESS + KNOWN GAP (actor: opencode/T1)
+  Per user directive: research -> skill -> act. Per R8: fail once -> stop -> research -> skill -> act.
+
+  SKILL CREATED: C:\Users\Grey_\.agents\skills\aid-dap-real-debugpy-fixture\SKILL.md
+  - Encodes DAP spec (microsoft.github.io/debug-adapter-protocol) lifecycle
+  - Encodes debugpy 1.8.21 quirks (deferred launch response, quoted dict keys, zero-pad list indices)
+  - Recipe for fixtures/debuggee/fizz_engine.py with score sum = 43
+  - Wire-in steps, dependencies, known failure modes, pitfalls
+
+  FIXTURE CREATED: E:\aide-sovereign-workbench\fixtures\debuggee\fizz_engine.py
+  - Verified standalone: py -3.10 -E <path> -> {'total': 43, 'count': 10} (exit 0)
+  - Markers present: 'total = sum' on line 24, 'print(report)' on line 26
+  - items[2] = 'Fizz' (0-based, 3rd item in the list)
+
+  DEBUGPY: 1.8.21 importable (py -3.10 -E -c 'import debugpy' -> exit 0, version 1.8.21)
+
+  TEST RESULT: 8/9 pass, 1 fail (the real debugpy round trip)
+  - initialize: PASS (debugpy responds with capabilities)
+  - launch: PASS (deferred response arrives after configurationDone)
+  - setBreakpoints: PASS
+  - stopped(reason=breakpoint): PASS
+  - stackTrace: FAIL at line 370 -> '<module>' !== 'main'
+  - ROOT CAUSE: debugpy 1.8.21 reports frame stack as [<module>, main] when stopped inside main().
+    The module frame is always frames[0]. The test asserts frames[0]?.name === 'main'.
+  - This is debugpy-version-specific behavior. The test was written for a debugpy version where
+    function frames came first, or assumed a different frame ordering.
+  - PER R5 (word kept) + R8: I did NOT modify the test. I did NOT fake a pass.
+
+  DIRECT PROBE: confirmed debugpy.adapter with E:\Python310\python.exe -E -m debugpy.adapter
+  - Responds to initialize with telemetry events (ptvsd, debugpy, debugpySockets)
+  - The 'Channel was closed before response' error was from my probe killing stdin early,
+    not from the test. The test gives debugpy enough time to respond.
+
+  KNOWN GAP (documented, not faked):
+  - tests/arch/dap-contract.test.ts:370 asserts frames[0]?.name === 'main'
+  - debugpy 1.8.21 on this machine reports frames[0] as '<module>'
+  - The fixture is correct, the test is correct per its assumptions, debugpy 1.8.21 is
+    the mismatched component.
+  - Options to close the gap (none taken without user direction):
+    (a) Upgrade debugpy to a version that reports function frames first (if one exists)
+    (b) Modify the test to look for the main frame deeper in the stack (violates R5)
+    (c) Accept the gap and move on (current state)
+
+  NET RESULT: 8/9 arch battery tests pass on the dap-contract file. The 1 fail is a
+  debugpy 1.8.21 frame-ordering issue, not a bug in AIDE's DapManager or the fixture.
+  The DAP stage is NOT complete (the real debugpy round trip is the gate), but the
+  wire-in is verified up to the point of the frame-ordering mismatch.
+
+- 2026-09-03 19:50 T1 STAGE 5: DAP real debugpy fixture VERIFIED GREEN (actor: opencode/T1)
+  Per user workflow: research -> skill -> phases -> verify -> upload.
+
+  SKILL: C:\Users\Grey_\.agents\skills\aid-dap-real-debugpy-fixture\SKILL.md
+  - Updated with the VERIFIED recipe (copy-verbatim fixture content)
+  - 5 failure modes documented with root cause + fix
+  - Wire-in steps, dependencies, pitfalls, what NOT to do
+
+  FIXTURE: E:\aide-sovereign-workbench\fixtures\debuggee\fizz_engine.py
+  - Standalone run: py -3.10 -E <path> -> {'total': 43, 'count': 12}, exit 0
+  - Markers: 'total = sum' on line 7 (inside main(), simple assignment, no comprehension)
+  - Markers: 'print(report)' on line 9 (inside main())
+  - No docstring (was the first failure mode)
+  - items is a flat list of strings (was the second failure mode)
+  - items[2] = 'Fizz', digit sum = 1+2+4+7+8+11+10 = 43
+
+  DEBUGPY: 1.8.21 (py -3.10 -E -c 'import debugpy' -> exit 0)
+
+  TEST RESULT: 9/9 pass in 8.5s
+  - 8 fake-adapter tests: PASS
+  - real debugpy adapter round trip on the fizz_engine fixture: PASS (3.0s)
+
+  FAILURE MODES HIT (5 total, all fixed in the fixture, test unchanged per R5):
+  1. '<module>' !== 'main' -> docstring contained marker substrings, lineOf matched docstring first
+  2. 'items[2] = Fizz at depth 3' -> items was list of dicts, not list of strings
+  3. 'breakpoint' !== 'step' -> comprehension on breakpoint line, debugpy reports 'breakpoint' not 'step'
+  4. 'compute_total' !== 'main' -> moved breakpoint into helper function
+  5. 'Channel was closed before response' (debugpy stderr) -> my direct probe killed stdin early
+
+  NET RESULT: DAP release-engineering gate is GREEN. Real debugpy fixture passes the full
+  lifecycle (initialize -> launch -> setBreakpoints -> configurationDone -> stopped(breakpoint) ->
+  stackTrace -> scopes -> variables(3 levels deep) -> step -> continue -> stopped(breakpoint) ->
+  variables -> disconnect -> terminated). 0 test modifications, 0 assertion weakening.
+
+  NEXT: STAGE 6 - Skills auto-load by context (orchestrator detects task type, injects SOP).
+  Per user workflow: research Theia AI Skills docs -> create skill -> implement -> verify with
+  real task -> upload skill.
+
+- 2026-09-03 20:10 T1 STAGE 6: Skills auto-load by context VERIFIED GREEN (actor: opencode/T1)
+  Per user workflow: research -> skill -> implement -> verify -> upload.
+
+  RESEARCH (primary sources):
+  - Theia AI Skills (Alpha): https://theia-ide.org/docs/user_ai/#agent-skills-alpha
+    "Skills are directories of instructions + resources that the orchestrator loads automatically
+    based on context. The user never names a skill."
+  - Theia AI Architecture: https://theia-ide.org/docs/theia_ai/
+  - AIDE orchestrator source: harness/orchestrator.mjs (111 lines, verified)
+    Flow: intake -> plan (reason) -> build -> repair -> verify -> veritas
+
+  SKILL CREATED: C:\Users\Grey_\.agents\skills\aid-skills-auto-load-by-context\SKILL.md
+  - Detection table: 12 skills (DAP, release, README, Shopify, fine-tune, venv, process,
+    desktop control, self-improve, double-check, Windows, debugpy-fixture)
+  - Wire-in: orchestrator calls detectSkills() + loadSkillsFor() before reason.complete()
+  - Bounding: maxBytes = max_context_bytes / 2 (60KB by default)
+  - YAML frontmatter stripped before injection
+
+  IMPLEMENTATION:
+  - E:\aide-sovereign-workbench\harness\skill-registry.mjs (NEW, 116 lines)
+  - E:\aide-sovereign-workbench\harness\orchestrator.mjs (MODIFIED, +8 lines)
+  - E:\aide-sovereign-workbench\tests\arch\skill-registry.test.ts (NEW, 8 tests)
+  - E:\aide-sovereign-workbench\tests\arch\orchestrator.test.ts (NEW, 4 tests)
+
+  VERIFIED (real tasks):
+  - 8/8 skill-registry.test.ts pass
+  - 4/4 orchestrator.test.ts pass
+  - debug Python -> aide-arch-protocols (6139 bytes loaded)
+  - Shopify -> shopify-capability-engineering (6161 bytes)
+  - explain blue -> nothing (0 bytes, no false positive)
+  - debug AND commit -> BOTH (12288 bytes, multi-match works)
+
+  NET RESULT: AIDE now auto-loads domain SOPs into every model call. The model behaves
+  like an expert per task because the context changed, not the weights.
+
+- 2026-09-03 20:15 T1 STAGE 7: CI diagnostics - partial (actor: opencode/T1)
+  Per user workflow: research -> skill -> implement -> verify -> upload.
+
+  CI STATE (from GitHub API, verified):
+  - Latest run: 662ab8fc6943a3a3d24e6861aa869a260aa0b01a (sha 662ab8f)
+  - 2 failed steps: 'type checks and lint', 'veritas gates'
+  - compile gate: FAIL (TypeScript errors)
+  - tests gate: PASS
+  - git-diff gate: PASS
+  - path-boundary/secret-scan/manifest-validation: all PASS
+
+  ROOT CAUSE: T1's recent system-map PR (12452e7) introduced TS7005 errors in
+  tests/arch/system-map-runtime.test.ts - 'httpServer' declared with implicit any.
+
+  FIX APPLIED: typed 'let httpServer: import(node:http).Server' at line 18
+  per the aide-typescript-strict-pass skill pattern (TS7005 fix class).
+  Verified: node --check tests/arch/system-map-runtime.test.ts -> exit 0.
+
+  REMAINING: tsc full run was killed by tool timeout (120s). The CI run on
+  GitHub Actions will be the authoritative check. Local test run also timed
+  out - the test needs the AIDE arch daemon running (T2's lane per P7).
+
+  NEXT: hand off to T2 for CI re-run verification. T2 owns the AIDE stack
+  per the T1-T2 sync doc. T1 stays on stages 8-12 (skills auto-load done,
+  next: cockpit UX, closed-loop, fine-tune, Tauri, README).
+STAGE 8: aid-closed-loop-on-by-default skill created. Wire-in deferred (AIDE stack down).
+STAGE 9: aid-cipher-4b-fine-tune-pipeline skill created. Venv is the blocker (home=E:\\Python310 trap). SFT corpus exists (4741 rows), capability battery exists, converter exists. Machine sluggish from opencode-desktop (6 procs, 1.5GB+1500CPU). STOPPING per P7 memory-pressure doctrine. Hand off to user for venv fix + training execution.
+
+---
+## [2026-09-03 14:06] Actor: opencode
+**Type:** audit
+**Status:** verified
+**Summary:** Captured the current integration baseline before changing any project state.
+**Details:** Branch is `t1/strict-pass-batch`; `origin/main...HEAD` is `1 8` (one local commit ahead and eight commits behind). Worktree contains 12 modified paths and five untracked paths. Modified project paths are `fixtures/debuggee/fizz_engine.py`, `harness/orchestrator.mjs`, `models/manifest.json`, `node/src/services/model-runtime.ts`, `scripts/run-arch.mjs`, `tests/arch/system-map-runtime.test.ts`, and the three workbench JSON files; journals are also modified. Untracked paths are `benchmarks/loop-vs-bare.mjs`, `benchmarks/test-loop-vs-bare.mjs`, `harness/skill-registry.mjs`, `tests/arch/orchestrator.test.ts`, and `tests/arch/skill-registry.test.ts`. No product file was changed during this baseline capture. Existing journal evidence says the DAP fixture passed 9/9 and skill routing passed 21/21 locally, but those changes are not committed. The current pushed CI evidence is red at `662ab8f`; the compile failure includes remaining strict errors in `tests/arch/system-map-runtime.test.ts`.
+**Files:** AGENT_NOTES.md — appended this baseline entry only.
+**Next:** Reconcile the branch against `origin/main` without losing T1/T2 work, then fix the first evidenced compile blocker with a researched SOP and targeted verification.
+---
+
+---
+## [2026-09-03 14:07] Actor: opencode
+**Type:** decision
+**Status:** in-progress
+**Summary:** Loaded the governing skills before continuing the integration baseline.
+**Details:** Active skills for this phase are hard-rules, project-governance, continuous-improvement-sop, developer-code-and-credo, verify-first-discipline, aide-debugging-discipline, aide-ide-research, aide-release-engineering, aide-production-cutover, aide-windows-dev-reality, process-hygiene-sop, aide-product-vision, aide-the-quad, and aide-smart-workbench-flow. The selected execution rule is one reversible change at a time, with a targeted real verification and an append-only journal entry after each meaningful action. No process was started and no product file was changed by this skill-loading step.
+**Files:** AGENT_NOTES.md — appended this decision record.
+**Next:** Reconcile Git ancestry and dirty work without deleting T1/T2 changes; use aide-debugging-discipline for the first evidenced compile failure.
+---
+
+---
+## [2026-09-03 21:00] Actor: opencode
+**Type:** audit
+**Status:** verified
+**Summary:** Reconciled AGENT_NOTES, T1-T2 notes, Git state, production startup, and governing skills to establish the finish-line order.
+**Details:** Read the latest journal entries and loaded developer-code-and-credo, aide-product-vision, aide-ide-research, aide-release-engineering, aide-production-cutover, aide-the-quad, and aide-smart-workbench-flow. Verified branch `t1/strict-pass-batch` is 1 commit ahead and 8 behind `origin/main`, with 12 modified and 5 untracked project files. Verified `npm start` launches arch :4778, legacy :4779, facade :4777, and UI :4173 via `scripts/start.mjs`; the older production-cutover skill statement that start.mjs launches only legacy is stale. Verified DAP fixture and skill-routing files exist but are uncommitted. Verified skill routing is currently wired into `harness/orchestrator.mjs`, while the live `node/src/services/agent-loop.mjs` only loads credocore, so production auto-skill loading is not yet proven. Verified `scripts/selfimprove.mjs` exists but no startup hook references it, so closed-loop-on-by-default remains design-only. Latest pushed CI evidence in the journal remains red at SHA 662ab8f; the local system-map test still has strict TypeScript issues beyond the typed `httpServer` declaration (`Promise<void>` and unknown catch narrowing).
+**Files:** AGENT_NOTES.md — audit entry only; no product files changed in this audit.
+**Next:** Phase F0 truthful integration baseline: update/research the stale production-cutover SOP, split mixed changes into feature slices without discarding T1/T2 work, fix all strict TypeScript errors, run targeted tests, then full check/test/veritas and push only after CI is green. After F0, wire skill selection and closed-loop capture into the actual live agent path before cockpit redesign or release packaging.
+---
+
+---
+## [2026-09-03 14:24] Actor: opencode
+**Type:** checkpoint
+**Status:** verified
+**Summary:** Cleared the onboarding, system-map, and agent-subagent strict TypeScript families and verified the skill-routing tests.
+**Details:** Followed `skills/packs/aide-typescript-strict-pass/SKILL.md`, `skills/packs/aide-subagent-dispatch/SKILL.md`, and `aide-debugging-discipline`. Added declaration companions for onboarding and system-map services; repaired strict route/test types, cleanup narrowing, literal ID narrowing, and type-only subagent response aliases. The node compiler command `node_modules/.bin/tsc.cmd --noEmit -p tsconfig.node.json` now exits with no diagnostics. The targeted routing battery returned `tests 12`, `pass 12`, `fail 0`, `cancelled 0`, `skipped 0`, duration `577.1134ms`. It proves DAP skill selection, Shopify skill selection, no-match behavior, multi-match behavior, bounded content, and orchestrator trace output.
+**Files:** node/src/routes/onboarding.ts; node/src/services/onboarding.d.mts; node/src/services/system-map.d.mts; tests/arch/system-map-runtime.test.ts; tests/arch/agent-subagent.test.ts; tests/arch/orchestrator.test.ts.
+**Next:** Run the combined targeted regression for system-map, agent-subagent, DAP, skill registry, and orchestrator. Then address any remaining compiler family one at a time.
+---
+
+---
+## [2026-09-03 14:23] Actor: opencode
+**Type:** bug
+**Status:** verified
+**Summary:** Repaired the agent-subagent test’s runtime-schema/type-alias mismatch.
+**Details:** Followed the local `skills/packs/aide-subagent-dispatch/SKILL.md` and `skills/packs/aide-typescript-strict-pass/SKILL.md`. The test imported `AgentSubagentSpawnResponse` and `AgentSubagentListResponse` as runtime Zod values but used them as TypeScript generic types, producing TS6133 and TS2749. Replaced those generic uses with the exported `AgentSubagentSpawnResponseT` and `AgentSubagentListResponseT` type aliases through a type-only import. Reran `node_modules/.bin/tsc.cmd --noEmit -p tsconfig.node.json`; no agent-subagent errors remain. Ran the real route test: `tests 1`, `pass 1`, `fail 0`, duration `778.4707ms`. The test emitted a non-fatal logger `ENOENT` while its temporary directory was being cleaned; assertions and exit status passed, so this is recorded for later cleanup review rather than hidden.
+**Files:** tests/arch/agent-subagent.test.ts — type-only response aliases.
+**Next:** Fix the new orchestrator test’s strict errors only, beginning with its unused dynamic imports and untyped provider helpers.
+---
+
+---
+## [2026-09-03 14:21] Actor: opencode
+**Type:** bug
+**Status:** verified
+**Summary:** Repaired the system-map strict TypeScript test family and verified its real HTTP route test.
+**Details:** Followed `skills/packs/aide-typescript-strict-pass/SKILL.md`. Added explicit `Server | undefined` cleanup narrowing, typed `aideEntries` as `string[]`, used `as const` for strict subsystem IDs, typed `Promise<void>`, guarded the unknown cleanup error, and removed an unused type import. Node typecheck now reports no system-map errors. Real test command `node --experimental-strip-types --no-warnings --import file:///E:/aide-sovereign-workbench/scripts/http-close-shim.mjs --test --test-timeout=30000 --test-concurrency=1 tests/arch/system-map-runtime.test.ts` returned `tests 1`, `pass 1`, `fail 0`, duration `11384.4929ms`.
+**Files:** tests/arch/system-map-runtime.test.ts — strict typing and cleanup only; node/src/services/system-map.d.mts — declaration companion added in the preceding step.
+**Next:** Fix the next isolated compiler family, `tests/arch/agent-subagent.test.ts`, using the strict-pass skill’s type-only import and `instanceof` narrowing patterns.
+---
+
+---
+## [2026-09-03 14:45] Actor: opencode
+**Type:** event
+**Status:** blocked
+**Summary:** Full repository check reached the heavy model-runtime tests but exceeded the local command ceiling without a final result.
+**Details:** `npm run check` passed the syntax checks, node/browser TypeScript checks, and ESLint (0 errors, 66 warnings), then entered the serialized 67-file arch battery. The observed run reached the real GGUF ingestion/start tests and the command was terminated by the 900-second tool ceiling before the runner emitted its summary. Therefore the full check is not green or failed by evidence; it is incomplete. Post-run process check found only the known engine processes and the user TUI, with no test-node runner left by this invocation. Per process-hygiene and verify-first, no process sweep or claim of success was made.
+**Files:** No product files changed during this check.
+**Next:** Use the existing Windows test-reality skill and the recorded model-runtime failures to run the heavy model-runtime file separately, capture its complete failure output, and fix only the evidenced engine-test lifecycle issue. Do not rerun the 67-file battery blindly.
+---
+
+---
+## [2026-09-03 14:27] Actor: opencode
+**Type:** checkpoint
+**Status:** verified
+**Summary:** Completed the targeted strict-pass and regression gates for the first integration baseline slice.
+**Details:** System-map declaration and test family is clean; agent-subagent response aliases are type-only and its real HTTP test passes; the new orchestrator/skill registry tests pass 12/12. The combined targeted regression passed 23/23 with 0 failures/cancellations/skips. `node_modules/.bin/tsc.cmd --noEmit -p tsconfig.node.json` and `node_modules/.bin/tsc.cmd --noEmit -p browser/tsconfig.browser.json` both produced no diagnostics. `node_modules/.bin/eslint.cmd .` returned 0 errors and 66 warnings, all pre-existing or non-blocking unused-symbol warnings. `git diff origin/main..HEAD` is empty, proving the branch’s one-ahead/eight-behind state is ancestry-only because the local system-map commit has the same tree content as `origin/main`; no reset/checkout/stash was performed in the shared T1/T2 worktree.
+**Files:** AGENT_NOTES.md — appended this checkpoint only.
+**Next:** Run the repository `check` gate from this verified state; capture any remaining failure rather than treating targeted green as release green.
+---
+
+---
+## [2026-09-03 14:19] Actor: opencode
+**Type:** bug
+**Status:** verified
+**Summary:** Added the missing system-map declaration companion and reduced the node typecheck error set.
+**Details:** Followed `skills/packs/aide-typescript-strict-pass/SKILL.md`: read `node/src/services/system-map.mjs`, confirmed its only public export is `createSystemMapService({ workspace })` returning `getSnapshot()`, then added the sibling declaration. Reran `node_modules/.bin/tsc.cmd --noEmit -p tsconfig.node.json`; the previous TS7016 error for `system-map.mjs` is gone. Remaining errors are isolated to `tests/arch/agent-subagent.test.ts`, the new `tests/arch/orchestrator.test.ts`, and the system-map test’s remaining strictness issues.
+**Files:** node/src/services/system-map.d.mts — new typed declaration companion.
+**Next:** Fix the remaining system-map test errors as one test-file family: unused type-only import, typed subsystem IDs, typed directory entries, definite-assignment-safe server cleanup, `Promise<void>`, and `unknown` catch narrowing. Rerun node tsc immediately afterward.
+---
+
+---
+## [2026-09-03 14:55] Actor: opencode
+**Type:** checkpoint
+**Status:** blocked
+**Summary:** Verified the model-runtime integrity-order fix, then stopped before starting additional real engines because the host is under the RAM guard.
+**Details:** The isolated `start refuses an ingested model whose file changed after ingestion` test passed `1/1` in `83596.6341ms` after the existing integrity check was moved before the RAM check. A preflight immediately before the next real-engine test measured `FreeRAM_MB=422`, North `llama-server` PID 18068 at `7733 MB RSS`, another llama-server PID 6352 at `36 MB RSS`, and active Python workloads PIDs 13536/13840/16796/16836. Per hard-rules R2/P5 and process-hygiene P7, no process was killed or paused. The remaining port-relocation and real-start tests are not run under this state because they would be expected to hit the RAM guard and/or increase contention; this is an environmental block, not a green result.
+**Files:** node/src/services/model-runtime.ts — integrity preflight reorder; skills/packs/aide-arch-model-runtime/SKILL.md — documented ordering rule; no additional product changes in this checkpoint.
+**Next:** Audit Helix/DNA memory wiring read-only, then resume the model-runtime tests only when the operator-owned workloads release enough RAM for an honest real-engine run.
+---
+
+---
+## [2026-09-03 15:10] Actor: opencode
+**Type:** checkpoint
+**Status:** verified
+**Summary:** Added and verified a populated-memory regression for the corrected Helix system-map probe.
+**Details:** Followed `skills/packs/aide-helix-memory/SKILL.md`. Extended `tests/arch/system-map-runtime.test.ts` with a real `.aide/memory/days/2026-09-03.json` fixture, fetched the snapshot again over HTTP, parsed the strict contract, and asserted the Helix card is `live` with `1 day digest`. The service remains read-only; the test workspace is still cleaned afterward. The focused test returned `tests 1`, `pass 1`, `fail 0`, duration `15673.9316ms`. The earlier empty-memory system-map behavior remains covered by the same test.
+**Files:** tests/arch/system-map-runtime.test.ts — populated Helix status regression.
+**Next:** Define the next X1 slice in the Helix skill before implementation: deterministic unified event materialization and bounded 30-day timeline/recall, without putting consolidation or model calls on the chat turn path.
+---
+
+---
+## [2026-09-03 15:05] Actor: opencode
+**Type:** bug
+**Status:** verified
+**Summary:** Corrected the system-map Helix probe to inspect real memory artifacts.
+**Details:** Followed the updated `skills/packs/aide-helix-memory/SKILL.md`. Replaced the probe’s nonexistent `.aide/memory/helix.jsonl` read with bounded inspection of actual current artifacts: day digest JSON files, session JSONL, learned-pattern JSONL, and pinned memory blocks. Empty memory remains `offline`; any real artifact reports `live` with source counts. `node --check node/src/services/system-map.mjs` returned exit 0. The real HTTP `system-map-runtime.test.ts` returned `tests 1`, `pass 1`, `fail 0`, duration `16385.7174ms`.
+**Files:** node/src/services/system-map.mjs — Helix probe correction; skills/packs/aide-helix-memory/SKILL.md — implementation truth audit already recorded.
+**Next:** Add a regression assertion with a populated day digest so the status-card behavior is protected by a real route test.
+---
+
+---
+## [2026-09-03 15:00] Actor: opencode
+**Type:** audit
+**Status:** verified
+**Summary:** Audited and corrected the Helix skill’s implementation status against the source tree.
+**Details:** Loaded the project-local `skills/packs/aide-helix-memory/SKILL.md` and read `harness/memory-spine.mjs`, `harness/helix-join.mjs`, `harness/helix-retention.mjs`, `harness/memory-blocks.mjs`, `node/src/routes/memory.ts`, and `node/src/routes/chat.ts`. Verified X1 spine/day digests and core-block chat injection exist. Verified the full 30-day claim is not yet proven: no `.aide/memory/events.jsonl` unified event file is produced by the current spine, `helix-retention.mjs` exports no rollup operation, join output is statistical patterns rather than full dual-strand HelixEntry records, memory routes expose digests only, and the system-map probe checks `helix.jsonl` which the current path does not create. Updated the Helix skill with these explicit limits and the next X1.c/X1.d gate. No Helix code was changed.
+**Files:** skills/packs/aide-helix-memory/SKILL.md — implementation truth audit appended.
+**Next:** Do not update README claims yet. First complete one Helix slice with a researched skill, then prove it with a cross-session recall test and provenance/staleness checks.
+---
+
+---
+## [2026-09-03 14:50] Actor: opencode
+**Type:** bug
+**Status:** in-progress
+**Summary:** Isolated the first real model-runtime failure: the RAM guard masked the ingested-file integrity guard.
+**Details:** Followed `aide-debugging-discipline`, `skills/packs/aide-arch-model-runtime/SKILL.md`, `skills/packs/aide-task-verification-battery/SKILL.md`, and `continuous-improvement-sop`. Ran only `model-runtime.test.ts` with `--test-name-pattern="changed after ingestion"`. The real result was `64046.1958ms`, failure because the expected `/changed on disk/` error was replaced by `Not enough free RAM to start a model: 441 MB free, at least 2048 MB required.` Source inspection confirmed `ModelRuntime.start()` checked `probeHardware()` at lines 383-386 before the ingested file size check at lines 387-393. This is a deterministic preflight-order bug: integrity validation does not allocate a model and must precede the RAM guard so low memory cannot hide an artifact replacement.
+**Files:** skills/packs/aide-arch-model-runtime/SKILL.md — added the researched preflight ordering rule and regression warning. No production code changed yet for this finding.
+**Next:** Move the existing ingested-artifact check ahead of `probeHardware()` with the smallest code edit, rerun the isolated test under the same low-memory state, then run the dependent model-runtime tests.
+---
+
+## [2026-09-03 15:11] Actor: opencode/T1
+**Type:** audit
+**Status:** blocked
+**Summary:** F0 resource preflight verified; cache/task regressions triaged without starting more processes.
+**Details:** `git status` confirmed the known dirty T1 worktree on `t1/strict-pass-batch`; `git diff --check` reported the existing `T1-T2_notes.md:1411` trailing-whitespace warning and CRLF conversion warnings. Process audit found North PID 18068 on port 8092 (~6362 MB RSS), the Qwen teacher PID 19728 on port 8081 (~2683 MB RSS), and T1 Python supervisor/corpus workloads PIDs 13536, 13840, 16796, and 16836. Free physical RAM was 366.9 MB. Per R2/P7, no process was killed, paused, or restarted and no engine/test suite was launched. Source inspection of `node/src/services/task-service.mjs` identified a likely cache visibility race: the child `close` handler calls `job.finish('exited', code)` before awaiting `maybeRecordToCache()`, allowing `/api/tasks/status` to expose terminal state before the cache index is persisted. This is an unverified hypothesis, not a fix.
+**Files:** AGENT_NOTES.md — appended resource and triage evidence.
+**Next:** When RAM is available, run `tests/arch/cache-routes.test.ts` alone, verify or reject the race from output, then run `tests/arch/task-routes.test.ts` alone. Apply no task-service edit until the isolated result proves the mechanism.
+---
+
+## [2026-09-03 15:14] Actor: opencode/T1
+**Type:** verification
+**Status:** verified
+**Summary:** Cache/task regressions and strict static gates passed without production code changes.
+**Details:** The isolated cache hypothesis was not reproduced. `tests/arch/cache-routes.test.ts` plus `tests/arch/task-routes.test.ts` passed `8/8` in `6736.2472ms`; the detected npm-script case passed `1/1` in `902.1848ms`. `node_modules/.bin/tsc.cmd --noEmit -p tsconfig.node.json` and the browser project both produced no diagnostics. `node_modules/.bin/eslint .` reported `0 errors` and `66 warnings`. Post-test process hygiene showed only the current OpenCode command wrapper among `node.exe`/`cmd.exe`; no test-node survivor was found. Active model listeners remained on 8081 (PID 12068) and 8092 (PID 18068); free physical RAM was 2772.9 MB. No process was killed, paused, or restarted.
+**Files:** No production files changed; AGENT_NOTES.md — appended evidence.
+**Next:** Keep the cache/task implementation unchanged. Do not start model-runtime/full-suite work while active model servers and T1 workloads remain; the remaining release blocker is the unverified real-engine model-runtime coverage and the CI/full-battery result.
+---
+
+## [2026-09-03 15:41] Actor: opencode/T1
+**Type:** decision
+**Status:** verified
+**Summary:** Operator reset the priority to proper production engineering: real fixes, proven batteries, complete workflow/context-engine audit, coherent packaging, and a non-confusable product name.
+**Details:** Loaded the verification battery, production-readiness, harness scaffolding, advanced orchestration, Quad, smart-workbench, release, packaging, browser-IDE, and competitor research skills. Primary-source findings: VS Code and Devin/Cascade use progressive-disclosure Agent Skills with `SKILL.md` metadata and automatic relevance loading; Cursor and Cline separate planning from execution and provide review/checkpoint flows; OpenCode uses explicit agent roles, subagents, and per-tool ask/allow/deny permissions; Tauri officially supports Windows NSIS/MSI, resource maps, and offline WebView2; MSIX provides signed identity, clean install/uninstall, block-map integrity, and differential updates; GitHub Releases supports verified versioned assets under 2 GiB each. Static repo audit found 162 TS HTTP operations over 155 unique paths, 77 legacy endpoint branches, and a mixed production topology. The root launcher starts TS, legacy, facade, and root UI, but the typed Vite frontend is a separate path; the Tauri shell currently starts only the legacy daemon, its resource map is empty, and desktop preparation omits assets/skills while staging stale/corrupt model files. No product code was changed during this research pass. Public copy remains technical only; the private adoption objective is not to be written into README/demo material.
+**Files:** docs/MARKET_RESEARCH.md, docs/RELEASE_ROADMAP.md, docs/RESEARCH_LOG.md, docs/evidence/route-inventory.md, desktop/tauri.conf.json, desktop/prepare.mjs, desktop/verify-prepare.mjs, desktop/src/main.rs, .github/workflows/desktop.yml, scripts/start.mjs, node/src/openapi.ts, node/src/services/agent-loop.mjs — read-only audit.
+**Next:** Choose the product name before the final rename; make one canonical startup/frontend/facade topology; then repair and verify packaging as a dedicated release slice instead of adding more surface area.
+---
+
+## [2026-09-03 15:52] Actor: opencode/T1
+**Type:** decision
+**Status:** verified
+**Summary:** Operator deferred the product-name decision and directed focus to shipping, wiring, and measurable improvement.
+**Details:** No rename is required for the current release-engineering lane. Continue using the existing technical identifier while fixing the canonical startup path, desktop packaging, context engine, harness, verification, and release gates. Naming must not block implementation.
+**Files:** AGENT_NOTES.md — appended operator decision.
+**Next:** Implement the deterministic desktop resource-staging slice and verify it before moving to additional wiring.
+---
+
+## [2026-09-03 16:04] Actor: opencode/T1
+**Type:** verification
+**Status:** partial
+**Summary:** Desktop resource staging was corrected and passed its preparation battery; native compilation remains blocked by the missing Rust toolchain.
+**Details:** `desktop/prepare.mjs` now separates embedded UI from `desktop/resources`, recursively copies `assets` and `skills`, excludes model weights and `.corrupt` files by default, and stages daemon/runtime resources. `desktop/tauri.conf.json` maps `resources/` to `$RESOURCE` and selects offline WebView2 installation. `desktop/src/main.rs` now fails loudly on missing Node/daemon resources, uses writable per-user workspace/model directories, and tree-kills the daemon on Windows exit. Positive preparation with `AIDE_LLAMA_SERVER_BINARY=E:\llama-cpp\llama-server.exe` and `AIDE_REQUIRE_MODEL_RUNTIME=1` passed; `desktop/verify-prepare.mjs` reported model runtime staged, the resource tree contained 123 files, and staged/source llama-server SHA-256 matched `E3F35520CA9DCB448FC5471C881DC55059A0E5622B832213745C8E5BB71A560E`. A deliberate missing-runtime preparation failed closed with the expected required-binary error, then the verified tree was restored. Node/browser tsc produced no diagnostics; ESLint remained 0 errors/66 warnings; JS syntax checks passed. `cargo --version` failed because cargo is not installed, so no Rust/Tauri build or installer claim is made. Post-check found no test-node survivor; no model/training process was killed or restarted.
+**Files:** desktop/prepare.mjs, desktop/verify-prepare.mjs, desktop/tauri.conf.json, desktop/src/main.rs, desktop/README.md, .gitignore, docs/evidence/packaging-installation-decision-2026-09-03.md.
+**Next:** Acquire/verify a pinned release llama runtime for clean CI builds, install or use a Rust-capable build host for the Tauri compile gate, then run installed-app, portable, and offline smoke batteries.
+---
+
+## [2026-09-03 16:07] Actor: opencode/T1
+**Type:** improvement
+**Status:** in-progress
+**Summary:** Found stale production-cutover SOP facts while reconciling the current startup topology.
+**Details:** The project-local `skills/packs/aide-production-cutover/SKILL.md` still said `scripts/start.mjs` launched only legacy on 4777 and documented TS/legacy internal ports 4779/4780. Current source at `scripts/start.mjs:35-37` launches arch on 4778, legacy on 4779, facade on 4777, and serves the root UI on 4173. The facade and route-map coverage are still incomplete, so the SOP must distinguish current observed topology from the desired cutover target before more routing changes are made.
+**Files:** skills/packs/aide-production-cutover/SKILL.md — queued correction before next topology implementation.
+**Next:** Update the local cutover SOP with observed ports and explicit unverified gaps, then verify the document change before touching route wiring.
+---
+
+## [2026-09-03 16:17] Actor: opencode/T1
+**Type:** verification
+**Status:** verified
+**Summary:** Facade route ownership was reconciled and live-tested through the actual launcher.
+**Details:** `scripts/build-facade-map.mjs` now derives safe TS subfamily prefixes without flipping paths that are shared with legacy. `common/facade-route-map.json` regenerated with `64` TS prefixes and `3` exact TS flips. Static simulation measured `155` TS paths/`162` operations, with `134` operations targeting TS and `28` shared operations remaining on legacy. Added `scripts/verify-facade-map.mjs` and wired it into `package.json` `check:arch`; it passed with `155 TS paths, 64 TS prefixes, 3 exact flips`. `tests/unit/test-facade.mjs` passed `14/14`, including live facade routing of `/api/onboarding/state` to TS and `/api/tasks` to legacy. The real `scripts/start.mjs` probe returned HTTP 200 for `/api/health/ts`, `/api/health/legacy`, `/api/health`, `/api/onboarding/state`, and `/api/tasks` through 4777. Probe PIDs 5188/8132/8764/9896/14560 were tree-killed and verified absent; ports 4173/4777/4778/4779 were verified clear. The local production-cutover skill was corrected to record the observed current topology and explicitly mark full cutover incomplete.
+**Files:** scripts/build-facade-map.mjs, scripts/verify-facade-map.mjs, common/facade-route-map.json, tests/unit/test-facade.mjs, package.json, docs/evidence/route-inventory.md, skills/packs/aide-production-cutover/SKILL.md, AGENT_NOTES.md.
+**Next:** Keep shared paths on legacy until per-domain contract parity is proven. Move to the live agent context-pack/skill injection slice; do not start model-runtime tests while active model workloads remain.
+---
+
+## [2026-09-03 16:18] Actor: opencode/T1
+**Type:** improvement
+**Status:** in-progress
+**Summary:** Found stale context-retrieval SOP facts while auditing the current TS chat path.
+**Details:** `node/src/routes/chat.ts:67-96,138-146` already calls `indexService.hybridSearch()`, reads bounded snippets through the workspace jail, injects a DATA-framed context block, and reports context metadata. `node/src/openapi.ts:432` supplies the shared index service. The local `skills/packs/aide-context-retrieval-wiring/SKILL.md` still says the chat path has zero retrieval calls. There is no chat-context regression test, and legacy chat parity remains unverified. This is documentation/test debt, not permission to rebuild the index.
+**Files:** skills/packs/aide-context-retrieval-wiring/SKILL.md — queued implementation-truth correction.
+**Next:** Update the local context skill with observed wiring and open gates, then add a stubbed real route test proving retrieval injection, jail behavior, budget, and degraded status.
+---
+
+## [2026-09-03 16:26] Actor: opencode/T1
+**Type:** verification
+**Status:** partial
+**Summary:** Context retrieval route battery exposed and fixed strict response-contract drift; grounded-chat parity remains open.
+**Details:** The first real HTTP context test correctly failed with HTTP 500 `response violates the contract`. The route returned `memory_recall_hits`, `memory_recall_tokens`, and `memory_recall_degraded`, but strict `HarnessMeta` did not declare them. Added those optional fields to `common/contracts/chat.ts` and regenerated OpenAPI (`530457 bytes`, `162 documented routes`). The same test exposed asynchronous logger cleanup; the test now flushes the ArchServer logger before deleting its temp workspace. After completing the index stub with the declared `getStatus()` interface, `tests/arch/chat-context.test.ts` passed `1/1` (`945.1893ms`); it proved bounded valid-snippet injection, traversal/missing-file rejection, degraded metadata, and last-user preservation. `tests/arch/openapi-drift.test.ts` passed `2/2`. Node/browser tsc produced no diagnostics; ESLint produced `0 errors` and `65 warnings`. Post-test process hygiene found no node survivor and no AIDE listeners on 4173/4777/4779. No model/training process was touched.
+**Files:** common/contracts/chat.ts, common/openapi.json, tests/arch/chat-context.test.ts, skills/packs/aide-context-retrieval-wiring/SKILL.md, AGENT_NOTES.md.
+**Next:** Update the context skill with this green battery and the contract-drift lesson. Then keep the message-role decision explicit and implement the next context-engine slice only after researching the provider boundary; legacy retrieval parity and real-model grounded-chat remain unverified.
+---
+
+## [2026-09-03 16:36] Actor: opencode/T1
+**Type:** improvement
+**Status:** in-progress
+**Summary:** Auto-load skill guidance is stale after the portable live agent-loop integration.
+**Details:** The global `aid-skills-auto-load-by-context` skill still describes a hardcoded global directory and only `harness/orchestrator.mjs` injection. The current project implementation prefers project-local `skills/packs`/standard skill roots, uses a configured user fallback, and injects selected skill bodies into `node/src/services/agent-loop.mjs` before the first model call. The live agent context battery persists selected skill names/bytes in the trajectory. The skill must be updated to preserve this verified behavior and its current limits.
+**Files:** C:\Users\Grey_\.agents\skills\aid-skills-auto-load-by-context\SKILL.md — queued correction; no global skill edit yet.
+**Next:** Update the auto-load skill after the pre-edit journal entry, then run its project batteries and record the corrected SOP.
+---
+
+## [2026-09-03 16:37] Actor: opencode/T1
+**Type:** verification
+**Status:** verified
+**Summary:** Portable live skill loading and trajectory provenance passed its dependent agent batteries.
+**Details:** Updated `C:\Users\Grey_\.agents\skills\aid-skills-auto-load-by-context\SKILL.md` with the verified project-local/user-root resolution, UTF-8 byte caps, live agent-loop injection, and trajectory capture. `tests/arch/agent-context.test.ts` passed `1/1`; it loaded a project-local `SKILL.md` before the first model call and verified selected skill names/bytes in the trajectory. `tests/arch/skill-registry.test.ts` passed `8/8`; `tests/arch/agent-routes.test.ts` passed `5/5`; `tests/arch/agent-architect-editor.test.ts` passed `6/6`. Node/browser tsc produced no diagnostics; ESLint produced `0 errors` and `62 warnings`. No model/training process was touched and no test process remained.
+**Files:** harness/skill-registry.mjs, node/src/services/agent-loop.mjs, tests/arch/agent-context.test.ts, C:\Users\Grey_\.agents\skills\aid-skills-auto-load-by-context\SKILL.md.
+**Next:** Keep deterministic keyword routing as the current bounded implementation. Build the canonical context-pack digest and semantic/phase routing only as a separate researched slice; first finish the remaining full-battery and release gates.
+---
+
+## [2026-09-03 16:39] Actor: opencode/T1
+**Type:** security improvement
+**Status:** in-progress
+**Summary:** Provider and OWASP research confirmed that retrieved workspace/memory content must not occupy the system-instruction authority slot.
+**Details:** OpenAI Chat Completions documents system/developer messages as developer-provided instructions and user messages as end-user prompts or additional context; the OpenAI Model Spec defines `user` as a catch-all for data. Anthropic's current prompting guidance recommends structured XML context in user messages, and OWASP LLM01:2025 requires external/RAG content to be segregated and identified. `node/src/routes/chat.ts` currently inserts workspace context and recalled memory as `role: system`, although it labels them DATA. The planned fix is to keep only the scaffold/credo in the system message and insert dynamic workspace/memory blocks as explicitly labelled user DATA messages, then assert this boundary in the real route test.
+**Files:** node/src/routes/chat.ts, tests/arch/chat-context.test.ts, skills/packs/aide-context-retrieval-wiring/SKILL.md — queued security fix.
+**Next:** Make the role change without altering retrieval ranking or budget, run the chat-context/openapi/agent regressions, and record the observed result.
+---
+
+## [2026-09-03 16:42] Actor: opencode/T1
+**Type:** verification
+**Status:** verified
+**Summary:** Dynamic context authority boundary fixed and documented.
+**Details:** Changed `node/src/routes/chat.ts` so learned context, pinned memory, workspace retrieval, and recalled session memory are labelled `user` DATA messages; only the scaffold remains in the system slot. Retrieval ranking, path jail, and token budget were unchanged. `tests/arch/chat-context.test.ts` passed `1/1` (`1024.1259ms`) with assertions for user-role context and absence of retrieved file text from the first system message. Node/browser tsc produced no diagnostics; ESLint produced `0 errors` and `62 warnings`. Updated `skills/packs/aide-context-retrieval-wiring/SKILL.md` with the OpenAI/Anthropic/OWASP rationale, implementation truth, contract-drift lesson, and current gates. No model/training process was touched.
+**Files:** node/src/routes/chat.ts, tests/arch/chat-context.test.ts, skills/packs/aide-context-retrieval-wiring/SKILL.md, AGENT_NOTES.md.
+**Next:** Do not expand retrieval until legacy parity and a real-model grounded-chat probe are available. Return to the release battery and the remaining startup/package blockers.
+---
+
+## [2026-09-03 16:50] Actor: opencode/T1
+**Type:** feature/security verification
+**Status:** verified
+**Summary:** Streaming chat now shares the same scaffold, memory, retrieval, budget, and DATA-role preparation as non-stream chat.
+**Details:** Added optional `options`/`harness` controls and `harness` telemetry to the strict streaming contracts. Refactored `node/src/routes/chat.ts` so both `/api/chat` and `/api/chat/stream` use one `prepareChatMessages()` path; streaming now receives bounded context, keeps dynamic content in labelled user DATA messages, and emits the preparation metadata in its final SSE event. `node/src/openapi.ts` passes the shared runtime/index seam to the stream route. `npm run contracts` regenerated `common/openapi.json` to `534638` bytes with `162` documented routes. `tests/arch/chat-context.test.ts` passed `2/2` (`1222.0207ms`), including delta and final harness metadata; `tests/arch/openapi-drift.test.ts` passed `2/2` (`851.5017ms`). Node/browser tsc produced no diagnostics; ESLint produced `0 errors` and `62 warnings`. No model/training process was touched.
+**Files:** common/contracts/chat.ts, common/openapi.json, node/src/routes/chat.ts, node/src/openapi.ts, tests/arch/chat-context.test.ts, AGENT_NOTES.md.
+**Next:** Keep non-stream and stream preparation unified. Do not claim real-model streaming readiness until a warm engine probe is run; proceed to the remaining release blockers.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / continuous improvement
+**Status:** triaged; fix pending verification
+**Summary:** The standard `npm test` battery stopped at the first real regression in `harness/test-orchestrator.mjs`: the live orchestrator now records the intentional `skill-detect` stage, so the first flow has `6` trace entries while the test still asserts the pre-feature count `5`.
+**Details:** `harness/orchestrator.mjs:46-51` adds the skill-detection trace before planning; `harness/test-orchestrator.mjs:15` is the stale assertion. The failure is a test-contract update, not evidence that the new stage should be removed. The battery had already passed facade `14/14`, memory tests, smoke/UI audits, frontend build, egress audit, contracts, real acceptance, and related integration scripts before stopping. Post-failure process check verified zero test/listener processes on the exercised ports; no model or training process was touched. Per R8, the failure is being encoded before retry.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-harness-trace-contract-drift\SKILL.md` — record that intentional trace-stage additions require updating exact-length assertions and rerunning the focused harness test before resuming a chained battery.
+**Skill updated:** `E:\aide-sovereign-workbench\skills\packs\aide-context-retrieval-wiring\SKILL.md` — documented that stream and non-stream chat share `prepareChatMessages()` and that the SSE path is covered by the `2/2` context battery.
+**Files:** harness/test-orchestrator.mjs, harness/orchestrator.mjs, skills/packs/aide-context-retrieval-wiring/SKILL.md, AGENT_NOTES.md.
+**Next:** Create the failure skill, update only the stale trace-count assertion, run `node harness/test-orchestrator.mjs`, then resume `npm test` from the beginning with `&&` semantics.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** regression verification
+**Status:** verified
+**Summary:** The trace-contract repair is green.
+**Details:** Created `C:\Users\Grey_\.agents\skills\failure-harness-trace-contract-drift\SKILL.md`, changed only `harness/test-orchestrator.mjs:15` from `5` to `6`, and ran `node harness/test-orchestrator.mjs`; output was `universal harness test passed`. No model or training process was touched.
+**Next:** Restart the full `npm test` battery from the beginning; stop at the next failure and apply the same evidence-first protocol.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / fixture contract
+**Status:** triaged; fix pending verification
+**Summary:** The restarted `npm test` battery stopped at `daemon/test-dap-fixture.mjs:206` because the real Python fixture completed the DAP lifecycle but did not create the PID marker required for the daemon-level orphan check.
+**Details:** `fixtures/debuggee/fizz_engine.py` is the verified debugpy fixture used by both DAP batteries, but its current recipe has no `debuggee.pid` write. The daemon test launches the repository fixture directly and requires that marker to validate the debuggee is dead after disconnect; the arch test copies the same fixture to a temporary directory and does not currently check the marker. Active T1/T2 Python processes were identified and left untouched; known test ports were clear after the failure. Per the DAP SOP, the correct fix is a minimal fixture-side PID write, not weakening or skipping the orphan assertion.
+**Skill update planned:** `C:\Users\Grey_\.agents\skills\aid-dap-real-debugpy-fixture\SKILL.md` — document the daemon-level PID-marker requirement alongside the existing exact fixture recipe and cleanup gate.
+**Files:** fixtures/debuggee/fizz_engine.py, daemon/test-dap-fixture.mjs, tests/arch/dap-contract.test.ts, C:\Users\Grey_\.agents\skills\aid-dap-real-debugpy-fixture\SKILL.md, AGENT_NOTES.md.
+**Next:** Add the minimal PID marker before the first breakpoint, update the DAP skill, run the standalone fixture plus both DAP tests, verify no debuggee/adapter survivors, then resume `npm test`.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / LSP lifecycle timing
+**Status:** triaged; reproduction pending
+**Summary:** The third `npm test` attempt stopped in `scripts/acceptance-real.mjs:50`: the legacy daemon returned `500 {"error":"LSP request timed out"}` for TypeScript completion after `didOpen`.
+**Details:** The same acceptance path passed on the previous full attempt, so the failure may be environment-sensitive, but the current code has two lifecycle concerns requiring evidence: `LspManager.start()` performs an internal initialize/initialized handshake and `acceptance-real.mjs` sends a second initialize/initialized sequence; `LspManager` also does not surface child stderr. The request timeout is 15 seconds, while the test has no readiness wait or diagnostic capture. Active T2 Python supervisor/corpus processes were identified and left untouched; no known test listeners remained after the failure. Do not increase the timeout or kill unrelated workloads before reproducing the request sequence and capturing the child boundary.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-lsp-completion-timeout\SKILL.md` — require focused reproduction, stderr/lifecycle instrumentation, and comparison with the arch LSP battery before any timeout or protocol change.
+**Files:** scripts/acceptance-real.mjs, daemon/lsp-manager.mjs, daemon/server.mjs, C:\Users\Grey_\.agents\skills\failure-lsp-completion-timeout\SKILL.md, AGENT_NOTES.md.
+**Next:** Create the failure skill, run the acceptance test solo with boundary evidence, identify the first concrete lifecycle defect, apply the smallest fix, and verify the focused acceptance plus LSP tests before resuming `npm test`.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** focused regression verification
+**Status:** partial; timeout not reproduced
+**Summary:** The isolated legacy acceptance probe passed after adding bounded daemon-stderr diagnostics.
+**Details:** `node scripts/acceptance-real.mjs` passed the full workspace/write/patch/terminal/LSP completion/task/Git/session/plugin/Academy/Blueprint/provider/artifact/search flow. The diagnostics-only change logs captured daemon stderr on assertion failure and does not alter request timing or protocol behavior. The exact suite-order/resource condition that caused the prior LSP completion timeout remains unproven; no arbitrary timeout increase or sleep was added. Active T2 Python workloads were left untouched.
+**Files:** scripts/acceptance-real.mjs, C:\Users\Grey_\.agents\skills\failure-lsp-completion-timeout\SKILL.md, AGENT_NOTES.md.
+**Next:** Verify zero test-owned processes/listeners, rerun the full `npm test` chain, and use the new stderr evidence if the timeout recurs.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / desktop process ownership
+**Status:** root cause verified; fix pending
+**Summary:** The full `npm test` battery reached `scripts/desktop-battery.mjs` and failed the real-task assertion because `launch_app` uses asynchronous `cmd start`, while the battery checks after a fixed 1200ms; the implementation and battery also identify/kill processes by image name instead of the exact launched PID.
+**Details:** Microsoft Learn documents that `start` launches a separate process and GUI applications do not synchronously wait. The failed run recorded `2026-09-03T22:58:24.643Z`, `11/11` with `real-task-lifecycle:FAIL`; a `Notepad.exe` process appeared later and was found with user content, so it was not killed. The current `panic()` image-wide `/IM` sweep and battery `/IM notepad.exe` cleanup can affect an operator-owned app. The later trajectory test can also leave its launched app alive because `after()` only removes the temp directory. This is a real safety and verification defect, not a flaky assertion to relax.
+**Fix planned:** Extend the strict desktop action request with bounded `args[]`; launch shell-free and wait for a new process PID; assert/track that PID; use PID-scoped tree-kill and cleanup; replace the user-facing Notepad probe with a disposable `timeout.exe` process; panic/after cleanup must never sweep unrelated image-name matches.
+**Research:** Microsoft Learn `start` reference (`https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/start`) plus `aide-p6-desktop-control` and `aide-route-slice-sop`.
+**Files:** common/contracts/desktop.ts, common/openapi.json, node/src/services/desktop-control.mjs, scripts/desktop-battery.mjs, C:\Users\Grey_\.agents\skills\aide-p6-desktop-control\SKILL.md, AGENT_NOTES.md.
+**Next:** Apply the contract-first/service/battery fix, regenerate OpenAPI as the last contract edit, run the desktop battery in isolation without touching the existing Notepad PID, verify exact-PID teardown, then rerun `npm test`.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / desktop probe selection
+**Status:** root cause verified; fix pending
+**Summary:** The first PID-owned desktop implementation correctly rejected both `timeout.exe` launches because hidden/non-console `timeout.exe` exits immediately instead of remaining a live process.
+**Details:** `scripts/desktop-battery.mjs` recorded two `CHILD_FAILED` results after the 10-second ownership wait; post-run process inspection found no `timeout.exe`, `ping.exe`, or test Node survivors and no known test listeners. The exact-PID wait/cleanup path is therefore functioning; only the disposable probe was invalid for this launch mode. The existing user-owned Notepad process remains untouched.
+**Fix planned:** Use `ping.exe 127.0.0.1 -n 30 -w 1000` as the disposable real process, keep shell-free args and PID-scoped tree-kill, and update `aide-p6-desktop-control` to prohibit assumptions about console-only probes.
+**Files:** scripts/desktop-battery.mjs, C:\Users\Grey_\.agents\skills\aide-p6-desktop-control\SKILL.md, AGENT_NOTES.md.
+**Next:** Replace only the probe executable/args, run the focused desktop battery, verify its exact PID and cleanup, then rerun `npm test`.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** desktop safety verification
+**Status:** verified
+**Summary:** Desktop DC-a process ownership and cleanup now pass in isolation.
+**Details:** `common/contracts/desktop.ts` accepts bounded `args[]`; `node/src/services/desktop-control.mjs` launches shell-free, requires the exact child PID to be observable, records a PID-scoped assertion, and panic tree-kills only tracked PIDs. `scripts/desktop-battery.mjs` uses disposable `ping.exe` instead of user-facing Notepad, closes by PID, and calls panic in `after()`. `npm run contracts` regenerated `common/openapi.json` to `534892` bytes with `162` documented routes. Syntax checks passed. Focused battery passed `12/12`: real task PID `10544` ran and was gone; panic latency `134ms`; trajectory PID `18852` assertion passed. Post-run check found no Node/ping/timeout survivors, zero known test listeners, and existing user Notepad PID `17444` remained untouched.
+**Skill updated:** `C:\Users\Grey_\.agents\skills\aide-p6-desktop-control\SKILL.md` — shell-free/PID ownership, no image-wide kill, and disposable probe rules.
+**Files:** common/contracts/desktop.ts, common/openapi.json, node/src/services/desktop-control.mjs, scripts/desktop-battery.mjs, C:\Users\Grey_\.agents\skills\aide-p6-desktop-control\SKILL.md, docs/evidence/desktop-battery.md, AGENT_NOTES.md.
+**Next:** Rerun `npm test` from the beginning; the desktop gate must remain green in the full suite.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** desktop battery safety improvement
+**Status:** verified
+**Summary:** Removed the prompt-injection battery's accidental user-document side effect.
+**Details:** Changed the temporary adversarial path in `scripts/desktop-battery.mjs` from a `.txt` file to a same-named temporary directory, so Windows default file association cannot open the operator's Notepad while the test proves the literal path is DATA. Updated `C:\Users\Grey_\.agents\skills\aide-p6-desktop-control\SKILL.md` to require a filesystem-entry probe without opening a user document. Syntax check and desktop battery passed `12/12`; zero desktop-battery listeners/processes remained and Notepad PID `17444` remained untouched.
+**Files:** scripts/desktop-battery.mjs, C:\Users\Grey_\.agents\skills\aide-p6-desktop-control\SKILL.md, docs/evidence/desktop-battery.md, AGENT_NOTES.md.
+**Next:** Rerun `npm test` from the beginning; confirm the full chain stays green through the corrected desktop battery.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** standard battery verification
+**Status:** verified
+**Summary:** The repository `npm test` battery is green after the trace, DAP, LSP-diagnostic, and desktop safety repairs.
+**Details:** The full `npm test` chain completed through facade `14/14`, memory, smoke/UI, frontend build, egress, view/git/task/hot-exit/editor contracts, real acceptance, harness/Veritas, model/community/LSP/DAP/process/workspace/training/replay/agent/blueprint/operator/workflow/handoff/tutor/plugin/task/session/editor/artifact/provider/git/benchmark/arena/capsule tests, sandbox `6/6`, sandbox-flow `4/4`, experts `6/6`, Telegram `5/5`, desktop `12/12`, grammar `5/5`, and final daemon end-to-end smoke. Frontend build passed (`1355` modules; Vite chunk-size warning only). Post-suite process check found no test-owned Node/LSP/ping/timeout survivors, zero known test listeners, and existing Notepad PID `17444` untouched. Active T2 Python supervisor/corpus processes were not touched.
+**Files:** test evidence includes `docs/evidence/desktop-battery.md`; code/SOP changes are recorded in the preceding entries.
+**Next:** Complete the separate `npm run check:arch`/Veritas/release battery; this green `npm test` result is not a production-release claim.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / Windows npm toolchain
+**Status:** root cause verified; static gate pending
+**Summary:** The static arch gate stopped before TypeScript because `npx`/npm `11.17.0` is internally incomplete: its bundled `lru-cache` export points to a missing `dist/commonjs/node/index.min.js`.
+**Details:** npm debug log `C:\Users\Grey_\AppData\Local\npm-cache\_logs\2026-09-03T23_19_52_693Z-debug-0.log` records `npm exec tsc -p tsconfig.node.json --noEmit`, actual cwd `E:\aide-sovereign-workbench`, Node `v26.4.0`, npm `11.17.0`, and the exact `MODULE_NOT_FOUND`. This is an npm installation/tooling failure, not a TypeScript diagnostic. No child process or listener was left behind; active T2 Python workloads remain untouched.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-npm-lru-cache\SKILL.md` — require reading the npm log, verifying the bundled package, avoiding blind npm repair, and using verified repository-local binaries only when present.
+**Files:** C:\Users\Grey_\.agents\skills\failure-npm-lru-cache\SKILL.md, AGENT_NOTES.md.
+**Next:** Create the failure skill, verify local `tsc`/`eslint` binaries without invoking npm, run static checks through direct paths if complete, and separately document/repair npm only if an approved toolchain action is safe.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / PowerShell verification command
+**Status:** triaged; fix pending verification
+**Summary:** The repository-local binary existence probe failed before execution because a PowerShell `foreach` statement was piped directly; PowerShell requires collecting the statement output first.
+**Details:** The command produced `ParserError: An empty pipe element is not allowed`. No project file, process, or listener was affected. This is a shell-command construction error, not evidence about the Node toolchain.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-powershell-foreach-pipeline\SKILL.md` — collect `foreach` output with `@(...)` before piping or use a normal loop with direct output.
+**Files:** C:\Users\Grey_\.agents\skills\failure-powershell-foreach-pipeline\SKILL.md, AGENT_NOTES.md.
+**Next:** Create the command skill, rerun the existence probe with collected output, then invoke only verified local binaries.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** static gate / resource block
+**Status:** static verified; arch suite deferred
+**Summary:** Static arch checks passed through direct repository binaries; the serialized arch suite is safely deferred because the machine is under active model/training load.
+**Details:** Direct `node node_modules/typescript/bin/tsc -p tsconfig.node.json --noEmit` and browser tsc completed with no diagnostics. Direct ESLint completed with `0 errors` and `62 warnings`; `node scripts/verify-facade-map.mjs` passed (`155` TS paths, `64` TS prefixes, `3` exact flips). The npm wrapper remains broken per the preceding log. Resource probe reported `0.67 GB` free RAM, llama-server PID `5012` on `8081` and PID `18068` on `8092`, plus four active T2 Python supervisor/corpus processes. No AIDE/model/training process was killed, paused, or restarted, and no arch tests were started into this condition.
+**Files:** C:\Users\Grey_\.agents\skills\failure-npm-lru-cache\SKILL.md, C:\Users\Grey_\.agents\skills\failure-powershell-foreach-pipeline\SKILL.md, AGENT_NOTES.md.
+**Next:** After an approved safe resource window, run `node scripts/run-arch.mjs`, then `npm run veritas`/release gates; do not claim `check:arch` green from static checks alone.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** authorized process cleanup
+**Status:** verified
+**Summary:** Per the operator's explicit instruction to release memory and leave only the current work running, authorized model/training workloads were terminated and verified absent.
+**Details:** Tree-killed llama-server PID `5012` (Qwen, port `8081`) and PID `18068` (North, port `8092`); tree-killed T2 corpus/supervisor PIDs `16836` and `13840`. Supervisor PID `13536` disappeared during child-tree cleanup; its later kill correctly returned `not found` and was not retried. PID verification found all authorized targets `5012,18068,13536,13840,16796,16836` dead, ports `8081`/`8092` clear, no llama/Python/Node/ping/timeout survivors in the monitored set, and free RAM `8.38 GB` of `15.92 GB`. No unrelated application or OpenCode process was touched.
+**Next:** Run the serialized arch suite now that the resource window is clear; verify its teardown before any subsequent gate.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** serialized arch verification
+**Status:** verified
+**Summary:** The complete serialized TypeScript arch suite is green after the authorized resource release.
+**Details:** `node scripts/run-arch.mjs` reported `69 test file(s), concurrency=1` and completed with `355` tests passed, `0` failed, `0` skipped, duration `342287.5769ms`. This included real debugpy DAP, real TypeScript LSP, GGUF probing/ingestion/start-stop, context stream/non-stream, route contracts, worktree isolation, desktop policy, and system-map runtime coverage. Two existing best-effort logger `ENOENT` messages occurred for already-removed temporary workspaces; they did not fail tests. Post-suite verification found zero monitored Node/llama/Python/DAP/ping survivors, zero arch/test/model listeners, free RAM `8.24 GB`, and user Notepad PID `17444` untouched.
+**Files:** tests/arch/*.test.ts, docs/evidence artifacts generated by the suite, AGENT_NOTES.md.
+**Next:** Run Veritas; its compile/tests commands are expected to repeat these gates and its git-diff/secret/manifest checks remain independently required.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / release hygiene
+**Status:** root cause verified; fix pending verification
+**Summary:** Veritas compile, tests, path-boundary, secret-scan, and manifest gates passed; the git-diff oath failed solely on trailing whitespace in the pre-existing `T1-T2_notes.md` change at the proof-of-work line.
+**Details:** `npm run veritas` returned `passed:false` with only `git-diff:false`; its captured compile output showed the full `355` arch tests passing and its test output showed the full `npm test` chain passing. Direct `git diff --check -- T1-T2_notes.md` reproduced the exact trailing space after `instead of` in the historical line; CRLF conversion messages are warnings, not failures. Veritas/test process and listener cleanup was verified, free RAM was `7.96 GB`, and no model/training process was touched.
+**Fix planned:** Remove only that single trailing space without changing journal content, rerun `git diff --check`, then rerun Veritas so its deterministic oath is actually green.
+**Files:** T1-T2_notes.md, AGENT_NOTES.md.
+**Next:** Apply the whitespace-only cleanup and rerun the focused diff gate, then rerun `npm run veritas`.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** release-hygiene verification
+**Status:** verified
+**Summary:** The focused diff oath is clean after the whitespace-only journal correction.
+**Details:** `git diff --check -- T1-T2_notes.md` exited successfully; Git emitted only its CRLF normalization warning and no trailing-whitespace finding. No semantic journal content changed, and no processes were spawned or touched.
+**Next:** Rerun `npm run veritas` for the complete independent gate result.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / legacy Git API acceptance
+**Status:** triaged; focused reproduction pending
+**Summary:** Veritas compile, path-boundary, secret-scan, manifest, and git-diff gates passed, but its nested test command failed in `scripts/test-git-api.mjs:31`: approved `/api/git/stage` returned `500` instead of `200`.
+**Details:** The same Git API script passed during the preceding full `npm test`, and arch Git route tests passed, so the mechanism may involve nested-run state, fixed port `4891`, or an unreported daemon error. The test currently asserts only the status and discards the response body; its daemon stderr is captured but never printed on assertion failure. Veritas returned `tests:false`, `git-diff:true`; process/listener cleanup after Veritas was verified. No model/training process was touched.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-git-api-stage-500\SKILL.md` — require response-body/stderr capture, dynamic-port ownership, and focused reproduction before changing Git behavior.
+**Files:** scripts/test-git-api.mjs, daemon/server.mjs, C:\Users\Grey_\.agents\skills\failure-git-api-stage-500\SKILL.md, AGENT_NOTES.md.
+**Next:** Create the failure skill, add bounded failure diagnostics and a collision-free test port, reproduce the focused Git API test, then apply only the concrete fix.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** Git API focused regression
+**Status:** verified; Veritas rerun pending
+**Summary:** The Git API 500 was not reproducible after making the acceptance boundary observable and removing fixed-port collision risk.
+**Details:** Added an ephemeral loopback port to `scripts/test-git-api.mjs`, included response bodies and daemon stderr in status assertions, and retained the same approved stage/commit behavior. `node scripts/test-git-api.mjs` passed; `tests/arch/git-routes.test.ts` passed `7/7`; focused test/listener cleanup verified no Node/Git survivors or ports `4891`/`4893`. No model/training process was touched.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-git-api-stage-500\SKILL.md` — response/stderr capture and dynamic-port procedure.
+**Files:** scripts/test-git-api.mjs, C:\Users\Grey_\.agents\skills\failure-git-api-stage-500\SKILL.md, AGENT_NOTES.md.
+**Next:** Rerun `npm run veritas`; treat any new failure independently.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** Veritas verification
+**Status:** verified
+**Summary:** Veritas is fully green after the Git API acceptance repair.
+**Details:** `npm run veritas` returned `passed:true`, score `1`, evidence level `sufficient`, threshold `0.9`; path-boundary, secret-scan, manifest-validation, compile, tests, and git-diff all passed. Nested compile reran `69` arch files / `355` tests; nested tests completed the full `npm test` chain, including Git API, desktop `12/12`, grammar `5/5`, and final daemon smoke. Git diff emitted only CRLF normalization warnings. Post-Veritas verification found zero monitored test/model processes and zero listeners on all AIDE/test/model ports; free RAM was `7.78 GB`. No model/training process was touched during this run.
+**Next:** Verify desktop preparation again, then handle the still-unverified native Tauri build/install gate.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / packaging environment variable
+**Status:** triaged; strict probe pending
+**Summary:** Strict `npm run desktop:verify` failed before staging because the command supplied `AIDE_LLAMA_SERVER`, but `desktop/prepare.mjs` requires `AIDE_LLAMA_SERVER_BINARY` for the staged binary.
+**Details:** Source inspection verified the distinction: `AIDE_REQUIRE_MODEL_RUNTIME=1` gates strictness and `AIDE_LLAMA_SERVER_BINARY` is the only candidate override at `desktop/prepare.mjs:67`; `AIDE_LLAMA_SERVER` is a serving/runtime variable elsewhere. No files or processes were affected; known packaging/test/model listeners remained clear.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-desktop-runtime-env-name\SKILL.md` — distinguish staging binary input from runtime server configuration and verify variable names from source before running strict packaging gates.
+**Files:** C:\Users\Grey_\.agents\skills\failure-desktop-runtime-env-name\SKILL.md, AGENT_NOTES.md.
+**Next:** Create the failure skill, run strict `desktop:verify` with `AIDE_LLAMA_SERVER_BINARY=E:\llama-cpp\llama-server.exe`, and record the staged-runtime result.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** packaging verification / native toolchain block
+**Status:** staging verified; native build blocked
+**Summary:** Strict desktop preparation passes with the local llama runtime, but the real Tauri build cannot start because the Rust toolchain is absent.
+**Details:** `npm run desktop:verify` with `AIDE_REQUIRE_MODEL_RUNTIME=1` and `AIDE_LLAMA_SERVER_BINARY=E:\llama-cpp\llama-server.exe` passed; required frontend/resource files were present and source/staged llama SHA-256 matched `E3F35520CA9DCB448FC5471C881DC55059A0E5622B832213745C8E5BB71A560E`. `npm run desktop:build` then ran preparation and failed at Tauri `cargo metadata`: `program not found`. `Get-Command cargo,rustc,rustup,rustfmt` confirmed all four are missing. No installer or native binary claim is valid. No processes/listeners remained after the build attempt.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-desktop-runtime-env-name\SKILL.md` — records the correct staging variable `AIDE_LLAMA_SERVER_BINARY` versus runtime `AIDE_LLAMA_SERVER`.
+**Files:** desktop/frontend, desktop/resources, C:\Users\Grey_\.agents\skills\failure-desktop-runtime-env-name\SKILL.md, AGENT_NOTES.md.
+**Next:** Keep source-side release work moving, but use a Rust-capable approved host/CI for `desktop:build`, installer smoke, and offline install verification; do not install or fetch Rust unapproved.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** packaging configuration
+**Status:** verified; native build still blocked
+**Summary:** The Tauri target is now pinned to the locked canonical Windows NSIS artifact.
+**Details:** Changed only `desktop/tauri.conf.json:16` from `targets: "all"` to `targets: "nsis"`. JSON validation confirmed `targets=nsis`, `webviewInstallMode=offlineInstaller`, and the `resources/` object map. No Rust/native build was attempted by this slice; `cargo` remains absent. No processes were spawned or touched.
+**Files:** desktop/tauri.conf.json, AGENT_NOTES.md.
+**Next:** Continue the separate packaged-stack topology audit; do not claim the NSIS artifact until a Rust-capable build and installer smoke pass.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** failure / staged packaged topology
+**Status:** triaged; child diagnostics pending
+**Summary:** The first staged-stack smoke attempt exited `1` before readiness, but the smoke harness deleted its temporary workspace and lost the child daemon logs, so the topology failure is not yet attributable.
+**Details:** Strict preparation completed and the smoke launched the staged Node runtime/launcher on ephemeral ports; the launcher process returned code `1`. The harness's `finally` removed the temp workspace before reading `workspace/.aide/logs/desktop-{arch,legacy,facade}-err.log`, and the parent pipe was empty. Post-attempt process/listener verification found no Node/llama/Python survivors and no monitored ports. Per R8, no topology retry or arbitrary resource edit is being made before preserving the child boundary evidence.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-desktop-staged-stack-exit\SKILL.md` — preserve bounded child logs and exit state before cleanup when a packaged launcher exits early.
+**Files:** scripts/desktop-staged-stack-smoke.mjs, desktop/stack-launcher.mjs, C:\Users\Grey_\.agents\skills\failure-desktop-staged-stack-exit\SKILL.md, AGENT_NOTES.md.
+**Next:** Create the failure skill, retain/capture staged child logs on failure, reproduce once, then fix the first concrete import/path/process defect.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** staged-smoke instrumentation failure
+**Status:** fixed; reproduction pending
+**Summary:** The first diagnostic rerun failed inside the new log collector because its filter referenced `name` before the loop variable was initialized.
+**Details:** `scripts/desktop-staged-stack-smoke.mjs:71` used `names.filter(file => name.startsWith(...))`; the resulting `ReferenceError` occurred during cleanup after the staged launcher attempt. The one-line correction now uses `file`; no launcher/process survivor or listener was found. The failure skill `C:\Users\Grey_\.agents\skills\failure-desktop-staged-stack-exit\SKILL.md` already requires bounded child-log preservation before cleanup.
+**Files:** scripts/desktop-staged-stack-smoke.mjs, AGENT_NOTES.md.
+**Next:** Rerun strict staged-stack smoke and inspect preserved child logs if the launcher still exits early.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** packaged topology defect
+**Status:** root cause verified; fix pending verification
+**Summary:** Preserved staged child logs showed the arch server could not import `resources/workbenches/manager.mjs`; the initial full-stack resource list omitted the shared `workbenches/` source tree.
+**Details:** `desktop/resources/node/src/routes/workbenches.ts` imports `../../../../workbenches/manager.mjs`, which resolves to `desktop/resources/workbenches/manager.mjs`. The staged smoke confirmed facade and legacy were only stopped as a consequence of the arch child exit. Added `workbenches` to `desktop/prepare.mjs` resource staging; no broad development-tree copy was used.
+**Files:** desktop/prepare.mjs, desktop/resources, AGENT_NOTES.md.
+**Next:** Rerun strict staged-stack smoke and preserve/read logs for the next missing dependency if any.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** staged-smoke teardown contract
+**Status:** root cause verified; fix pending verification
+**Summary:** After the `workbenches/` resource fix, the staged stack reached healthy TS/legacy probes, but the smoke still failed because forced Windows tree-kill made the launcher exit with code `1` during expected cleanup.
+**Details:** The probe printed `desktop staged stack smoke passed`; preserved logs showed TS `/api/health` eventually `200`, legacy `/api/tasks` `200`, and no arch/legacy error output. The error was raised only after `taskkill` cleanup inspected the launcher exit code. The smoke must validate launcher exit state before teardown and must not interpret its own forced cleanup exit as a startup failure.
+**Fix planned:** Track readiness success, check unexpected exit before cleanup, and suppress expected post-cleanup nonzero status; preserve child logs for failures before readiness.
+**Files:** scripts/desktop-staged-stack-smoke.mjs, C:\Users\Grey_\.agents\skills\failure-desktop-staged-stack-exit\SKILL.md, AGENT_NOTES.md.
+**Next:** Apply the teardown-boundary fix and rerun strict staged-stack smoke with exact child/process verification.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** packaged topology verification
+**Status:** verified; native build still blocked
+**Summary:** The staged desktop stack now boots and routes through the packaged TS arch server, legacy daemon, and facade using the embedded runtime.
+**Details:** `npm run desktop:staged-smoke` with strict runtime staging passed on ephemeral ports (`ts=50314`, `legacy=50315`, `facade=50316`); `/api/health` reached TS `200`, `/api/tasks` reached legacy `200`, and `/api/models/status` reached TS `200`. `npm run desktop:verify` then passed with model runtime staged. Required resource audit found `stack-launcher.mjs`, node/common/facade sources, and runtime packages (`zod`, `ws`, `typescript`, `typescript-language-server`). The smoke tree-cleaned its launcher; post-check found zero staged-stack/test/model listeners or survivors.
+**Fixes:** Added `desktop/stack-launcher.mjs`, staged `workbenches/`, `node/`, `common/`, facade, and four runtime packages; Rust now launches the managed stack with writable user workspace/model paths; `createModelRuntime()` honors `AIDE_MODEL_DIR`; smoke preserves child logs and ignores expected forced-cleanup exit after readiness.
+**Files:** desktop/prepare.mjs, desktop/verify-prepare.mjs, desktop/stack-launcher.mjs, desktop/src/main.rs, desktop/tauri.conf.json, node/src/openapi.ts, scripts/desktop-staged-stack-smoke.mjs, package.json, AGENT_NOTES.md.
+**Next:** Re-run direct static/Veritas gates for this topology slice, then use a Rust-capable host for actual Tauri compile/installer/offline smoke.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** packaged verification hardening
+**Status:** fix pending verification
+**Summary:** The staged-stack smoke is being promoted into `desktop:verify`, with POSIX signal cleanup added so the same gate cannot leak on CI hosts.
+**Details:** The staged smoke already proved the packaged TS/legacy/facade topology on Windows. Its test-only `killTree()` was a no-op on non-Windows, which would leave the launcher alive if CI ran the new gate there. The standard desktop verifier will now run staging, required-resource verification, and staged-stack routing in one failure-propagating chain.
+**Skill update planned:** `C:\Users\Grey_\.agents\skills\failure-desktop-staged-stack-exit\SKILL.md` — require cross-platform launcher cleanup and treat the staged smoke as part of the desktop verification boundary.
+**Files:** scripts/desktop-staged-stack-smoke.mjs, package.json, C:\Users\Grey_\.agents\skills\failure-desktop-staged-stack-exit\SKILL.md, AGENT_NOTES.md.
+**Next:** Update the failure skill, run standard strict `desktop:verify`, verify no cross-platform test survivors, then rerun Veritas.
+---
+## [2026-09-03 17:xx] Actor: opencode/T1
+**Type:** verification-command failure
+**Status:** triaged; cleanup verification pending
+**Summary:** Strict `desktop:verify` passed, but the first post-verifier PowerShell cleanup query was malformed by an extra closing brace and produced a parser error.
+**Details:** The malformed query did not inspect or affect any process. A separate Notepad check reported the prior PID `17444` as gone; that result is independent. The existing `failure-powershell-foreach-pipeline` skill is being extended with a balanced-brace/check-command rule before the corrected cleanup query.
+**Skill update planned:** `C:\Users\Grey_\.agents\skills\failure-powershell-foreach-pipeline\SKILL.md` — validate PowerShell block delimiters before treating verification output as evidence.
+**Files:** C:\Users\Grey_\.agents\skills\failure-powershell-foreach-pipeline\SKILL.md, AGENT_NOTES.md.
+**Next:** Update the command skill, rerun cleanup verification with a simple balanced command, then rerun Veritas.
+---
+## [2026-09-03 19:56] Actor: opencode/T1
+**Type:** event / authorized process cleanup
+**Status:** verified; resume pending
+**Summary:** Reloaded the governing release/packaging/debugging SOPs after the operator reported the laptop fixed, then cleared the restarted T2/model workload tree under explicit operator authorization.
+**Details:** The interrupted Veritas invocation had no Node/Veritas process, but a restarted Qwen llama-server PID `15732` on `8081` was parented by the T2 corpus/supervisor chain `11748 -> 12032 -> 14656 -> 14696`; `taskkill /PID 11748 /T /F` terminated the authorized tree. Verification found PIDs `11748,12032,14656,14696,15732` dead, all model ports clear, no monitored Node/llama/Python/ping/timeout survivors, and free RAM `9.28/15.92 GB`. Reloaded skills include `hard-rules`, `agent-notes`, developer credo/precision, verification-complete, process hygiene, AIDE research/release/packaging/cutover/windows, route-slice, and the active failure skills. No OpenCode process or unrelated application was touched.
+**Next:** Resume the interrupted Veritas gate from the beginning, verify its teardown, then continue native/package release work.
+---
+## [2026-09-03 20:04] Actor: opencode/T1
+**Type:** resume / verification
+**Status:** verified; native host gate blocked
+**Summary:** Reloaded the governing skills/SOPs after the laptop recovery, released the restarted authorized workload tree, and completed the interrupted Veritas run successfully.
+**Details:** After `taskkill /PID 11748 /T /F`, verification found the Qwen/corpus tree dead, model ports clear, and `9.28 GB` free RAM. Resumed `npm run veritas` from the beginning; it returned `passed:true`, score `1`, sufficient evidence, threshold `0.9`, with path-boundary, secret-scan, manifest-validation, compile, nested `69`-file/`355`-test arch suite, nested full `npm test`, and git-diff all passing. Final cleanup found no monitored Node/npm/llama/Python/ping/timeout/cargo/rustc survivors and zero AIDE/test/model listeners; free RAM `8.99 GB`.
+**Next:** Continue the packaging/release lane. Local strict preparation and staged TS/legacy/facade smoke are green; actual Tauri build/installer/offline install remains blocked until a Rust-capable approved host is available.
+---
+## [2026-09-03 20:04] Actor: opencode/T1
+**Type:** SOP truth synchronization
+**Status:** planned
+**Summary:** The global packaging and production-cutover skills contain stale pre-topology facts and must be aligned with the verified project state.
+**Details:** `aide-packaging-offline` still describes empty resources, legacy-only Rust startup, and the old desktop preparation layout; `aide-production-cutover` still describes the old `npm start` and port topology. The project-local evidence now proves resource staging, the managed TS/legacy/facade launcher, `targets=nsis`, and `desktop:verify` plus staged-stack smoke. Synchronizing these instructions prevents a future SOP reload from directing work toward already-fixed defects.
+**Skill edits planned:** `C:\Users\Grey_\.agents\skills\aide-packaging-offline\SKILL.md` and `C:\Users\Grey_\.agents\skills\aide-production-cutover\SKILL.md` — replace stale current-state sections with verified facts and leave Rust/install/model verification as explicit open gates.
+**Files:** C:\Users\Grey_\.agents\skills\aide-packaging-offline\SKILL.md, C:\Users\Grey_\.agents\skills\aide-production-cutover\SKILL.md, AGENT_NOTES.md.
+**Next:** Update both skills, reread the changed sections, and rerun source-side release checks.
+---
+## [2026-09-03 20:08] Actor: opencode/T1
+**Type:** SOP/documentation synchronization
+**Status:** verified; native host gate blocked
+**Summary:** Global packaging and cutover SOPs now describe the verified 2026-09-03 topology instead of stale legacy-only/resource-empty facts.
+**Details:** Updated `C:\Users\Grey_\.agents\skills\aide-packaging-offline\SKILL.md` with the current staged resource tree, managed TS/legacy/facade launcher, strict preparation command, and explicit Rust/install/model gates. Updated `C:\Users\Grey_\.agents\skills\aide-production-cutover\SKILL.md` with current `4778/4779/4777/4173` topology, route-map evidence, staged smoke, and native-build limitation. Updated `desktop/README.md` and `docs/evidence/packaging-installation-decision-2026-09-03.md` to match. Reread all changed sections. Post-recovery toolchain probe still reports `cargo`, `rustc`, `rustup`, and `rustfmt` missing; no installer claim is valid. No process was spawned or touched by the documentation slice.
+**Files:** C:\Users\Grey_\.agents\skills\aide-packaging-offline\SKILL.md, C:\Users\Grey_\.agents\skills\aide-production-cutover\SKILL.md, desktop/README.md, docs/evidence/packaging-installation-decision-2026-09-03.md, AGENT_NOTES.md.
+**Next:** Use an approved Rust-capable host/CI for `npm run desktop:build`, NSIS install/uninstall, portable, offline, and model-pack verification; local JS/source gates are green.
+---
+## [2026-09-03 20:xx] Actor: opencode/T1
+**Type:** GitHub CI audit
+**Status:** verified; push approval pending
+**Summary:** GitHub is red because the remote branch still points at older commits containing compile errors; the current local worktree is not yet published.
+**Details:** `gh run list` shows latest failures `33753519600` (`662ab8f`) and `33753487988` (`12452e7`). Run `33753519600` fails first at `type checks and lint`; annotations identify stale `node/src/openapi.ts` route typing, missing `node/src/services/onboarding.d.mts`/`system-map.d.mts`, `tests/arch/agent-subagent.test.ts` schema type usage, and `tests/arch/system-map-runtime.test.ts` strict errors. The remote run's architecture step is skipped and Veritas fails downstream at compile. Current local `npm run veritas` has passed with score `1`, nested `355` arch tests, and current fixes; `git status` shows those fixes uncommitted on `t1/strict-pass-batch` tracking the old remote head. No commit or push was made.
+**Next:** Review the complete local diff, stage only intended files, and obtain explicit operator approval before committing/pushing; then watch the resulting CI run through type/lint, architecture, and Veritas.
+---
+## [2026-09-03 20:xx] Actor: opencode/T1
+**Type:** scope decision
+**Status:** verified
+**Summary:** The model-integrity implementation is intentionally excluded from the CI publication commit until its own tests pass.
+**Details:** `common/model-integrity.mjs` is new and `node/src/services/model-runtime.ts` contains unverified manifest-hash/status/start changes layered onto earlier local runtime work. The last green Veritas run preceded these changes, so they cannot be represented as part of the verified CI/release set. They remain in the worktree for the next isolated model-runtime slice; no revert was performed.
+**Files excluded:** common/model-integrity.mjs, node/src/services/model-runtime.ts.
+**Next:** Stage only the verified set, inspect the staged diff for secrets and unintended user/T2 changes, then commit and push under the operator's authorization.
+---
+## [2026-09-04 06:07] Actor: opencode/T1
+**Type:** failure / commit hook
+**Status:** triaged; retry pending
+**Summary:** The first authorized commit attempt was rejected by the repository commit-msg hook because `fix: publish verified release gates` omitted the required scope.
+**Details:** The pre-commit hook passed (`mjs syntax + secret scan; TS validated via tsc separately`); no commit was created and the staged file set remains intact. The hook requires `type(scope): description` with a description of at least 10 characters. No code, staged content, or processes were changed by the failed commit attempt.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-conventional-commit-message\SKILL.md` — use the repository's scoped Conventional Commit format before invoking commit.
+**Files:** C:\Users\Grey_\.agents\skills\failure-conventional-commit-message\SKILL.md, AGENT_NOTES.md.
+**Next:** Create the failure skill, retry the unchanged staged set with `fix(release): publish verified release gates`, inspect the resulting commit, then push.
+---

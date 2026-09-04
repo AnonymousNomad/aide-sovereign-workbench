@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
 import { createFacade, loadRouteMap } from '../../scripts/facade.mjs';
+import { deriveRouteMap } from '../../scripts/build-facade-map.mjs';
 
 const HOST = '127.0.0.1';
 
@@ -178,6 +179,49 @@ test('generated route map routes the files domain to ts without touching legacy-
   assert.ok(allTargets.every(t => t === 'ts' || t === 'legacy'));
   assert.equal('/api/workspace/tree' in map.exact, false);
   assert.equal(Object.keys(map.prefixes).some(prefix => '/api/search'.startsWith(prefix)), false);
+});
+
+test('derived route map owns TS-only subfamilies without flipping shared paths', () => {
+  const map = deriveRouteMap({
+    tsRoutes: [
+      '/api/file',
+      '/api/file/write',
+      '/api/chat',
+      '/api/chat/stream',
+      '/api/dap/start',
+      '/api/dap/step',
+      '/api/training/start',
+      '/api/training/datasets/read',
+      '/api/workbench/worktree/list'
+    ],
+    legacyExactRoutes: ['/api/chat', '/api/dap/start', '/api/training/start'],
+    legacyPrefixRoutes: ['/api/dap/state?']
+  });
+  assert.equal(map.exact['/api/chat'], 'ts');
+  assert.equal(map.prefixes['/api/chat/stream'], 'ts');
+  assert.equal(map.prefixes['/api/dap/step'], 'ts');
+  assert.equal(map.prefixes['/api/training/datasets'], 'ts');
+  assert.equal(map.prefixes['/api/workbench'], 'ts');
+  assert.equal(map.prefixes['/api/dap'], undefined);
+  assert.equal(map.prefixes['/api/training'], undefined);
+});
+
+test('current route map sends a TS-only path to TS while shared task paths stay legacy', async () => {
+  const ts = fakeBackend('ts');
+  const legacy = fakeBackend('legacy');
+  const tsPort = await listen(ts.server);
+  const legacyPort = await listen(legacy.server);
+  const routeMap = await loadRouteMap(path.resolve(import.meta.dirname, '../../common/facade-route-map.json'));
+  const facade = await createFacade({
+    port: 0,
+    routeMap,
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: legacyPort } }
+  });
+  const port = facade.server.address().port;
+  assert.equal((await get(port, '/api/onboarding/state')).headers['x-backend'], 'ts');
+  assert.equal((await get(port, '/api/tasks')).headers['x-backend'], 'legacy');
+  await facade.close();
+  for (const s of [ts.server, legacy.server]) { s.closeAllConnections?.(); s.close(); }
 });
 
 test('facade rewrites upstream structured errors into the legacy-compatible envelope', async () => {

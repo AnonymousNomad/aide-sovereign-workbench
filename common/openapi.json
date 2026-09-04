@@ -1688,6 +1688,19 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
+                        "memory_recall_hits": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "memory_recall_tokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "memory_recall_degraded": {
+                          "type": "boolean"
+                        },
                         "reason": {
                           "type": "string"
                         }
@@ -2026,6 +2039,86 @@
                     },
                     "truncatedSystem": {
                       "type": "boolean"
+                    },
+                    "harness": {
+                      "type": "object",
+                      "properties": {
+                        "injected": {
+                          "type": "boolean"
+                        },
+                        "tier": {
+                          "type": "string"
+                        },
+                        "bytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "version": {
+                          "type": "string"
+                        },
+                        "served_context_tokens": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "drift_reinjected": {
+                          "type": "boolean"
+                        },
+                        "approx_prompt_tokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "compose_ms": {
+                          "type": "number"
+                        },
+                        "memory_bytes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "context_hits": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "context_degraded": {
+                          "type": "boolean"
+                        },
+                        "context_tokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "memory_recall_hits": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "memory_recall_tokens": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "memory_recall_degraded": {
+                          "type": "boolean"
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "injected"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -2076,6 +2169,35 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "options": {
+                    "type": "object",
+                    "properties": {
+                      "maxTokens": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "temperature": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 2
+                      },
+                      "n": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 4
+                      },
+                      "timeoutMs": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "harness": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -3039,6 +3161,14 @@
                   "target": {
                     "type": "string",
                     "maxLength": 500
+                  },
+                  "args": {
+                    "maxItems": 16,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
                   },
                   "destination": {
                     "type": "string",

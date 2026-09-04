@@ -69,3 +69,33 @@ Retrieval returns `null` cleanly when nothing matches -> orchestrator instructs 
 ## Gate
 
 Unit+arch green; e2e: 30-turn fixture conversation spanning 3 sessions -> model answers question requiring session-1 fact WITHOUT it being in recent context; honesty probe answered "not in my memory" when true. Journal.
+
+## Implementation truth audit (2026-09-03)
+
+The design above is broader than the currently verified implementation. Keep
+these distinctions explicit until each gate is demonstrated:
+
+- X1 event ingestion currently reads `.aide/cipher-state.jsonl` and
+  `.aide/metrics/ships.log` in `harness/memory-spine.mjs` and writes day
+  digests under `.aide/memory/days/`. It does not itself write the documented
+  `.aide/memory/events.jsonl` unified file.
+- X1.b core blocks are injected by `node/src/routes/chat.ts`, together with a
+  recent-work line, but this is not proof of 30-day semantic recall.
+- `harness/helix-join.mjs` writes statistical `patterns.jsonl`; its entries
+  are not yet full dual-strand `HelixEntry` records with fact, provenance,
+  temporal supersession, and entity links.
+- `harness/helix-retention.mjs` currently contains only private helper
+  functions and no exported rollup operation. Do not claim day-to-month or
+  month-to-year retention until a real rollup test passes.
+- `node/src/routes/memory.ts` exposes only `/api/memory/digests`; the
+  `memory_search`, `memory_read`, timeline, pin, and soft-forget tools/routes
+  remain unverified.
+- `node/src/services/system-map.mjs` checks `.aide/memory/helix.jsonl`, which
+  is not produced by the current spine/join path. Until that probe is changed
+  or the file is deliberately introduced, the Helix card must not imply that
+  the complete memory subsystem is live.
+
+The next implementation slice is X1.c/X1.d: make the deterministic event
+source and digest/semantic store agree on one inspectable schema, implement
+archive-only retention, expose bounded recall with provenance, and prove the
+30-day cross-session fixture. Never widen README claims before that gate.

@@ -163,11 +163,14 @@ export async function createDapManager(repoRoot: string, workspace: string, opti
 }
 
 export async function createModelRuntime(repoRoot: string, workspace: string, options: BuildRoutesOptions): Promise<ModelRuntime> {
+  const modelDir = process.env.AIDE_MODEL_DIR
+    ? path.resolve(process.env.AIDE_MODEL_DIR)
+    : path.join(repoRoot, 'models');
   const runtime = new ModelRuntime({
     workspace,
     manifestPath: path.join(repoRoot, 'models', 'manifest.json'),
     ingestedPath: path.join(workspace, '.aide', 'ingested-models.json'),
-    modelDir: path.join(repoRoot, 'models'),
+    modelDir,
     logger: options.logger,
     onStatusChange: (id, status) => {
       const eventStatus = status === 'running' ? 'ready' : status === 'starting' ? 'loading' : status === 'stopped' ? 'stopped' : 'error';
@@ -430,7 +433,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForRoute(modelRouter),
     routeForFit(),
     routeForChat(modelRouter, modelRuntime, workspace, indexService),
-    routeForChatStream(modelRouter),
+    routeForChatStream(modelRouter, modelRuntime, workspace, indexService),
     routeForChatHistory(chatStore),
     routeForChatHistorySave(chatStore, workspace),
     routeForProvidersList(providerService),

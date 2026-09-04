@@ -23,6 +23,7 @@ export const DesktopActionRequest = z
   .object({
     op: z.enum(['launch_app', 'open_path', 'list_windows', 'focus_window', 'move_file', 'outlook_create_draft', 'excel_generate_report']),
     target: z.string().max(500).optional(),
+    args: z.array(z.string().max(500)).max(16).optional(),
     destination: z.string().max(500).optional(),
     approved: z.boolean(),
     // Optional reasoning captured into the training trajectory (DC-b).

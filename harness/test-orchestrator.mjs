@@ -12,7 +12,7 @@ const provider = role => ({ complete: async input => {
 const harness = createHarness({ providers: { reason: provider('reason'), build: provider('build'), verify: provider('verify') } });
 const result = await harness.run('Improve the provider router', { files: ['router.ts'] });
 assert.equal(result.status, 'awaiting-human-approval');
-assert.equal(result.trace.length, 5);
+assert.equal(result.trace.length, 6);
 assert.equal(calls.length, 3);
 assert.equal(result.veritas.status, 'abstain-needs-evidence');
 assert.ok(calls.every(call => call.input.mandatory_credo.includes('Protect the user')));

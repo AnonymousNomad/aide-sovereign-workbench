@@ -1,5 +1,26 @@
 # Route Inventory — Phase C0 (2026-08-23)
 
+## Recheck — 2026-09-03
+
+The current source was remeasured after the facade-map ownership fix:
+
+- TS OpenAPI: `155` unique paths and `162` HTTP operations.
+- Legacy daemon: `68` exact route branches and `9` query/path prefix branches,
+  `77` total extracted branches.
+- Facade map: `64` TS-owned prefixes, `3` exact TS flips, and `1` TS WebSocket
+  upgrade rule.
+- Facade target simulation: `134/162` TS operations route to TS and `28/162`
+  shared operations remain on legacy. The remaining legacy paths are the
+  intentionally unflipped shared model, search, session, task, training,
+  workspace, Git, DAP, LSP, provider, and model-import/start/stop surfaces.
+- TS-only subfamilies such as onboarding, system-map, workbench/worktree,
+  chat history/stream, DAP inspection, LSP feature calls, model fit/ingest,
+  training data/export, and task cache now have deterministic TS prefixes.
+
+This is route ownership evidence, not a full production-cutover claim. Every
+shared path still requires response-shape parity and a real facade walkthrough
+before its target can change.
+
 Counts: TS=122 legacy=69 both=27 ts-only=95 legacy-only=42
 Reconciliation: both+ts-only==TS (122==122): true; both+legacy-only==legacy (69==69): true.
 

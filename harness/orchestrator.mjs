@@ -1,5 +1,6 @@
 import { evaluateExecution, evaluateVeritas } from './veritas.mjs';
 import { normalizeUnifiedPatch, validateUnifiedPatch } from './patch.mjs';
+import { loadSkillsFor, detectSkills } from './skill-registry.mjs';
 
 const DEFAULT_POLICY = Object.freeze({
   max_turns: 4,
@@ -42,10 +43,18 @@ export function createHarness({ providers, tools = {}, policy = {}, verification
       if (!goal.trim()) throw new Error('task is empty');
       if (rules.allow_network !== false && tools.network) throw new Error('network policy must be explicit');
 
+      // Per skill: aid-skills-auto-load-by-context
+      // Detect task type and load matching skills into the system prompt.
+      // Skills are domain SOPs the user never names — the orchestrator auto-loads them.
+      const detectedSkills = detectSkills(goal);
+      const skillsText = bounded(loadSkillsFor(goal, context, Math.floor(rules.max_context_bytes / 2)), rules.max_context_bytes, 'skills');
+      trace.push({ stage: 'skill-detect', status: 'complete', skills: detectedSkills, bytes: Buffer.byteLength(skillsText) });
+
       const reason = requireProvider(providers, 'reason');
       const plan = await reason.complete({
         role: 'reason',
         mandatory_credo: MANDATORY_CREDO,
+        skills: skillsText,
         instruction: 'Return constraints, risks, files to inspect, and a test checklist. Do not edit files.',
         task: goal,
         context: bounded(JSON.stringify(context), rules.max_context_bytes, 'context')

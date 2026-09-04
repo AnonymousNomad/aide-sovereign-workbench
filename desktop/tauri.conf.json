@@ -11,5 +11,11 @@
     "windows": [{"title": "AIDE Sovereign Workbench", "width": 1440, "height": 900, "minWidth": 900, "minHeight": 600}],
     "security": {"csp": "default-src 'self' http://127.0.0.1:4173 http://127.0.0.1:4777 http://127.0.0.1:*; connect-src 'self' http://127.0.0.1:*"}
   },
-  "bundle": {"active": true, "targets": "all", "icon": ["icons/icon.png", "icons/icon.ico"], "resources": []}
+  "bundle": {
+    "active": true,
+    "targets": "nsis",
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "resources": {"resources/": ""},
+    "windows": {"webviewInstallMode": {"type": "offlineInstaller"}}
+  }
 }

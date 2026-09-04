@@ -64,4 +64,7 @@ try {
   const search = await request('/api/search?q=patched'); assert.equal(search.body.total, 1); assert.equal(search.body.results[0].path, 'README.md'); assert.equal(search.body.results[0].hits[0].text, 'patched');
   assert.equal((await request('/api/search?q=')).response.status, 500); assert.equal((await request('/api/search?q=a%20very%20long%20query%20'.repeat(20))).response.status, 500);
   console.log('REAL AIDE ACCEPTANCE PASSED: workspace, write, patch, terminal, LSP completion, task, Git, session, plugin, Academy, Blueprint, provider, artifact, search');
-} finally { daemon.kill('SIGTERM'); }
+ } catch (error) {
+   if (daemonStderr.trim()) console.error(`[acceptance-real] daemon stderr:\n${daemonStderr.trim()}`);
+   throw error;
+ } finally { daemon.kill('SIGTERM'); }

@@ -1,11 +1,11 @@
 {
-  "generated": "2026-08-28T03:37:25.325Z",
+  "generated": "2026-09-04T01:03:22.374Z",
   "tool": "aide-sovereign-workbench dap fixture test",
   "python": "E:\\Python310\\python.exe",
   "fixture": "fixtures/debuggee/fizz_engine.py",
   "breakpoint_lines": {
-    "first": 24,
-    "second": 28
+    "first": 11,
+    "second": 13
   },
   "assertions": [
     {
@@ -34,7 +34,7 @@
       "detail": ""
     },
     {
-      "name": "stopped (breakpoint) at line 24",
+      "name": "stopped (breakpoint) at line 11",
       "ok": true,
       "detail": ""
     },
@@ -44,7 +44,7 @@
       "detail": ""
     },
     {
-      "name": "stackTrace frame main@24",
+      "name": "stackTrace frame main@11",
       "ok": true,
       "detail": ""
     },
@@ -64,7 +64,7 @@
       "detail": ""
     },
     {
-      "name": "next step advanced to line 25",
+      "name": "next step advanced to line 12",
       "ok": true,
       "detail": ""
     },
@@ -132,6 +132,20 @@
     },
     {
       "seq": 3,
+      "type": "event",
+      "event": "debugpySockets",
+      "body": {
+        "sockets": [
+          {
+            "host": "127.0.0.1",
+            "port": 64957,
+            "internal": false
+          }
+        ]
+      }
+    },
+    {
+      "seq": 4,
       "type": "response",
       "request_seq": 1,
       "success": true,
@@ -200,29 +214,15 @@
         },
         "breakpoints": [
           {
-            "line": 24
+            "line": 11
           },
           {
-            "line": 28
+            "line": 13
           }
         ]
       },
       "seq": 3,
       "type": "request"
-    },
-    {
-      "seq": 4,
-      "type": "event",
-      "event": "debugpySockets",
-      "body": {
-        "sockets": [
-          {
-            "host": "127.0.0.1",
-            "port": 55373,
-            "internal": false
-          }
-        ]
-      }
     },
     {
       "seq": 5,
@@ -232,12 +232,12 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 55373,
+            "port": 64957,
             "internal": false
           },
           {
             "host": "127.0.0.1",
-            "port": 55376,
+            "port": 64960,
             "internal": true
           }
         ]
@@ -251,17 +251,17 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 55373,
+            "port": 64957,
             "internal": false
           },
           {
             "host": "127.0.0.1",
-            "port": 55377,
+            "port": 64961,
             "internal": true
           },
           {
             "host": "127.0.0.1",
-            "port": 55376,
+            "port": 64960,
             "internal": true
           }
         ]
@@ -275,12 +275,12 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 55373,
+            "port": 64957,
             "internal": false
           },
           {
             "host": "127.0.0.1",
-            "port": 55376,
+            "port": 64960,
             "internal": true
           }
         ]
@@ -306,7 +306,7 @@
               "name": "fizz_engine.py",
               "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py"
             },
-            "line": 24
+            "line": 11
           },
           {
             "verified": true,
@@ -315,7 +315,7 @@
               "name": "fizz_engine.py",
               "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py"
             },
-            "line": 28
+            "line": 13
           }
         ]
       }
@@ -362,7 +362,7 @@
       "body": {
         "startMethod": "launch",
         "isLocalProcess": true,
-        "systemProcessId": 21852,
+        "systemProcessId": 19664,
         "name": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
         "pointerSize": 64
       }
@@ -429,7 +429,7 @@
           {
             "id": 2,
             "name": "main",
-            "line": 24,
+            "line": 11,
             "column": 1,
             "source": {
               "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
@@ -439,7 +439,7 @@
           {
             "id": 3,
             "name": "<module>",
-            "line": 31,
+            "line": 26,
             "column": 1,
             "source": {
               "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
@@ -449,14 +449,6 @@
         ],
         "totalFrames": 2
       }
-    },
-    {
-      "command": "scopes",
-      "arguments": {
-        "frameId": 2
-      },
-      "seq": 8,
-      "type": "request"
     },
     {
       "seq": 18,
@@ -470,6 +462,14 @@
           "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py"
         }
       }
+    },
+    {
+      "command": "scopes",
+      "arguments": {
+        "frameId": 2
+      },
+      "seq": 8,
+      "type": "request"
     },
     {
       "seq": 19,
@@ -526,10 +526,17 @@
         "variables": [
           {
             "name": "engine",
-            "value": "{'name': 'fizz-engine', 'items': ['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', 'Fizz', '13', '14', 'FizzBuzz'], 'nested': {'meta': {...}}}",
+            "value": "{'items': ['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', '10']}",
             "type": "dict",
             "evaluateName": "engine",
             "variablesReference": 6
+          },
+          {
+            "name": "values",
+            "value": "[1, 2, 4, 7, 8, 11, 10]",
+            "type": "list",
+            "evaluateName": "values",
+            "variablesReference": 7
           }
         ]
       }
@@ -554,43 +561,24 @@
             "name": "special variables",
             "value": "",
             "type": "",
-            "variablesReference": 7
+            "variablesReference": 8
           },
           {
             "name": "function variables",
             "value": "",
             "type": "",
-            "variablesReference": 8
-          },
-          {
-            "name": "'name'",
-            "value": "'fizz-engine'",
-            "type": "str",
-            "evaluateName": "engine['name']",
-            "variablesReference": 0,
-            "presentationHint": {
-              "attributes": [
-                "rawString"
-              ]
-            }
-          },
-          {
-            "name": "'items'",
-            "value": "['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', 'Fizz', '13', '14', 'FizzBuzz']",
-            "type": "list",
-            "evaluateName": "engine['items']",
             "variablesReference": 9
           },
           {
-            "name": "'nested'",
-            "value": "{'meta': {'depth': 3, 'active': True}}",
-            "type": "dict",
-            "evaluateName": "engine['nested']",
+            "name": "'items'",
+            "value": "['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', '10']",
+            "type": "list",
+            "evaluateName": "engine['items']",
             "variablesReference": 10
           },
           {
             "name": "len()",
-            "value": "3",
+            "value": "1",
             "type": "int",
             "evaluateName": "len(engine)",
             "variablesReference": 0,
@@ -606,7 +594,7 @@
     {
       "command": "variables",
       "arguments": {
-        "variablesReference": 9
+        "variablesReference": 10
       },
       "seq": 11,
       "type": "request"
@@ -765,7 +753,7 @@
           },
           {
             "name": "11",
-            "value": "'Fizz'",
+            "value": "'10'",
             "type": "str",
             "evaluateName": "engine['items'][11]",
             "variablesReference": 0,
@@ -776,44 +764,8 @@
             }
           },
           {
-            "name": "12",
-            "value": "'13'",
-            "type": "str",
-            "evaluateName": "engine['items'][12]",
-            "variablesReference": 0,
-            "presentationHint": {
-              "attributes": [
-                "rawString"
-              ]
-            }
-          },
-          {
-            "name": "13",
-            "value": "'14'",
-            "type": "str",
-            "evaluateName": "engine['items'][13]",
-            "variablesReference": 0,
-            "presentationHint": {
-              "attributes": [
-                "rawString"
-              ]
-            }
-          },
-          {
-            "name": "14",
-            "value": "'FizzBuzz'",
-            "type": "str",
-            "evaluateName": "engine['items'][14]",
-            "variablesReference": 0,
-            "presentationHint": {
-              "attributes": [
-                "rawString"
-              ]
-            }
-          },
-          {
             "name": "len()",
-            "value": "15",
+            "value": "12",
             "type": "int",
             "evaluateName": "len(engine['items'])",
             "variablesReference": 0,
@@ -882,7 +834,7 @@
           {
             "id": 2,
             "name": "main",
-            "line": 25,
+            "line": 12,
             "column": 1,
             "source": {
               "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
@@ -892,7 +844,7 @@
           {
             "id": 3,
             "name": "<module>",
-            "line": 31,
+            "line": 26,
             "column": 1,
             "source": {
               "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
@@ -962,7 +914,7 @@
           {
             "id": 2,
             "name": "main",
-            "line": 28,
+            "line": 13,
             "column": 1,
             "source": {
               "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
@@ -972,7 +924,7 @@
           {
             "id": 3,
             "name": "<module>",
-            "line": 31,
+            "line": 26,
             "column": 1,
             "source": {
               "path": "E:\\aide-sovereign-workbench\\fixtures\\debuggee\\fizz_engine.py",
@@ -1033,24 +985,17 @@
         "variables": [
           {
             "name": "engine",
-            "value": "{'name': 'fizz-engine', 'items': ['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', 'Fizz', '13', '14', 'FizzBuzz'], 'nested': {'meta': {...}}}",
+            "value": "{'items': ['1', '2', 'Fizz', '4', 'Buzz', 'Fizz', '7', '8', 'Fizz', 'Buzz', '11', '10']}",
             "type": "dict",
             "evaluateName": "engine",
             "variablesReference": 6
           },
           {
-            "name": "fh",
-            "value": "<_io.TextIOWrapper name='E:\\\\aide-sovereign-workbench\\\\fixtures\\\\debuggee\\\\debuggee.pid' mode='w' encoding='cp1252'>",
-            "type": "TextIOWrapper",
-            "evaluateName": "fh",
-            "variablesReference": 13
-          },
-          {
             "name": "report",
-            "value": "{'ok': True, 'total': 43, 'engine': {'name': 'fizz-engine', 'items': [...], 'nested': {...}}}",
+            "value": "{'total': 43, 'count': 12}",
             "type": "dict",
             "evaluateName": "report",
-            "variablesReference": 14
+            "variablesReference": 13
           },
           {
             "name": "total",
@@ -1058,6 +1003,13 @@
             "type": "int",
             "evaluateName": "total",
             "variablesReference": 0
+          },
+          {
+            "name": "values",
+            "value": "[1, 2, 4, 7, 8, 11, 10]",
+            "type": "list",
+            "evaluateName": "values",
+            "variablesReference": 7
           }
         ]
       }
@@ -1089,7 +1041,7 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 55373,
+            "port": 64957,
             "internal": false
           }
         ]
@@ -1125,7 +1077,7 @@
         "sockets": [
           {
             "host": "127.0.0.1",
-            "port": 55373,
+            "port": 64957,
             "internal": false
           }
         ]

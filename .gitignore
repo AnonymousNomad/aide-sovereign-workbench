@@ -1,5 +1,6 @@
 node_modules/
 desktop/frontend/
+desktop/resources/
 desktop/target/
 models/*.gguf
 models/*.safetensors

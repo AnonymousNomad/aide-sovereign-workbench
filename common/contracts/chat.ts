@@ -64,6 +64,9 @@ export const HarnessMeta = z
     context_hits: z.number().int().nonnegative().optional(),
     context_degraded: z.boolean().optional(),
     context_tokens: z.number().int().nonnegative().optional(),
+    memory_recall_hits: z.number().int().nonnegative().optional(),
+    memory_recall_tokens: z.number().int().nonnegative().optional(),
+    memory_recall_degraded: z.boolean().optional(),
     reason: z.string().optional()
   })
   .strict();
@@ -93,7 +96,9 @@ export const ChatResponse = z
 export const ChatStreamRequest = z
   .object({
     modelId: z.string().min(1),
-    messages: z.array(ChatMessage).min(1)
+    messages: z.array(ChatMessage).min(1),
+    options: ChatOptions.optional(),
+    harness: z.boolean().optional()
   })
   .strict();
 
@@ -109,7 +114,8 @@ export const ChatStreamDone = z
     modelId: z.string().min(1),
     usedApprox: z.number().int().nonnegative(),
     dropped: z.number().int().nonnegative(),
-    truncatedSystem: z.boolean()
+    truncatedSystem: z.boolean(),
+    harness: HarnessMeta.optional()
   })
   .strict();
 

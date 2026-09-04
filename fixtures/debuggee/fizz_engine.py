@@ -1,31 +1,26 @@
+#!/usr/bin/env python3
+
 import os
-
-
-def build_items(limit):
-    items = []
-    for i in range(1, limit + 1):
-        if i % 15 == 0:
-            items.append("FizzBuzz")
-        elif i % 3 == 0:
-            items.append("Fizz")
-        elif i % 5 == 0:
-            items.append("Buzz")
-        else:
-            items.append(str(i))
-    return items
+from pathlib import Path
 
 
 def main():
-    engine = {
-        "name": "fizz-engine",
-        "items": build_items(15),
-        "nested": {"meta": {"depth": 3, "active": True}},
-    }
-    total = sum(map(len, map(str, engine["items"])))
-    report = {"ok": True, "total": total, "engine": engine}
-    with open(os.path.join(os.path.dirname(__file__), "debuggee.pid"), "w") as fh:
-        fh.write(str(os.getpid()))
+    Path(__file__).with_name('debuggee.pid').write_text(str(os.getpid()), encoding='ascii')
+    engine = build_engine()
+    values = [int(x) for x in engine['items'] if x.isdigit()]
+    total = sum(values)
+    report = {'total': total, 'count': len(engine['items'])}
     print(report)
 
 
-main()
+def build_engine():
+    items = [
+        '1', '2', 'Fizz', '4', 'Buzz',
+        'Fizz', '7', '8', 'Fizz', 'Buzz',
+        '11', '10'
+    ]
+    return {'items': items}
+
+
+if __name__ == '__main__':
+    main()

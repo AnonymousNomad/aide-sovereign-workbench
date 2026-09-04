@@ -1,19 +1,23 @@
 ---
 name: aide-context-retrieval-wiring
-description: Wire the built-but-unwired codebase index (node/src/services/index-service.mjs, BM25+RRF+optional dense embeddings, git-aware, /api/index/reindex + /api/index/search already routed) into the actual chat path so every model answer is grounded in the operator's real workspace — retrieval injection in model-router/chat, an @codebase context tool, embed-function supply via the local engine, index freshness on file change, token-budgeted context packs. Use whenever model answers ignore workspace code, when asked "how do I make chat know my codebase", when wiring retrieval-augmented generation, tuning context budgets, or diagnosing stale/degraded index results.
+description: Verify and extend the codebase context index (node/src/services/index-service.mjs, BM25+RRF+optional dense embeddings, git-aware, /api/index/reindex + /api/index/search) in the actual chat path so model answers can be grounded in the operator's real workspace. Use when model answers ignore workspace code, when asked "how do I make chat know my codebase", when wiring retrieval-augmented generation, tuning context budgets, or diagnosing stale/degraded index results.
 ---
 
 # Context Retrieval Wiring — Ground Every Answer in the Real Workspace
 
-Born 2026-08-27 gap analysis: AIDE already SHIPS a hybrid retrieval engine
+Born 2026-08-27 as a gap analysis: AIDE already ships a hybrid retrieval engine
 (index-service.mjs: chunkFile, BM25 sparse, dense cosine, RRF fuse, git-branch
 aware, incremental reindex, persist/restore from disk) with HTTP routes
-(/api/index/reindex, /api/index/search) — and NOTHING in the chat path calls
-it. `rg hybridSearch model-router.ts chat.ts orchestrator.mjs` = zero hits.
-Rivals (Cursor secure codebase indexing 2026, VS Code workspace context) treat
-this as THE differentiator. Also: no embed function is ever supplied
-(openapi.ts `indexEmbedFn ?? null`), so the index runs in permanently
-"degraded" BM25-only mode.
+(/api/index/reindex, /api/index/search). The original audit found no chat call.
+
+Rechecked 2026-09-03: the TS chat path receives the shared index service from
+openapi.ts, calls `hybridSearch()` in `node/src/routes/chat.ts`, reads bounded
+snippets through the workspace path jail, injects a context block, and reports
+context metadata. The remaining work is verification and parity, not rebuilding
+the index: no route test proves chat injection, legacy chat does not share this
+path, and the current context block uses a `system` message role despite being
+labelled DATA. Resolve that role boundary with research and a regression test;
+never relabel degraded BM25-only retrieval as dense retrieval.
 
 ## Research base (verified 2026-08-27)
 
@@ -25,9 +29,15 @@ this as THE differentiator. Also: no embed function is ever supplied
    dense cosine candidates → RRF fuse (k=20, 50 per list) → {path, line,
    header, rrf_score, sparse_rank, dense_rank} + honest `degraded` flag.
 3. Both chat paths have proven injection seams: legacy daemon /api/chat
-   (injectScaffold + learned block) and arch chat.ts (buildScaffold tiers).
+    (injectScaffold + learned block) and arch chat.ts (buildScaffold tiers).
+4. OpenAI Chat Completions defines system/developer messages as developer
+   instructions and user messages as prompts or additional context:
+   https://platform.openai.com/docs/api-reference/chat/create.
+5. OWASP LLM01:2025 requires external/RAG content to be segregated and clearly
+   identified because retrieval does not eliminate indirect prompt injection:
+   https://genai.owasp.org/llmrisk/llm01-prompt-injection/.
 
-## What to do (direct)
+## Original implementation plan (historical)
 
 1. WIRE RETRIEVAL INTO CHAT (arch first): last user message →
    `indexService.hybridSearch(msg, 8)` → CONTEXT block: top 5 results, each
@@ -42,8 +52,26 @@ this as THE differentiator. Also: no embed function is ever supplied
    legacy calls the arch /api/index/search over 127.0.0.1, never a second scan.
 4. FRESHNESS: fs watcher → debounce 5s → incremental reindex(); progress on
    the events bus; status bar shows `index: <chunks>, fresh/stale/degraded`.
-5. @codebase TOOL: explicit tool for "search the codebase for X" →
- 
+5. @codebase TOOL: explicit tool for "search the codebase for X".
+
+The original plan above is superseded by the implementation-truth and security
+gates below. Do not rebuild the already-wired TS retrieval path before checking
+the route battery and the legacy parity boundary.
+
+## Current execution order
+
+1. Keep the real HTTP `tests/arch/chat-context.test.ts` green. It proves the
+   shared index seam, bounded read-at-answer-time snippets, path jail, and
+   degraded metadata.
+2. Keep all dynamic workspace, memory, and retrieval content in labelled user
+   DATA messages. Only the scaffold/credo belongs in the system instruction.
+3. Verify the embedding endpoint before enabling dense vectors; degraded BM25
+   is an honest supported state.
+4. Add legacy parity through one shared index or document the compatibility
+   boundary with a route-level test.
+5. Add freshness and real-model grounded-chat probes before publishing any
+   universal grounded-answer claim.
+
 ## Why it's done this way
 
 - Retrieval MUST be default-on and invisible: rivals win because answers are
@@ -87,3 +115,38 @@ this as THE differentiator. Also: no embed function is ever supplied
   reindex only on INDEX_VERSION bump.
 - Do NOT drop the `degraded` flag — repo honesty laws require surfacing it.
 - Do NOT store file contents in the index; read-at-answer-time keeps it small.
+
+## Implementation truth audit (2026-09-03)
+
+- `node/src/routes/chat.ts:67-96` already performs bounded workspace retrieval
+  through `indexService.hybridSearch()` and `resolveInsideWorkspace()`.
+- `node/src/routes/chat.ts:138-146` injects the context block and
+  `:195-206` reports context hit/degraded/token metadata.
+- `/api/chat/stream` now calls the same `prepareChatMessages()` path as
+  non-stream chat and includes the preparation metadata in its final SSE event.
+  `tests/arch/chat-context.test.ts` covers both paths and passed `2/2` on
+  2026-09-03.
+- Dynamic learned context, pinned memory, workspace retrieval, and recalled
+  session memory are inserted as labelled `user` DATA messages; the scaffold
+  remains the system instruction. This follows the provider authority boundary
+  and the OWASP segregation requirement.
+- `node/src/openapi.ts:432` supplies the shared index service to the route.
+- `tests/arch/chat-context.test.ts` now proves bounded valid-snippet injection,
+  traversal/missing-file rejection, degraded metadata, and final-user ordering
+  over real HTTP with stubbed index/router seams. It passed `1/1` on 2026-09-03.
+- The first test exposed a real strict-contract drift: chat returned
+  `memory_recall_hits`, `memory_recall_tokens`, and `memory_recall_degraded`
+  without declaring them in `common/contracts/chat.ts`. Those optional fields
+  are now declared and OpenAPI was regenerated; `openapi-drift.test.ts` passed
+  `2/2`.
+- `tests/arch/chat-context.test.ts` asserts the retrieved block has role `user`
+  and that the first system message does not contain retrieved file content.
+  The non-stream and SSE route battery passed after the role-boundary fix on
+  2026-09-03.
+- `daemon/server.mjs` has no equivalent verified hybrid retrieval path; legacy
+  parity is open.
+- `daemon/server.mjs` has no equivalent verified hybrid retrieval path; legacy
+  parity and real-model grounded-chat remain open.
+- The next gate is the researched message-role decision, followed by legacy
+  parity and a real-model grounded chat probe. Do not claim universal grounded
+  chat yet.

@@ -84,18 +84,40 @@ async function probeMicroExperts(workspace) {
 }
 
 async function probeHelixMemory(workspace) {
-  const helixPath = path.join(workspace, ".aide", "memory", "helix.jsonl");
-  try {
-    const raw = await fs.readFile(helixPath, "utf8");
-    const lines = raw.trim() ? raw.trim().split("\n") : [];
-    return {
-      state: lines.length > 0 ? "live" : "offline",
-      detail: lines.length + " helix memory entries (X1 spine / X2 join / X3 retention)",
-      doctrine: "aide-helix-memory"
-    };
-  } catch {
-    return { state: "offline", detail: "no helix memory yet", doctrine: "aide-helix-memory" };
-  }
+  const memoryDir = path.join(workspace, ".aide", "memory");
+  const countLines = async file => {
+    try {
+      const raw = await fs.readFile(file, "utf8");
+      return raw.trim() ? raw.trim().split("\n").length : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const countFiles = async (dir, pattern) => {
+    try {
+      const entries = await fs.readdir(dir);
+      return entries.filter(name => pattern.test(name)).length;
+    } catch {
+      return 0;
+    }
+  };
+  const [sessions, patterns, days, blocks] = await Promise.all([
+    countLines(path.join(memoryDir, "sessions.jsonl")),
+    countLines(path.join(memoryDir, "patterns.jsonl")),
+    countFiles(path.join(memoryDir, "days"), /^\d{4}-\d{2}-\d{2}\.json$/),
+    countFiles(path.join(memoryDir, "blocks"), /^(project|user|task)\.md$/)
+  ]);
+  const total = sessions + patterns + days + blocks;
+  const sources = [];
+  if (days > 0) sources.push(`${days} day digest${days === 1 ? "" : "s"}`);
+  if (sessions > 0) sources.push(`${sessions} session entr${sessions === 1 ? "y" : "ies"}`);
+  if (patterns > 0) sources.push(`${patterns} learned pattern${patterns === 1 ? "" : "s"}`);
+  if (blocks > 0) sources.push(`${blocks} pinned block${blocks === 1 ? "" : "s"}`);
+  return {
+    state: total > 0 ? "live" : "offline",
+    detail: total > 0 ? `${total} Helix artifacts (${sources.join(", ")})` : "no Helix memory artifacts yet",
+    doctrine: "aide-helix-memory"
+  };
 }
 
 async function probeVeritasSelfheal(workspace) {

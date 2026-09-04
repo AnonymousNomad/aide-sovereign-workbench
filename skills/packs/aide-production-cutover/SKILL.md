@@ -5,9 +5,11 @@ description: SOP for wiring AIDE's new TS route stack (node/src/server.ts, all 1
 
 # Production Cutover — legacy daemon/server.mjs -> node/src/server.ts
 
-## Verified reality (2026-08-24, this repo)
+## Verified reality (rechecked 2026-09-03, this repo)
 - TWO HTTP servers coexist: `daemon/server.mjs` (legacy monolith: model-manager, community, lsp/dap managers, training, academy/tutor, plugins, blueprint, replay, arena, operator, tasks, session, artifacts, providers, workflow, handoff — hand-rolled routes, its own 404 envelope `{error:'not found'}` at line ~478) and `node/src/server.ts` (ArchServer: ALL new-stack routes via openapi.ts buildRoutes — agent loop, index/RAG, modelhub, handoff TS routes, byok, git, editor, LSP/DAP TS, etc.; env AIDE_ARCH_PORT default 4778; standalone `main()` launchable via `node node/src/server.ts`).
-- `scripts/start.mjs` spawns ONLY the legacy server on 4777 + serves UI on 4173. NOTHING in production launches the TS stack — every phase we shipped since the rebuild is invisible to `npm start` users. This is THE wiring gap.
+- `scripts/start.mjs:35-37` currently spawns the Arch server on `4778`, the legacy daemon on `4779`, and the facade on `4777`; it also serves the root frontend on `4173`. This is a dual-stack development topology, not proof of a complete production cutover.
+- The Tauri shell is a separate path: `desktop/src/main.rs` currently starts only the legacy daemon, and the typed Vite frontend is tested separately through `browser/vite.config.ts`. These paths must not be conflated in a release claim.
+- A static audit on 2026-09-03 found 162 TS HTTP operations across 155 unique paths, 77 legacy endpoint branches, and many current TS operations not represented by the checked-in facade map. Route-map reconciliation remains open.
 - Stale-daemon trap: an old daemon process holding port 4777 makes fresh launches fail silently (new proc dies on EADDRINUSE, old one answers with 404s for new routes). ALWAYS check `Get-CimInstance Win32_Process -Filter "Name='node.exe'"` + creation date before blaming code.
 - Arch tests already prove the TS stack over real HTTP (`tests/arch/*.test.ts` use `ArchServer.listen(0)`).
 
@@ -18,11 +20,11 @@ description: SOP for wiring AIDE's new TS route stack (node/src/server.ts, all 1
 4. CircleCI engineering blog (2025): consumer-driven CONTRACT TESTS are the migration safety net — both sides must satisfy the same interface expectations; parallel-run/shadow validation before traffic flips.
 5. Cartwright/Horn/Lewis, Patterns of Legacy Displacement (martinfowler.com): parallel run, divert-the-flow, legacy mimic; transitional architecture is deliberate, quantified, and temporary.
 
-## Strategy decision (locked)
+## Strategy decision (target; current implementation is partial)
 Strangler-fig with a thin Node facade on the SINGLE user-facing port (4777), routing by path-prefix between two backends:
 - Facade = small http server (scripts/facade.mjs) spawned by start.mjs; holds a static ROUTE_MAP { prefix -> 'ts' | 'legacy' }.
-- New stack runs on internal port (4779), legacy on internal port (4780); neither exposed directly.
-- Default ROUTE_MAP starts 100% legacy EXCEPT paths only the TS stack serves (agent/index/modelhub/byok/handoff-ts) — instant feature visibility with zero legacy regression.
+- Current development ports are TS `4778`, legacy `4779`, and facade `4777`; production port values must remain environment-overridable and must be recorded from the launcher, not inferred from this document.
+- The checked-in route map is only a partial transition map. It must be reconciled against the current OpenAPI and legacy route tables before declaring default coverage complete.
 - Cutover = flipping prefixes after that domain's parity gates pass; decommission = deleting the legacy branch from ROUTE_MAP then the module.
 
 ## Why this way
@@ -36,7 +38,7 @@ Enumerate exact route tables of BOTH servers into docs/evidence/route-inventory.
 GATE: counts reconcile against openapi.json route count and legacy handler count; journal records numbers.
 ### Phase C1 — Facade + dual-spawn
 - scripts/facade.mjs: http server; per-request lookup longest-matching prefix in ROUTE_MAP; proxy (http.request, stream pipe both directions incl. SSE/WS upgrade handling — WS channels must be proxied with upgrade events, not just GET/POST); health endpoints `/api/health/ts` + `/api/health/legacy`; ROUTE_MAP loaded from `.aide/facade-routes.json` if present else built-in default.
-- start.mjs spawns facade(4777) + ts(4779) + legacy(4780); kills tree on exit (reuse ProcessManager patterns from aide-arch-backend-core).
+- start.mjs currently spawns facade(4777) + ts(4778) + legacy(4779); any port change must update the launcher, facade targets, health probes, tests, and documentation together.
 - Tests FIRST (tests/unit/test-facade.mjs, no network beyond 127.0.0.1 loopback fixtures): prefix routing table hits both backends; unknown path -> legacy (preserves old behavior); SSE stream passes through unbuffered; WS upgrade proxied; backend-down -> typed 502 envelope, never hang; ROUTE_MAP file override honored; kill-tree cleanup leaves zero orphan node procs.
 GATE: unit green; manual `npm start` -> hit one ts-only route AND one legacy route through 4777; veritas PASS; CI green.
 ### Phase C2..Cn — Domain cutovers (one domain per phase, smallest first)

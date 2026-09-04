@@ -14,9 +14,11 @@ import {
   AgentSubagentRole,
   AgentSubagentToolPolicy,
   AgentSubagentSpawnRequest,
-  AgentSubagentStatus,
-  AgentSubagentSpawnResponse,
-  AgentSubagentListResponse
+  AgentSubagentStatus
+} from "../../common/contracts/agent.ts";
+import type {
+  AgentSubagentSpawnResponseT,
+  AgentSubagentListResponseT
 } from "../../common/contracts/agent.ts";
 import { routesForAgentSubagent } from "../../node/src/routes/agent.ts";
 
@@ -88,7 +90,7 @@ test("subagent dispatch: contracts + routes + integration shape (PR A)", async (
     base = "http://127.0.0.1:" + (address as { port: number }).port;
   
     // 6. Route: POST spawn with valid body returns NOT_READY (PR A).
-    const spawnResult = await post<AgentSubagentSpawnResponse>(base, "/api/agent/subagent", {
+    const spawnResult = await post<AgentSubagentSpawnResponseT>(base, "/api/agent/subagent", {
       parent_session_id: "parent-abc",
       task: "investigate the bug in parser.mjs",
       role: "researcher"
@@ -98,7 +100,7 @@ test("subagent dispatch: contracts + routes + integration shape (PR A)", async (
     assert.equal(spawnResult.body.error?.code, "NOT_READY");
   
     // 7. Route: GET list returns empty array.
-    const listResult = await get<AgentSubagentListResponse>(base, "/api/agent/subagent?parent_session_id=parent-abc");
+    const listResult = await get<AgentSubagentListResponseT>(base, "/api/agent/subagent?parent_session_id=parent-abc");
     assert.equal(listResult.status, 200);
     assert.equal(listResult.body.ok, true);
     assert.deepEqual(listResult.body.data, { subagents: [] });

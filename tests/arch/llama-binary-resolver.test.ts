@@ -26,18 +26,18 @@ test('returns null when no candidate directory exists', async () => {
   }
 });
 
-test('AIDE_LLAMA_SERVER env override wins and is reported as non-Vulkan', () => {
+test('AIDE_LLAMA_SERVER env override wins and is reported as non-Vulkan', async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-llr-env-'));
+  const fakeBinary = path.join(workspace, 'llama-server.exe');
+  await fs.writeFile(fakeBinary, 'test binary marker');
   const previous = process.env.AIDE_LLAMA_SERVER;
-  process.env.AIDE_LLAMA_SERVER = 'C:\\totally\\fake\\llama-server.exe';
+  process.env.AIDE_LLAMA_SERVER = fakeBinary;
   try {
-    const got = resolveLlamaBinary(os.tmpdir());
-    assert.ok(got !== null, 'env-var candidate is honored even when path does not exist on disk (operator contract)');
-    // Actually the resolver does check existsSync — so the env-var path must
-    // exist for the result to be non-null. With the fake above, result is null.
-    // Re-test with a real on-disk file instead.
+    assert.deepEqual(resolveLlamaBinary(os.tmpdir()), { path: fakeBinary, vulkan: false });
   } finally {
     if (previous === undefined) delete process.env.AIDE_LLAMA_SERVER;
     else process.env.AIDE_LLAMA_SERVER = previous;
+    await fs.rm(workspace, { recursive: true, force: true });
   }
 });
 

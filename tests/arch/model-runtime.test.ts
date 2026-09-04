@@ -137,7 +137,7 @@ test('start refuses an ingested model whose file changed after ingestion', async
   await fs.copyFile(SMALL_MODEL, target);
   const result = await runtime.ingest(target);
   await fs.appendFile(target, Buffer.from('x'));
-  await assert.rejects(() => runtime.start(result.id), /changed on disk/);
+  await assert.rejects(() => runtime.start(result.id), /hash mismatch/);
 });
 
 test('start relocates to a free port when a foreign server squats the endpoint', async t => {

@@ -8,6 +8,7 @@ import { fitModel } from './model-fit.ts';
 import { probeHardware } from './hardware.ts';
 import { estimateTokens } from './history-fit.ts';
 import type { ModelFitReportT } from '../../../common/contracts/models.ts';
+import { verifySha256 } from '../../../common/model-integrity.mjs';
 
 export class ModelRuntimeError extends Error {
   readonly code: 'NOT_READY' | 'CONFLICT' | 'CHILD_FAILED';
@@ -82,6 +83,7 @@ export interface ModelEntry {
   ingested?: boolean;
   file: string;
   fileSize?: number;
+  sha256?: string;
 }
 
 export interface ModelRuntimeOptions {
@@ -133,9 +135,17 @@ export class ModelRuntime {
   }
 
   async load(): Promise<void> {
-    const manifest = JSON.parse(await fs.readFile(this.manifestPath, 'utf8')) as { models?: Array<Record<string, unknown>> };
+    const manifest = JSON.parse(await fs.readFile(this.manifestPath, 'utf8')) as {
+      models?: Array<Record<string, unknown>>;
+      packs?: Array<Record<string, unknown>>;
+    };
+    const packHashes = new Map(
+      (manifest.packs ?? [])
+        .filter(pack => typeof pack.id === 'string' && typeof pack.sha256 === 'string')
+        .map(pack => [String(pack.id), String(pack.sha256).toLowerCase()])
+    );
     for (const raw of manifest.models ?? []) {
-      const entry = this.entryFromManifest(raw);
+      const entry = this.entryFromManifest(raw, packHashes.get(String(raw.id)));
       if (entry !== null) this.models.set(entry.id, entry);
     }
     try {
@@ -152,12 +162,13 @@ export class ModelRuntime {
     }
   }
 
-  private entryFromManifest(raw: Record<string, unknown>): ModelEntry | null {
+  private entryFromManifest(raw: Record<string, unknown>, expectedHash?: string): ModelEntry | null {
     const id = raw.id;
     const endpoint = raw.endpoint;
-    const file = typeof raw.file === 'string' ? raw.file : String(raw.artifact_uri ?? '').startsWith('local://')
+    const rawFile = typeof raw.file === 'string' ? raw.file : String(raw.artifact_uri ?? '').startsWith('local://')
       ? path.resolve(this.modelDir, path.basename(String(raw.artifact_uri).replace('local://', '')))
       : '';
+    const file = rawFile.length > 0 && !path.isAbsolute(rawFile) ? path.resolve(this.modelDir, rawFile) : rawFile;
     if (typeof id !== 'string' || id.length === 0 || typeof endpoint !== 'string' || endpoint.length === 0) return null;
     const entry: ModelEntry = {
       id,
@@ -173,6 +184,8 @@ export class ModelRuntime {
     };
     if (typeof raw.system_prompt === 'string') entry.system_prompt = raw.system_prompt;
     if (typeof raw.file_size === 'number') entry.fileSize = raw.file_size;
+    const hash = typeof raw.sha256 === 'string' ? raw.sha256 : expectedHash;
+    if (hash) entry.sha256 = hash.toLowerCase();
     return entry;
   }
 
@@ -228,6 +241,9 @@ export class ModelRuntime {
 
   async status(): Promise<{ runtime: boolean; models: Array<Record<string, unknown>> }> {
     if (!this.pythonReady && this.pythonProbe === null && Date.now() - this.lastProbeAt > 5000) await this.probePython();
+    const integrityById = new Map(await Promise.all(
+      [...this.models.values()].map(async model => [model.id, await this.verifyModelIntegrity(model)] as const)
+    ));
     // Engine availability = binary serving path OR python fallback. Binary is
     // the verified primary; conflating this with the python probe alone
     // mislabeled RUNNING binary engines as merely "installed".
@@ -235,12 +251,20 @@ export class ModelRuntime {
     return {
       runtime: engineAvailable,
       models: [...this.models.values()].map(model => {
-        const artifactAvailable = model.file.length > 0 && existsSync(model.file);
+        const integrity = integrityById.get(model.id);
+        const fileExists = model.file.length > 0 && existsSync(model.file);
+        const artifactAvailable = fileExists && (!integrity || integrity.status === 'verified');
         let modelStatus = model.status;
-        if (artifactAvailable && model.status !== 'ready' && engineAvailable) modelStatus = 'ready';
         const setup: string[] = [];
+        if (integrity?.status === 'checksum-mismatch') {
+          modelStatus = 'error';
+          setup.push(`MODEL_VERIFY: ${path.basename(model.file)} FAIL - hash mismatch (expected ${integrity.expected}, got ${integrity.actual})`);
+        } else if (integrity?.status === 'missing') {
+          setup.push(`MODEL_VERIFY: ${path.basename(model.file)} FAIL - file missing`);
+        }
+        if (artifactAvailable && model.status !== 'ready' && engineAvailable) modelStatus = 'ready';
         if (!engineAvailable) setup.push('no engine available: install llama-server binary (runtime/ or E:\\llama-cpp) or set AIDE_PYTHON to a Python 3.10 interpreter with llama-cpp-python');
-        if (modelStatus === 'ready' && !artifactAvailable) setup.push(`model file was not found at ${model.file}`);
+        if (modelStatus === 'ready' && !artifactAvailable && integrity?.status !== 'checksum-mismatch') setup.push(`model file was not found at ${model.file}`);
         const entry: Record<string, unknown> = {
           id: model.id,
           name: model.name,
@@ -249,13 +273,18 @@ export class ModelRuntime {
           endpoint: model.endpoint,
           runtime_available: engineAvailable,
           artifact_available: artifactAvailable,
-          setup_required: setup.length > 0 && modelStatus === 'ready',
+          setup_required: setup.length > 0,
           setup_message: setup.length > 0 ? setup.join('; ') : undefined,
           ingested: model.ingested === true
         };
         return entry;
       })
     };
+  }
+
+  private async verifyModelIntegrity(model: ModelEntry): Promise<{ status: string; expected: string; actual: string | null } | null> {
+    if (!model.sha256 || model.file.length === 0) return null;
+    return verifySha256(model.file, model.sha256, this.hashCache);
   }
 
   get(id: string): ModelEntry | undefined {
@@ -380,9 +409,14 @@ export class ModelRuntime {
     await fs.access(model.file).catch(() => {
       throw new ModelRuntimeError('NOT_READY', `Local model setup required: model file was not found at ${model.file}.`);
     });
-    const hardware = await probeHardware();
-    if (hardware.freeRamBytes < RAM_GUARD_BYTES) {
-      throw new ModelRuntimeError('NOT_READY', `Not enough free RAM to start a model: ${Math.round(hardware.freeRamBytes / 1048576)} MB free, at least ${RAM_GUARD_BYTES / 1048576} MB required.`);
+    if (model.sha256) {
+      const integrity = await this.verifyModelIntegrity(model);
+      if (integrity?.status !== 'verified') {
+        const detail = integrity?.status === 'checksum-mismatch'
+          ? `hash mismatch (expected ${integrity.expected}, got ${integrity.actual})`
+          : 'file missing';
+        throw new ModelRuntimeError('CONFLICT', `MODEL_VERIFY: ${path.basename(model.file)} FAIL - ${detail}`);
+      }
     }
     if (model.ingested === true && model.fileSize !== undefined) {
       const current = await fs.stat(model.file).catch(() => null);
@@ -390,6 +424,10 @@ export class ModelRuntime {
       if (current.size !== model.fileSize) {
         throw new ModelRuntimeError('CONFLICT', `model file changed on disk since ingestion (${model.fileSize} -> ${current.size} bytes). Re-ingest the file or restore the original.`);
       }
+    }
+    const hardware = await probeHardware();
+    if (hardware.freeRamBytes < RAM_GUARD_BYTES) {
+      throw new ModelRuntimeError('NOT_READY', `Not enough free RAM to start a model: ${Math.round(hardware.freeRamBytes / 1048576)} MB free, at least ${RAM_GUARD_BYTES / 1048576} MB required.`);
     }
     // Binary llama-server first (verified engine path); Python llama_cpp.server
     // remains a fallback for hosts without the binary.
@@ -655,6 +693,20 @@ export class ModelRuntime {
     const warmed = await this.warmup(id);
     if (!warmed) throw new ModelRuntimeError('NOT_READY', 'model still warming up; try again in a few seconds');
     const started = Date.now();
+    // Per-model timeout policy (aide-inference-control + production-readiness plan):
+    //   - cipher-fast (4B Q8_0, GTX 1060 Vulkan): expected 8-15 tok/s, prompt eval < 5s,
+    //     completions < 30s. 120s default is plenty.
+    //   - cipher (30B-A3B MoE Q2_K_XL, partially offloaded): 1-5 tok/s, prompt eval
+    //     30-90s, completions 60-300s. Need 300s+ for long outputs.
+    //   - Anything else: 120s default.
+    // Pascal k-quants historically weak; per aide-inference-control we don't
+    // hardcode but the user can override via body.timeoutMs (capped at 600s).
+    const isCipherThink = /cipher|north|moe|30b/i.test(model.id);
+    const defaultTimeoutMs = isCipherThink ? 300_000 : 120_000;
+    const effectiveTimeoutMs = Math.min(
+      options.timeoutMs ?? defaultTimeoutMs,
+      600_000
+    );
     const attemptRequest = async (payloadMessages: Array<{ role: string; content: string }>): Promise<Response> =>
       fetch(`${model.endpoint}/chat/completions`, {
         method: 'POST',
@@ -665,7 +717,7 @@ export class ModelRuntime {
           temperature: options.temperature ?? 0.2,
           max_tokens: Math.min(options.maxTokens ?? 512, 512)
         }),
-        signal: AbortSignal.timeout(Math.min(options.timeoutMs ?? 90_000, 300_000))
+        signal: AbortSignal.timeout(effectiveTimeoutMs)
       });
     let response = await attemptRequest(messages);
     if (response.status === 400) {
@@ -815,7 +867,8 @@ export class ModelRuntime {
       context_tokens: fit.contextLength,
       ingested: true,
       file: absolute,
-      fileSize: statAfter.size
+      fileSize: statAfter.size,
+      sha256: digestHex
     };
     this.models.set(id, entry);
     await this.persistIngested();
@@ -846,6 +899,7 @@ export class ModelRuntime {
         context_tokens: model.context_tokens,
         file: model.file,
         file_size: model.fileSize,
+        sha256: model.sha256,
         ingested: true
       }));
     await fs.mkdir(path.dirname(this.ingestedPath), { recursive: true }).catch(() => {});

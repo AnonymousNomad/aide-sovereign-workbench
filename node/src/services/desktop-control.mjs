@@ -1,12 +1,46 @@
 // Desktop Control — P6 DC-a bounded domain. Strict opt-in grants, deny-by-default,
 // session-scoped TTL, panic kill switch, evidence to the memory spine.
-// Zero new native deps: Windows ops via cmd start / explorer / PowerShell / fs.
+// Zero new native deps: executable spawn / file association / PowerShell / fs.
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { createStateBus } from '../../../harness/cipher-state.mjs';
 
 const GRANTS_FILE = '.aide/desktop/grants.json';
+
+function processIds(image) {
+  return new Promise(resolve => {
+    execFile('tasklist', ['/FI', `IMAGENAME eq ${image}`, '/FO', 'CSV', '/NH'], { windowsHide: true }, (error, stdout) => {
+      if (error) return resolve([]);
+      const ids = [];
+      for (const match of String(stdout).matchAll(/"([^"]+)","(\d+)"/g)) {
+        if (match[1].toLowerCase() === image.toLowerCase()) ids.push(Number(match[2]));
+      }
+      resolve(ids);
+    });
+  });
+}
+
+function killProcessTree(pid) {
+  if (process.platform !== 'win32') {
+    try { process.kill(pid); } catch { /* already gone */ }
+    return Promise.resolve();
+  }
+  return new Promise(resolve => {
+    execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, () => resolve());
+  });
+}
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function waitForProcess(image, pid, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((await processIds(image)).includes(pid)) return true;
+    await sleep(100);
+  }
+  return false;
+}
 
 export class DesktopRefusedError extends Error {
   constructor(code, message) {
@@ -179,15 +213,35 @@ export function createDesktopControl({ workspace }) {
         throw new DesktopRefusedError('CHILD_FAILED', `excel failed: ${String(error?.message || error).slice(0, 200)}`);
       }
     },
-    async launch_app(grants, target) {
+    async launch_app(grants, target, args = []) {
       const name = String(target || '').trim().toLowerCase().replace(/\.exe$/, '');
       const hit = grants.apps.find(a => a.toLowerCase().replace(/\.exe$/, '') === name);
       if (!hit) throw new DesktopRefusedError('NOT_ALLOWLISTED', `app "${target}" is not on the allowlist`);
-      const child = spawn('cmd.exe', ['/d', '/s', '/c', 'start', '', hit], { detached: true, stdio: 'ignore', windowsHide: true });
+      if (!Array.isArray(args) || args.length > 16 || args.some(arg => typeof arg !== 'string' || arg.includes('\0'))) {
+        throw new DesktopRefusedError('VALIDATION', 'launch args must be up to 16 strings without NUL bytes');
+      }
+      const image = path.basename(hit);
+      const child = spawn(hit, args, { detached: true, stdio: 'ignore', windowsHide: true, shell: false });
+      const childPid = child.pid;
+      if (!Number.isInteger(childPid) || childPid <= 0) {
+        throw new DesktopRefusedError('CHILD_FAILED', `app "${hit}" did not return a process PID`);
+      }
       child.unref();
-      children.add(child.pid);
-      child.once('exit', () => children.delete(child.pid));
-      return `launched ${hit}`;
+      children.add(childPid);
+      child.once('exit', () => children.delete(childPid));
+      await new Promise((resolve, reject) => {
+        child.once('spawn', resolve);
+        child.once('error', reject);
+      }).catch(async error => {
+        children.delete(childPid);
+        throw new DesktopRefusedError('CHILD_FAILED', `app "${hit}" failed to spawn: ${error.message}`);
+      });
+      if (!(await waitForProcess(image, childPid))) {
+        await killProcessTree(childPid);
+        children.delete(childPid);
+        throw new DesktopRefusedError('CHILD_FAILED', `app "${hit}" PID ${childPid} was not observable within 10000ms`);
+      }
+      return { output: `launched ${hit} (pid ${childPid})`, pid: childPid };
     },
     async open_path(grants, target) {
       const root = grants.roots.find(r => isSubpath(r, String(target)));
@@ -229,7 +283,7 @@ export function createDesktopControl({ workspace }) {
     }
   };
 
-  async function autoAssert(op, target, destination) {
+  async function autoAssert(op, target, destination, expectedPid) {
     // DC-b: every trajectory row carries a state assertion — R3 law forbids
     // training on unverified rollouts. Assertions are mechanical, per-op.
     switch (op) {
@@ -237,12 +291,9 @@ export function createDesktopControl({ workspace }) {
         const image = path.basename(String(target)).trim();
         const safe = /^[A-Za-z0-9._-]+$/.test(image) ? image : null;
         if (!safe) return { pass: false, check: 'image-name-parse' };
-        const exists = await new Promise(resolve => {
-          execFile('tasklist', ['/FI', `IMAGENAME eq ${safe}`], { windowsHide: true }, (err, stdout) => {
-            resolve(!err && String(stdout).toLowerCase().includes(safe.toLowerCase()));
-          });
-        });
-        return { pass: exists, check: `process_alive:${safe}` };
+        const ids = await processIds(safe);
+        const exists = expectedPid === undefined ? ids.length > 0 : ids.includes(expectedPid);
+        return { pass: exists, check: `process_alive:${safe}${expectedPid === undefined ? '' : `#${expectedPid}`}` };
       }
       case 'move_file': {
         try {
@@ -286,14 +337,18 @@ export function createDesktopControl({ workspace }) {
     const fn = ops[request.op];
     if (!fn) throw new DesktopRefusedError('UNKNOWN_OP', `unsupported op: ${request.op}`);
     try {
-      const output = await fn(grants, request.target, request.destination);
-      const assertion = await autoAssert(request.op, request.target, request.destination);
+      const operation = request.op === 'launch_app'
+        ? await fn(grants, request.target, request.args)
+        : await fn(grants, request.target, request.destination);
+      const output = operation && typeof operation === 'object' && 'output' in operation ? operation.output : operation;
+      const expectedPid = operation && typeof operation === 'object' && 'pid' in operation ? operation.pid : undefined;
+      const assertion = await autoAssert(request.op, request.target, request.destination, expectedPid);
       const result = { ok: true, decision: 'executed', output: String(output).slice(0, 2000), latency_ms: Date.now() - started, assertion };
       await evidence('desktop', { op: request.op, target: request.target, decision: 'executed' });
       await recordTrajectory(sessionId, {
         ts: new Date().toISOString(), turn: ++turnCounter,
-        observation: { op: request.op, target: request.target, destination: request.destination ?? null },
-        thought: request.note || '', action_raw: `${request.op}(target="${request.target}"${request.destination ? `, destination="${request.destination}"` : ''})`,
+         observation: { op: request.op, target: request.target, args: request.args ?? [], destination: request.destination ?? null },
+         thought: request.note || '', action_raw: `${request.op}(target="${request.target}"${request.args?.length ? `, args=${JSON.stringify(request.args)}` : ''}${request.destination ? `, destination="${request.destination}"` : ''})`,
         class: 'WRITE', verdict: 'executed', assertion, latency_ms: result.latency_ms
       });
       return result;
@@ -317,22 +372,10 @@ export function createDesktopControl({ workspace }) {
     const started = Date.now();
     if (manifest) panics.push(manifest.session_started_at);
     let killed = 0;
-    for (const pid of [...children]) {
-      killed += 1;
-      try { process.kill(pid); } catch { /* already gone */ }
-      children.delete(pid);
-    }
-    // Detached `start` launches are untrackable at spawn time (cmd wrapper
-    // exits immediately) — sweep allowlisted app names so panic is COMPLETE:
-    // no granted app may survive a tripwire.
-    for (const app of manifest?.grants?.apps ?? []) {
-      const image = path.basename(app).trim();
-      if (!/^[A-Za-z0-9._-]+$/.test(image)) continue;
-      await new Promise(resolve => {
-        execFile('taskkill', ['/IM', image, '/F'], { windowsHide: true }, () => resolve(null));
-      });
-      killed += 1;
-    }
+    const pids = [...children];
+    await Promise.all(pids.map(pid => killProcessTree(pid)));
+    killed = pids.length;
+    children.clear();
     const result = { ok: true, children_killed: killed, revoked_at: new Date().toISOString(), latency_ms: Date.now() - started };
     await evidence('desktop', { op: 'panic', decision: 'executed', children_killed: killed });
     return result;

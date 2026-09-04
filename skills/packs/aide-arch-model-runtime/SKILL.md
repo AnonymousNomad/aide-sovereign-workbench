@@ -42,6 +42,18 @@ Phase 6 turns the verified model-manager.mjs into a first-class contract service
 - Before spawn: read free memory (daemon `os.freemem` or `Get-CimInstance Win32_OperatingSystem` — use node's `os.freemem()` consistently). <2GB free → refuse with `NOT_READY` + message "Not enough free RAM (model needs X)". Symptom it prevents: `MapViewOfFile failed` crashes.
 - Expose freeMemoryMB in `/api/health` (Phase 1 already did) and show it in the status bar — the user's own training jobs (fsi-anomaly) also consume RAM; the UI must make contention visible, not mysterious.
 
+#### Start preflight order (added 2026-09-03)
+
+`start()` must validate deterministic model identity before checking the
+resource budget: (1) allowlist and file existence, (2) ingested-artifact
+integrity (size/hash metadata), (3) free-RAM guard, (4) endpoint identity and
+port allocation, (5) process spawn. A low-RAM `NOT_READY` result must not mask
+a changed or missing ingested artifact `CONFLICT`; the integrity result is the
+stronger safety signal and requires no model allocation. Keep the regression
+test for a changed ingested file runnable even when the host is under memory
+pressure. This ordering was verified from the real test failure:
+`441 MB free` incorrectly won over the expected `changed on disk` error.
+
 ### 5. Port doctrine (VERIFIED 2026-08-16)
 
 - Fixed per-model ports: smollm2=8082, qwen-0.5b=8083, qwen-1.5b=8087 (re-ported FROM 8081 after a foreign llama-server squatted it and ColonyWatchdog respawned swarm processes). The model manager checks the port before use: if occupied by OUR model (identity matches) → reuse (idempotent start); if occupied by a FOREIGN process → pick next free port and log loudly; if free → bind.
@@ -72,6 +84,7 @@ Python 3.10 + llama_cpp 0.3.34 (verified import under `py -3.10 -E`), 3 GGUF mod
 - **First-chat race**: status says running but generation context not loaded → first chat fails. The warmup gate is the fix — if a chat still fails on the FIRST attempt after status=running, the gate is broken; re-verify the ported code.
 - **Port squatting**: ColonyWatchdog (scheduled task) and foreign llama-servers grab ports. The port doctrine's "check identity, else next free port + loud log" handles it; a static port list does NOT.
 - **RAM contention**: user's training jobs (fsi-anomaly) eat RAM/GPU. The RAM guard refuses starts; the UI must show free RAM so contention is visible, not mysterious.
+- **Masked integrity failure**: checking RAM before an ingested file's size/hash lets a resource error hide tampering or replacement. Validate artifact identity before the RAM guard; do not weaken the integrity test to accommodate a busy host.
 - **Orphaned daemon chains**: a daemon killed with -Force leaves llama children (tree kill didn't run). Hunt by command line (`python -m llama_cpp.server`) after hard kills; prefer graceful shutdown ALWAYS.
 - **logits_all true creep**: someone adding `--logits_all true` for perplexity runs is fine on small models but OOMs Pascal — keep it a per-invocation override, never the server default.
 - **SSE vs WS**: chat streaming is a single long-lived stream → SSE (simple, abortable). Model status is multi-channel state → WS. Don't mix them.

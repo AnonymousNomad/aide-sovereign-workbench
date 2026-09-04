@@ -1985,3 +1985,36 @@ STAGE 9: aid-cipher-4b-fine-tune-pipeline skill created. Venv is the blocker (ho
 **Files:** C:\Users\Grey_\.agents\skills\failure-conventional-commit-message\SKILL.md, AGENT_NOTES.md.
 **Next:** Create the failure skill, retry the unchanged staged set with `fix(release): publish verified release gates`, inspect the resulting commit, then push.
 ---
+## [2026-09-04 06:27] Actor: opencode/T1
+**Type:** failure / CI platform parity
+**Status:** triaged; fix pending verification
+**Summary:** GitHub CI for commit `808cadf` passed setup/npm/type-lint but failed the Ubuntu architecture step in three platform-specific tests.
+**Details:** Run `33867439808`, job `101005397606`, annotations identify: `tests/arch/cipher-state-bus.test.ts:100` expects only `ENOENT` while Ubuntu returns `ENOTDIR` for a file used as a directory; `tests/arch/desktop-policy.test.ts:134` invokes Windows-only `powershell.exe`; `tests/arch/llama-binary-resolver.test.ts:34` asserts a nonexistent fake `AIDE_LLAMA_SERVER` path is honored even though the resolver intentionally filters missing files. Local Windows Veritas was green, so these were not visible locally. No local processes remain from the GitHub query.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-ci-platform-parity\SKILL.md` — require OS-specific guards, portable filesystem error assertions, and real temporary resolver candidates in cross-platform arch tests.
+**Files:** tests/arch/cipher-state-bus.test.ts, tests/arch/desktop-policy.test.ts, tests/arch/llama-binary-resolver.test.ts, C:\Users\Grey_\.agents\skills\failure-ci-platform-parity\SKILL.md, AGENT_NOTES.md.
+**Next:** Create the platform-parity skill, apply the three test fixes, run focused tests plus the full local Veritas gate, commit/push a second fix, and watch CI again.
+---
+## [2026-09-04 06:xx] Actor: opencode/T1
+**Type:** failure / TypeScript declaration boundary
+**Status:** triaged; local verification pending
+**Summary:** Full local Veritas reached the current worktree but stopped in `tsc` because the uncommitted model-integrity experiment imports `common/model-integrity.mjs` without a `.d.mts` declaration.
+**Details:** Exact diagnostic: `node/src/services/model-runtime.ts(11,30): error TS7016: Could not find a declaration file for module '../../../common/model-integrity.mjs'`. The nested test phase still passed, but compile is correctly false. The model-integrity files remain excluded from the published CI commit; the declaration is a local prerequisite for validating the parked experiment and will not be staged unless that experiment is separately verified.
+**Skill created:** `C:\Users\Grey_\.agents\skills\failure-typescript-mjs-declaration\SKILL.md` — require explicit declarations for project `.mjs` modules imported by strict TypeScript.
+**Files:** C:\Users\Grey_\.agents\skills\failure-typescript-mjs-declaration\SKILL.md, AGENT_NOTES.md.
+**Next:** Create the declaration skill, add a local `common/model-integrity.d.mts`, rerun direct tsc, and keep the model experiment out of the CI commit.
+---
+## [2026-09-04 11:24] Actor: opencode/T1
+**Type:** failure / integrity-test contract drift
+**Status:** triaged; fix pending verification
+**Summary:** After adding the declaration boundary, full local Veritas reached the model-runtime tests and found one stale expectation for the new integrity error.
+**Details:** `tests/arch/model-runtime.test.ts:140` expects `/changed on disk/`, but the intentional pre-RAM integrity guard now returns `MODEL_VERIFY: swap-guard.gguf FAIL - hash mismatch (...)`. The test's mutation is exactly a content change, so the new hash-mismatch message is the stronger contract; the size-change check remains separately implemented. Veritas reported `tests: true` and only `compile: false` because this assertion failed inside the nested arch compile command. Post-run process/listener verification was clean; no model/training process remained.
+**Files:** tests/arch/model-runtime.test.ts, AGENT_NOTES.md.
+**Next:** Update only the stale assertion to `/hash mismatch/`, run the focused model-runtime test, then run full Veritas and decide separately whether to publish the integrity feature.
+---
+## [2026-09-04 14:02] Actor: opencode
+**Type:** scope / parked
+**Status:** logged; next in-house model end-to-end battery starts after the model-integrity commit ships
+**Summary:** The operator added a queued requirement: every feature we ship must be proven end-to-end with the in-house model (cipher / north-mini-code), not with foreign cloud models. This applies to harness, orchestrator, 30-day memory (Helix), desktop control, etc.
+**Details:** I am NOT starting the in-house battery today. I will continue the model-integrity commit/push and, once that is green on CI, begin a new worktree for the in-house end-to-end battery. The battery will use the in-house binary at `E:\llama-cpp\llama-server.exe` against the relevant endpoints and record exact observed text plus timing per scenario. Where the in-house model is weak, the report will name the weakness honestly and propose a real fix rather than paper it over. The cross-platform scope change (Linux + Windows only, iOS and Android parked) is also recorded and will be researched in a separate worktree after the in-house battery lands.
+**Files:** AGENT_NOTES.md.
+**Next:** Commit and push the model-integrity slice; then start a new worktree to build the in-house end-to-end battery research + acceptance plan.

@@ -58,7 +58,8 @@
       "source_repo": "ibm-granite/granite-3.3-2b-instruct",
       "file": null,
       "download_policy": "optional-pack",
-      "description": "Optional reasoning and structured-output candidate; exact local quantization and hardware cost require verification."
+      "endpoint_hint": "http://127.0.0.1:8089/v1",
+      "description": "Optional reasoning and structured-output candidate; exact local quantization and hardware cost require verification. Port 8089 reserved to avoid collision with north-mini-code-1.0 (8084)."
     },
     {
       "id": "smollm2-1.7b-instruct",
@@ -71,6 +72,7 @@
       "source_repo": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
       "file": null,
       "download_policy": "optional-pack",
+      "endpoint_hint": "http://127.0.0.1:8085/v1",
       "description": "Optional compact general assistant and function-calling candidate; exact local quantization requires verification."
     },
     {
@@ -84,7 +86,23 @@
       "source_repo": "microsoft/Phi-3.5-mini-instruct",
       "file": null,
       "download_policy": "optional-pack",
+      "endpoint_hint": "http://127.0.0.1:8088/v1",
       "description": "Optional multilingual and reasoning candidate; heavier hardware profile requires measurement."
+    },
+    {
+      "id": "cipher-fast",
+      "name": "Cipher-fast (AIDE in-house: base.q8_0.gguf + frontier-lora.gguf)",
+      "role": "house-coder",
+      "license": "Apache-2.0",
+      "parameters": 4000000000,
+      "download_bytes_approx": 4280000000,
+      "context_tokens": 4096,
+      "source_repo": "anonymousnomad/aide-cipher-4b-finetune",
+      "file": "aide-house/base.q8_0.gguf",
+      "lora_adapter": "aide-house/frontier-lora.gguf",
+      "download_policy": "in-house",
+      "sha256": "n/a (in-house fine-tune, hash recorded in profile sidecar)",
+      "description": "AIDE in-house fast lane. Original Cipher 4B (fine-tune base) with frontier LoRA, Q8_0 quantization, 4.28 GB. Fits entirely in 6GB VRAM. Default for everyday chat, the agent loop, and desktop control. Loaded on port 8091."
     }
   ],
   "models": [
@@ -176,14 +194,14 @@
       ],
       "format": "GGUF pending verification",
       "runtime": "OpenAI-compatible HTTP",
-      "endpoint": "http://127.0.0.1:8084/v1",
+      "endpoint": "http://127.0.0.1:8089/v1",
       "model": "granite-3.3-2b-instruct",
       "artifact_uri": "hf://ibm-granite/granite-3.3-2b-instruct",
       "source_revision": "ibm-granite/granite-3.3-2b-instruct@main",
       "parameters": 2000000000,
       "context_tokens": 131072,
       "metrics": null,
-      "description": "Optional reasoning candidate. Not downloaded or runtime-verified.",
+      "description": "Optional reasoning candidate. Not downloaded or runtime-verified. Port 8089 reserved.",
       "providerType": "local",
       "chatTemplate": "gguf-metadata",
       "gguf_max_context": null
@@ -238,24 +256,58 @@
     },
     {
       "id": "aide-cipher-v1",
-      "name": "Cipher v1 (DEPRECATED — replaced by north-mini-code-1.0)",
-      "status": "ready",
-      "endpoint": "http://127.0.0.1:8091/v1",
-      "artifact_uri": "local://aide-house/base.q8_0.gguf (REMOVED — see north-mini-code-1.0)",
-      "model": "base.q8_0.gguf",
+      "name": "Cipher v1 (DEPRECATED — file removed, see cipher-fast)",
+      "status": "removed",
+      "endpoint": null,
+      "artifact_uri": null,
+      "model": null,
       "context_tokens": 3072,
       "roles": [
         "coder",
         "chat",
         "planning",
         "reviewer"
+      ]
+    },
+    {
+      "id": "cipher-fast",
+      "name": "Cipher-fast (AIDE in-house: base.q8_0.gguf + frontier-lora.gguf)",
+      "status": "ready",
+      "lane": "house",
+      "roles": [
+        "chat",
+        "coder",
+        "autocomplete",
+        "desktop"
       ],
-      "lora_adapter": "models/aide-house/frontier-lora.gguf"
+      "format": "GGUF",
+      "runtime": "OpenAI-compatible HTTP",
+      "endpoint": "http://127.0.0.1:8091/v1",
+      "model": "aide-house/base.q8_0.gguf",
+      "lora_adapter": "aide-house/frontier-lora.gguf",
+      "artifact_uri": "local://aide-house/base.q8_0.gguf",
+      "parameters": 4000000000,
+      "active_parameters": 4000000000,
+      "architecture": "dense",
+      "context_tokens": 4096,
+      "served_context_tokens": 4096,
+      "quantization": "Q8_0",
+      "metrics": {
+        "runtime_health": "not-verified",
+        "engine_port": 8091,
+        "engine_binary": "E:\\llama-cpp\\llama-server.exe",
+        "expected_tok_s": "8-15 (4B dense, fully offloaded to 6GB VRAM)"
+      },
+      "description": "AIDE in-house fast lane. Original Cipher 4B (fine-tune base) with frontier LoRA, Q8_0 quantization, 4.28 GB. Fits entirely in 6GB VRAM. Default for everyday chat and the agent loop. Engine not yet started — start via POST /api/models/start {id:'cipher-fast'}.",
+      "system_prompt": "You are Cipher-fast, the AIDE in-house fast sovereign agent. You operate a developer's local machine. You have 6 tools: read_file, write_file, bash, search, git_diff, list. Always respond with one fenced json block per turn proposing tool calls, or a final_answer block when the task is done. Mutating tools require explicit user approval before execution; the user sees every proposed tool call and approves or rejects each one. Never claim a tool ran. Never invent file paths. If a tool returns an error, adjust and re-propose. Stay inside the user's sandbox. When in doubt, ask. When broken, run aide-doctor and report.",
+      "providerType": "local",
+      "chatTemplate": "gguf-metadata",
+      "gguf_max_context": 8192
     },
     {
       "id": "north-mini-code-1.0",
       "name": "North-Mini-Code 1.0 (Cohere Labs 30B-A3B MoE, Q2_K_XL)",
-      "status": "ready",
+      "status": "pending",
       "lane": "house",
       "roles": [
         "chat",
@@ -275,10 +327,10 @@
       "context_tokens": 32768,
       "quantization": "Q2_K_XL",
       "metrics": {
-        "runtime_health": "pending",
-        "coding_smoke": "pending"
+        "runtime_health": "not-verified",
+        "coding_smoke": "not-verified"
       },
-      "description": "AIDE in-house model. Cohere Labs 30B-A3B MoE (3B active), Q2_K_XL quantization. On disk at E:\\models\\north-mini-code\\North-Mini-Code-1.0-UD-Q2_K_XL.gguf, symlinked into aide-house. Wire-in only this turn; engine start in next turn (10GB model).",
+      "description": "AIDE in-house 'thinking' lane. 30B-A3B MoE (3B active), Q2_K_XL, 10.5 GB on disk. Will not run on a 6GB VRAM card (need >=12GB free RAM for inference). Parked until a capable host is available. The LoRA sampling profile is the right intervention on the 6GB card per the 2026-08-29 cline/T4 note.",
       "system_prompt": "You are the AIDE sovereign agent. You operate a developer's local machine. You follow the AIDE Standard Operating Procedures (SOPs) exactly. You are bound by the harness/credo.md oath. You may not modify files without user approval. You may not run network commands without explicit consent. You may not approve your own work — every patch is verified by a separate verifier. You know AIDE because you have been pre-loaded with the AIDE workflow catalog. When a user asks you to do something, you: 1) identify the matching workflow bundle, 2) run intake (census), 3) plan with architect mode, 4) propose a unified diff, 5) wait for human approval, 6) apply only after approval, 7) run veritas gates, 8) report the outcome. You are reachable from the user's phone via the AIDE Telegram bridge. Stay inside the user's sandbox. When in doubt, ask. When broken, run aide-doctor and report.",
       "providerType": "local",
       "chatTemplate": "gguf-metadata",
@@ -294,17 +346,6 @@
       "context_tokens": 8192,
       "repo_id": "manual",
       "lora_adapter": "E:/FSI-FELON/models/aide_trio/merged/thinking_lora_full_f16.gguf"
-    },
-    {
-      "id": "north-mini-code-1.0-ud-q2_k_xl",
-      "name": "North-Mini-Code-1.0-UD-Q2_K_XL",
-      "status": "ready",
-      "endpoint": "http://127.0.0.1:8092/v1",
-      "artifact_uri": "local://north-mini-code/North-Mini-Code-1.0-UD-Q2_K_XL.gguf",
-      "model": "north-mini-code/North-Mini-Code-1.0-UD-Q2_K_XL.gguf",
-      "context_tokens": 8192,
-      "repo_id": "unsloth/North-Mini-Code-1.0-GGUF",
-      "quant_label": "UD-Q2_K_XL"
     }
   ]
 }

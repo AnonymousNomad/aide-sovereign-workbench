@@ -16,12 +16,12 @@ import { promisify } from 'node:util';
 
 const execFileP = promisify(execFile);
 
-const CAP_ACTIVE_FILE_CHARS = 8000;
-const CAP_DIFF_CHARS = 2000;
-const CAP_TERMINAL_CHARS = 800;
-const CAP_DIAGNOSTICS_CHARS = 800;
-const CAP_OPEN_TABS_SUMMARY_CHARS = 2000;
-const CAP_TOTAL_CHARS = 16000;
+const CAP_ACTIVE_FILE_CHARS = 800;
+const CAP_DIFF_CHARS = 500;
+const CAP_TERMINAL_CHARS = 300;
+const CAP_DIAGNOSTICS_CHARS = 400;
+const CAP_OPEN_TABS_SUMMARY_CHARS = 300;
+const CAP_TOTAL_CHARS = 2000;
 
 function truncate(text, cap, marker = '\n[...truncated]') {
   if (!text) return '';

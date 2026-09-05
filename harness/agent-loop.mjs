@@ -245,26 +245,61 @@ async function executeTool({ workspace, tool, args, approved }) {
   }
 }
 
-// Parser: extract a fenced json block from model output.
+// Parser: extract tool calls and final_answer from model output. Supports
+// three shapes the cipher 4B and similar small local models actually emit:
+// 1) Fenced ```json ... ``` block (the documented format).
+// 2) Fenced ```final_answer ... ``` block.
+// 3) Bare JSON (a top-level array of tool calls, or a single tool-call object,
+//    or a single tool call with no enclosing array). Some local models
+//    skip the fence when the JSON is short; the parser catches the same
+//    shape from any of these.
 function parseToolCalls(text) {
   if (typeof text !== 'string') return { calls: [], finalAnswer: null, remaining: '' };
-  const fm = text.match(/```json\s*([\s\S]*?)```/i);
-  if (fm) {
-    const block = fm[1];
-    try {
-      const value = JSON.parse(block);
-      const arr = Array.isArray(value) ? value : (value.calls || value.tools || value.tool_calls || []);
-      if (Array.isArray(arr)) {
-        const calls = arr.filter(c => c && c.tool && typeof c.tool === 'string').map(c => ({ tool: c.tool, args: c.args || c.parameters || {}, id: c.id || ('tc_' + crypto.randomBytes(4).toString('hex')) }));
-        return { calls, finalAnswer: null, remaining: text };
-      }
-    } catch { /* fall through to final_answer */ }
+  // Strip code fences if present, then check if the body is parseable JSON.
+  const stripFences = body => body.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+  const extractToolArray = value => {
+    if (!value) return [];
+    const arr = Array.isArray(value) ? value : (value.calls || value.tools || value.tool_calls || (value.tool ? [value] : []));
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(c => c && c.tool && typeof c.tool === 'string').map(c => ({ tool: c.tool, args: c.args || c.parameters || {}, id: c.id || ('tc_' + crypto.randomBytes(4).toString('hex')) }));
+  };
+  const tryParse = (raw, kind) => {
+    try { return { ok: true, value: JSON.parse(raw) }; } catch { return { ok: false, kind }; }
+  };
+  // First: fenced blocks
+  const jsonFence = text.match(/```json\s*([\s\S]*?)```/i);
+  if (jsonFence) {
+    const r = tryParse(stripFences(jsonFence[1]), 'json');
+    if (r.ok) {
+      const calls = extractToolArray(r.value);
+      if (calls.length) return { calls, finalAnswer: null, remaining: text };
+    }
   }
-  const fm2 = text.match(/```final_answer\s*([\s\S]*?)```/i);
-  if (fm2) return { calls: [], finalAnswer: fm2[1].trim(), remaining: text };
-  // No fenced block. Treat the whole thing as final answer if the model wrote no tool calls.
+  const faFence = text.match(/```final_answer\s*([\s\S]*?)```/i);
+  if (faFence) return { calls: [], finalAnswer: faFence[1].trim(), remaining: text };
+  // Second: bare JSON anywhere in the text (local models often skip fences).
+  const trimmed = text.trim();
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    const r = tryParse(trimmed, 'bare');
+    if (r.ok) {
+      const calls = extractToolArray(r.value);
+      if (calls.length) return { calls, finalAnswer: null, remaining: text };
+    }
+  }
+  // Third: look for a JSON object line inside the text (e.g. first line of
+  // a multi-line response is `{"tool":...}`).
+  const firstLine = text.split('\n').map(l => l.trim()).find(l => l.startsWith('{') && l.endsWith('}'));
+  if (firstLine) {
+    const r = tryParse(firstLine, 'firstLine');
+    if (r.ok) {
+      const calls = extractToolArray(r.value);
+      if (calls.length) return { calls, finalAnswer: null, remaining: text };
+    }
+  }
+  // No tool calls. If there's a fenced ```...``` block we don't recognize,
+  // treat as final answer; otherwise the whole text is the answer.
   if (!text.includes('```')) return { calls: [], finalAnswer: text.trim() || null, remaining: text };
-  return { calls: [], finalAnswer: null, remaining: text };
+  return { calls: [], finalAnswer: text.trim() || null, remaining: text };
 }
 
 const TOOL_GUIDE = `You have 6 tools. Always respond with ONE fenced block per turn.
@@ -272,7 +307,7 @@ const TOOL_GUIDE = `You have 6 tools. Always respond with ONE fenced block per t
 1) Propose tool calls: a single \`\`\`json code block with an array of {tool, args, id} objects.
    Example:
    \`\`\`json
-   [{"tool":"list","args":{"path":"."},"id":"tc_1"},{"tool":"read_file","args":{"path":"README.md"},"id":"tc_2"}]
+   [{"tool":"read_file","args":{"path":"README.md"},"id":"tc_1"}]
    \`\`\`
 
 2) When the task is done, emit ONE \`\`\`final_answer code block with the answer.
@@ -281,19 +316,17 @@ const TOOL_GUIDE = `You have 6 tools. Always respond with ONE fenced block per t
    I added the hello route and verified it.
    \`\`\`
 
-Available tools (strict JSON schema; do not invent fields):
+Tools (strict JSON schema; do not invent fields):
 ${Object.entries(TOOL_SCHEMAS).map(([name, s]) => {
   const params = Object.entries(s.params).map(([p, def]) => `      "${p}": { "type": "${def.type}"${def.required ? ', "required": true' : ''}${def.maxLength ? `, "maxLength": ${def.maxLength}` : ''}${def.min !== undefined ? `, "min": ${def.min}` : ''} }`).join(',\n');
   return `  - ${name}: ${s.description}\n    params: {\n${params}\n    }\n    mutating: ${s.mutating}`;
 }).join('\n\n')}
 
 Rules:
-- Mutating tools (write_file, bash) require explicit user approval. You propose; the user approves.
-- Read-only tools (read_file, search, git_diff, list) also require approval per AIDE doctrine.
-- If a tool returns "error", adjust and re-propose. Do not invent file paths.
-- The "id" field on each tool call lets the user approve/reject one at a time. Use unique ids like "tc_1", "tc_2".
-- Maximum 8 turns. If you cannot finish, emit \`\`\`final_answer with what you know.
-- Never wrap tool calls in prose. The block must be parseable JSON.`;
+- Mutating tools (write_file, bash) need user approval before running.
+- If a tool returns "error", adjust and re-propose.
+- Use unique ids like "tc_1", "tc_2".
+- Max 8 turns.`;
 
 export class AgentLoop {
   constructor({ modelManager, workspace, modelId, sessionDir, maxTurns = 8 }) {
@@ -343,7 +376,7 @@ export class AgentLoop {
     };
   }
 
-  async start({ goal, openPaths = [], activePath = null, history = [], resumeId = null }) {
+  async start({ goal, openPaths = [], activePath = null, history = [], resumeId = null, modelId = null, includeLiveContext = true }) {
     if (!goal || typeof goal !== 'string') throw new Error('goal is required');
     let session;
     if (resumeId) {
@@ -353,14 +386,25 @@ export class AgentLoop {
     } else {
       session = this._newSession({ goal, openPaths, activePath, history });
     }
+    // Per-request modelId overrides the loop default. The session records which
+    // model it is bound to so resume picks up the same model.
+    if (modelId) session.modelId = modelId;
     // Build the first turn: inject live workspace context + tool guide as system message.
-    const context = await gatherWorkspaceContext({
-      workspace: this.workspace,
-      openPaths: session.openPaths,
-      activePath: session.activePath
-    });
+    // On the 6GB card the cipher 4B with the full live context exceeds the 5-minute
+    // first-turn budget. Operators can opt out of the live context (includeLiveContext:false)
+    // to use the tool guide only — the agent loop still proposes and executes tool
+    // calls, the operator just provides paths in their own goal text.
+    let contextText = '';
+    if (includeLiveContext) {
+      const context = await gatherWorkspaceContext({
+        workspace: this.workspace,
+        openPaths: session.openPaths,
+        activePath: session.activePath
+      });
+      contextText = `\n\n${context.text}`;
+    }
     session.messages = [
-      { role: 'system', content: `${TOOL_GUIDE}\n\n${context.text}` },
+      { role: 'system', content: `${TOOL_GUIDE}${contextText}` },
       ...(Array.isArray(session.history) ? session.history : []),
       { role: 'user', content: session.goal }
     ];
@@ -379,7 +423,13 @@ export class AgentLoop {
     session.turn += 1;
     let result;
     try {
-      result = await this.modelManager.chat(session.modelId, session.messages, { max_tokens: 1024, temperature: 0.2 });
+      // Generous timeout for the first turn (cold engine, large system prompt).
+      // Subsequent warm turns use the chat manager's default 90s. Operators on
+      // a 6GB card with a 4B dense Q8_0 model see 5-20 tok/s; a 4k-token system
+      // prompt with 6 tool definitions + live workspace context can take 60-120s
+      // on the first inference after engine start.
+      const firstTurnTimeoutMs = session.turn === 1 ? 300_000 : 90_000;
+      result = await this.modelManager.chat(session.modelId, session.messages, { max_tokens: 1024, temperature: 0.2, timeout_ms: firstTurnTimeoutMs });
     } catch (error) {
       session.status = 'failed';
       session.error = error.message;
@@ -411,10 +461,12 @@ export class AgentLoop {
     const validCalls = validated.filter(v => v.valid).map(v => v.call);
     const invalidCalls = validated.filter(v => !v.valid);
     if (invalidCalls.length) {
-      // Feed the model the schema errors so it can fix them.
+      // Feed the model the schema errors as a user-role turn. The cipher
+      // engine does not support the OpenAI `tool` role (returns HTTP 400);
+      // using `user` is the OpenAI-roles-compatible shape.
       session.messages.push({
-        role: 'tool',
-        content: JSON.stringify({ kind: 'validation', errors: invalidCalls.map(v => ({ id: v.call.id, error: v.error })) })
+        role: 'user',
+        content: `[tool_validation_errors]\n` + JSON.stringify({ kind: 'validation', errors: invalidCalls.map(v => ({ id: v.call.id, error: v.error })) }, null, 2)
       });
     }
     if (validCalls.length === 0) {
@@ -443,10 +495,15 @@ export class AgentLoop {
         result = { skipped: true, reason: 'rejected by user' };
       }
       session.completed.push({ call: pending, approved, result, decidedAt: new Date().toISOString() });
-      // Feed the tool result back to the model.
+      // Feed the tool result back to the model. The cipher engine (and most
+      // local llama-server builds) does not support the OpenAI `tool` role
+      // message — it returns HTTP 400. We send the result as a `user` turn
+      // instead, with a clear marker so the model can parse the boundary.
+      // Per the OpenAI tool-use spec the result belongs on the user side of
+      // the conversation anyway; this is the OpenAI-roles-compatible shape.
       session.messages.push({
-        role: 'tool',
-        content: JSON.stringify({ id: pending.id, tool: pending.tool, approved, result })
+        role: 'user',
+        content: `[tool_result id=${pending.id} tool=${pending.tool} approved=${approved}]\n` + JSON.stringify(result, null, 2)
       });
     }
     session.pending = [];

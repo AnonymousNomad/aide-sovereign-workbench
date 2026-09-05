@@ -494,7 +494,8 @@ const server = http.createServer(async (request, response) => {
         openPaths: Array.isArray(input.openPaths) ? input.openPaths : [],
         activePath: input.activePath || null,
         history: Array.isArray(input.history) ? input.history : [],
-        resumeId: input.resumeId || null
+        resumeId: input.resumeId || null,
+        includeLiveContext: input.includeLiveContext !== false
       });
       return json(response, 200, session);
     }

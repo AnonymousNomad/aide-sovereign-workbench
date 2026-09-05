@@ -60,6 +60,30 @@ test('parseToolCalls: extracts fenced json array of tool calls', () => {
   assert.equal(r.finalAnswer, null);
 });
 
+test('parseToolCalls: extracts bare json array without fence', () => {
+  const text = '[{"tool":"read_file","args":{"path":"README.md"},"id":"tc_1"}]';
+  const r = parseToolCalls(text);
+  assert.equal(r.calls.length, 1);
+  assert.equal(r.calls[0].tool, 'read_file');
+  assert.equal(r.finalAnswer, null);
+});
+
+test('parseToolCalls: extracts bare json object (no array wrapper)', () => {
+  const text = '{"tool":"bash","args":{"program":"node","args":["--version"]},"id":"tc_2"}';
+  const r = parseToolCalls(text);
+  assert.equal(r.calls.length, 1);
+  assert.equal(r.calls[0].tool, 'bash');
+  assert.equal(r.calls[0].id, 'tc_2');
+});
+
+test('parseToolCalls: extracts json object on its own line inside multi-line text', () => {
+  const text = 'I need to read the file first.\n{"tool":"read_file","args":{"path":"README.md"},"id":"tc_3"}\nAfter reading, I will summarize.';
+  const r = parseToolCalls(text);
+  assert.equal(r.calls.length, 1);
+  assert.equal(r.calls[0].tool, 'read_file');
+  assert.equal(r.calls[0].id, 'tc_3');
+});
+
 test('parseToolCalls: extracts final_answer block', () => {
   const r = parseToolCalls('All done.\n```final_answer\nI added the hello route.\n```');
   assert.equal(r.finalAnswer, 'I added the hello route.');

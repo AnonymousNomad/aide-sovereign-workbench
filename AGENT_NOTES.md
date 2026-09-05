@@ -2186,3 +2186,35 @@ Commit: `docs(plan): per-class model improvement plan + loop-c capture wiring`
 
 **Files:** AGENT_NOTES.md.
 **Next:** Operator sign-off on the research + the 2-slice plan. Slice A first (environment-aware model with tool-calling agent loop). Slice B second (per-class model improvement plan + loop-c capture, no training yet). One slice per commit. Operator tests in a real browser between slices. After both slices are green, the next branch can pick up: cross-platform packaging, Covert rename, cockpit UI rebuild, real MCP integration.
+
+## [2026-09-05 11:00] Actor: opencode
+**Type:** implementation slice A (environment-aware model + tool-calling agent loop)
+**Status:** committed (518216d), pushed to `origin/feat/environment-aware-model`; slice B next per the plan
+**Summary:** Slice A is live on `feat/environment-aware-model`. The model can now see the user's real working state and act on it with explicit per-tool approval. The chat-bubble-only path is replaced with a proper multi-turn agent loop.
+**Details:**
+- NEW: `harness/context-gatherer.mjs` (170 lines) - reads live workspace state. Capped: 2k tokens active file, 500 diff, 200 terminal, 200 diagnostics. Total ~4k tokens. Pure function. No new deps.
+- NEW: `harness/agent-loop.mjs` (495 lines) - the loop. Model proposes tool calls in a fenced json block; daemon parses, asks user to approve each one, executes approved ones, feeds results back, loops. Max 8 turns. Stops on final_answer or no-new-tool-call. 6 tools: read_file, write_file, bash, search, git_diff, list. Every tool call is one approval card. Mutating tools require explicit approval; read-only tools also require approval per AIDE doctrine (Theia + Anthropic + VS Code all enforce this). Path-jail via safeResolve. Bash allowlist (node, npm, npx, git, py, python, python3, cargo, rustc) + flag denylist (-e, --eval, -c, etc.). 1 MiB cap on file content, 30s timeout on bash. Sessions persist to `.aide/agent-loop-sessions/<id>.json` for crash recovery.
+- NEW: `tests/in-house-e2e/agent-loop-battery.mjs` (20 scenarios) - covers parser, validator, the 6 tool paths, rejection, invalid-schema self-correction, cancel, and context-gatherer. Uses stub modelManager with canned scripts and a real temp workspace per test. All 20 pass.
+- MODIFIED: `harness/scaffold.mjs` - added `injectLiveContext()` helper (L3.5 layer). Static scaffold unchanged; live context is dynamic per turn and never goes into the cached scaffold (byte-deterministic law preserved).
+- MODIFIED: `daemon/server.mjs` - imported AgentLoop, instantiated with modelId='qwen-coder-1.5b-q4' (the verified primary), added 4 routes under `/api/agent-loop/*` (start, decision, cancel, status). Used `/api/agent-loop/*` to avoid collision with the TS arch's existing `/api/agent/*` subagent dispatch routes (which the TS arch owns - the same fix I learned in the cockpit rebuild slice).
+- MODIFIED: `models/manifest.json` - refreshed system_prompt for qwen-coder-1.5b-q4 to reference the 6 tools explicitly. Other models' system_prompts unchanged (per-class improvement is slice B).
+- MODIFIED: `common/facade-route-map.json` - added `/api/agent-loop/{start,decision,cancel}` as exact legacy routes (via a new FLIPS.legacyOnly block).
+- MODIFIED: `scripts/build-facade-map.mjs` - added FLIPS.legacyOnly to support routes that exist only in the legacy daemon. These bypass the ts-stack existence check but are still merged into the generated route map. Documented inline.
+- MODIFIED: `tests/unit/test-facade.mjs` - updated to assert `/api/chat` flip to legacy (the prior in-house battery slice flip). Test for deriveRouteMap() explicitly notes that the function-level test uses fake inputs and `/api/chat/stream` is flipped via the real JSON, not via the function under test.
+**Verification:**
+- `node --check`: all new + modified files parse.
+- `tests/unit/test-facade.mjs`: 14/14 pass.
+- `tests/in-house-e2e/agent-loop-battery.mjs`: 20/20 pass.
+- `scripts/verify-facade-map.mjs`: 155 TS paths, 64 TS prefixes, 6 exact flips verified.
+- `npm run veritas`: `passed:true`, `score 1`, `threshold 0.9`, `evidence_level "sufficient"`, `0 failed checks`, `0 failed oaths`. 355/355 arch tests pass. DAP fixture 17/17. Sandbox 6/6. Sandbox-flow 4/4. Experts 6/6. Telegram 5/5. Desktop 12/12. Grammar 5/5. Path-boundary, secret-scan, manifest-validation, compile, tests, git-diff all green.
+**Commit:** `518216d feat(harness): environment-aware model with tool-calling agent loop` - 11 files changed, 1288 insertions, 5 deletions. 3 new files (context-gatherer.mjs, agent-loop.mjs, agent-loop-battery.mjs) + the research doc.
+**Push:** `feat/environment-aware-model` -> `origin/feat/environment-aware-model`. New branch. Pre-commit hook passed (mjs syntax + secret scan; TS validated via tsc separately). GitHub Actions will run on this push.
+**Threats and traps avoided:**
+- Did NOT touch parked T1-lane files (desktop/Cargo.toml, docs/evidence/dap-wire-sequence.json, docs/evidence/desktop-battery.md, models/manifest.json other entries, scripts/train-first-experts.mjs, workbenches/*, benchmarks/*, plugins/assistant-context/, FSI/). They remain dirty/untracked and will be addressed in their own slices.
+- Did NOT touch the cockpit UI (app.js, index.html, styles.css, browser/). The frontend is the operator's territory; slice A is backend + harness + battery only.
+- Did NOT add new model entries to the manifest. Only updated existing system_prompts.
+- Did NOT start the in-house binary or any llama-server. The battery uses a stub modelManager with canned scripts. Real engine tests are queued in the in-house battery slice.
+- Renamed routes from `/api/agent/*` to `/api/agent-loop/*` to avoid collision with the TS arch's existing `/api/agent/*` subagent dispatch routes (which the TS arch owns).
+- Followed the prior slice's lesson from the cockpit rebuild: renamed the routes BEFORE pushing to avoid a destructive rename on the remote.
+**Files:** harness/context-gatherer.mjs (new), harness/agent-loop.mjs (new), tests/in-house-e2e/agent-loop-battery.mjs (new), harness/scaffold.mjs (modified), daemon/server.mjs (modified), models/manifest.json (modified), common/facade-route-map.json (modified), scripts/build-facade-map.mjs (modified), tests/unit/test-facade.mjs (modified), docs/evidence/model-class-improvement-plan-2026-09-05.md (new), AGENT_NOTES.md.
+**Next:** Slice B (per-class model improvement plan + Loop C capture wiring, no training yet). Commit on the same branch. The operator tests the new routes via curl in a real browser session before slice B starts.

@@ -120,6 +120,20 @@ export function composeScaffold({ effectiveContextTokens = 4096, taskFamily = 'c
   };
 }
 
+// L3.5 layer: live workspace context (open files, active file, git diff,
+// terminal tail, diagnostics). Composed by the agent loop or by callers
+// who want a model that sees the user's real working state. Cap: 4k
+// chars (~1k tokens). The live context is dynamic per turn and never
+// goes into the cached scaffold (which is byte-deterministic). Caller
+// passes the string returned by context-gatherer.gatherWorkspaceContext().
+export function injectLiveContext(systemPrompt, liveContextText) {
+  if (!liveContextText) return systemPrompt;
+  // Live context goes AFTER the static scaffold and BEFORE the first user
+  // message. The chat route composes the order; this helper just stamps the
+  // marker.
+  return `${systemPrompt}\n\n${liveContextText}`;
+}
+
 export function injectScaffold(messages, scaffold) {
   const msgs = Array.isArray(messages) ? [...messages] : [];
   if (msgs.length > 0 && msgs[0]?.role === 'system') {

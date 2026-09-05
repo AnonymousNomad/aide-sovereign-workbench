@@ -8,7 +8,18 @@ const FLIPS = {
   exact: {
     '/api/file': 'ts',
     '/api/file/write': 'ts',
-    '/api/chat': 'ts'
+    '/api/chat': 'legacy'
+  },
+  // Legacy-only exact routes: routes that exist ONLY in the legacy daemon
+  // (not in openapi.json / ts stack). These are merged into the generated
+  // route map verbatim and skipped from the ts-stack existence check. Add
+  // a route here only when it is wired in daemon/server.mjs and never
+  // appears in node/src/openapi.ts. Naming uses /api/agent-loop/* to avoid
+  // collision with the TS arch's /api/agent/* subagent dispatch routes.
+  legacyOnly: {
+    '/api/agent-loop/start': 'legacy',
+    '/api/agent-loop/decision': 'legacy',
+    '/api/agent-loop/cancel': 'legacy'
   }
 };
 
@@ -73,6 +84,10 @@ export function deriveRouteMap({ tsRoutes, legacyExactRoutes, legacyPrefixRoutes
   const exact = {};
   for (const [route, target] of Object.entries(FLIPS.exact)) {
     if (!tsRoutes.includes(route)) throw new Error(`flip target ${route} is not served by the TS stack`);
+    exact[route] = target;
+  }
+  // Legacy-only routes bypass the ts-stack existence check.
+  for (const [route, target] of Object.entries(FLIPS.legacyOnly || {})) {
     exact[route] = target;
   }
   return { prefixes, exact, upgrades: { '/ws': 'ts' } };

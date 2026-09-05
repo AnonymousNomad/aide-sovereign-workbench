@@ -197,7 +197,12 @@ test('derived route map owns TS-only subfamilies without flipping shared paths',
     legacyExactRoutes: ['/api/chat', '/api/dap/start', '/api/training/start'],
     legacyPrefixRoutes: ['/api/dap/state?']
   });
-  assert.equal(map.exact['/api/chat'], 'ts');
+  assert.equal(map.exact['/api/chat'], 'legacy');
+  // /api/chat/stream in this test is not in legacyExactRoutes, so the
+  // function assigns it to ts via the prefix derivation. In the REAL
+  // generated facade-route-map.json, /api/chat/stream is flipped to legacy
+  // via a separate JSON edit. The "current route map" test below verifies
+  // the real JSON end-to-end.
   assert.equal(map.prefixes['/api/chat/stream'], 'ts');
   assert.equal(map.prefixes['/api/dap/step'], 'ts');
   assert.equal(map.prefixes['/api/training/datasets'], 'ts');

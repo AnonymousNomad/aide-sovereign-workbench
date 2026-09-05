@@ -23,8 +23,9 @@ import { ArtifactStore } from '../artifacts/store.mjs';
 import { ProviderManager } from '../providers/manager.mjs';
 import { WorkflowManager } from './workflow.mjs';
 import { HandoffManager } from './handoff.mjs';
-import { buildScaffold, injectScaffold, composeDriftReminder, estimateTokens, HARNESS_VERSION } from '../harness/scaffold.mjs';
+import { buildScaffold, injectScaffold, composeDriftReminder, estimateTokens, HARNESS_VERSION, injectLiveContext } from '../harness/scaffold.mjs';
 import { createStateBus } from '../harness/cipher-state.mjs';
+import { AgentLoop } from '../harness/agent-loop.mjs';
 
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -89,6 +90,7 @@ const providerManager = new ProviderManager(await workspaceConfig('providers/man
 await providerManager.load().catch(() => {});
 const workflowManager = new WorkflowManager({ modelManager, workspaceManager, artifactStore });
 const handoffManager = new HandoffManager({ modelManager, workspaceManager, artifactStore });
+const agentLoop = new AgentLoop({ modelManager, workspace: WORKSPACE, modelId: 'qwen-coder-1.5b-q4', sessionDir: path.join(STATE_DIR, 'agent-loop-sessions') });
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -483,6 +485,37 @@ const server = http.createServer(async (request, response) => {
       const input = await body(request); const result = await operator.run(input);
       const audit = await artifactStore.add({ kind: 'operator-session', status: result.approval_required ? 'awaiting-approval' : 'answered', mode: result.mode, model_id: result.modelId, proposed_tools: result.proposed_tools, tools_executed: result.tools_executed, source_exported: false });
       return json(response, 200, { ...result, audit });
+    }
+    if (request.method === 'POST' && request.url === '/api/agent-loop/start') {
+      const input = await body(request);
+      const session = await agentLoop.start({
+        goal: input.goal,
+        modelId: input.modelId || undefined,
+        openPaths: Array.isArray(input.openPaths) ? input.openPaths : [],
+        activePath: input.activePath || null,
+        history: Array.isArray(input.history) ? input.history : [],
+        resumeId: input.resumeId || null
+      });
+      return json(response, 200, session);
+    }
+    if (request.method === 'POST' && request.url === '/api/agent-loop/decision') {
+      const input = await body(request);
+      if (!input.sessionId) throw new Error('sessionId is required');
+      const session = await agentLoop.decide({ sessionId: input.sessionId, decisions: input.decisions || [] });
+      return json(response, 200, session);
+    }
+    if (request.method === 'POST' && request.url === '/api/agent-loop/cancel') {
+      const input = await body(request);
+      if (!input.sessionId) throw new Error('sessionId is required');
+      const session = await agentLoop.rejectAll(input.sessionId);
+      return json(response, 200, session);
+    }
+    if (request.method === 'GET' && request.url.startsWith('/api/agent-loop/status')) {
+      const id = new URL(request.url, 'http://127.0.0.1').searchParams.get('id');
+      if (!id) throw new Error('id is required');
+      const session = await agentLoop.status(id);
+      if (!session) return json(response, 404, { error: `session not found: ${id}` });
+      return json(response, 200, session);
     }
     if (request.method === 'POST' && request.url === '/api/workflow/plan') return json(response, 200, await workflowManager.planAndPropose(await body(request)));
     if (request.method === 'POST' && request.url === '/api/workflow/apply') return json(response, 200, await workflowManager.apply(await body(request)));

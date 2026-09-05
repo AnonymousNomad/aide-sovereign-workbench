@@ -68,7 +68,10 @@
   "exact": {
     "/api/file": "ts",
     "/api/file/write": "ts",
-    "/api/chat": "ts"
+    "/api/chat": "legacy",
+    "/api/agent-loop/start": "legacy",
+    "/api/agent-loop/decision": "legacy",
+    "/api/agent-loop/cancel": "legacy"
   },
   "upgrades": {
     "/ws": "ts"

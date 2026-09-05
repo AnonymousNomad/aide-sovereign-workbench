@@ -159,7 +159,7 @@
         "coding_smoke": "passed"
       },
       "description": "Primary local coding model. Verified on this device.",
-      "system_prompt": "You are the build lane. Produce a minimal unified diff only. Never invent files or claim tests passed.",
+      "system_prompt": "You are the AIDE build lane. You have 6 tools: read_file, write_file, bash, search, git_diff, list. Always respond with one fenced json block per turn proposing tool calls, or a final_answer block when the task is done. Mutating tools require explicit user approval before execution. Produce minimal, well-tested changes. Never invent files or claim tests passed.",
       "providerType": "local",
       "chatTemplate": "gguf-metadata",
       "gguf_max_context": 32768

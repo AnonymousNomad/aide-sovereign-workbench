@@ -2270,3 +2270,111 @@ Commit: `docs(plan): per-class model improvement plan + loop-c capture wiring`
 
 **Files:** models/manifest.json, harness/agent-loop.mjs, harness/context-gatherer.mjs, daemon/server.mjs, tests/in-house-e2e/agent-loop-battery.mjs, AGENT_NOTES.md.
 **Next:** Commit and push. Operator tests the real engine end-to-end on a host that can complete the round trip within a reasonable window. If cipher 4B is too slow on this hardware, the operator picks a smaller model (smollm2-360M at 8082) for the agent loop and uses cipher-fast for chat-only.
+
+## [2026-09-05 09:00] Actor: opencode
+**Type:** research / acceptance plan
+**Status:** research only, no code, no run; sign-off required before implementation
+**Summary:** Researched what "environment-aware model" really means in 2026 AI-native IDEs, then audited the current state of AIDE's harness. The 6-tool agent loop I shipped in slice A is **one** approach (propose → approve → execute), but the research points to a different architecture that's better for the day-to-day developer experience: **always-on just-in-time context + a model that knows what it can ask for**. The current loop puts the burden on the model to guess paths and commands. The better design lets the model ASK the system for context (file paths, file contents, grep results, terminal output) and gets them on demand, the way Claude Code, Cursor, and Theia Coder all work. This is a 2-slice vertical plan, not a regression of slice A.
+
+**Primary sources read (current, live, primary):**
+1. **AGENTS.md open standard** (agents.md, Linux Foundation/AAIF, 60k+ projects): agents get a predictable instructions file; sections = build/test commands, conventions, do-nots; nearest-file-wins; **32 KiB default combined cap**. One AGENTS.md works across many agents (Codex, Jules, Aider, Goose, Zed, VS Code, Cursor, RooCode, etc).
+2. **Anthropic "Effective context engineering for AI agents"** (anthropic.com, Sep 29 2025): "treat context as a precious, finite resource." The shift is from prompt engineering to **context engineering** — curating what information enters the model's limited attention budget at each step. Three long-horizon techniques: **compaction** (summarize nearing the limit), **structured note-taking** (persist outside the window), **sub-agent architectures** (specialized sub-agents with clean context windows). Hybrid: drop CLAUDE.md up front, use glob/grep just-in-time to navigate.
+3. **Anthropic Prompting best practices** (platform.claude.com, 2026-09): be clear and direct; add context (the WHY); use 3-5 examples; XML tags for structure; give a role; **long context**: put longform data at the top, queries at the end (up to 30% better); tools should have minimal overlap; "by default, implement changes rather than only suggesting them"; **parallel tool calls** when independent.
+4. **Cursor** (docs.cursor.com): Agent + Thinking + Images per model. Agent Mode with file edits that surface in diff editors; auto-loads file context.
+5. **`aide-harness-prompt-scaffolding` skill** (local, audited 2026-08-24): L0/L1/L2/L3/L4 layered composer; budget enforcer 80 lines / 2.5KiB small, 150 lines / 6KiB strong; AGENTS.md semantics (layered-later-wins, nearest-file-wins); byte-deterministic.
+
+**Diagnosis (why the current loop is a starter, not the final design):**
+- Slice A shipped a **pull model** — the model must propose the path, the command, the regex. On a small local model (cipher 4B Q8_0 on 6GB VRAM at 5-15 tok/s), the model can't reliably guess file paths. The first turn in my real-engine test asked the model to read `app.js`; it proposed the right path. But that's a contrived, hand-tuned prompt. In real work the model would guess wrong, the operator would reject, the model would re-propose, the operator would reject again, the loop would burn budget.
+- The research is clear: **just-in-time context** beats pre-loaded context. Claude Code, Cursor, and Theia Coder all do "model asks for paths via tools; daemon returns content." My slice A only has `read_file(path)` which is exactly that primitive, but the model doesn't know what to ask for because the live context it sees is too small (the 370-token slimmed context only shows the active file, not a list of files in the workspace).
+- The **operator-style workflow** the operator described — "read app.js, edit, save, run tests, see the diff" — needs the model to be able to: (1) see the workspace tree, (2) read a file by path, (3) write a file, (4) run a shell command, (5) read the diff, (6) read the test output. Slice A has all 6 of these. What's missing is the **list** and **search** glue that lets the model navigate without guessing.
+
+**Acceptance plan — what "environment-aware model" MUST look like in 2026 (real browser + real cipher engine on 8091):**
+
+The model sees a small but precise system prompt. It has tools. It navigates by asking. The operator approves each step. Nothing new architecture-wise — slice A is the skeleton. The work is: tighten the harness, add the missing list/search tool glue, and reframe the system prompt so the model knows what tools it has and when to use them.
+
+1. **Workspace tree as a tool, not a context section.** Instead of injecting the live workspace tree into the system prompt (which bloat and go stale), add a `list` tool that returns the directory tree on demand. The model calls `list` when it doesn't know where to look. This is the Theia + Cursor pattern: metadata on demand, not in the prompt.
+2. **Search as a tool, already done.** Slice A has `search(query, icase?, regex?, mask?)`. The model uses it to find files by name or content. The current `search` implementation in `harness/agent-loop.mjs` already does this; it's just unused because the model doesn't know to call it.
+3. **Read file by path, already done.** `read_file(path, start_line?, end_line?)`. Model uses when it knows the path (or found it via `search` or `list`).
+4. **Write file, already done.** `write_file(path, content)`. The model must diff what it wrote vs. what was there. The harness should re-inject a `git_diff` of the file as a reminder after a write.
+5. **Bash, already done.** `bash(program, args)` with the allowlist. The model uses this to run tests, the linter, the typechecker, and the search/replace command. The harness should auto-append the last 20 lines of stdout to the next turn's context (not the full output — token cost).
+6. **Git diff, already done.** `git_diff(path?)`. The model uses this to see what changed before committing.
+7. **System prompt v2 (the harness) — single source of truth.** Combine the current static scaffold (PART A credo, format contract, task SOP) with a compact, version-stamped **tool guide** that tells the model what tools it has and when to use them. Total budget: **80 instruction lines / ~2.5KiB for local small models** (per the `aide-harness-prompt-scaffolding` skill, the verified sweet spot per IFScale arXiv 2507.11538). The current tool guide is 225 chars (~56 lines) which is fine; the credo is 10 lines; the task SOP is 4 lines. Total ~70 lines. No change needed to the static scaffold.
+8. **Workspace-aware "always-on" tools are not what the research recommends.** The research is clear: don't dump the workspace tree into the prompt. Let the model ASK. The only "always-on" context is: (a) the active file's text (already in the prompt via the live context), (b) the last 20 lines of terminal output (already in the prompt), and (c) the last commit's diff (already in the prompt). These three things the model genuinely needs to see up front. Everything else is on-demand via tools.
+9. **Operator approval card flow stays.** Every tool call is one approval card. The model proposes, the operator decides. This is non-negotiable per the doctrine.
+10. **AGENTS.md file at the repo root.** Per the AGENTS.md open standard, AIDE should ship a project-level `AGENTS.md` (a la 60k+ projects). It captures: how to install, how to test, code style, what NOT to touch. The agent loop reads it on every session and includes it in L4 (session overrides). The model now has project-specific context the way Claude Code's CLAUDE.md gives Claude Code.
+
+**Build order — 3 slices, each a single commit, operator tests in a real browser between slices:**
+
+**Slice A1 — Tool guide v2 + AGENTS.md + workspace tree on demand** (the harness work)
+- NEW: `AGENTS.md` at the repo root. Sections: Setup (dev/test/build commands), Code style, Testing (what `npm test` runs), Security (path jail, allowlist), Do-not-touch (`.aide/`, `node_modules/`), The Loop (model proposes → operator approves → agent loop runs).
+- MODIFY: `harness/agent-loop.mjs` — rewrite the `TOOL_GUIDE` to include "When to use this tool" guidance for each of the 6 tools. Trim the example to one canonical example per shape. Add the workspace tree size cap (don't dump full tree, just the depth-1 layout in the tool guide).
+- MODIFY: `daemon/server.mjs` — when an agent-loop session starts, read the project's `AGENTS.md` (if present) and prepend to the system prompt as L4 (session overrides). 8KB cap.
+- NEW: `tests/in-house-e2e/harness-battery.mjs` — 10 scenarios: tool guide includes the 6 tools with "When to use" guidance; AGENTS.md is read; system prompt total stays under 80 lines / 2.5KB; the live context caps stay at the current values.
+- Veritas: 355/355 arch tests + 23 agent-loop + 10 new harness = no regression.
+
+Commit: `feat(harness): tool guide v2 + AGENTS.md + workspace tree on demand`
+
+**Slice A2 — Auto-context append after tool execution** (the feedback loop)
+- MODIFY: `harness/agent-loop.mjs` — when a `write_file` tool completes successfully, append a `git diff` of the written file as a system note in the next turn. When a `bash` tool completes, append the last 20 lines of stdout (not stderr) to the next turn. This gives the model the "you just did X, here's the result" context without bloating the system prompt.
+- MODIFY: `harness/agent-loop.mjs` — when `read_file` is called on a file that doesn't exist, the error message should include "did you mean one of: [top-3 close matches from the workspace tree]?" so the model can recover.
+- NEW: `tests/in-house-e2e/auto-context-battery.mjs` — 6 scenarios: write_file → next turn has the diff; bash → next turn has the tail; read_file on missing file → error has close matches.
+- Veritas: no regression.
+
+Commit: `feat(agent-loop): auto-append tool result context (diff + tail + close-matches)`
+
+**Slice A3 — Operator observation surface** (the visibility layer)
+- NEW: `GET /api/agent-loop/:id/trace` — returns the full session history (messages + tool calls + results) as a JSON timeline. The operator can review what the model did, what the model proposed, what was approved/rejected, and what the model emitted.
+- NEW: `GET /api/agent-loop/:id/cost` — returns the cost so far (tokens used, estimated USD if BYOK). Helps the operator budget.
+- MODIFY: `daemon/server.mjs` — add the two routes.
+- NEW: `tests/in-house-e2e/agent-loop-trace-battery.mjs` — 4 scenarios: trace returns full timeline; cost returns token counts; rejected tool calls are in the trace; the final answer is in the trace.
+- Veritas: no regression.
+
+Commit: `feat(agent-loop): trace + cost endpoints for operator observation`
+
+**What I will NOT do in these slices (out of scope, parked):**
+- Covert rename (separate branch).
+- Tauri cross-platform packaging (separate branch).
+- Cockpit UI rebuild (separate branch; the operator reversed my prior attempt; the legacy `app.js` is fine for now).
+- Real MCP integration (aLoRA-style; future).
+- New fine-tune rounds (per-class plan in slice B of the prior research; waits for closed-loop trajectory capture).
+- iOS/Android packaging (need Mac + Apple account + Android keystore).
+- Workspace tree dump in the prompt (this is what the research explicitly says NOT to do).
+
+**Threats and traps I will not let happen (per R8):**
+- **Don't dump the workspace tree into the system prompt.** The research is unanimous: it's expensive, it goes stale, it bloats the prompt. Tools on demand. This is the #1 lesson from Anthropic's context engineering post.
+- **Don't make the harness bigger to compensate for a small model.** The 2026-08-25 battery proved the full scaffold is poison for sub-1B models. Keep the scaffold small; let the tools carry the load.
+- **Don't auto-approve tool calls.** Every call is one approval card. Theia + Anthropic + VS Code all enforce this. Non-negotiable.
+- **Don't start engines while testing.** Process-hygiene P7.
+- **Don't change the agent loop's tool implementations.** Slice A shipped correct executors with path-jail, allowlist, and timeout. Tightening the prompt is not the same as changing the executors.
+- **Don't break the 355/355 arch tests or the 23 agent-loop battery.** All three new slices are additive.
+
+**Branch:** `feat/harness-awareness` (off `feat/environment-aware-model` after the operator confirms slice A1 is solid). Each slice = 1 commit.
+
+**Files read (no code change in this entry):**
+- WebFetch: agents.md (LF AI Foundation open standard), anthropic.com/engineering/effective-context-engineering-for-ai-agents, docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/claude-prompting-best-practices, docs.cursor.com/agent
+- Loaded: `aide-harness-prompt-scaffolding/SKILL.md`, `aide-orchestrator-awareness/SKILL.md`, `verify-first-discipline/SKILL.md`
+- Read: AGENT_NOTES.md (the cockpit-rebuild + slice-A + manifest-fix history)
+
+**Files I will touch when slice A1 signs off (no code yet):**
+- NEW: `AGENTS.md` at the repo root
+- MODIFY: `harness/agent-loop.mjs` (tool guide v2)
+- MODIFY: `daemon/server.mjs` (AGENTS.md loader for sessions)
+- NEW: `tests/in-house-e2e/harness-battery.mjs` (10 scenarios)
+
+**Files I will touch when slice A2 signs off (no code yet):**
+- MODIFY: `harness/agent-loop.mjs` (auto-context append)
+- NEW: `tests/in-house-e2e/auto-context-battery.mjs` (6 scenarios)
+
+**Files I will touch when slice A3 signs off (no code yet):**
+- NEW in daemon/server.mjs: `GET /api/agent-loop/:id/trace` and `GET /api/agent-loop/:id/cost` routes
+- NEW: `tests/in-house-e2e/agent-loop-trace-battery.mjs` (4 scenarios)
+
+**Files:** AGENT_NOTES.md
+**Next:** Operator sign-off on this 3-slice research. Slice A1 (tool guide v2 + AGENTS.md + workspace tree on demand) first, then A2 (auto-context), then A3 (trace + cost). One slice per commit, one browser test between slices. After all three, the next branch can pick up the per-class model improvement plan (slice B of the prior research) or the Covert rename or the cockpit UI rebuild.
+
+## [2026-09-05 09:00] Actor: opencode
+**Type:** research journaled (entry above) + evidence artifact written
+**Status:** plan posted, awaiting operator sign-off. No code change.
+**Summary:** Researched what "environment-aware model" means in 2026 (5 primary sources: AGENTS.md standard, Anthropic context engineering + prompting best practices, Cursor docs, plus the local aide-harness-prompt-scaffolding skill). Audited the current AIDE state. Diagnosed why slice A's agent loop is a starter, not the final design (pull model, not just-in-time). Built a 3-slice plan that: (1) ships AGENTS.md + tighter tool guide v2 so the model knows what it has, (2) auto-appends diff/tail/close-matches after tool execution so the model sees results, (3) adds trace + cost endpoints so the operator can see what the model did.
+**File:** docs/evidence/harness-awareness-research-2026-09-05.md (new) — primary sources + diagnosis + 3-slice acceptance plan + threat matrix.
+**Next:** Operator sign-off. Slice A1 first.

@@ -75,7 +75,7 @@ test('C6 canary: app.js wires the toggle element on click + keydown', () => {
   assert.match(app, /#agent-toggle['"]\)\.addEventListener\('keydown'/,
     'agent-toggle must have a keydown handler for keyboard a11y');
   // The toggle flips state.agentMode. Aria-pressed reflects state.
-  assert.match(app, /setAgentMode\(\!state\.agentMode\)/,
+  assert.match(app, /setAgentMode\(!state\.agentMode\)/,
     'click handler must toggle state.agentMode');
   assert.match(app, /aria-pressed.*state\.agentMode/,
     'aria-pressed must reflect state.agentMode');

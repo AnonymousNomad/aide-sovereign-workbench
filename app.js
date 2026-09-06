@@ -1,6 +1,12 @@
 const $ = s => document.querySelector(s);
 const API = 'http://127.0.0.1:4777';
-const state = { selected: null, ready: false, started: false, history: [] };
+// C6 cockpit canary (report-source.md): agentMode flips sendDescribe between
+// the existing /api/chat (one-shot text, default off) and the chassis
+// /api/agent/bundles/preview + /api/agent/bundles/run (read-only bundle
+// card review then tool-using session). Default OFF preserves the existing
+// chat behavior byte-for-byte; toggling ON routes the next message through
+// the chassis-to-agent seam with operator approval before any tool runs.
+const state = { selected: null, ready: false, started: false, agentMode: false, history: [] };
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const setStrip = t => { $('#strip-text').textContent = t; };
@@ -116,6 +122,11 @@ async function startEngine() {
 }
 
 async function sendDescribe(value) {
+  // C6 cockpit canary (report-source.md): when agentMode is on, route
+  // through the chassis-to-agent seam (preview bundle -> operator review
+  // -> run with reviewed bundle_id). The existing chat path is unchanged
+  // byte-for-byte when agentMode is off.
+  if (state.agentMode === true) return sendAgentMode(value);
   threadMsg('user', value);
   const pending = threadMsg('pending', 'Thinking locally… nothing leaves this machine.');
   setStrip('Working on your request…');
@@ -157,6 +168,115 @@ async function sendDescribe(value) {
     pending.innerHTML = `<b>ERROR</b><br>${esc(e.message)}<br><small>Check that the topbar chip is green, then send again.</small>`;
     setStrip('Chat failed — see the error card for the fix.');
   }
+}
+
+// C6 cockpit canary (report-source.md release gate 3): preview the
+// bundle, render the card, on operator click start the agent with the
+// reviewed bundle_id, poll status, render approval cards. Per the
+// research the agent loop still runs through the existing per-tool
+// approval flow — this canary is just the "before run" operator
+// review. When the operator toggles AGENT MODE back to OFF, the next
+// message uses the existing /api/chat route.
+async function sendAgentMode(value) {
+  threadMsg('user', value);
+  const pending = threadMsg('pending', 'Composing bundle from the chassis…');
+  setStrip('Composing bundle…');
+  // 1. Preview: compose the bundle + scaffold, persist review key.
+  let card;
+  try {
+    card = await jpost(`${API}/api/agent/bundles/preview`, { task: value, mode: 'act' });
+  } catch (e) {
+    pending.className = 'msg error';
+    pending.innerHTML = `<b>BUNDLE PREVIEW FAILED</b><br>${esc(e.message)}<br><small>Toggle AGENT MODE off to use the regular chat route.</small>`;
+    setStrip('Bundle preview failed — see the error card.');
+    return;
+  }
+  pending.className = 'msg engine';
+  pending.innerHTML = renderBundleCard(card);
+  setStrip('Bundle card ready — click RUN AGENT to start the session.');
+  // 2. Operator gate: show a RUN button on the card. The agent MUST NOT
+  // start until the operator clicks it (per report-source.md).
+  const runBtn = pending.querySelector('button[data-run-bundle]');
+  if (!runBtn) return;
+  runBtn.addEventListener('click', async () => {
+    runBtn.disabled = true;
+    runBtn.textContent = 'STARTING…';
+    setStrip('Starting agent session with the reviewed bundle…');
+    let started;
+    try {
+      started = await jpost(`${API}/api/agent/bundles/run`, { bundle_id: card.bundle_id });
+    } catch (e) {
+      runBtn.textContent = 'RUN FAILED';
+      setStrip(`Run failed: ${e.message}`);
+      return;
+    }
+    runBtn.remove();
+    // 3. Poll status; render approval cards when awaiting_approval.
+    const pollCard = threadMsg('pending', 'Agent running…');
+    let done = false;
+    while (!done) {
+      await new Promise(r => setTimeout(r, 1500));
+      let s;
+      try { s = await jget(`${API}/api/agent/status?id=${encodeURIComponent(started.session_id)}`); }
+      catch (e) { continue; }
+      if (s.state === 'awaiting_approval' && s.pending_approval) {
+        pollCard.className = 'msg engine';
+        pollCard.innerHTML = renderApprovalCard(s.session_id, s.pending_approval);
+        pollCard.querySelectorAll('button[data-approve]').forEach(btn => {
+          btn.addEventListener('click', () => jpost(`${API}/api/agent/decision`, {
+            session_id: s.session_id,
+            approval_id: s.pending_approval.approval_id,
+            decision: btn.dataset.approve
+          }).catch(() => {}));
+        });
+        done = true; // wait for operator decision; next message reopens the loop
+        break;
+      }
+      if (s.state === 'done' || s.state === 'error' || s.state === 'aborted') {
+        pollCard.className = 'msg engine';
+        pollCard.innerHTML = `<b>SESSION ${s.state.toUpperCase()}</b><br>${esc(s.error || 'complete')}<br><small>Bundle: ${esc(started.bundle_id)}</small>`;
+        done = true;
+        break;
+      }
+    }
+    setStrip('Agent session idle. Send another message to continue.');
+  }, { once: true });
+}
+
+function renderBundleCard(card) {
+  const ps = card.primary_skill || {};
+  const helix = card.helix || {};
+  const sc = card.scaffold || {};
+  const matches = Number(helix.matches) || 0;
+  return `
+<div><b>BUNDLE CARD</b> <span class="prov-chip">${esc((card.mode || 'act').toUpperCase())}</span></div>
+<div class="muted small">${esc(card.bundle_id || '')}</div>
+<ul class="muted small">
+  <li>Primary skill: <b>${esc(ps.name || 'unknown')}</b> v${esc(ps.version || '0.0.0')} (${esc(ps.category || 'unknown')}${ps.shim_used ? ', shim' : ''}${ps.legacy ? ', legacy' : ''})</li>
+  <li>SOPs: ${esc((card.sop_names || []).join(', ') || '(none)')}</li>
+  <li>Tools: ${esc((card.tool_set || []).join(', ') || '(none)')}</li>
+  <li>Helix: ${helix.skipped ? 'skipped' : 'active'} (matches ${matches}, threshold ${esc(String(helix.threshold))}, bootstrap ${helix.bootstrap_visible ? 'visible' : 'hidden'})</li>
+  <li>Scaffold: ${sc.bytes || 0}B / ${sc.lines || 0} lines, dropped ${esc((sc.dropped || []).join(', ') || 'none')}</li>
+</ul>
+<details><summary class="muted small">Why this skill (${(card.routing_log || []).length} routing steps)</summary><pre class="muted small">${esc((card.rationale || '').slice(0, 800))}</pre></details>
+<button data-run-bundle="${esc(card.bundle_id || '')}" class="primary">RUN AGENT</button>
+<small class="muted">This bundles the chassis-approved context. Click RUN to start the session. Toggle AGENT MODE off to use the regular chat route.</small>`;
+}
+
+function renderApprovalCard(sessionId, approval) {
+  const args = approval.args_preview ? Object.entries(approval.args_preview).map(([k, v]) => `<li><b>${esc(k)}</b>: <code>${esc(String(v).slice(0, 200))}</code></li>`).join('') : '';
+  const risks = (approval.risks || []).map(r => `<li>${esc(r)}</li>`).join('') || '<li>(no flagged risks)</li>';
+  return `
+<div><b>APPROVAL REQUIRED</b> <span class="prov-chip">${esc(approval.tool)}</span></div>
+<div class="muted small">Session ${esc(sessionId)} · approval ${esc(approval.approval_id)}</div>
+<details open><summary>Args preview</summary><ul class="muted small">${args}</ul></details>
+<details><summary>Risks</summary><ul class="muted small">${risks}</ul></details>
+${approval.preview ? `<details open><summary>Diff preview</summary><pre class="muted small">${esc(approval.preview.slice(0, 2000))}</pre></details>` : ''}
+<div style="display:flex;gap:8px;margin-top:8px;">
+  <button data-approve="approve" class="primary">APPROVE</button>
+  <button data-approve="reject">REJECT</button>
+  <button data-approve="abort">ABORT</button>
+</div>`;
 }
 
 $('#describe-form').addEventListener('submit', e => {
@@ -1522,6 +1642,22 @@ $('#fos-toggle').addEventListener('click', () => {
   $('#fos-toggle').setAttribute('aria-pressed', formatOnSave ? 'true' : 'false');
 });
 $('#fos-toggle').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#fos-toggle').click(); } });
+
+// C6 cockpit canary (report-source.md): toggles state.agentMode which gates
+// sendDescribe between the existing /api/chat (default OFF) and the
+// chassis /api/agent/bundles/{preview,run} pair (when ON). The badge
+// mirrors state; aria-pressed reflects the toggle per the same a11y
+// convention as delegation-toggle + fos-toggle.
+function setAgentMode(on) {
+  state.agentMode = !!on;
+  const b = $('#agent-mode-badge');
+  b.textContent = state.agentMode ? 'ON' : 'OFF';
+  b.className = 'badge ' + (state.agentMode ? 'on' : 'off');
+  $('#agent-toggle').setAttribute('aria-pressed', state.agentMode ? 'true' : 'false');
+  setStrip(`Agent mode ${state.agentMode ? 'ON' : 'OFF'} — ${state.agentMode ? 'next message will preview a bundle card before any tool runs.' : 'using the regular chat route.'}`);
+}
+$('#agent-toggle').addEventListener('click', () => setAgentMode(!state.agentMode));
+$('#agent-toggle').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#agent-toggle').click(); } });
 
 // ---------- Plugins surface v1 (declarative capability plugins) ----------
 const PLUGIN_CONTRIBUTIONS = {

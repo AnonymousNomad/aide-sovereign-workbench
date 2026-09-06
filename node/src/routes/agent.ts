@@ -26,12 +26,12 @@ type AgentLoopService = {
   list(): unknown[];
 };
 
-// Subagent dispatch service (aide-subagent-dispatch skill, PR A wiring).
-// PR A defines the route surface; PR B fills in the runtime that calls
-// agent-loop.mjs. Until then, spawn() returns NOT_READY so the route
-// contract is live and discoverable.
+// Subagent dispatch service (aide-subagent-dispatch runtime). The production
+// build supplies a child AgentLoop service with an isolated scratch root and
+// narrowed policy; a null service remains a deliberate fail-closed seam for
+// route-contract tests and alternate deployments.
 type AgentSubagentService = {
-  spawn(request: AgentSubagentSpawnRequestT): Promise<{ child_session_id: string; status: 'spawned' | 'running' }>;
+  spawn(request: AgentSubagentSpawnRequestT): Promise<{ child_session_id: string; parent_session_id: string; role: string; status: 'spawned' | 'running' | 'done' | 'aborted' | 'error' }>;
   list(parentSessionId?: string): AgentSubagentStatusT[];
   status(childSessionId: string): AgentSubagentStatusT | null;
 };
@@ -151,22 +151,8 @@ export function routesForAgent(service: AgentLoopService, options: {
   ];
 }
 
-// Subagent dispatch routes (aide-subagent-dispatch skill, PR A wiring).
-// The contract surface is live: spawn / list / status. The runtime that
-// fulfills spawn() lands in PR B (modifies agent-loop.mjs to dispatch
-// subagent_spawn via the new tool type). Until PR B is wired, all three
-// routes return NOT_READY with a clear "subagent dispatch not wired on
-// this instance" message. The contracts ARE the wire-in (per the skill's
-// design): the route surface is discoverable, type-checked, and tested
-// before the runtime exists.
-//
-// Threat matrix covered by the tests/arch/agent-subagent.test.ts:
-//  1. spawn() with valid body returns NOT_READY (PR A); PR B swaps to child_id
-//  2. spawn() with invalid body returns 400 BAD_REQUEST
-//  3. list() with no parent_session_id returns []
-//  4. list() with parent_session_id returns parent's children (PR B)
-//  5. status() with unknown child_session_id returns 404 NOT_FOUND
-//  6. status() with known child returns the AgentSubagentStatus (PR B)
+// Subagent dispatch routes: spawn / list / status. A null service is retained
+// as a fail-closed NOT_READY response so tests can verify the boundary.
 export function routesForAgentSubagent(subagentService: AgentSubagentService | null): Route[] {
   return [
     { method: 'POST', path: '/api/agent/subagent', body: AgentSubagentSpawnRequest, response: AgentSubagentSpawnResponse, handler: wrap(async ({ body }) => {

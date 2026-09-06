@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 // Spine is plain ESM shared with the legacy daemon (single source law).
 const require = createRequire(import.meta.url);
 const spine = require('../../../harness/memory-spine.mjs');
+const retention = require('../../../harness/helix-retention.mjs');
 
 export type MemoryService = {
   listDigests(query: { from?: string; to?: string }): Promise<{ digests: unknown[]; refreshed: string[] }>;
@@ -24,7 +25,8 @@ export function createMemoryService(workspace: string): MemoryService {
         const digest = await spine.readDayDigest(workspace, date);
         if (digest) digests.push(digest);
       }
-      return { digests, refreshed };
+      const retentionStatus = await retention.refreshRetention(workspace);
+      return { digests, refreshed, retention: retentionStatus };
     }
   };
 }

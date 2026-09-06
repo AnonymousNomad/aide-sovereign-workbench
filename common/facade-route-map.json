@@ -46,6 +46,7 @@
     "/api/notifications": "ts",
     "/api/onboarding": "ts",
     "/api/orch": "ts",
+    "/api/orchestrator": "ts",
     "/api/problems": "ts",
     "/api/providers/connect": "ts",
     "/api/providers/disconnect": "ts",

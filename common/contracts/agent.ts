@@ -54,6 +54,30 @@ export const AgentStatusQuery = z.object({
   id: z.string().min(1)
 }).strict();
 
+const AgentChassisStatus = z.object({
+  bundle_id: z.string().min(1),
+  primary_skill: z.string().min(1),
+  helix: z.record(z.string(), z.unknown()),
+  routing_log: z.array(z.record(z.string(), z.unknown())).optional(),
+  scaffold: z.object({
+    bytes: z.number().int().gte(0),
+    lines: z.number().int().gte(0),
+    dropped: z.array(z.string())
+  }).nullable()
+}).strict();
+
+const AgentToolPolicyStatus = z.object({
+  allow_read: z.boolean(),
+  allow_search: z.boolean(),
+  allow_write: z.boolean(),
+  allow_edit: z.boolean(),
+  allow_run_command: z.boolean(),
+  allow_subagent_spawn: z.boolean(),
+  allow_desktop: z.boolean(),
+  allow_provider: z.boolean(),
+  allow_network: z.boolean()
+}).strict();
+
 export const AgentStatusResponse = z.object({
   session_id: z.string().min(1),
   state: AgentSessionState,
@@ -61,7 +85,9 @@ export const AgentStatusResponse = z.object({
   iterations: z.number().int().gte(0),
   mistake_count: z.number().int().gte(0),
   error: z.string().nullable(),
-  pending_approval: AgentApproval.nullable()
+  pending_approval: AgentApproval.nullable(),
+  tool_policy: AgentToolPolicyStatus.nullable(),
+  chassis: AgentChassisStatus.nullable()
 }).strict();
 
 export const AgentSessionsListResponse = z.object({

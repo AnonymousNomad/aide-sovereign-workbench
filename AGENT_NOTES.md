@@ -2136,3 +2136,85 @@ STAGE 9: aid-cipher-4b-fine-tune-pipeline skill created. Venv is the blocker (ho
 **Files:** `E:\FSI-FELON\models\fsi_felon_cipher\PIPELINE-DESIGN-2026-09-05.md` (appended ADDENDUM, sections A-E covering ends-mapping, 7 locked defaults with Rivalry Test citations, gold doc cadence, Constitution audit, next-step sequence), `AGENT_NOTES.md` (this entry).
 **Next:** Operator greenlights Phase 1 execution: (1) acquire LibreTexts PD/CC-BY, (2) acquire Gutenberg non-fiction, (3) build fresh 16409-vocab tokenizer with reserved tokens, (4) edit cipher_arch.py vocab=16409, (5) operator hand-crafts 1-2 gold docs (code + debug SOPs), (6) model proposes batch 1, (7) Phase 1 gate battery (5-gate + license + fertility/util + decontam log), (8) GREEN -> Phase 2. Out of scope this session: actual downloads (waiting on operator greenlight), Phases 2 and 3 (separate sessions per operator flow).
 
+
+## [2026-09-05 23:26] Actor: codex
+**Type:** research + architecture decision
+**Status:** verified
+**Summary:** Answered the cockpit wiring, C5 bundle-card, and model-class skill-policy decisions with repository evidence and primary-source research.
+**Details:** Verified canonical T1 branch `feat/chassis` at `188a8a9`; preserved all pre-existing uncommitted changes and did not start or stop any T1 or T2 process. The proposed 3-line direct chat reroute is not valid on this branch: cockpit uses `/api/chat` (`app.js:118-145`), the TS agent contract is `/api/agent/*` (`node/src/routes/agent.ts:72-150` and `common/facade-route-map.json:5`), and the agent loop still calls legacy `createSkillRegistry()` rather than the D1-D5 orchestrator/scaffold (`node/src/services/agent-loop.mjs:173-194`). Decision: C6 adapter + preview/run contract + battery first; then a feature-gated, instantly reversible cockpit canary; C5 becomes a standalone, read-only evidence card. Research basis recorded with direct links to Google SRE canarying, OWASP prompt-injection controls, Google PAIR explainability, NIST AI RMF, Toolformer, ReAct, constrained decoding, BFCL, and Lost-in-the-Middle.
+**Files:** `docs/evidence/report-source.md` - new decision memo and source-backed release gates; `AGENT_NOTES.md` - append-only audit entry. The current-status block was not rewritten because the historical journal has a non-UTF-8 byte and `apply_patch` correctly rejected a rewrite.
+**Next:** Human sign-off on C6 scope. Then implement only the adapter and its contract/battery on `feat/chassis`; do not modify `app.js` until the C6 integration gate is green.
+## [2026-09-05 23:35] Actor: codex
+**Type:** takeover baseline
+**Status:** verified
+**Summary:** Established the protected T1 baseline for production takeover; no AIDE runtime was started and no existing worktree change was altered.
+**Details:** Canonical repository is `E:\aide-sovereign-workbench` on `feat/chassis` at `188a8a9`. Preserved existing modifications to `docs/evidence/dap-wire-sequence.json`, `docs/evidence/desktop-battery.md`, and all pre-existing untracked paths. No AIDE listeners exist on 4173/4777/4778/4779 or the AIDE model ports. Detected and deliberately left untouched: non-AIDE `llama-server.exe` PID 17516 on port 8081 serving `E:\models\qwen3.5-4b\Qwen_Qwen3.5-4B-Q4_K_M.gguf`, and corpus-acquisition Python PIDs 4404 and 19544. This is active T2/other-workload territory; T1 will not compete for GPU/RAM or terminate it. Next T1 work is CPU-only verification of the D1-D5 chassis to live `/api/agent` seam.
+**Files:** `AGENT_NOTES.md` - append-only baseline entry; no product code changed.
+**Next:** Run isolated chassis, agent-loop, and facade batteries; then implement C6 only after the seam contract is verified.
+---
+## [2026-09-06 03:10] Actor: codex
+**Type:** implementation + audit
+**Status:** verified
+**Summary:** Added and live-verified the standalone orchestrator bundle-card surface.
+**Details:** Added strict query/response contracts, read-only orchestrator-card service, GET /api/orchestrator/bundle-card route, OpenAPI wiring, and facade prefix mapping. Fixed scaffold-v2 so L0 safety SOP guidance is preserved under the 2048-byte small-model budget; live card now reports scaffold_bytes=2048 and drops only L1,L2. Generated common/openapi.json successfully (163 documented routes). Focused regression battery passed 15/15; facade map verified; live request through :4777 returned debug-error, plan mode, four routing entries, and preserved L0. Temporary arch/facade PIDs were terminated and verified absent.
+**Files:** common/contracts/orchestrator.ts; node/src/services/orchestrator-card.mjs + .d.mts; node/src/routes/orchestrator.ts; node/src/openapi.ts; common/facade-route-map.json; harness/scaffold-v2.mjs; tests/unit/test-orchestrator-card.mjs; docs/evidence/skill-catalog-audit-2026-09-06.md.
+**Next:** Build the feature-gated cockpit canary against this read-only card and /api/agent contract; do not rebuild app.js.
+---
+
+---
+## [2026-09-06 04:10] Actor: codex
+**Type:** implementation + audit
+**Status:** verified
+**Summary:** Replaced orchestrator substring routing with exact token/phrase matching and verified real user workflows.
+**Details:** Behavioral task matrix initially exposed false positives (it matched git/commit; generic legacy token service captured explanation tasks). Fixed harness/orchestrator.mjs to require exact trigger tokens or complete trigger phrases and filtered legacy routing-noise tokens. Matrix now passes 12/12 with L0 preservation, Helix visibility, budget, and no-write assertions. Ran node scripts/acceptance-real.mjs: real workspace write/approval, patch, terminal, LSP completion, task runner, Git commit, plugin execution, Academy state, blueprint/provider/artifact/search all passed. Static local TypeScript and ESLint gates pass with 3 pre-existing warnings and zero errors.
+**Files:** harness/orchestrator.mjs; tests/in-house-e2e/orchestrator-task-battery.mjs; docs/evidence/real-task-verification-2026-09-06.md.
+**Next:** Add a controlled local-model canary for model-quality deltas; keep it separate from deterministic harness acceptance and do not start an engine while operator workloads are active.
+---
+
+## [2026-09-06 04:30] Actor: codex
+**Type:** research
+**Status:** verified
+**Summary:** Completed fresh official competitor research and recorded the capability gap matrix.
+**Details:** Reviewed current official Cursor, VS Code/Copilot, and Windsurf/Devin Desktop documentation for scoped instructions, agent planning/tool loops, workflows/skills, memory, hooks/governance, background work, checkpoints, extensibility, and diagnostics. The matrix preserves AIDE differentiators (local-first, operator approval, deterministic routing, glass-box evidence) and identifies four audit targets: lifecycle event audit coverage, subagent/background runtime wiring, Helix 30-day retention proof, and real cockpit canary. No competitor claim is treated as an implementation requirement without a local acceptance test.
+**Files:** docs/evidence/competitor-research-2026-09-06.md
+**Next:** Audit repository TODO/NOT_READY surfaces, contracts/routes, Helix retention, model-awareness and subagent wiring; fix one high-confidence gap and verify with a real task and durable state.
+
+## [2026-09-06 04:45] Actor: codex
+**Type:** audit
+**Status:** in progress
+**Summary:** Started repository completeness audit after competitor research.
+**Details:** Clean branch inventory confirms the prior chassis, agent-loop, contract, OpenAPI, route, and evidence changes are present alongside preserved user work. Initial marker scan found no literal TODO/FIXME/NOT_IMPLEMENTED/NOT_READY markers in the searched harness/node/daemon/scripts/common/tests/docs paths; this is not sufficient proof, so the audit is continuing through executable seams and route wiring.
+**Files:** AGENT_NOTES.md; docs/evidence/competitor-research-2026-09-06.md
+**Next:** Inspect subagent, Helix retention, model-awareness, BYOK, route contracts, and package/test surfaces directly; identify a behaviorally testable missing implementation.
+
+## [2026-09-06 05:00] Actor: codex
+**Type:** audit
+**Status:** verified
+**Summary:** Confirmed the subagent runtime is genuinely unfinished, not merely undocumented.
+**Details:** Direct inspection shows routesForAgentSubagent(null) is the production build path: node/src/openapi.ts never imports or invokes routesForAgentSubagent, the route comments explicitly return NOT_READY for PR B, and createAgentLoop has no child-session or tool-policy runtime. The existing contracts and PR-A test intentionally prove only the NOT_READY surface. The production audit also found the model-awareness/Helix items are partial rather than absent; subagent dispatch is the clearest competitor-parity defect with a bounded real-task acceptance path.
+**Files:** node/src/openapi.ts; node/src/routes/agent.ts; node/src/services/agent-loop.mjs; tests/arch/agent-subagent.test.ts; skills/packs/aide-subagent-dispatch/SKILL.md; docs/evidence/context-engine-production-plan-2026-09-03.md
+**Next:** Implement a fail-closed child AgentLoop service with narrowed tool policy and isolated scratch roots, wire it into buildRoutes, then prove read-only success, policy denial, parent-child listing, and durable child trajectory.
+
+## [2026-09-06 05:30] Actor: codex
+**Type:** implementation
+**Status:** in progress
+**Summary:** Wired the missing subagent runtime into the production route graph.
+**Details:** Added agent-subagents.mjs/.d.mts with isolated .aide/subagents scratch roots, parent-session validation, bounded concurrency, role-aware plan/act mode, default-deny policy normalization, child status/list tracking, and trajectory evidence. Extended agent-loop.mjs with child tool-policy enforcement and explicit POLICY_DENIED events; exposed policy in the status contract; refactored openapi.ts to share the actual chat function and register routesForAgentSubagent(subagentService). Regenerated common/openapi.json: 166 documented routes.
+**Files:** node/src/services/agent-subagents.mjs; node/src/services/agent-subagents.d.mts; node/src/services/agent-loop.mjs; node/src/services/agent-loop.d.mts; common/contracts/agent.ts; node/src/routes/agent.ts; node/src/openapi.ts; common/openapi.json
+**Next:** Add a real task battery with a deterministic local chat function: successful read-only child, denied command with zero side effect, parent/child listing, and persisted child trajectory; then run static and regression gates.
+
+## [2026-09-06 05:45] Actor: codex
+**Type:** failure
+**Status:** diagnosed pending
+**Summary:** First real subagent route battery failed because the child did not reach done within the bounded wait.
+**Details:** Parent route completed; the child path remained non-terminal in the 80-poll window. The test cleaned its temporary workspace, so no durable artifact was retained. This is a genuine acceptance failure, not a pass. Next action is to reproduce with status/trajectory instrumentation, identify whether the deterministic task response, policy parser, or child-loop state mapping is responsible, then fix and rerun.
+**Files:** tests/in-house-e2e/subagent-runtime-battery.mjs; node/src/services/agent-subagents.mjs; node/src/services/agent-loop.mjs
+**Next:** Reproduce without cleanup, inspect the child transcript/status, then apply the smallest fix.
+
+## [2026-09-06 06:00] Actor: codex
+**Type:** verification
+**Status:** verified
+**Summary:** Fixed the first real-task acceptance failure and proved the subagent runtime end to end.
+**Details:** The initial battery correctly exposed a bad assertion: child sessions are intentionally not visible through the parent /api/agent/status map. The test was corrected to use /api/agent/subagent/status, preserving the production compartment boundary. Final route-level battery passes 1/1: a real researcher child read fixture.txt and reached done; parent listing returned the child; the child trajectory was persisted and contained a successful read tool record; a tester child emitting run_command was denied with POLICY_DENIED before execution, created no marker file, and persisted an error trajectory.
+**Files:** tests/in-house-e2e/subagent-runtime-battery.mjs
+**Next:** Run TypeScript, ESLint, focused chassis/agent/route regressions, and the full real acceptance script; then audit Helix/BYOK/model-awareness surfaces and record any remaining blockers rather than claiming completion.

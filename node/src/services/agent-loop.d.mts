@@ -22,6 +22,17 @@ export declare function createAgentLoop(options: {
   onEvent?(event: Record<string, unknown> & { event: string; session_id: string }): void;
   maxIterations?: number;
   maxMistakes?: number;
+  toolPolicy?: {
+    allow_read?: boolean;
+    allow_search?: boolean;
+    allow_write?: boolean;
+    allow_edit?: boolean;
+    allow_run_command?: boolean;
+    allow_subagent_spawn?: boolean;
+    allow_desktop?: boolean;
+    allow_provider?: boolean;
+    allow_network?: boolean;
+  } | null;
 }): AgentLoopService;
 
 export type { AgentApprovalT };

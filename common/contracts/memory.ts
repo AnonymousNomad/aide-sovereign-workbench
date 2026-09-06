@@ -24,7 +24,16 @@ export const MemoryDigestsQuery = z
 export const MemoryDigestsResponse = z
   .object({
     digests: z.array(DayDigest),
-    refreshed: z.array(z.string())
+    refreshed: z.array(z.string()),
+    retention: z.object({
+      as_of: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      day_digests: z.number().int().nonnegative(),
+      monthly_summaries: z.array(z.string().regex(/^\d{4}-\d{2}$/)),
+      yearly_summaries: z.array(z.string().regex(/^\d{4}$/)),
+      warm_day_count: z.number().int().nonnegative(),
+      monthly_summary_count: z.number().int().nonnegative(),
+      yearly_summary_count: z.number().int().nonnegative()
+    }).strict()
   })
   .strict();
 

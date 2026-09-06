@@ -5,6 +5,10 @@ import { parseToolCalls, AgentParseError } from './agent-parser.mjs';
 import { createAgentTools, computeRisks, resolveInsideWorkspace, relativeInside, parseSearchReplaceBlocks, applySearchReplace } from './agent-tools.mjs';
 import { createStateBus } from '../../../harness/cipher-state.mjs';
 import { createSkillRegistry } from '../../../harness/skill-registry.mjs';
+import { createOrchestrator } from '../../../harness/orchestrator.mjs';
+import { createSopLoader } from '../../../harness/sop-loader.mjs';
+import { createSkillLoader } from '../../../harness/skill-loader.mjs';
+import { assembleScaffold } from '../../../harness/scaffold-v2.mjs';
 
 // Shared credo loader — single discipline source per THE QUAD Law #1.
 let _credocore = null;
@@ -33,6 +37,64 @@ const MAX_ARCHITECT_CYCLES = 8; // per-session cap on architect/editor two-call 
 const MAX_PLAN_BYTES = 8192; // emit ceiling; longer plans get truncated with a marker
 const PLAN_BLOCK_RE = /(^|\n)##\s+Plan\s*\n([\s\S]*?)(?=\n##\s+\S|$)/i;
 const MAX_AGENT_SKILL_BYTES = 12000;
+
+// Child loops use this policy as a second, fail-closed capability boundary.
+// The normal parent loop has no policy object and keeps the existing tool
+// surface. A policy never grants a tool that the harness does not expose;
+// it only narrows the registry for a child session.
+const TOOL_POLICY_DEFAULTS = Object.freeze({
+  allow_read: true,
+  allow_search: true,
+  allow_write: false,
+  allow_edit: false,
+  allow_run_command: false,
+  allow_subagent_spawn: false,
+  allow_desktop: false,
+  allow_provider: false,
+  allow_network: false
+});
+
+function toolAllowedByPolicy(toolName, policy) {
+  if (!policy) return true;
+  if (toolName === 'attempt_completion' || toolName === 'switch_mode') return true;
+  if (toolName === 'read_file' || toolName === 'list_dir') return policy.allow_read === true;
+  if (toolName === 'search') return policy.allow_search === true;
+  if (toolName === 'write_file') return policy.allow_write === true;
+  if (toolName === 'replace_in_file') return policy.allow_edit === true;
+  if (toolName === 'run_command') return policy.allow_run_command === true;
+  if (toolName === 'desktop_action') return policy.allow_desktop === true;
+  // No provider/network tools are currently exposed by this loop. Keep the
+  // default-deny result explicit so adding one later cannot bypass policy.
+  return false;
+}
+
+function createChassisAdapter(workspace) {
+  const orchestrator = createOrchestrator({ workspace });
+  const sopLoader = createSopLoader({ workspace });
+  const skillLoader = createSkillLoader({ workspace });
+  return {
+    compose(task, mode = 'act') {
+      const bundle = orchestrator.classify(task);
+      const sopBodies = {};
+      for (const name of bundle.sopNames) {
+        if (name === 'developer-credo') {
+          const credo = skillLoader.readSkillFile(name);
+          if (credo.ok) sopBodies[name] = credo.body;
+          continue;
+        }
+        const sop = sopLoader.readSopFile(name);
+        if (sop.ok) sopBodies[name] = sop.body;
+      }
+      const scaffold = assembleScaffold({
+        workflowBundle: bundle,
+        sopBodies,
+        skillBody: bundle.primarySkill?.body || '',
+        workspaceFacts: `workspace: ${workspace}\nmode: ${mode}`
+      });
+      return { bundle, scaffold };
+    }
+  };
+}
 
 export class AgentSessionError extends Error {
   constructor(code, message) {
@@ -170,9 +232,12 @@ function parsePlanBlock(reply) {
     : inner;
 }
 
-export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = () => {}, maxIterations = 25, maxMistakes = 3, architectEditor = false }) {
+export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = () => {}, maxIterations = 25, maxMistakes = 3, architectEditor = false, toolPolicy = null }) {
   const { tools, rootAbs } = createAgentTools({ workspace, rg });
+  const effectiveToolPolicy = toolPolicy ? { ...TOOL_POLICY_DEFAULTS, ...toolPolicy } : null;
+  const visibleTools = effectiveToolPolicy ? tools.filter(tool => toolAllowedByPolicy(tool.name, effectiveToolPolicy)) : tools;
   const skillRegistry = createSkillRegistry({ workspace });
+  const chassis = createChassisAdapter(workspace);
   const registry = new Map(tools.map(tool => [tool.name, tool]));
   const toolSchemas = Object.fromEntries(tools.map(tool => [tool.name, tool.params]));
   const sessions = new Map();
@@ -190,7 +255,20 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       const skillsText = skillRegistry.loadSkillsFor(session.task, { mode: session.mode }, MAX_AGENT_SKILL_BYTES);
       session.skillNames = skillNames;
       session.skillBytes = Buffer.byteLength(skillsText, 'utf8');
-      session.transcript.push({ role: 'system', content: buildSystemPrompt(session.mode, tools, skillsText) });
+      let chassisContext = null;
+      try {
+        chassisContext = chassis.compose(session.task, session.mode);
+        session.bundle = chassisContext.bundle;
+        session.scaffold = chassisContext.scaffold;
+      } catch (error) {
+        session.error = `chassis composition failed: ${error.message}`;
+        session.state = 'error';
+        emit({ event: 'error', session_id: id, error: session.error });
+        return;
+      }
+      const system = buildSystemPrompt(session.mode, visibleTools, skillsText);
+      const chassisPrompt = chassisContext?.scaffold?.system || '';
+      session.transcript.push({ role: 'system', content: `${chassisPrompt}\n\n${system}`.trim() });
       session.transcript.push({ role: 'user', content: session.task });
       emit({ event: 'message', session_id: id, text: `task received (${session.mode} mode)` });
 
@@ -294,6 +372,14 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
     const tool = registry.get(call.name);
     if (!tool) {
       await recordMistake(session, `unknown tool "${call.name}"`);
+      return 'mistake';
+    }
+    if (!toolAllowedByPolicy(call.name, effectiveToolPolicy)) {
+      const message = `POLICY_DENIED: tool ${call.name} is outside the child tool policy`;
+      session.transcript.push({ role: 'user', content: dataWrap(call.name, false, message) });
+      session.toolLog.push({ tool: call.name, ok: false, output: message });
+      emit({ event: 'tool_result', session_id: session.id, tool: call.name, ok: false, output: message });
+      await recordMistake(session, message);
       return 'mistake';
     }
     const args = normalizeArgs(tool, call.args);
@@ -503,6 +589,8 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         lastPlan: null,
         skillNames: [],
         skillBytes: 0,
+        bundle: null,
+        scaffold: null,
         transcript: []
       };
       sessions.set(session.id, session);
@@ -547,7 +635,19 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         iterations: session.iterations,
         mistake_count: session.mistakeCount,
         error: session.error,
-        pending_approval: session.pendingApproval
+        pending_approval: session.pendingApproval,
+        tool_policy: effectiveToolPolicy,
+        chassis: session.bundle ? {
+          bundle_id: session.bundle.id,
+          primary_skill: session.bundle.primarySkill?.name || 'unknown',
+          helix: session.bundle.helix,
+          routing_log: session.bundle.routingLog || [],
+          scaffold: session.scaffold ? {
+            bytes: session.scaffold.bytes,
+            lines: session.scaffold.lines,
+            dropped: session.scaffold.dropped || []
+          } : null
+        } : null
       };
     },
     list() {
@@ -558,7 +658,18 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         iterations: session.iterations,
         mistake_count: session.mistakeCount,
         error: session.error,
-        pending_approval: session.pendingApproval
+        pending_approval: session.pendingApproval,
+        tool_policy: effectiveToolPolicy,
+        chassis: session.bundle ? {
+          bundle_id: session.bundle.id,
+          primary_skill: session.bundle.primarySkill?.name || 'unknown',
+          helix: session.bundle.helix,
+          scaffold: session.scaffold ? {
+            bytes: session.scaffold.bytes,
+            lines: session.scaffold.lines,
+            dropped: session.scaffold.dropped || []
+          } : null
+        } : null
       }));
     },
     transcriptOf(sessionId) {

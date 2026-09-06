@@ -23,20 +23,27 @@ import { createSopLoader } from './sop-loader.mjs';
 // When a legacy skill is used, the shim marks `skillShimUsed: true` so
 // the upgrade path can auto-promote it to the full envelope later.
 function shimLegacySkill(legacy) {
-  if (!legacy || !legacy.id) return null;
-  const id = String(legacy.id);
-  const keywords = id.split('-').filter(k => k.length > 1);
+  if (!legacy) return null;
+  const id = String(legacy.id ?? legacy.name ?? '').trim();
+  if (!id) return null;
+  // Registry ids contain routing-noise tokens (`aide`, `task`, `service`,
+  // phase labels). Excluding those prevents generic prose from selecting an
+  // arbitrary legacy skill; meaningful domain tokens such as `build`, `git`,
+  // or `android` remain available.
+  const legacyNoise = new Set(['aide', 'task', 'service', 'phase']);
+  const keywords = id.split('-').filter(k => k.length > 1 && !legacyNoise.has(k) && !/^b\d+$/.test(k));
   return {
     name: id,
     version: '0.0.0-legacy',
     category: legacy.category || 'general',
     appliesTo: keywords,
     toolsRequired: ['read_file'],
-    body: legacy.description || '',
+    body: legacy.description || legacy.title || '',
     fingerprint: `legacy::${id}::${legacy.category || 'general'}`,
     path: null,
     root: null,
     kind: 'skill-legacy-shim',
+    shim_used: true,
     legacy: true
   };
 }
@@ -140,12 +147,14 @@ export function createOrchestrator({ workspace = process.cwd() } = {}) {
       let score = 0;
       const triggers = (item.appliesTo || []).map(t => String(t).toLowerCase());
       let triggerHits = 0;
-      for (const t of tokens) {
-        for (const trigger of triggers) {
-          if (trigger.includes(t) || t.includes(trigger)) {
-            score += 0.35;
-            triggerHits += 1;
-          }
+      for (const trigger of triggers) {
+        const triggerTokens = trigger.split(/[^a-z0-9]+/).filter(Boolean);
+        const hit = triggerTokens.length === 1
+          ? tokens.includes(triggerTokens[0])
+          : triggerTokens.every(token => tokens.includes(token));
+        if (hit) {
+          score += 0.35;
+          triggerHits += 1;
         }
       }
       if (triggerHits > 0) score += 0.2;

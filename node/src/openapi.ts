@@ -46,6 +46,7 @@ import { NotificationService } from '../../node/src/services/notification-servic
 import { createHubService } from '../../node/src/services/modelhub.mjs';
 import { routesForModelHub } from './routes/modelhub.ts';
 import { routesForOrch } from './routes/orch.ts';
+import { routesForOrchestrator } from './routes/orchestrator.ts';
 import { routesForMemory, createMemoryService } from './routes/memory.ts';
 import { routesForWorkbenches, routesForWorktree } from './routes/workbenches.ts';
 import { WorkbenchManager } from '../../workbenches/manager.mjs';
@@ -59,7 +60,8 @@ import { createOrchService } from './services/orch-context.mjs';
 import { createAgentTools } from './services/agent-tools.mjs';
 import { createCheckpointService } from '../../node/src/services/agent-checkpoints.mjs';
 import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
-import { routesForAgent } from './routes/agent.ts';
+import { createAgentSubagentService } from '../../node/src/services/agent-subagents.mjs';
+import { routesForAgent, routesForAgentSubagent } from './routes/agent.ts';
 import { createIndexService } from '../../node/src/services/index-service.mjs';
 import { routesForIndex } from './routes/index.ts';
 import { createHandoffService } from '../../node/src/services/handoff-service.mjs';
@@ -85,6 +87,7 @@ import { WorkspaceService } from './services/workspace.ts';
 import { LspManager } from './services/lsp.ts';
 import { DapManager, type DapAdapterConfig } from './services/dap.ts';
 import { ModelRuntime } from './services/model-runtime.ts';
+import { createOrchestratorCardService } from './services/orchestrator-card.mjs';
 import type { Logger } from './services/logger.ts';
 import type { EventHub } from './events.ts';
 import type { Route } from './server.ts';
@@ -105,6 +108,10 @@ export interface BuildRoutesOptions {
   // dir on Windows and breaks mkdtemp cleanup in test after() hooks.
   watchIndex?: boolean;
   byokSecretStore?: { setKey(id: string, key: string): void; getKey(id: string): string | null; deleteKey(id: string): boolean; listProviderIds(): string[] };
+  // Test seams may inject a deterministic transport. Production defaults to
+  // Node's native fetch, but the BYOK service still refuses all egress until
+  // the operator explicitly enables consent.
+  byokFetchImpl?: typeof fetch | null;
   // Opt-in online doctrine: server names listed here are permitted egress
   // for online (offline: false) MCP servers. Default = none. The WorkbenchManager
   // uses this as the consent signal when setTrust(server, true) is called.
@@ -365,15 +372,27 @@ export async function buildRoutes(workspace: string, version: string, options: B
   await settingsService.load();
   const rgService = new RgService({ workspace });
   const agentCheckpoints = createCheckpointService({ workspace });
+  const defaultAgentChatFn = options.agentChatFn ?? (async messages => {
+    const selection = await modelRouter.routeForRole('chat');
+    const result = await modelRouter.chat(selection.modelId, messages.map(message => ({ role: message.role as 'system' | 'user' | 'assistant', content: message.content })), {});
+    return result.text;
+  });
   const agentLoop = createAgentLoop({
     workspace,
     rg: rgService.available() ? rgService : null,
     checkpoints: agentCheckpoints,
-    chatFn: options.agentChatFn ?? (async messages => {
-      const selection = await modelRouter.routeForRole('chat');
-      const result = await modelRouter.chat(selection.modelId, messages.map(message => ({ role: message.role as 'system' | 'user' | 'assistant', content: message.content })), {});
+    chatFn: defaultAgentChatFn,
+    onEvent: event => options.events?.publish('agent', event)
+  });
+  const subagentService = createAgentSubagentService({
+    workspace,
+    parentLoop: agentLoop,
+    chatFn: defaultAgentChatFn,
+    resolveChatFn: modelId => async messages => {
+      const result = await modelRouter.chat(modelId, messages.map(message => ({ role: message.role as 'system' | 'user' | 'assistant', content: message.content })), {});
       return result.text;
-    }),
+    },
+    rg: rgService.available() ? rgService : null,
     onEvent: event => options.events?.publish('agent', event)
   });
   // Resolve the embeddings gate BEFORE the index service exists (see gate
@@ -415,7 +434,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
   }
   const handoffService = createHandoffService({ workspace, agentLoop });
   const secretStore = options.byokSecretStore ?? createSecretStore({ secretsPath: path.join(os.homedir(), '.aide', 'secrets.json') });
-  const byokService = createByokService({ workspace, secretStore, fetchImpl: null, onEgress: entry => logEgress(workspace, { action: entry.kind, url: `https://${entry.host ?? 'unknown'}/`, provider_id: entry.provider_id, role: entry.role }) });
+  const byokFetch: typeof fetch | null = options.byokFetchImpl ?? (typeof globalThis.fetch === 'function' ? globalThis.fetch as typeof fetch : null);
+  const byokService = createByokService({ workspace, secretStore, fetchImpl: byokFetch, onEgress: entry => logEgress(workspace, { action: entry.kind, url: `https://${entry.host ?? 'unknown'}/`, provider_id: entry.provider_id, role: entry.role }) });
+  const orchestratorCardService = createOrchestratorCardService({ workspace });
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -473,6 +494,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...buildNotificationWiredRoutes(workspace, options),
     ...routesForProblems(workspace),
     ...routesForOrch(createOrchService({ workspace: workspace, runtime: modelRuntime })),
+    ...routesForOrchestrator(orchestratorCardService),
     ...routesForMemory(createMemoryService(workspace)),
     ...routesForWorkbenches(new WorkbenchManager({
       workspace,
@@ -585,6 +607,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
         return { ok: result.ok !== false, output: String(result.output || ''), terminal: result.terminal === true };
       }
     }),
+    ...routesForAgentSubagent(subagentService),
     ...routesForIndex(indexService),
     ...routesForHandoff(handoffService),
     ...routesForByok(byokService),

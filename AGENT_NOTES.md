@@ -2238,4 +2238,20 @@ Verification: tsc clean, eslint 0 errors / 64 warnings (within baseline), 23/23 
 Process note: I made 5 sequential TS error fixes without loading the relevant skills first (twice-fail law violation per aide-debugging-discipline). Once I loaded `failure-typescript-mjs-declaration`, `aide-ci-diagnostics`, `aide-debugging-discipline`, `aide-windows-dev-reality`, and `surgical-precision`, the actual CI failure became obvious: the test imports `createHarness` which doesn't exist. The fix is replacing the test (not changing the orchestrator). Rule for next time: when TS errors appear after `git status` shows uncommitted modifications, `git stash` first to determine whether the error is in HEAD or in WIP. The error in WIP is part of the WIP — the fix is part of the same commit, not a separate edit.
 
 **Files:** commit d9bfd0c on origin/feat/chassis (38 files, +3229/-156): 23 new files (chassis surface, contracts, services, batteries, evidence) + 15 modified (orchestrator routing, agent-loop adapter, openapi wiring, contracts, facade map, test rewrite, journal); junction `E:\aide-sovern-workbench → E:\aide-sovereign-workbench`.
+
+## [2026-09-06 16:30] Actor: opencode
+**Type:** implementation + verification
+**Status:** verified locally, awaiting CI
+**Summary:** Shipped the C6 agent-bundles adapter preview/run endpoints. Closes the report-source.md release gate for the chassis-to-agent seam.
+**Details:** Three new contracts in common/contracts/agent.ts: AgentBundlePreviewRequest/Response (preview reuses OrchestratorBundleCardResponse shape) and AgentBundleRunRequest/Response. New service node/src/services/chassis-bundles.mjs + .d.mts implements preview/getReviewedBundle/listReviewedBundles with atomic JSON writes to .aide/bundle-reviews.json. Persistence is bounded to MAX_REVIEWS_KEPT=200 with oldest-first pruning; bundle_id pattern is whitelisted (wb_<ts>_<rand>) so malformed ids can never collide with structural JSON keys. Two new routes POST /api/agent/bundles/preview and POST /api/agent/bundles/run in node/src/routes/agent.ts. The run endpoint validates the bundle_id against the persisted review store (FORBIDDEN if unknown) and delegates to the existing agent loop start() with the goal+mode from the reviewed bundle. The agent-loop.mjs createChassisAdapter was exported so the bundles service can compose the same {bundle, scaffold} the agent loop uses internally. Per aide-route-slice-sop: contract-first (yes), single-instance wiring (yes, one chassisBundlesService in buildRoutes), contracts-regen-literally-last (yes, openapi.json was the last edit), &&-only gate chain (yes). Facade routing unchanged: /api/agent prefix is already mapped to TS arch. common/openapi.json regenerated to 160 unique paths (was 158 before this slice).
+
+Verification (this slice):
+- tsc -p tsconfig.node.json --noEmit: 0 errors
+- eslint .: 0 errors, 64 warnings (within baseline)
+- focused arch tests: 21/21 pass (orchestrator, agent-routes, agent-subagent, byok-routes, skill-registry)
+- focused in-house-e2e: 38/38 pass (6 new c6 + 23 existing chassis + 3 orch-card + 3 helix-retention + 3 other)
+- pre-commit hook: mjs syntax + secret scan clean
+
+**Files:** commit 65a4088 on origin/feat/chassis (8 files changed, +863): 3 new (chassis-bundles.mjs + .d.mts, c6-bundles-battery.mjs) + 5 modified (agent.ts contracts + agent-loop.mjs export + agent.ts routes + openapi.ts wiring + openapi.json regen).
+**Next:** Push to origin + watch CI run #437 to green. Then the cockpit canary: 3 lines in app.js sendDescribe() + 1 approval-card render branch. The chassis-to-agent seam is now real; the operator can drive the workflow from the chat thread.
 **Next:** Watch CI run #434 to green. Then C6 adapter (orchestrator/scaffold-to-agent-loop composition with preview + run endpoints per the report-source.md release gates). Then the cockpit canary (3 surgical lines in `app.js` sendDescribe + 1 render branch for approval cards). Then the model-class benchmark battery per the report-source.md policy table. The T2 lane stays untouched.

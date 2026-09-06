@@ -1,28 +1,7 @@
-// Skill loader (v1) - reads a skill from a directory and returns the parsed
-// envelope + body. Used by the orchestrator (slice C3) and the Helix
-// retriever (slice C5). Pure I/O + cache, no LLM.
-//
-// The loader is intentionally narrow: parse the file, validate the envelope,
-// cap the body, cache the parsed result. Routing decisions live in
-// harness/orchestrator.mjs (slice C3); close-match decisions live in
-// harness/helix-retrieval.mjs (slice C5). This file is just I/O.
-//
-// Skill directory layout:
-//   <root>/<skill-name>/SKILL.md
-// where <root> is one of:
-//   - <workspace>/skills/packs/         (project-local packs)
-//   - <workspace>/.agents/skills/        (AGENTS.md convention)
-//   - <workspace>/.github/skills/        (GitHub convention)
-//   - <workspace>/.claude/skills/        (Claude Code convention)
-//   - <workspace>/.cursor/skills/        (Cursor convention)
-//   - <workspace>/.codex/skills/         (Codex convention)
-//   - $AIDE_SKILLS_ROOT                   (user override)
-//   - <home>/.agents/skills/              (user home)
-
-import { existsSync, readFileSync, statSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseSkill, SKILL_BODY_MAX_BYTES } from './skill-schema.mjs';
+import { parseSkill } from './skill-schema.mjs';
 
 const DEFAULT_MAX_TOTAL_BYTES = 60 * 1024;
 const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -34,9 +13,16 @@ function pathInside(root, target) {
 
 function defaultRoots(workspace) {
   const project = path.resolve(workspace || process.cwd());
+  // Chassis v1 layout: <workspace>/skills/<name>/SKILL.md (each skill is its
+  // own directory). Legacy layout: <workspace>/skills/packs/<name>/SKILL.md
+  // (kept for backwards compat with the 182-skill registry.json catalog).
+  // The loader walks both; each subdir with a SKILL.md inside is a skill.
   const userRoots = process.env.AIDE_SKILLS_ROOT ? [process.env.AIDE_SKILLS_ROOT] : [path.join(os.homedir(), '.agents', 'skills')];
   return [...new Set([
+    path.join(project, 'skills'),
     path.join(project, 'skills', 'packs'),
+    path.join(project, '.aide', 'skills'),
+    path.resolve(project, 'harness', 'skills'),
     path.join(project, '.agents', 'skills'),
     path.join(project, '.github', 'skills'),
     path.join(project, '.claude', 'skills'),
@@ -48,8 +34,8 @@ function defaultRoots(workspace) {
 
 export function createSkillLoader({ workspace = process.cwd(), roots } = {}) {
   const skillRoots = roots || defaultRoots(workspace);
-  const cache = new Map();  // absolute path -> parsed skill (or {ok:false,...})
-  const errors = [];        // collected parse errors for the operator UI
+  const cache = new Map();
+  const errors = [];
 
   function readSkillFile(skillDir) {
     if (!SKILL_NAME_RE.test(skillDir)) return { ok: false, error: `invalid skill name: ${skillDir}`, errors: [] };
@@ -71,11 +57,11 @@ export function createSkillLoader({ workspace = process.cwd(), roots } = {}) {
         return result;
       }
       // Stable reference for cache hits.
-      const enriched = { ...parsed, path: skillPath, root };
+      const enriched = { ...parsed, path: skillPath, root, kind: 'skill' };
       cache.set(skillDir, enriched);
       return enriched;
     }
-    return { ok: false, error: `skill not found: ${skillDir}`, errors: [], searched: skillRoots.map(r => path.join(r, skillDir, 'SKILL.md')) };
+    return { ok: false, error: `skill not found: ${skillDir}`, errors: [], searched: skillRoots.flatMap(r => [`${r}/${skillDir}/SKILL.md`]) };
   }
 
   function listAvailable() {
@@ -85,7 +71,11 @@ export function createSkillLoader({ workspace = process.cwd(), roots } = {}) {
       let entries;
       try { entries = readdirSync(root, { withFileTypes: true }); } catch { continue; }
       for (const e of entries) {
-        if (e.isDirectory() && SKILL_NAME_RE.test(e.name)) found.add(e.name);
+        if (e.isDirectory() && SKILL_NAME_RE.test(e.name)) {
+          // Confirm SKILL.md exists inside (skip empty directories).
+          const skillFile = path.join(root, e.name, 'SKILL.md');
+          if (existsSync(skillFile)) found.add(e.name);
+        }
       }
     }
     return [...found];
@@ -96,4 +86,4 @@ export function createSkillLoader({ workspace = process.cwd(), roots } = {}) {
   return { readSkillFile, listAvailable, clearCache, roots: skillRoots, getErrors: () => errors.slice() };
 }
 
-export { SKILL_BODY_MAX_BYTES, DEFAULT_MAX_TOTAL_BYTES };
+export { SKILL_NAME_RE, DEFAULT_MAX_TOTAL_BYTES };

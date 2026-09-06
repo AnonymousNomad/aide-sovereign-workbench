@@ -14,7 +14,7 @@
 // - category: one of a fixed allowlist (see CATEGORIES).
 // - applies_to: at least one non-empty string trigger.
 // - tools_required: at least one tool name; each must be in the TOOLS allowlist.
-// - sop: between 3 and 25 numbered instruction lines, or a freeform block between 20 and 600 chars.
+// - sop: between 20 and 600 characters.
 // - body: max 6 KiB (6144 bytes UTF-8). Body is read but not interpreted here.
 // - deprecated_since: a non-empty string. When set, replaced_by should also be set (warn if not).
 // - replaced_by: a valid skill name if set.
@@ -41,7 +41,7 @@ export const TOOLS = Object.freeze([
 ]);
 
 // v1 category allowlist - aligned with the existing 14 categories in
-// skills/registry.json plus a few additions for the chassis.
+// skills/registry.json plus 9 task categories for the chassis.
 export const CATEGORIES = Object.freeze([
   'general',
   'discipline',
@@ -109,7 +109,7 @@ function parseFrontmatter(raw) {
       blockScalarIndent = null;
       blockScalarValue = '';
     }
-    // List continuation: a line starting with "  - " (or "\t- ")
+    // List continuation
     if (line.startsWith('  - ') || line.startsWith('\t- ')) {
       if (!currentListKey) return { ok: false, error: `list item without key at: ${line}`, field: 'frontmatter', errors: [] };
       if (!Array.isArray(map[currentListKey])) map[currentListKey] = [];
@@ -229,8 +229,8 @@ function validate(map, declaredName) {
     }
   }
   if (map.sop !== undefined) {
-    if (typeof map.sop !== 'string' || map.sop.length < 20 || map.sop.length > 600) {
-      errors.push({ field: 'sop', error: 'sop must be a string between 20 and 600 characters' });
+    if (typeof map.sop !== 'string' || map.sop.length < 20 || map.sop.length > 6000) {
+      errors.push({ field: 'sop', error: 'sop must be a string between 20 and 6000 characters' });
     }
   }
   if (map.deprecated_since !== undefined && !isNonEmptyString(map.deprecated_since)) {
@@ -299,9 +299,6 @@ export function parseSkill({ raw, declaredName } = {}) {
 }
 
 export function computeFingerprint(map) {
-  // Stable, deterministic, short. Used by the orchestrator + Helix.
-  // Includes only routing-relevant fields; not the body (which is large
-  // and changes per revision).
   const parts = [
     String(map.name || ''),
     String(map.version || ''),

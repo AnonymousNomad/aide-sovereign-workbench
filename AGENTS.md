@@ -111,3 +111,30 @@ Before claiming "done":
 - llama.cpp: `E:\llama-cpp\`
 - Project: `E:\aide-sovereign-workbench\`
 - Corpus: `E:\models\house-model\corpus\`
+
+## Canonical Path (junction self-heal)
+
+**The ONLY project root is `E:\aide-sovereign-workbench` (with the second 'e').** The
+typo path `E:\aide-sovern-workbench` (missing the second 'e') is a **directory
+junction** pointing at the canonical path. Created 2026-09-06 after months of
+the write tool landing files in the wrong place:
+
+```
+mklink /J E:\aide-sovern-workbench E:\aide-sovereign-workbench
+```
+
+Any tool, script, or process that writes to either path lands in the same place.
+The junction is self-healing for the path bug: future wrong-path writes no longer
+create a stale partial copy. Verified by writing `harness/orchestrator.d.mts` to
+the typo path and confirming it appeared at the real path with the same byte
+size and timestamp.
+
+When the operator or a script says "the project," they mean `E:\aide-sovereign-workbench`.
+When asked to "open the project file" or "stage the change," use the canonical path.
+The junction is a tool, not a synonym — don't `cd E:\aide-sovern-workbench` if a
+canonical-path command works; don't use the typo path in new scripts, AGENT_NOTES
+entries, skill file:line citations, or commit messages.
+
+If the junction is missing or broken, recreate with the `mklink /J` command above
+(no `del` or `rmdir` of the typo path first will fail because the directory must
+not exist for `mklink /J` to succeed).

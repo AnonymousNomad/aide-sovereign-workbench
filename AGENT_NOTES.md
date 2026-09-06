@@ -2254,4 +2254,27 @@ Verification (this slice):
 
 **Files:** commit 65a4088 on origin/feat/chassis (8 files changed, +863): 3 new (chassis-bundles.mjs + .d.mts, c6-bundles-battery.mjs) + 5 modified (agent.ts contracts + agent-loop.mjs export + agent.ts routes + openapi.ts wiring + openapi.json regen).
 **Next:** Push to origin + watch CI run #437 to green. Then the cockpit canary: 3 lines in app.js sendDescribe() + 1 approval-card render branch. The chassis-to-agent seam is now real; the operator can drive the workflow from the chat thread.
+
+## [2026-09-06 18:30] Actor: opencode
+**Type:** implementation + verification
+**Status:** verified locally, awaiting CI
+**Summary:** Shipped the C6 cockpit canary — the surgical 3-line wire that lets the operator toggle agent mode and route through the chassis-to-agent seam.
+**Details:** Per docs/evidence/report-source.md release gate 3: "Add a feature-gated, minimal cockpit branch: when **Agent mode** is explicitly on, preview the bundle, let the operator select **Run agent**, then poll/render session status and approval cards. When off, preserve the existing /api/chat behavior byte-for-byte." Per aide-smart-workbench-flow R1 (no cockpit rebuild — the legacy app.js + index.html + styles.css stays as-is) and the report-source.md explicit "any UI work should be a surgical route toggle and render branch only."
+
+The change is three surgical pieces:
+1. **state** gains `agentMode: false` (default OFF preserves byte-for-byte the existing chat behavior).
+2. **sendDescribe** early-returns into a new sendAgentMode(value) function when state.agentMode is true. sendAgentMode composes the bundle via /api/agent/bundles/preview, renders the bundle card with a RUN button, on operator click posts to /api/agent/bundles/run with the reviewed bundle_id, polls /api/agent/status, and renders an approval card when the state is awaiting_approval. Two helper functions: renderBundleCard (the inspectable chassis card with primary skill, SOPs, tools, helix, scaffold, routing-log) and renderApprovalCard (the agent's pending approval with args preview, risks, optional diff preview, and three decision buttons: APPROVE / REJECT / ABORT).
+3. **index.html** gains one new rail-block with id="agent-toggle" + the agent-mode-badge mirroring the same a11y pattern as the existing delegation-toggle + fos-toggle (role="button", tabindex="0", aria-pressed, click + Enter/Space keydown handler). No layout change, no CSS, no shell rewrite.
+
+New file: tests/in-house-e2e/cockpit-c6-canary-battery.mjs (7 tests) verifies the structural shape of the wire (state field, routing branch, sendAgentMode exists and calls the right endpoints, render functions exist, toggle element present, index.html exposes the toggle, files exist and non-empty).
+
+Verification (this slice):
+- tsc -p tsconfig.node.json --noEmit: 0 errors
+- eslint app.js: 0 errors, 7 warnings (all pre-existing — none in the new code)
+- focused in-house-e2e: 45/45 pass (7 canary + 6 c6 + 23 chassis + 3 orch-card + 3 helix-retention + 3 other)
+- focused arch: 21/21 pass on rerun (the e2e scripted session in tests/arch/agent-routes.test.ts is a known flaky under load — it takes 6-17s and the test's poll window can be exceeded; passes consistently when run alone)
+- pre-commit hook: mjs syntax + secret scan clean
+
+**Files:** commit 3a9cfee on origin/feat/chassis (3 files changed, +240/-1): 1 new (cockpit-c6-canary-battery.mjs) + 2 modified (app.js state + sendAgentMode + render helpers + toggle handlers; index.html one rail-block).
+**Next:** Push to origin + watch CI to green. The chassis-to-agent seam is now end-to-end. The next research target is the model-class quality benchmark per report-source.md gap #5 (a pinned per-model-class canary before any performance claim).
 **Next:** Watch CI run #434 to green. Then C6 adapter (orchestrator/scaffold-to-agent-loop composition with preview + run endpoints per the report-source.md release gates). Then the cockpit canary (3 surgical lines in `app.js` sendDescribe + 1 render branch for approval cards). Then the model-class benchmark battery per the report-source.md policy table. The T2 lane stays untouched.

@@ -88,6 +88,7 @@ import { LspManager } from './services/lsp.ts';
 import { DapManager, type DapAdapterConfig } from './services/dap.ts';
 import { ModelRuntime } from './services/model-runtime.ts';
 import { createOrchestratorCardService } from './services/orchestrator-card.mjs';
+import { createChassisBundlesService } from './services/chassis-bundles.mjs';
 import type { Logger } from './services/logger.ts';
 import type { EventHub } from './events.ts';
 import type { Route } from './server.ts';
@@ -437,6 +438,12 @@ export async function buildRoutes(workspace: string, version: string, options: B
   const byokFetch: typeof fetch | null = options.byokFetchImpl ?? (typeof globalThis.fetch === 'function' ? globalThis.fetch as typeof fetch : null);
   const byokService = createByokService({ workspace, secretStore, fetchImpl: byokFetch, onEgress: entry => logEgress(workspace, { action: entry.kind, url: `https://${entry.host ?? 'unknown'}/`, provider_id: entry.provider_id, role: entry.role }) });
   const orchestratorCardService = createOrchestratorCardService({ workspace });
+  // C6 agent-bundles service (report-source.md release gates). The preview
+  // composes a bundle + scaffold and persists the review; the run endpoint
+  // validates the bundle_id against the persisted review store before
+  // any tool runs. One instance per process keeps the on-disk review
+  // store and the in-memory adapter in sync.
+  const chassisBundlesService = createChassisBundlesService({ workspace });
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
@@ -563,6 +570,12 @@ export async function buildRoutes(workspace: string, version: string, options: B
       ];
     })(),
     ...routesForAgent(agentLoop, {
+      // C6 agent-bundles adapter (report-source.md). The preview composes
+      // a bundle without starting a session; the run endpoint validates
+      // the bundle_id against the persisted review store before the
+      // session begins. Fail-closed: if the service is null, the routes
+      // return NOT_READY.
+      chassisBundles: chassisBundlesService,
       resolveProviderChatFn: role => {
         if (!byokService.getConsent()) throw Object.assign(new Error('BYOK egress consent is disabled'), { code: 'FORBIDDEN' });
         return byokService.resolveChatFn(role);

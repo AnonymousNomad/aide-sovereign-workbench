@@ -96,6 +96,12 @@ function createChassisAdapter(workspace) {
   };
 }
 
+// Exported for the C6 agent-bundles service (report-source.md release gates).
+// The bundles service composes the same {bundle, scaffold} the agent loop
+// uses internally, so preview and run stay byte-identical for the same
+// task + mode.
+export { createChassisAdapter };
+
 export class AgentSessionError extends Error {
   constructor(code, message) {
     super(message);

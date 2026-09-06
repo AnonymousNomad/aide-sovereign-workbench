@@ -28,6 +28,40 @@ export const AgentStartResponse = z.object({
   session_id: z.string().min(1)
 }).strict();
 
+// C6 agent-bundles adapter (report-source.md release gates for /api/agent/bundles/*).
+// The preview composes a bundle from the chassis without starting a session;
+// the run endpoint takes the reviewed bundle id and starts a session pinned
+// to that bundle. Persists the reviewed bundle in .aide/bundle-reviews.json
+// so the operator's approval is durable across restarts. The run endpoint
+// refuses unknown bundle ids (FORBIDDEN) — the operator MUST preview first
+// and approve the bundle id before the run can start.
+
+import {
+  OrchestratorBundleCardResponse
+} from './orchestrator.ts';
+
+export const AgentBundlePreviewRequest = z.object({
+  task: z.string().min(1).max(8000),
+  mode: AgentMode.optional()
+}).strict();
+
+// Preview response is the bundle card itself — same shape as
+// GET /api/orchestrator/bundle-card. The run endpoint will not recompose;
+// it will return the exact bundle the operator reviewed.
+export const AgentBundlePreviewResponse = OrchestratorBundleCardResponse;
+
+export const AgentBundleRunRequest = z.object({
+  bundle_id: z.string().min(1).max(128),
+  chat_source: z.enum(['local', 'provider']).optional(),
+  architectEditor: z.boolean().optional(),
+  expertAdvisory: z.boolean().optional()
+}).strict();
+
+export const AgentBundleRunResponse = z.object({
+  session_id: z.string().min(1),
+  bundle_id: z.string().min(1)
+}).strict();
+
 export const AgentApproval = z.object({
   approval_id: z.string().min(1),
   session_id: z.string().min(1),

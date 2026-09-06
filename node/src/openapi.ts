@@ -47,6 +47,7 @@ import { createHubService } from '../../node/src/services/modelhub.mjs';
 import { routesForModelHub } from './routes/modelhub.ts';
 import { routesForOrch } from './routes/orch.ts';
 import { routesForOrchestrator } from './routes/orchestrator.ts';
+import { routesForAudit } from './routes/audit.ts';
 import { routesForMemory, createMemoryService } from './routes/memory.ts';
 import { routesForWorkbenches, routesForWorktree } from './routes/workbenches.ts';
 import { WorkbenchManager } from '../../workbenches/manager.mjs';
@@ -89,6 +90,7 @@ import { DapManager, type DapAdapterConfig } from './services/dap.ts';
 import { ModelRuntime } from './services/model-runtime.ts';
 import { createOrchestratorCardService } from './services/orchestrator-card.mjs';
 import { createChassisBundlesService } from './services/chassis-bundles.mjs';
+import { createAuditTrail } from './services/audit-trail.mjs';
 import type { Logger } from './services/logger.ts';
 import type { EventHub } from './events.ts';
 import type { Route } from './server.ts';
@@ -438,6 +440,11 @@ export async function buildRoutes(workspace: string, version: string, options: B
   const byokFetch: typeof fetch | null = options.byokFetchImpl ?? (typeof globalThis.fetch === 'function' ? globalThis.fetch as typeof fetch : null);
   const byokService = createByokService({ workspace, secretStore, fetchImpl: byokFetch, onEgress: entry => logEgress(workspace, { action: entry.kind, url: `https://${entry.host ?? 'unknown'}/`, provider_id: entry.provider_id, role: entry.role }) });
   const orchestratorCardService = createOrchestratorCardService({ workspace });
+  // C6 release gate 4 (audit envelope): the read endpoint surfaces the
+  // cipher-state.jsonl bus. Same one-instance pattern as the other
+  // chassis services. The audit service is what produces the
+  // /api/audit/events, /api/audit/session, /api/audit/bundle routes.
+  const auditTrail = createAuditTrail({ workspace });
   // C6 agent-bundles service (report-source.md release gates). The preview
   // composes a bundle + scaffold and persists the review; the run endpoint
   // validates the bundle_id against the persisted review store before
@@ -502,6 +509,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForProblems(workspace),
     ...routesForOrch(createOrchService({ workspace: workspace, runtime: modelRuntime })),
     ...routesForOrchestrator(orchestratorCardService),
+    ...routesForAudit(auditTrail),
     ...routesForMemory(createMemoryService(workspace)),
     ...routesForWorkbenches(new WorkbenchManager({
       workspace,

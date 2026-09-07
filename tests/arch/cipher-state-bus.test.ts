@@ -99,7 +99,10 @@ test('append failures never throw (bus is best-effort)', async () => {
     await bus.append({ type: 'approval', tool: 'noop', decision: 'approve' });
     await assert.rejects(
       () => fs.access(path.join(badFile, '.aide', 'cipher-state.jsonl')),
-      (error: unknown) => error instanceof Error && (error as NodeJS.ErrnoException).code === 'ENOENT'
+      (error: unknown) => {
+        const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : null;
+        return code === 'ENOENT' || code === 'ENOTDIR';
+      }
     );
   } finally { await cleanup(tmp); }
 });

@@ -125,7 +125,7 @@ after(async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
-test('agent tool: list_windows with approved=true executes (granted class)', async () => {
+test('agent tool: list_windows with approved=true executes (granted class)', { skip: process.platform !== 'win32' ? 'list_windows spawns powershell.exe — Windows-only capability; the Windows battery is the live proof' : false }, async () => {
   const tools = createAgentTools({ workspace: dir, rg: null, desktop });
   const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
   assert.ok(tool, 'desktop_action must be registered with the agent tool set');

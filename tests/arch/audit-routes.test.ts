@@ -93,20 +93,20 @@ test('audit envelope: session and bundle route param validation', async () => {
 });
 
 test('audit envelope: events route supports type/session_id/bundle_id/since/limit filters', async () => {
-  const byType = await getJson<unknown>('/api/audit/events?type=chat&limit=50');
+  const byType = await getJson<{ count?: number; events?: unknown[] }>('/api/audit/events?type=chat&limit=50');
   assert.equal(byType.status, 200);
   assert.equal(byType.body.data?.count, 0);
-  const bySess = await getJson<unknown>('/api/audit/events?session_id=nonexistent&limit=10');
+  const bySess = await getJson<{ count?: number; events?: unknown[] }>('/api/audit/events?session_id=nonexistent&limit=10');
   assert.equal(bySess.status, 200);
   assert.equal(bySess.body.data?.count, 0);
-  const byBndl = await getJson<unknown>('/api/audit/events?bundle_id=nonexistent');
+  const byBndl = await getJson<{ count?: number; events?: unknown[] }>('/api/audit/events?bundle_id=nonexistent');
   assert.equal(byBndl.status, 200);
-  const bySince = await getJson<unknown>('/api/audit/events?since=2020-01-01T00:00:00Z');
+  const bySince = await getJson<{ count?: number; events?: unknown[] }>('/api/audit/events?since=2020-01-01T00:00:00Z');
   assert.equal(bySince.status, 200);
   // limit cap (over 2000 should be rejected by zod)
-  const overCap = await getJson<unknown>('/api/audit/events?limit=99999');
+  const overCap = await getJson<{ count?: number; events?: unknown[] }>('/api/audit/events?limit=99999');
   assert.equal(overCap.status, 400);
   // limit coercion (string -> number)
-  const coercedLimit = await getJson<unknown>('/api/audit/events?limit=10');
+  const coercedLimit = await getJson<{ count?: number; events?: unknown[] }>('/api/audit/events?limit=10');
   assert.equal(coercedLimit.status, 200);
 });

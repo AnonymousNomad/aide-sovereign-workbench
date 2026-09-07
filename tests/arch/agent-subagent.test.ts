@@ -14,10 +14,9 @@ import {
   AgentSubagentRole,
   AgentSubagentToolPolicy,
   AgentSubagentSpawnRequest,
-  AgentSubagentStatus,
-  AgentSubagentSpawnResponse,
-  AgentSubagentListResponse
+  AgentSubagentStatus
 } from "../../common/contracts/agent.ts";
+import type { AgentSubagentSpawnResponseT, AgentSubagentListResponseT } from "../../common/contracts/agent.ts";
 import { routesForAgentSubagent } from "../../node/src/routes/agent.ts";
 
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
@@ -88,7 +87,7 @@ test("subagent dispatch: contracts + routes + integration shape (PR A)", async (
     base = "http://127.0.0.1:" + (address as { port: number }).port;
   
     // 6. Route: POST spawn with valid body returns NOT_READY (PR A).
-    const spawnResult = await post<AgentSubagentSpawnResponse>(base, "/api/agent/subagent", {
+    const spawnResult = await post<AgentSubagentSpawnResponseT>(base, "/api/agent/subagent", {
       parent_session_id: "parent-abc",
       task: "investigate the bug in parser.mjs",
       role: "researcher"
@@ -98,7 +97,7 @@ test("subagent dispatch: contracts + routes + integration shape (PR A)", async (
     assert.equal(spawnResult.body.error?.code, "NOT_READY");
   
     // 7. Route: GET list returns empty array.
-    const listResult = await get<AgentSubagentListResponse>(base, "/api/agent/subagent?parent_session_id=parent-abc");
+    const listResult = await get<AgentSubagentListResponseT>(base, "/api/agent/subagent?parent_session_id=parent-abc");
     assert.equal(listResult.status, 200);
     assert.equal(listResult.body.ok, true);
     assert.deepEqual(listResult.body.data, { subagents: [] });
@@ -128,11 +127,14 @@ test("subagent dispatch: contracts + routes + integration shape (PR A)", async (
     const statusInt = await get(base, "/api/agent/subagent/status?child_session_id=c-int");
     assert.equal(statusInt.status, 409);
   } finally {
-    // Per aide-release-engineering: closeAllConnections before close to break keep-alive sockets.
-    if (httpServer) {
+    // Rely on the http-close-shim (loaded via --import in CI and local runs):
+    // patched close() calls closeAllConnections() first. An explicit
+    // closeAllConnections() here would double-close under the shim and can
+    // trigger the libuv UV_HANDLE_CLOSING native assert on Windows.
+    const toClose = httpServer;
+    if (toClose) {
       await new Promise<void>((resolve) => {
-        (httpServer as http.Server & { closeAllConnections?: () => void }).closeAllConnections?.();
-        httpServer!.close(() => resolve());
+        toClose.close(() => resolve());
       });
     }
     for (let attempt = 0; attempt < 10; attempt++) {

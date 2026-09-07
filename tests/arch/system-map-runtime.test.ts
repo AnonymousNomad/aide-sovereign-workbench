@@ -12,10 +12,11 @@ import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
 import { routesForSystemMap } from '../../node/src/routes/system-map.ts';
 import { SystemMapSnapshot } from '../../common/contracts/system-map.ts';
+import type { SubsystemIdT } from '../../common/contracts/system-map.ts';
 
 test("system map: snapshot route returns all 8 subsystems (PR A)", async () => {
   const workspace = await fsp.mkdtemp(path.join(os.tmpdir(), "aide-sysmap-"));
-  let httpServer;
+  let httpServer: http.Server | undefined;
   let base = "";
   try {
     const server = new ArchServer(workspace, path.join(workspace, "arch-sysmap.log"));
@@ -37,13 +38,14 @@ test("system map: snapshot route returns all 8 subsystems (PR A)", async () => {
 
     // 3. The 8 card ids are present.
     const ids = snapshot.subsystems.map(s => s.id);
-    for (const id of ["inhouse_model", "workbenches", "skills", "agent_loop", "micro_experts", "helix_memory", "veritas_selfheal", "byok_desktop"]) {
+    const expectedIds: SubsystemIdT[] = ["inhouse_model", "workbenches", "skills", "agent_loop", "micro_experts", "helix_memory", "veritas_selfheal", "byok_desktop"];
+    for (const id of expectedIds) {
       assert.ok(ids.includes(id), "missing subsystem: " + id);
     }
 
     // 4. READ-ONLY: the workspace has no new state files (only the log).
     const aideDir = path.join(workspace, ".aide");
-    let aideEntries = [];
+    let aideEntries: string[] = [];
     try { aideEntries = await fsp.readdir(aideDir); } catch { /* none */ }
     const hasStateFiles = aideEntries.some(f => f.includes("onboarding") || f.includes("system-map-state"));
     assert.equal(hasStateFiles, false, "system map must not write state files");
@@ -52,16 +54,16 @@ test("system map: snapshot route returns all 8 subsystems (PR A)", async () => {
     const response2 = await fetch(base + "/api/system-map/snapshot");
     assert.equal(response2.status, 200);
   } finally {
-    if (httpServer) {
-      await new Promise(resolve => {
-        httpServer.closeAllConnections ? httpServer.closeAllConnections() : null;
-        httpServer.close(() => resolve());
+    const toClose = httpServer;
+    if (toClose) {
+      await new Promise<void>(resolve => {
+        toClose.close(() => resolve());
       });
     }
     for (let attempt = 0; attempt < 10; attempt++) {
       try { await fsp.rm(workspace, { recursive: true, force: true }); break; }
       catch (error) {
-        const code = error && error.code ? error.code : "";
+        const code = (error as NodeJS.ErrnoException).code ?? "";
         if (!["EBUSY", "ENOTEMPTY", "EPERM"].includes(code)) throw error;
         await new Promise(resolve => setTimeout(resolve, 500));
       }

@@ -13,7 +13,7 @@ import {
 } from '../../../common/contracts/onboarding.ts';
 import { createOnboardingService } from '../services/onboarding.mjs';
 
-export function routesForOnboarding(workspace) {
+export function routesForOnboarding(workspace: string): Route[] {
   const svc = createOnboardingService({ workspace });
   return [
     { method: "GET", path: "/api/onboarding/state", response: OnboardingStateResponse, handler: async () => {

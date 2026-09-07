@@ -102,10 +102,14 @@ test('onboarding walkthrough: state machine + atomic persistence (PR A)', async 
     const badPut = await put(base, '/api/onboarding/state', {});
     assert.equal(badPut.status, 400);
   } finally {
-    if (httpServer) {
+    // Rely on the http-close-shim (loaded via --import in CI and local runs):
+    // patched close() calls closeAllConnections() first. An explicit
+    // closeAllConnections() here would double-close under the shim and can
+    // trigger the libuv UV_HANDLE_CLOSING native assert on Windows.
+    const toClose = httpServer;
+    if (toClose) {
       await new Promise<void>((resolve) => {
-        (httpServer as http.Server & { closeAllConnections?: () => void }).closeAllConnections?.();
-        httpServer!.close(() => resolve());
+        toClose.close(() => resolve());
       });
     }
     for (let attempt = 0; attempt < 10; attempt++) {

@@ -3,6 +3,7 @@
     "/api/academy/exercises": "ts",
     "/api/academy/hint": "ts",
     "/api/agent": "ts",
+    "/api/audit": "ts",
     "/api/byok": "ts",
     "/api/chat/history": "ts",
     "/api/chat/stream": "ts",

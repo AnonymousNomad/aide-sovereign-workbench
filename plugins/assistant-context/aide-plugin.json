@@ -1,0 +1,18 @@
+{
+  "id": "assistant-context",
+  "name": "Context Builder",
+  "description": "Preview files, symbols, diagnostics, and budgets sent to the operator.",
+  "capabilities": [
+    "workspace.read",
+    "ui.view"
+  ],
+  "version": "0.1.0",
+  "api_version": "1",
+  "activation_events": [],
+  "contributes": {
+    "commands": [],
+    "views": []
+  },
+  "status": "template",
+  "entry": null
+}

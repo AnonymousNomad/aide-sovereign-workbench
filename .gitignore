@@ -49,3 +49,11 @@ models/aide-house/
 # North-Mini-Code-1.0 in-house model GGUF (10.5GB). Managed by AIDE's model
 # engine, not git. Symlink in models/aide-house/ is the engine's expected path.
 models/north-mini-code/
+
+# Nested private project (separate repo with its own .git) living in the
+# workbench workspace. Never part of this repository.
+FSI/
+
+# Desktop packaged-stack staging: full mirror of the source tree + node_modules
+# for the offline stack launcher. Regenerated per build, like desktop/frontend/.
+desktop/resources/

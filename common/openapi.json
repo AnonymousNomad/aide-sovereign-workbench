@@ -349,13 +349,9 @@
                             "maximum": 9007199254740991
                           },
                           "error": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "pending_approval": {
@@ -388,13 +384,9 @@
                                     }
                                   },
                                   "preview": {
-                                    "anyOf": [
-                                      {
-                                        "type": "string"
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
+                                    "type": [
+                                      "string",
+                                      "null"
                                     ]
                                   },
                                   "created_at": {
@@ -553,13 +545,9 @@
                       "maximum": 9007199254740991
                     },
                     "error": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "pending_approval": {
@@ -592,13 +580,9 @@
                               }
                             },
                             "preview": {
-                              "anyOf": [
-                                {
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
+                              "type": [
+                                "string",
+                                "null"
                               ]
                             },
                             "created_at": {
@@ -673,13 +657,9 @@
                       "type": "boolean"
                     },
                     "sandbox": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     }
                   },
@@ -3089,13 +3069,9 @@
                       ]
                     },
                     "session_started_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "grants": {
@@ -3516,13 +3492,9 @@
                       ]
                     },
                     "session_started_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "grants": {
@@ -4155,13 +4127,9 @@
                       "type": "string"
                     },
                     "content": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "too_large": {
@@ -4870,33 +4838,21 @@
                       "type": "boolean"
                     },
                     "branch": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "oid": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "upstream": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "ahead": {
@@ -5177,24 +5133,16 @@
                           },
                           "tool_name": {
                             "default": null,
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "ts": {
                             "default": null,
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           }
                         },
@@ -5511,24 +5459,16 @@
                             },
                             "tool_name": {
                               "default": null,
-                              "anyOf": [
-                                {
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
+                              "type": [
+                                "string",
+                                "null"
                               ]
                             },
                             "ts": {
                               "default": null,
-                              "anyOf": [
-                                {
-                                  "type": "string"
-                                },
-                                {
-                                  "type": "null"
-                                }
+                              "type": [
+                                "string",
+                                "null"
                               ]
                             }
                           },
@@ -6026,23 +5966,15 @@
                       "maximum": 9007199254740991
                     },
                     "branch": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "last_error": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "updated_at": {
@@ -6132,13 +6064,9 @@
                   "type": "object",
                   "properties": {
                     "match": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "pending": {
@@ -6355,13 +6283,9 @@
                       "const": 1
                     },
                     "updated_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "skills": {
@@ -7263,13 +7187,9 @@
                             ]
                           },
                           "error": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           }
                         },
@@ -7639,13 +7559,9 @@
                           "type": "string"
                         },
                         "quant_label": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         },
                         "size_bytes": {
@@ -7657,23 +7573,15 @@
                           "type": "string"
                         },
                         "sha256": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         },
                         "etag": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         },
                         "downloaded_at": {
@@ -7813,13 +7721,9 @@
                           "type": "string"
                         },
                         "parametersB": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "number",
+                            "null"
                           ]
                         }
                       },
@@ -7925,13 +7829,9 @@
                           "minLength": 1
                         },
                         "to": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         },
                         "reason": {
@@ -9460,43 +9360,27 @@
                           "type": "number"
                         },
                         "ramTotalMb": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "number",
+                            "null"
                           ]
                         },
                         "vramTotalMb": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "number",
+                            "null"
                           ]
                         },
                         "vramFreeMb": {
-                          "anyOf": [
-                            {
-                              "type": "number"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "number",
+                            "null"
                           ]
                         },
                         "gpuName": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         },
                         "source": {
@@ -9528,23 +9412,15 @@
                             "type": "string"
                           },
                           "backend": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "quant": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "contextTokensDeclared": {
@@ -9560,13 +9436,9 @@
                             ]
                           },
                           "tokPerSecMeasured": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "number",
+                              "null"
                             ]
                           },
                           "benchSource": {
@@ -9615,13 +9487,9 @@
                           "maximum": 9007199254740991
                         },
                         "lastShipAt": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
+                          "type": [
+                            "string",
+                            "null"
                           ]
                         },
                         "reworkCount": {
@@ -9702,13 +9570,9 @@
                             "type": "string"
                           },
                           "code": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           }
                         },
@@ -9911,7 +9775,10 @@
                                         "type": "string",
                                         "minLength": 1
                                       }
-                                    ]
+                                    ],
+                                    "additionalItems": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
                                   }
                                 ]
                               },
@@ -10113,7 +9980,10 @@
                                           "type": "string",
                                           "minLength": 1
                                         }
-                                      ]
+                                      ],
+                                      "additionalItems": false,
+                                      "minItems": 2,
+                                      "maxItems": 2
                                     }
                                   ]
                                 },
@@ -11248,23 +11118,15 @@
                       "type": "boolean"
                     },
                     "filePath": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "detectedFrom": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "tasks": {
@@ -11492,7 +11354,10 @@
                                                 "type": "string",
                                                 "minLength": 1
                                               }
-                                            ]
+                                            ],
+                                            "additionalItems": false,
+                                            "minItems": 2,
+                                            "maxItems": 2
                                           }
                                         ]
                                       },
@@ -11694,7 +11559,10 @@
                                                   "type": "string",
                                                   "minLength": 1
                                                 }
-                                              ]
+                                              ],
+                                              "additionalItems": false,
+                                              "minItems": 2,
+                                              "maxItems": 2
                                             }
                                           ]
                                         },
@@ -12055,7 +11923,10 @@
                                                         "type": "string",
                                                         "minLength": 1
                                                       }
-                                                    ]
+                                                    ],
+                                                    "additionalItems": false,
+                                                    "minItems": 2,
+                                                    "maxItems": 2
                                                   }
                                                 ]
                                               },
@@ -12257,7 +12128,10 @@
                                                           "type": "string",
                                                           "minLength": 1
                                                         }
-                                                      ]
+                                                      ],
+                                                      "additionalItems": false,
+                                                      "minItems": 2,
+                                                      "maxItems": 2
                                                     }
                                                   ]
                                                 },
@@ -12431,13 +12305,9 @@
                             "type": "number"
                           },
                           "lastHitAt": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "number",
+                              "null"
                             ]
                           },
                           "exitCode": {
@@ -12629,43 +12499,27 @@
                             "type": "number"
                           },
                           "endedAt": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "number",
+                              "null"
                             ]
                           },
                           "parent_job_id": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "name_path": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "failed_dependency": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "restored": {
@@ -12755,43 +12609,27 @@
                             "type": "number"
                           },
                           "endedAt": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "number",
+                              "null"
                             ]
                           },
                           "parent_job_id": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "name_path": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "failed_dependency": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "string",
+                              "null"
                             ]
                           },
                           "restored": {
@@ -12857,13 +12695,9 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "chat_ids": {
@@ -12899,13 +12733,9 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "poll_cycles": {
@@ -12968,13 +12798,9 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "chat_ids": {
@@ -13010,13 +12836,9 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "poll_cycles": {
@@ -13079,13 +12901,9 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "chat_ids": {
@@ -13121,13 +12939,9 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "poll_cycles": {
@@ -13169,13 +12983,9 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "chat_ids": {
@@ -13211,13 +13021,9 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "poll_cycles": {
@@ -13259,13 +13065,9 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "chat_ids": {
@@ -13301,13 +13103,9 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "poll_cycles": {
@@ -13355,13 +13153,9 @@
                             "type": "string"
                           },
                           "best_eval_loss": {
-                            "anyOf": [
-                              {
-                                "type": "number"
-                              },
-                              {
-                                "type": "null"
-                              }
+                            "type": [
+                              "number",
+                              "null"
                             ]
                           }
                         },
@@ -13907,13 +13701,9 @@
                       }
                     },
                     "final_loss": {
-                      "anyOf": [
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "number",
+                        "null"
                       ]
                     },
                     "evaluated_at": {
@@ -14113,23 +13903,15 @@
                       "maximum": 9007199254740991
                     },
                     "started_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "ended_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "exit_code": {
@@ -14145,13 +13927,9 @@
                       ]
                     },
                     "loss_last": {
-                      "anyOf": [
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "number",
+                        "null"
                       ]
                     },
                     "loss_history": {
@@ -14184,13 +13962,9 @@
                       }
                     },
                     "error": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "output_dir": {
@@ -14279,23 +14053,15 @@
                       "maximum": 9007199254740991
                     },
                     "started_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "ended_at": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "exit_code": {
@@ -14311,13 +14077,9 @@
                       ]
                     },
                     "loss_last": {
-                      "anyOf": [
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "number",
+                        "null"
                       ]
                     },
                     "loss_history": {
@@ -14350,13 +14112,9 @@
                       }
                     },
                     "error": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     },
                     "output_dir": {

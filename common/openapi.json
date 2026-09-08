@@ -349,9 +349,13 @@
                             "maximum": 9007199254740991
                           },
                           "error": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "pending_approval": {
@@ -384,9 +388,13 @@
                                     }
                                   },
                                   "preview": {
-                                    "type": [
-                                      "string",
-                                      "null"
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
                                     ]
                                   },
                                   "created_at": {
@@ -545,9 +553,13 @@
                       "maximum": 9007199254740991
                     },
                     "error": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "pending_approval": {
@@ -580,9 +592,13 @@
                               }
                             },
                             "preview": {
-                              "type": [
-                                "string",
-                                "null"
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
                               ]
                             },
                             "created_at": {
@@ -657,9 +673,13 @@
                       "type": "boolean"
                     },
                     "sandbox": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     }
                   },
@@ -707,6 +727,525 @@
             }
           }
         }
+      }
+    },
+    "/api/audit/bundle": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bundle_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "event_count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          },
+                          "ts": {
+                            "type": "string"
+                          },
+                          "session_id": {
+                            "type": "string"
+                          },
+                          "parent_session_id": {
+                            "type": "string"
+                          },
+                          "bundle_id": {
+                            "type": "string"
+                          },
+                          "tool": {
+                            "type": "string"
+                          },
+                          "decision": {
+                            "type": "string"
+                          },
+                          "task": {
+                            "type": "string"
+                          },
+                          "modelId": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "chat_source": {
+                            "type": "string"
+                          },
+                          "iteration": {
+                            "type": "number"
+                          },
+                          "args_preview": {
+                            "type": "string"
+                          },
+                          "output_preview": {
+                            "type": "string"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "primary_skill": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "child_session_id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "files_changed": {
+                            "type": "number"
+                          },
+                          "error": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          },
+                          "pattern": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "bundle_id",
+                    "event_count",
+                    "events"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2000
+            }
+          }
+        ]
+      }
+    },
+    "/api/audit/events": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string"
+                          },
+                          "ts": {
+                            "type": "string"
+                          },
+                          "session_id": {
+                            "type": "string"
+                          },
+                          "parent_session_id": {
+                            "type": "string"
+                          },
+                          "bundle_id": {
+                            "type": "string"
+                          },
+                          "tool": {
+                            "type": "string"
+                          },
+                          "decision": {
+                            "type": "string"
+                          },
+                          "task": {
+                            "type": "string"
+                          },
+                          "modelId": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "mode": {
+                            "type": "string"
+                          },
+                          "chat_source": {
+                            "type": "string"
+                          },
+                          "iteration": {
+                            "type": "number"
+                          },
+                          "args_preview": {
+                            "type": "string"
+                          },
+                          "output_preview": {
+                            "type": "string"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "primary_skill": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "child_session_id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "files_changed": {
+                            "type": "number"
+                          },
+                          "error": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "string"
+                          },
+                          "pattern": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "known_types": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "events",
+                    "count",
+                    "known_types"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "bundle_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2000
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "chat",
+                "agent.start",
+                "agent.message",
+                "agent.tool.call",
+                "agent.tool.result",
+                "agent.approval",
+                "agent.bundle.preview",
+                "agent.bundle.run",
+                "subagent.spawn",
+                "subagent.done",
+                "subagent.error",
+                "desktop",
+                "approval",
+                "rejection",
+                "abort"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/audit/session": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "event_count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "by_type": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string"
+                            },
+                            "at": {
+                              "type": "string"
+                            },
+                            "ts": {
+                              "type": "string"
+                            },
+                            "session_id": {
+                              "type": "string"
+                            },
+                            "parent_session_id": {
+                              "type": "string"
+                            },
+                            "bundle_id": {
+                              "type": "string"
+                            },
+                            "tool": {
+                              "type": "string"
+                            },
+                            "decision": {
+                              "type": "string"
+                            },
+                            "task": {
+                              "type": "string"
+                            },
+                            "modelId": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string"
+                            },
+                            "mode": {
+                              "type": "string"
+                            },
+                            "chat_source": {
+                              "type": "string"
+                            },
+                            "iteration": {
+                              "type": "number"
+                            },
+                            "args_preview": {
+                              "type": "string"
+                            },
+                            "output_preview": {
+                              "type": "string"
+                            },
+                            "ok": {
+                              "type": "boolean"
+                            },
+                            "primary_skill": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "type": "string"
+                            },
+                            "child_session_id": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "files_changed": {
+                              "type": "number"
+                            },
+                            "error": {
+                              "type": "string"
+                            },
+                            "action": {
+                              "type": "string"
+                            },
+                            "target": {
+                              "type": "string"
+                            },
+                            "pattern": {
+                              "type": "string"
+                            },
+                            "summary": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "additionalProperties": {}
+                        }
+                      }
+                    },
+                    "first_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "last_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "session_id",
+                    "event_count",
+                    "by_type",
+                    "first_at",
+                    "last_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2000
+            }
+          }
+        ]
       }
     },
     "/api/byok/consent": {
@@ -2069,6 +2608,54 @@
         }
       }
     },
+    "/api/closed-loop/status": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "last_run_logged_at": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "signal_file_count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "bus_event_count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "last_run_logged_at",
+                    "signal_file_count",
+                    "bus_event_count"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/commands": {
       "get": {
         "responses": {
@@ -3069,9 +3656,13 @@
                       ]
                     },
                     "session_started_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "grants": {
@@ -3492,9 +4083,13 @@
                       ]
                     },
                     "session_started_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "grants": {
@@ -4127,9 +4722,13 @@
                       "type": "string"
                     },
                     "content": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "too_large": {
@@ -4838,21 +5437,33 @@
                       "type": "boolean"
                     },
                     "branch": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "oid": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "upstream": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "ahead": {
@@ -5133,16 +5744,24 @@
                           },
                           "tool_name": {
                             "default": null,
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "ts": {
                             "default": null,
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           }
                         },
@@ -5459,16 +6078,24 @@
                             },
                             "tool_name": {
                               "default": null,
-                              "type": [
-                                "string",
-                                "null"
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
                               ]
                             },
                             "ts": {
                               "default": null,
-                              "type": [
-                                "string",
-                                "null"
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
                               ]
                             }
                           },
@@ -5966,15 +6593,23 @@
                       "maximum": 9007199254740991
                     },
                     "branch": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "last_error": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "updated_at": {
@@ -6064,9 +6699,13 @@
                   "type": "object",
                   "properties": {
                     "match": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "pending": {
@@ -6283,9 +6922,13 @@
                       "const": 1
                     },
                     "updated_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "skills": {
@@ -7187,9 +7830,13 @@
                             ]
                           },
                           "error": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           }
                         },
@@ -7559,9 +8206,13 @@
                           "type": "string"
                         },
                         "quant_label": {
-                          "type": [
-                            "string",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "size_bytes": {
@@ -7573,15 +8224,23 @@
                           "type": "string"
                         },
                         "sha256": {
-                          "type": [
-                            "string",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "etag": {
-                          "type": [
-                            "string",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "downloaded_at": {
@@ -7721,9 +8380,13 @@
                           "type": "string"
                         },
                         "parametersB": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         }
                       },
@@ -7829,9 +8492,13 @@
                           "minLength": 1
                         },
                         "to": {
-                          "type": [
-                            "string",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "reason": {
@@ -9360,27 +10027,43 @@
                           "type": "number"
                         },
                         "ramTotalMb": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "vramTotalMb": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "vramFreeMb": {
-                          "type": [
-                            "number",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "gpuName": {
-                          "type": [
-                            "string",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "source": {
@@ -9412,15 +10095,23 @@
                             "type": "string"
                           },
                           "backend": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "quant": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "contextTokensDeclared": {
@@ -9436,9 +10127,13 @@
                             ]
                           },
                           "tokPerSecMeasured": {
-                            "type": [
-                              "number",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "benchSource": {
@@ -9487,9 +10182,13 @@
                           "maximum": 9007199254740991
                         },
                         "lastShipAt": {
-                          "type": [
-                            "string",
-                            "null"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "reworkCount": {
@@ -9570,9 +10269,13 @@
                             "type": "string"
                           },
                           "code": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           }
                         },
@@ -9775,10 +10478,7 @@
                                         "type": "string",
                                         "minLength": 1
                                       }
-                                    ],
-                                    "additionalItems": false,
-                                    "minItems": 2,
-                                    "maxItems": 2
+                                    ]
                                   }
                                 ]
                               },
@@ -9980,10 +10680,7 @@
                                           "type": "string",
                                           "minLength": 1
                                         }
-                                      ],
-                                      "additionalItems": false,
-                                      "minItems": 2,
-                                      "maxItems": 2
+                                      ]
                                     }
                                   ]
                                 },
@@ -11118,15 +11815,23 @@
                       "type": "boolean"
                     },
                     "filePath": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "detectedFrom": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "tasks": {
@@ -11354,10 +12059,7 @@
                                                 "type": "string",
                                                 "minLength": 1
                                               }
-                                            ],
-                                            "additionalItems": false,
-                                            "minItems": 2,
-                                            "maxItems": 2
+                                            ]
                                           }
                                         ]
                                       },
@@ -11559,10 +12261,7 @@
                                                   "type": "string",
                                                   "minLength": 1
                                                 }
-                                              ],
-                                              "additionalItems": false,
-                                              "minItems": 2,
-                                              "maxItems": 2
+                                              ]
                                             }
                                           ]
                                         },
@@ -11923,10 +12622,7 @@
                                                         "type": "string",
                                                         "minLength": 1
                                                       }
-                                                    ],
-                                                    "additionalItems": false,
-                                                    "minItems": 2,
-                                                    "maxItems": 2
+                                                    ]
                                                   }
                                                 ]
                                               },
@@ -12128,10 +12824,7 @@
                                                           "type": "string",
                                                           "minLength": 1
                                                         }
-                                                      ],
-                                                      "additionalItems": false,
-                                                      "minItems": 2,
-                                                      "maxItems": 2
+                                                      ]
                                                     }
                                                   ]
                                                 },
@@ -12305,9 +12998,13 @@
                             "type": "number"
                           },
                           "lastHitAt": {
-                            "type": [
-                              "number",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "exitCode": {
@@ -12499,27 +13196,43 @@
                             "type": "number"
                           },
                           "endedAt": {
-                            "type": [
-                              "number",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "parent_job_id": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "name_path": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "failed_dependency": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "restored": {
@@ -12609,27 +13322,43 @@
                             "type": "number"
                           },
                           "endedAt": {
-                            "type": [
-                              "number",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "parent_job_id": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "name_path": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "failed_dependency": {
-                            "type": [
-                              "string",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           },
                           "restored": {
@@ -12695,9 +13424,13 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "chat_ids": {
@@ -12733,9 +13466,13 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "poll_cycles": {
@@ -12798,9 +13535,13 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "chat_ids": {
@@ -12836,9 +13577,13 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "poll_cycles": {
@@ -12901,9 +13646,13 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "chat_ids": {
@@ -12939,9 +13688,13 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "poll_cycles": {
@@ -12983,9 +13736,13 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "chat_ids": {
@@ -13021,9 +13778,13 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "poll_cycles": {
@@ -13065,9 +13826,13 @@
                       "type": "boolean"
                     },
                     "bot_username": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "chat_ids": {
@@ -13103,9 +13868,13 @@
                       "type": "boolean"
                     },
                     "last_poll_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "poll_cycles": {
@@ -13153,9 +13922,13 @@
                             "type": "string"
                           },
                           "best_eval_loss": {
-                            "type": [
-                              "number",
-                              "null"
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
                             ]
                           }
                         },
@@ -13701,9 +14474,13 @@
                       }
                     },
                     "final_loss": {
-                      "type": [
-                        "number",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "evaluated_at": {
@@ -13903,15 +14680,23 @@
                       "maximum": 9007199254740991
                     },
                     "started_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "ended_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "exit_code": {
@@ -13927,9 +14712,13 @@
                       ]
                     },
                     "loss_last": {
-                      "type": [
-                        "number",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "loss_history": {
@@ -13962,9 +14751,13 @@
                       }
                     },
                     "error": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "output_dir": {
@@ -14053,15 +14846,23 @@
                       "maximum": 9007199254740991
                     },
                     "started_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "ended_at": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "exit_code": {
@@ -14077,9 +14878,13 @@
                       ]
                     },
                     "loss_last": {
-                      "type": [
-                        "number",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "loss_history": {
@@ -14112,9 +14917,13 @@
                       }
                     },
                     "error": {
-                      "type": [
-                        "string",
-                        "null"
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "output_dir": {

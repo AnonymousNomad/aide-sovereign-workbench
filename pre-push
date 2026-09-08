@@ -1,0 +1,73 @@
+#!/bin/sh
+# AIDE pre-push gate (versioned at repo root; picked up because
+# `git config core.hooksPath` = repo root). This file lives in the
+# repository so every clone/push enforces the same gate.
+#
+# Behavior:
+#   AIDE_FULL_BATTERY=1   -> run the FULL arch battery before allowing push.
+#                            On Windows the battery runs WITHOUT
+#                            --test-force-exit (that flag triggers a libuv
+#                            UV_HANDLE_CLOSING native abort on win32; CI
+#                            uses scripts/run-arch.mjs on ubuntu where it is
+#                            safe). On non-Windows, scripts/run-arch.mjs is
+#                            used directly.
+#   unset / anything else -> lightweight gate: node --check on staged .mjs
+#                            (same as pre-commit). Fast path for routine pushes.
+#
+# Exit nonzero blocks the push. Set AIDE_FULL_BATTERY=1 for full
+# verification on feature/UI pushes.
+
+EXIT=0
+GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$GIT_ROOT" ]; then
+  echo "pre-push: no git repo root; push not blocked"
+  exit 0
+fi
+
+# --- lightweight gate (always) -------------------------------------------
+STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|mjs)$')
+STAGED_MJS=$(echo "$STAGED_JS" | tr ' ' '\n' | grep '\.mjs$' | tr '\n' ' ')
+if [ -n "$STAGED_MJS" ]; then
+  for f in $STAGED_MJS; do
+    node --check "$f" 2>/dev/null
+    if [ $? -ne 0 ]; then
+      echo "pre-push: syntax error in $f - push blocked"
+      EXIT=1
+    fi
+  done
+fi
+
+# --- full battery gate (AIDE_FULL_BATTERY=1) -----------------------------
+if [ "$AIDE_FULL_BATTERY" = "1" ]; then
+  echo "pre-push: AIDE_FULL_BATTERY=1 - running full arch battery (this takes minutes)..."
+  cd "$GIT_ROOT" || exit 1
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      # Windows: --test-force-exit triggers a native UV_HANDLE_CLOSING abort
+      # (aide-windows-dev-reality skill). Run the battery without it. The
+      # http-close-shim is the keep-alive fix that makes the close callbacks
+      # fire reliably on both platforms.
+      node --experimental-strip-types --no-warnings \
+        --import ./scripts/http-close-shim.mjs \
+        --test --test-concurrency=1 --test-timeout=240000 \
+        $(find tests/arch -name '*.test.ts' | tr '\n' ' ')
+      ;;
+    *)
+      node scripts/run-arch.mjs
+      ;;
+  esac
+  if [ $? -ne 0 ]; then
+    echo "pre-push: arch battery FAILED - push blocked. Fix failures or unset AIDE_FULL_BATTERY for a quick push."
+    EXIT=1
+  else
+    echo "pre-push: arch battery passed"
+  fi
+fi
+
+if [ $EXIT -ne 0 ]; then
+  echo "pre-push: checks failed. Fix errors above and try again."
+  exit 1
+fi
+
+echo "pre-push: checks passed"
+exit 0

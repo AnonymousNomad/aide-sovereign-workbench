@@ -22,6 +22,12 @@ export declare function createAgentLoop(options: {
   onEvent?(event: Record<string, unknown> & { event: string; session_id: string }): void;
   maxIterations?: number;
   maxMistakes?: number;
+  audit?: {
+    emitAgentStart(event: { sessionId: string; mode: string; task: string; chatSource?: string; extra?: Record<string, unknown> }): Promise<void>;
+    emitToolCall(event: { sessionId: string; tool: string; args?: Record<string, unknown>; iteration?: number; extra?: Record<string, unknown> }): Promise<void>;
+    emitToolResult(event: { sessionId: string; tool: string; ok: boolean; output?: string; iteration?: number; extra?: Record<string, unknown> }): Promise<void>;
+    emitApproval(event: { sessionId: string; tool: string; decision: 'approve' | 'reject' | 'abort'; argsPreview?: string; extra?: Record<string, unknown> }): Promise<void>;
+  } | null;
 }): AgentLoopService;
 
 export type { AgentApprovalT };

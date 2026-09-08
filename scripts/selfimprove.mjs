@@ -27,7 +27,11 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const DEFAULT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Env override for hermetic tests: AIDE_SELFIMPROVE_ROOT points the bus,
+// signal dir, and log at a temp workspace so a test never touches the real
+// repo state. Default = repo root (production behavior unchanged).
+const root = process.env.AIDE_SELFIMPROVE_ROOT ? path.resolve(process.env.AIDE_SELFIMPROVE_ROOT) : DEFAULT_ROOT;
 const STATE_BUS = path.join(root, '.aide', 'cipher-state.jsonl');
 const SIGNAL_DIR = path.join(root, '.aide', 'training');
 const LOG = path.join(root, '.aide', 'logs', 'selfimprove.log');

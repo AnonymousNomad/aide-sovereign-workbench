@@ -1,6 +1,8 @@
 {
   "prefixes": {
     "/api/agent": "ts",
+    "/api/audit": "ts",
+    "/api/closed-loop": "ts",
     "/api/byok": "ts",
     "/api/commands": "ts",
     "/api/desktop": "ts",

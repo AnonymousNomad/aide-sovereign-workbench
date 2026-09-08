@@ -3,7 +3,6 @@ import { promises as fs, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseToolCalls, AgentParseError } from './agent-parser.mjs';
 import { createAgentTools, computeRisks, resolveInsideWorkspace, relativeInside, parseSearchReplaceBlocks, applySearchReplace } from './agent-tools.mjs';
-import { createStateBus } from '../../../harness/cipher-state.mjs';
 
 // Shared credo loader — single discipline source per THE QUAD Law #1.
 let _credocore = null;
@@ -164,7 +163,7 @@ function parsePlanBlock(reply) {
     : inner;
 }
 
-export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = () => {}, maxIterations = 25, maxMistakes = 3, architectEditor = false }) {
+export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = () => {}, maxIterations = 25, maxMistakes = 3, architectEditor = false, audit = null }) {
   const { tools, rootAbs } = createAgentTools({ workspace, rg });
   const registry = new Map(tools.map(tool => [tool.name, tool]));
   const toolSchemas = Object.fromEntries(tools.map(tool => [tool.name, tool.params]));
@@ -175,6 +174,17 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       onEvent(event);
     } catch {}
   }
+
+  // Fail-closed audit wiring (aide-closed-loop-wiring skill): every emit
+  // goes through the injected audit trail (a sparse interface). When no
+  // trail is injected (standalone agent-loop usage/tests), every call is a
+  // no-op — the loop never depending on the audit existing.
+  const auditSafe = {
+    emitAgentStart: (...args) => { try { return audit?.emitAgentStart(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } },
+    emitToolCall: (...args) => { try { return audit?.emitToolCall(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } },
+    emitToolResult: (...args) => { try { return audit?.emitToolResult(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } },
+    emitApproval: (...args) => { try { return audit?.emitApproval(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } }
+  };
 
   async function runSession(session) {
     const { id } = session;
@@ -297,6 +307,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
     }
 
     emit({ event: 'tool_call', session_id: session.id, tool: call.name, args: previewArgs(args) });
+    auditSafe.emitToolCall({ sessionId: session.id, tool: call.name, args, iteration: session.iterations });
 
     const risks = computeRisks(rootAbs, call.name, args);
     if (!tool.readOnly || risks.length > 0) {
@@ -323,6 +334,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       session.transcript.push({ role: 'user', content: dataWrap(call.name, false, message) });
       session.toolLog.push({ tool: call.name, ok: false, output: message.slice(0, 300) });
       emit({ event: 'tool_result', session_id: session.id, tool: call.name, ok: false, output: message.slice(0, 2000) });
+      auditSafe.emitToolResult({ sessionId: session.id, tool: call.name, ok: false, output: message, iteration: session.iterations });
       session.mistakeCount += 1;
       if (session.mistakeCount >= maxMistakes) {
         finishError(session, `aborted after repeated failures of ${call.name}: ${message}`);
@@ -340,6 +352,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         session.transcript.push({ role: 'user', content: dataWrap('switch_mode', true, `already in ${target} mode`) });
       }
       emit({ event: 'tool_result', session_id: session.id, tool: call.name, ok: true, output: `mode is ${session.mode}` });
+      auditSafe.emitToolResult({ sessionId: session.id, tool: call.name, ok: true, output: `mode is ${session.mode}`, iteration: session.iterations });
       return 'continue';
     }
 
@@ -347,6 +360,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
     session.transcript.push({ role: 'user', content: dataWrap(call.name, true, result.output) });
     session.toolLog.push({ tool: call.name, ok: true, output: String(result.output).slice(0, 500) });
     emit({ event: 'tool_result', session_id: session.id, tool: call.name, ok: true, output: result.output.slice(0, 2000) });
+    auditSafe.emitToolResult({ sessionId: session.id, tool: call.name, ok: true, output: String(result.output), iteration: session.iterations });
     return 'continue';
   }
 
@@ -491,6 +505,14 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         transcript: []
       };
       sessions.set(session.id, session);
+      // Audit trail: session started (the first trajectory event; the loop
+      // is fail-closed so the emit may no-op until the closed-loop wiring).
+      auditSafe.emitAgentStart({
+        sessionId: session.id,
+        mode: session.mode,
+        task: session.task,
+        chatSource: 'agent-loop'
+      });
       const runner = runSession(session);
       void runner.catch(() => {});
       return { session_id: session.id };
@@ -510,15 +532,17 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       else resolve('approve');
       // Loop C capture (X1.a): decisions feed the memory spine — this is the
       // writer side of the approval/rejection events getPreferences reads.
+      // The audit-trail emitApproval preserves the exact legacy shape
+      // (type approval/rejection/abort + pattern + decision + summary) so the
+      // [learned] injector keeps working, and adds the newer agent.approval
+      // envelope for the audit read API. Both writes are best-effort.
       try {
-        const bus = createStateBus(workspace);
-        const tool = session.pendingApproval.tool || '';
-        bus.append({
-          type: decision === 'approve' ? 'approval' : decision === 'reject' ? 'rejection' : 'abort',
-          tool,
-          pattern: tool,
-          summary: String(session.pendingApproval.args_preview || '').slice(0, 160)
-        }).catch(() => {});
+        auditSafe.emitApproval({
+          sessionId: session.id,
+          tool: session.pendingApproval.tool || '',
+          decision,
+          argsPreview: session.pendingApproval.args_preview || ''
+        });
       } catch { /* memory capture is best-effort */ }
       return { ok: true };
     },

@@ -60,6 +60,9 @@ import { createAgentTools } from './services/agent-tools.mjs';
 import { createCheckpointService } from '../../node/src/services/agent-checkpoints.mjs';
 import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
 import { routesForAgent } from './routes/agent.ts';
+import { createAuditTrail } from './services/audit-trail.mjs';
+import { routesForAudit } from './routes/audit.ts';
+import { routesForClosedLoop } from './routes/closed-loop.ts';
 import { createIndexService } from '../../node/src/services/index-service.mjs';
 import { routesForIndex } from './routes/index.ts';
 import { createHandoffService } from '../../node/src/services/handoff-service.mjs';
@@ -362,10 +365,18 @@ export async function buildRoutes(workspace: string, version: string, options: B
   await settingsService.load();
   const rgService = new RgService({ workspace });
   const agentCheckpoints = createCheckpointService({ workspace });
+  // Audit trail: single instance per process, one bus per service. Shares
+  // the cipher-state.jsonl bus with the memory spine; adds the typed event
+  // envelope so every agent-loop boundary event is observable and replayable
+  // through /api/audit/* (aide-closed-loop-wiring skill). The same instance
+  // is injected into the agent loop so emits stay best-effort (fail-closed:
+  // a failed write must never break the operation it audits).
+  const auditTrail = createAuditTrail({ workspace });
   const agentLoop = createAgentLoop({
     workspace,
     rg: rgService.available() ? rgService : null,
     checkpoints: agentCheckpoints,
+    audit: auditTrail,
     chatFn: options.agentChatFn ?? (async messages => {
       const selection = await modelRouter.routeForRole('chat');
       const result = await modelRouter.chat(selection.modelId, messages.map(message => ({ role: message.role as 'system' | 'user' | 'assistant', content: message.content })), {});
@@ -537,6 +548,17 @@ export async function buildRoutes(workspace: string, version: string, options: B
         ...routesForExperts(expertsService)
       ];
     })(),
+    // Audit envelope (aide-closed-loop-wiring): read API over the same
+    // cipher-state.jsonl bus the audit-trail service writes. The single
+    // auditTrail instance is also injected into the agent loop above, so
+    // this route surface and the emit surface share one source of truth.
+    ...routesForAudit(auditTrail),
+    // Closed-loop on-by-default status (aid-closed-loop-on-by-default):
+    // read-only surface so the cockpit can show whether the selfimprove
+    // runner is enabled, when it last logged, and what failure signal it
+    // has emitted for the fine-tune lane. The daemon drives the runner;
+    // this route only reports.
+    ...routesForClosedLoop(workspace),
     ...routesForAgent(agentLoop, {
       resolveProviderChatFn: role => {
         if (!byokService.getConsent()) throw Object.assign(new Error('BYOK egress consent is disabled'), { code: 'FORBIDDEN' });

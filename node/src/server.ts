@@ -1,6 +1,7 @@
 import { type ZodTypeAny } from 'zod';
 import path from 'node:path';
 import http from 'node:http';
+import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { fail, ok, type ErrorCode } from '../../common/errors.ts';
 import { Logger } from './services/logger.ts';
@@ -234,6 +235,33 @@ export async function main(): Promise<void> {
   for (const route of routes) server.route(route);
   await server.listen(port);
   server.logger.info('arch daemon listening', { port, workspace });
+
+  // Closed-loop on by default (aid-closed-loop-on-by-default skill). The
+  // selfimprove runner is a SCRIPT, not a library: spawn it detached so it
+  // never blocks the daemon, and unref so the loop lives independently.
+  // Run once at boot (catches state accumulated while down) + every 6h.
+  // Disable for testing with AIDE_CLOSED_LOOP=false.
+  if (process.env.AIDE_CLOSED_LOOP !== 'false') {
+    const CLOSED_LOOP_MS = 6 * 60 * 60 * 1000;
+    const kickClosedLoop = (since: string): void => {
+      try {
+        const child = spawn(process.execPath, [path.join(repoRoot, 'scripts', 'selfimprove.mjs'), `--since=${since}`], {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true
+        });
+        child.unref();
+        server.logger.info('closed-loop runner spawned', { since });
+      } catch (error) {
+        server.logger.error('closed-loop spawn failed', { message: error instanceof Error ? error.message : String(error) });
+      }
+    };
+    kickClosedLoop('24h');
+    const interval = setInterval(() => kickClosedLoop('6h'), CLOSED_LOOP_MS);
+    interval.unref();
+  } else {
+    server.logger.info('closed-loop runner disabled (AIDE_CLOSED_LOOP=false)');
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

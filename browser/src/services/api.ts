@@ -98,6 +98,10 @@ import {
   type ProviderDisconnectResponseT,
   type ProviderImportResponseT
 } from '../../../common/contracts/providers.ts';
+import {
+  ResidentSummaryResponse,
+  type ResidentSummaryResponseT
+} from '../../../common/contracts/resident.ts';
 
 export class ApiError extends Error {
   readonly code: string;
@@ -286,5 +290,8 @@ export const api = {
     const body = ByokTestRequest.safeParse({ provider_id: providerId });
     if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid test request');
     return call('/api/byok/test', { method: 'POST', body: body.data, schema: ByokTestResponse });
+  },
+  residentSummary(): Promise<ResidentSummaryResponseT> {
+    return call('/api/resident/summary', { schema: ResidentSummaryResponse });
   }
 };

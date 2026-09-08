@@ -785,6 +785,30 @@ body {
 .workbench-btn-danger { background: transparent; color: var(--err); border-color: var(--err); }
 .workbench-btn-danger:hover { background: var(--err-dim); }
 
+.resident-panel-root { padding: 12px; overflow: auto; }
+.resident-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.resident-header h2 { margin: 0; font-size: 14px; color: var(--dim); }
+.resident-refresh { background: transparent; border: 1px solid var(--border); color: var(--fg); padding: 2px 8px; cursor: pointer; border-radius: 4px; }
+.resident-refresh:hover { background: var(--hover); }
+.resident-loading, .resident-error { padding: 12px; color: var(--dim); font-size: 12px; }
+.resident-error { color: var(--err); }
+.resident-verdict { font-size: 13px; line-height: 1.5; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; border: 1px solid; }
+.resident-verdict.ok { background: var(--ok-dim); border-color: var(--ok); color: var(--fg); }
+.resident-verdict.warn { background: var(--warn-dim); border-color: var(--warn); color: var(--fg); }
+.resident-detail { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--fg-dim); margin-bottom: 12px; }
+.resident-conditions-title { font-size: 12px; font-weight: bold; color: var(--fg); margin-bottom: 6px; }
+.resident-conditions { display: flex; flex-direction: column; gap: 6px; }
+.resident-condition { display: flex; gap: 8px; font-size: 12px; padding: 8px; border-left: 3px solid; border-radius: 4px; background: var(--bg-elev); }
+.resident-condition.error { border-color: var(--err); }
+.resident-condition.warn { border-color: var(--warn); }
+.resident-condition.info { border-color: var(--dim); }
+.resident-cond-sev { font-weight: bold; min-width: 40px; }
+.resident-condition.error .resident-cond-sev { color: var(--err); }
+.resident-condition.warn .resident-cond-sev { color: var(--warn); }
+.resident-condition.info .resident-cond-sev { color: var(--dim); }
+.resident-cond-text { color: var(--fg-dim); line-height: 1.4; }
+.resident-cond-reco { color: var(--dim); }
+
 .import-file {
   font-size: 11px;
   color: var(--fg);

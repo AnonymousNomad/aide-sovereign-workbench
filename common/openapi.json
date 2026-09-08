@@ -10842,6 +10842,592 @@
         }
       }
     },
+    "/api/resident/context": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "context": {
+                      "type": "object",
+                      "properties": {
+                        "generated_at": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "projectType": {
+                          "type": "string",
+                          "enum": [
+                            "typescript",
+                            "javascript",
+                            "rust",
+                            "python",
+                            "csharp",
+                            "go",
+                            "java",
+                            "unknown"
+                          ]
+                        },
+                        "workspace": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "git_status": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "changed_files": {
+                          "maxItems": 25,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "diagnostics": {
+                          "maxItems": 15,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "conditions": {
+                          "maxItems": 15,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "workflows_available": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "model_status": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "approx_tokens": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "generated_at",
+                        "projectType",
+                        "workspace",
+                        "git_status",
+                        "changed_files",
+                        "diagnostics",
+                        "conditions",
+                        "workflows_available",
+                        "model_status",
+                        "approx_tokens"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "context"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resident/decisions": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "decisions": {
+                      "maxItems": 100,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ts": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "info",
+                              "warn",
+                              "error"
+                            ]
+                          },
+                          "message": {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          "recommendation": {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          "workflow": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "ts",
+                          "id",
+                          "severity",
+                          "message",
+                          "recommendation",
+                          "workflow"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "decisions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resident/push-summary": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "push": {
+                      "type": "object",
+                      "properties": {
+                        "repo": {
+                          "type": "boolean"
+                        },
+                        "branch": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "ahead": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "behind": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "changed_files": {
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "changed_count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "staged_count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "diagnostics_errors": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "test_script_present": {
+                          "type": "boolean"
+                        },
+                        "risky_changes": {
+                          "maxItems": 25,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "generated_artifacts": {
+                          "maxItems": 25,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "READY",
+                            "ATTENTION_REQUIRED"
+                          ]
+                        },
+                        "reasons": {
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      },
+                      "required": [
+                        "repo",
+                        "branch",
+                        "ahead",
+                        "behind",
+                        "changed_files",
+                        "changed_count",
+                        "staged_count",
+                        "diagnostics_errors",
+                        "test_script_present",
+                        "risky_changes",
+                        "generated_artifacts",
+                        "verdict",
+                        "reasons"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "push"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resident/summary": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "object",
+                      "properties": {
+                        "generated_at": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ready",
+                            "attention"
+                          ]
+                        },
+                        "projectType": {
+                          "type": "string",
+                          "enum": [
+                            "typescript",
+                            "javascript",
+                            "rust",
+                            "python",
+                            "csharp",
+                            "go",
+                            "java",
+                            "unknown"
+                          ]
+                        },
+                        "workspace": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "nodeVersion": {
+                          "type": "string"
+                        },
+                        "git": {
+                          "type": "object",
+                          "properties": {
+                            "git_repo": {
+                              "type": "boolean"
+                            },
+                            "branch": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "upstream": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "ahead": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "behind": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "changes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "conflicts": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "clean": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "git_repo",
+                            "branch",
+                            "upstream",
+                            "ahead",
+                            "behind",
+                            "changes",
+                            "conflicts",
+                            "clean"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "lsp": {
+                          "type": "object",
+                          "properties": {
+                            "available": {
+                              "type": "boolean"
+                            },
+                            "servers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "languageId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                },
+                                "required": [
+                                  "languageId",
+                                  "status"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "available",
+                            "servers"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "model": {
+                          "type": "object",
+                          "properties": {
+                            "runtime_available": {
+                              "type": "boolean"
+                            },
+                            "running": {
+                              "type": "boolean"
+                            },
+                            "ready_count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "artifact_available": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "runtime_available",
+                            "running",
+                            "ready_count",
+                            "artifact_available"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "deps": {
+                          "type": "object",
+                          "properties": {
+                            "has_manifest": {
+                              "type": "boolean"
+                            },
+                            "dependencies": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "dev_dependencies": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "has_lockfile": {
+                              "type": "boolean"
+                            },
+                            "action": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "has_manifest",
+                            "dependencies",
+                            "dev_dependencies",
+                            "has_lockfile",
+                            "action"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "hasTestScript": {
+                          "type": "boolean"
+                        },
+                        "conditions": {
+                          "maxItems": 40,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "info",
+                                  "warn",
+                                  "error"
+                                ]
+                              },
+                              "message": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 300
+                              },
+                              "recommendation": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200
+                              },
+                              "workflow": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "evidence": {
+                                "type": "string",
+                                "maxLength": 200
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "severity",
+                              "message",
+                              "recommendation",
+                              "workflow"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "recommendation": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 400
+                        },
+                        "workflow": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "generated_at",
+                        "status",
+                        "projectType",
+                        "workspace",
+                        "nodeVersion",
+                        "git",
+                        "lsp",
+                        "model",
+                        "deps",
+                        "hasTestScript",
+                        "conditions",
+                        "recommendation",
+                        "workflow"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "summary"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/rg/files": {
       "get": {
         "responses": {

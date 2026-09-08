@@ -18,6 +18,7 @@
     "/api/notifications": "ts",
     "/api/orch": "ts",
     "/api/problems": "ts",
+    "/api/resident": "ts",
     "/api/rg": "ts",
     "/api/telegram": "ts",
     "/api/settings": "ts"

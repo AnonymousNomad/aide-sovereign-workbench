@@ -54,6 +54,7 @@ import { routesForSystemMap } from './routes/system-map.ts';
 import { routesForDesktop, createDesktopService } from './routes/desktop.ts';
 import { routesForTelegram, createTelegramBridgeService } from './routes/telegram.ts';
 import { routesForExperts, createExpertsService } from './routes/experts.ts';
+import { routesForResident, createResidentService } from './routes/resident.ts';
 import { createRequire } from 'node:module';
 import { createOrchService } from './services/orch-context.mjs';
 import { createAgentTools } from './services/agent-tools.mjs';
@@ -403,6 +404,16 @@ export async function buildRoutes(workspace: string, version: string, options: B
   // desktopServiceRef. The /api/experts/* routes and the agent loop's
   // consultExpert callback both close over this one instance.
   const expertsService = createExpertsService(workspace);
+  // Resident Assistant: quiet in-workspace observation layer (aide-resident-assistant).
+  // §10 milestone: workspace/probe state, deterministic rules, ADVISORY only.
+  // §4 pre-push: advisory READY / ATTENTION_REQUIRED — never blocks.
+  const residentService = createResidentService(workspace, {
+    modelStatus: () => modelRuntime.status(),
+    lspStatus: async () => {
+      const entries = manager.status();
+      return entries.map(e => ({ languageId: e.languageId, status: e.status }));
+    }
+  });
   // Freshness: fs watcher → 5s debounce → incremental reindex. Opt-in via
   // options.watchIndex (server boot only; see BuildRoutesOptions note). .aide
   // is filtered or the index's own persist writes would retrigger forever.
@@ -511,6 +522,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
     // System map: 1 read-only snapshot route (PR A of aide-system-map).
     // Fan-out to the 8 subsystem probes; never mutates state, never caches.
     ...routesForSystemMap(workspace),
+    // Resident Assistant: read-only workspace-probe + advisory surfaces.
+    // §3 dep-observation, §4 push-summary, §10 workspace context.
+    ...routesForResident(residentService),
     ...((): Route[] => {
       // Desktop + Telegram share ONE desktop service instance (single grants
       // state). The /ask brain composes: Telegram NL -> model proposal bounded

@@ -14,6 +14,7 @@ export interface Shell {
   statusBar: HTMLElement;
   statusLeft: HTMLElement;
   lspStatus: HTMLElement;
+  residentStatus: HTMLElement;
   statusRight: HTMLElement;
   editorColumn: HTMLElement;
   editorRoot: HTMLElement;
@@ -24,6 +25,7 @@ export interface Shell {
   providersPanel: HTMLElement;
   byokPanel: HTMLElement;
   workbenchesPanel: HTMLElement;
+  residentPanel: HTMLElement;
 }
 
 export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
@@ -44,7 +46,7 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
             <div class="search-panel" id="search-panel"></div>
           </section>
           <section class="view-overlay" data-view="exp"><h2>EXP</h2><div class="chat-panel-root" id="chat-panel"></div><div class="providers-panel-root" id="providers-panel"></div><div class="byok-panel-root" id="byok-panel"></div></section>
-          <section class="view-overlay" data-view="run"><h2>RUN</h2><div class="workbenches-panel-root" id="workbenches-panel"></div></section>
+          <section class="view-overlay" data-view="run"><h2>RUN</h2><div class="resident-panel-root" id="resident-panel"></div><div class="workbenches-panel-root" id="workbenches-panel"></div></section>
         </div>
       </main>
     </div>
@@ -52,6 +54,7 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
       <span class="item" id="status-left">starting…</span>
       <span class="spacer"></span>
       <span class="item lsp-status" id="lsp-status"></span>
+      <span class="item resident-status" id="resident-status"></span>
       <span class="item" id="status-right"></span>
     </div>
   `;
@@ -83,6 +86,7 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
   const statusBar = app.querySelector<HTMLElement>('#status-bar');
   const statusLeft = app.querySelector<HTMLElement>('#status-left');
   const lspStatus = app.querySelector<HTMLElement>('#lsp-status');
+  const residentStatus = app.querySelector<HTMLElement>('#resident-status');
   const statusRight = app.querySelector<HTMLElement>('#status-right');
   const editorColumn = app.querySelector<HTMLElement>('#editor-column');
   const editorRoot = app.querySelector<HTMLElement>('#editor-root');
@@ -93,10 +97,11 @@ export function createShell(app: HTMLElement, store: Store<AppState>): Shell {
   const providersPanel = app.querySelector<HTMLElement>('#providers-panel');
   const byokPanel = app.querySelector<HTMLElement>('#byok-panel');
   const workbenchesPanel = app.querySelector<HTMLElement>('#workbenches-panel');
+  const residentPanel = app.querySelector<HTMLElement>('#resident-panel');
   const title = app.querySelector<HTMLElement>('#title');
-  if (statusDot === null || statusBar === null || statusLeft === null || lspStatus === null || statusRight === null || editorColumn === null || editorRoot === null || mapView === null || mapFiles === null || searchPanel === null || chatPanel === null || providersPanel === null || byokPanel === null || workbenchesPanel === null || title === null) throw new Error('shell mount failed');
+  if (statusDot === null || statusBar === null || statusLeft === null || lspStatus === null || residentStatus === null || statusRight === null || editorColumn === null || editorRoot === null || mapView === null || mapFiles === null || searchPanel === null || chatPanel === null || providersPanel === null || byokPanel === null || workbenchesPanel === null || residentPanel === null || title === null) throw new Error('shell mount failed');
 
   window.addEventListener('unload', () => unbind());
 
-  return { title, statusDot, statusBar, statusLeft, lspStatus, statusRight, editorColumn, editorRoot, mapView, mapFiles, searchPanel, chatPanel, providersPanel, byokPanel, workbenchesPanel };
+  return { title, statusDot, statusBar, statusLeft, lspStatus, residentStatus, statusRight, editorColumn, editorRoot, mapView, mapFiles, searchPanel, chatPanel, providersPanel, byokPanel, workbenchesPanel, residentPanel };
 }

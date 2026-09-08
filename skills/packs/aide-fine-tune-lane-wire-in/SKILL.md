@@ -5,15 +5,18 @@ description: Wire the AIDE fine-tune lane end-to-end so the closed-loop's verifi
 
 # AIDE Fine-Tune Lane — Verified Wire-In SOP
 
-## Status: RESEARCHED, BLOCKED ON INFRASTRUCTURE (2026-09-08)
+## Status: STAGES 0-2 COMPLETE, STAGE 3 IN PROGRESS (2026-09-08)
 
 The closed loop now captures signals; the fine-tune lane that CONSUMES them is the missing half.
 - Signal contract EXISTS and WORKS: `scripts/selfimprove.mjs` emits verifier-stamped rows to `.aide/training/signal-YYYY-MM-DD.jsonl` (`{ts, category, source, verifier, verifier_result:'fail', prompt, stage_hint}`, no passing_completion).
 - SFT corpus EXISTS: `E:\felon_workspace\cipher_v2\sft_train.jsonl` (4741 rows).
 - Capability battery EXISTS: `E:\pip_temp\opencode\capability_audit_cipher_4b.mjs` (23 tasks, baseline composite **0.683**, PASS=11/PARTIAL=11/FAIL=1).
-- Hard blocker: **NO CUDA torch anywhere on this box** (all venvs are cpu-only or broken).
-- Hard blocker: **NO HF-format base on disk** (PEFT needs safetensors; `base.q8_0.gguf` is GGUF-only).
-- Hard blocker: **convert_lora_to_gguf.py absent on disk** (claimed by two skills, FALSE on this machine — must fetch from llama.cpp source).
+- RESOLVED (2026-09-08): **CUDA venv BUILT + VERIFIED** = `E:\felon_workspace\venv_finetune\Scripts\python.exe` (torch 2.7.1+cu118, transformers 5.16.1, peft 0.20.0, bnb 0.50.2, accelerate 1.14.0, datasets 5.0.1, trl 1.12.0, numpy 2.4.6, safetensors 0.8.0, gguf 0.19.0). CUDA true on CC 6.1; bnb NF4 fwd+bwd probe PASSED.
+- RESOLVED (2026-09-08): **HF-format base = `E:\models\house-model\base-hf-ricdomolm`** = `ricdomolm/mini-coder-4b` (qwen3, 36 layers, emb 2560, 32 heads, 8 KV heads, inter 9728, ctx 262144, vocab 151936, rms_norm_eps 1e-6, Qwen2Tokenizer w/ chat template, eos `<|im_end|>`). Identity gate PASS, 7.51 GB on disk. THIS is the PEFT base matching `base.q8_0.gguf`.
+- RESOLVED (2026-09-08): novel-graph base `E:\models\house-model\base-hf-ricdomolm` is LOCAL (HF cache clean, no cloud at train time).
+- STILL PENDING: **convert_lora_to_gguf.py absent on disk** (Stage 6 — fetch from llama.cpp source pinned tag).
+- TRL 1.12.0 SFTTrainer is a REWORKED API (no `max_seq_length`/`dataset_text_field`, takes `processing_class=`). The VERIFIED train path is `transformers.Trainer` with a custom collate (see Stage 4) — do NOT use trl.SFTTrainer for this lane.
+- Closed-loop emission reality (verified 2026-09-08): `.aide/training\` is EMPTY, `AIDE_CLOSED_LOOP` env UNSET, daemon not running. Stage 3 runs idempotently with zero signals; Stage 4 trains on the master corpus regardless.
 
 ## Verified machine reality (2026-09-08, evidence-first)
 
@@ -26,9 +29,11 @@ The closed loop now captures signals; the fine-tune lane that CONSUMES them is t
 | SFT corpus | `E:\felon_workspace\cipher_v2\sft_train.jsonl`, 4741 rows | on disk |
 | Battery | `E:\pip_temp\opencode\capability_audit_cipher_4b.mjs` — 23 tasks/8 cats, 0.683 | on disk + evidence doc |
 | Pythons | `E:\Python310\python.exe` (installs exist), `E:\Python311\python.exe` (**3.11.9, HAS pip** — PRIME choice) | verified |
+| CUDA venv (VERIFIED) | `E:\felon_workspace\venv_finetune\Scripts\python.exe` — torch 2.7.1+cu118 CUDA true, transformers 5.16.1, peft 0.20.0, bnb 0.50.2, accelerate 1.14.0, datasets 5.0.1, trl 1.12.0, gguf 0.19.0. Build cmd: `py -3.11 -m venv`, `--extra-index-url https://download.pytorch.org/whl/cu118`, `PIP_CACHE_DIR=E:`. | Stage 1 gate PASSED |
 | Broken venvs | `venv_cipher_v2` = the `home=E:\Python310` trap, NO pip; `venv` = torch 2.9.0+cpu only; `training-venv` = torch 2.11.0+cpu + broken numpy | all verified |
+| HF base (VERIFIED) | `E:\models\house-model\base-hf-ricdomolm` = `ricdomolm/mini-coder-4b`, qwen3 4B (36L/2560E/32H/8KV/9728I), vocab 151936, ctx 262144, Qwen2Tokenizer, eos `<|im_end|>`; identity gate PASS, 7.51 GB | Stage 2 gate PASSED |
 | llama.cpp | `E:\llama-cpp\` = **binaries ONLY** (llama-server.exe, llama-quantize.exe, etc.) — NO *.py scripts | directory listing |
-| Disk | E: 151.7 GB free (GOOD), C: 2.7 GB free (CRITICAL — never install to C:) | Get-PSDrive |
+| Disk | E: 135.7 GB free (GOOD), C: 2.7 GB free (CRITICAL — never install to C:) | Get-PSDrive |
 | Manifest fact | `aide-cipher-v1` (the 4B) is currently DEPRECATED; house = north-mini-code-1.0 (30B MoE Q2). The 30B **cannot QLoRA on 6GB** (~15GB just base) — the trainable lane IS the 4B. | models/manifest.json |
 
 ## The two STALE claims that cost cycles (FIXED here)
@@ -116,43 +121,62 @@ Pattern per `aid-cipher-4b-fine-tune-pipeline` (no Python needed for generation)
 
 ### Stage 4 — QLoRA training (the actual wire-in script)
 
-Location: `E:\felon_workspace\train_cipher_v2.py`. Template (Pascal-corrected):
+Location: `E:\felon_workspace\train_cipher_v2.py`. VERIFIED RECIPE = port of `E:\FSI-FELON\models\aide_trio\pilot_qlora.py` (frontier target) — this is what PRODUCED the shipping adapter on THIS box. Do NOT use trl.SFTTrainer (reworked API in trl 1.x); use `transformers.Trainer`:
 
 ```python
 import torch
-from datasets import load_dataset
+from transformers import (AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig,
+                          Trainer, TrainingArguments)
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, TrainingArguments
-from trl import SFTTrainer
 
-bnb = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.float16,   # PASCAL: fp16 native, NOT bf16
-    bnb_4bit_use_double_quant=True,
-)
-base_hf = "E:/models/house-model/base-hf"          # Stage 2
-base = AutoModelForCausalLM.from_pretrained(base_hf, quantization_config=bnb, device_map="auto", torch_dtype=torch.float16)
-base = prepare_model_for_kbit_training(base, use_gradient_checkpointing=True)
-lora = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05,
-                  target_modules=["q_proj","k_proj","v_proj","o_proj","gate_proj","up_proj","down_proj"],
-                  bias="none", task_type="CAUSAL_LM")
-model = get_peft_model(base, lora)
+bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                         bnb_4bit_compute_dtype=torch.float32,   # PASCAL: fp32 native, fp16=1/64 rate, NO bf16
+                         bnb_4bit_use_double_quantum=False)      # VERIFIED flag (pilot shipped with False)
+base_hf = "E:/models/house-model/base-hf-ricdomolm"              # Stage 2 verified base
+model = AutoModelForCausalLM.from_pretrained(base_hf, quantization_config=bnb,
+                                             device_map={"": 0}, torch_dtype=torch.float32)
+model.config.use_cache = False
+model = prepare_model_for_kbit_training(model)
+model.enable_input_require_grads()
+lora = LoraConfig(r=32, lora_alpha=64, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
+                  target_modules=["q_proj","k_proj","v_proj","o_proj",
+                                  "gate_proj","up_proj","down_proj"])  # dense qwen3 modules only
+model = get_peft_model(model, lora)
+
 tok = AutoTokenizer.from_pretrained(base_hf)
-tok.pad_token = tok.eos_token
-data = load_dataset("json", data_files="E:/felon_workspace/cipher_v2/sft_train.jsonl", split="train")
+if tok.pad_token is None:
+    tok.pad_token = tok.eos_token
+
+def to_text(row):
+    msgs = row["messages"]
+    text = tok.apply_chat_template(msgs, tokenize=False)
+    if row.get("reasoning_content") and " thinking" not in text:
+        text = " thinking" + row["reasoning_content"] + " response\n" + text
+    return {"text": text}
+
+def collate(feats):
+    enc = tok([f["text"] for f in feats], padding=True, truncation=True,
+              max_length=1024, return_tensors="pt")
+    labels = enc["input_ids"].clone()
+    labels[enc["attention_mask"] == 0] = -100
+    return {"input_ids": enc["input_ids"], "labels": labels,
+            "attention_mask": enc["attention_mask"]}
+
 args = TrainingArguments(
-    output_dir="E:/felon_workspace/cipher_v2_adapter", num_train_epochs=1,
-    per_device_train_batch_size=1, gradient_accumulation_steps=16,
-    learning_rate=2e-4, warmup_steps=100, lr_scheduler_type="cosine",
-    weight_decay=0.1, max_grad_norm=1.0, logging_steps=10, save_steps=500,
-    fp16=True,                    # Pascal: fp16 training path; bf16 disabled
-)
-SFTTrainer(model=model, args=args, train_dataset=data, tokenizer=tok).train()
-model.save_pretrained("E:/felon_workspace/cipher_v2_adapter")
+    output_dir="E:/felon_workspace/cipher_v2", num_train_epochs=1,
+    per_device_train_batch_size=1, gradient_accumulation_steps=8,   # effective batch 8
+    learning_rate=2e-4, weight_decay=0.01, warmup_ratio=0.05,
+    lr_scheduler_type="cosine", logging_steps=5, save_strategy="steps", save_steps=50,
+    save_total_limit=3, bf16=False, fp16=False,                     # pure fp32 (Pascal native)
+    optim="paged_adamw_8bit", gradient_checkpointing=True,
+    report_to=[], remove_unused_columns=False, seed=42)
+trainer = Trainer(model=model, args=args, train_dataset=Dataset.from_list([to_text(r) for r in rows]),
+                  data_collator=collate)
+trainer.train()          # --resume: resume from latest checkpoint-* if present
+model.save_pretrained("E:/felon_workspace/cipher_v2/adapter")
 ```
 
-Notes: effective batch 16; ONE epoch (training-sop); AIDE engine OFF during training (GPU contention); monitor per-category regress not just composite.
+Notes: ONE epoch (training-sop); AIDE engine OFF during training (GPU contention); E: disk target only; `$env:PYTHONPATH=""` before launching; monitor per-category regress not just composite. Hardware truth: fp32 master + NF4 base fits 6 GB (batch 1, seq 1024, gradient checkpointing) — the pilot PROVED this exact footprint.
 
 ### Stage 5 — Evaluate gate BEFORE any promotion (mandatory, non-negotiable)
 
@@ -168,19 +192,27 @@ Notes: effective batch 16; ONE epoch (training-sop); AIDE engine OFF during trai
 
 ### Stage 6 — LoRA -> GGUF adapter conversion (converter must be FETCHED)
 
+VERIFIED T2 invocation (from `E:\FSI-FELON\models\aide_trio\post_train_pipeline.py`, which PRODUCED the shipping adapter). Converter signature is `convert_lora_to_gguf.py <adapter_dir> --outfile <out.gguf> --outtype f16`:
+
 ```powershell
-# Converter is NOT on disk. Fetch from llama.cpp source (pin a tag, e.g. b4xxx or a release):
+# 1. Converter is NOT on disk (E:\llama-cpp\ is binaries-only). Fetch from llama.cpp source (pin a tag):
 git clone --depth 1 --branch <pin> https://github.com/ggml-org/llama.cpp E:\pip_temp\llama-cpp-src
-# or curl the two files raw into the venv tools dir:
-#   https://raw.githubusercontent.com/ggml-org/llama.cpp/<pin>/convert_lora_to_gguf.py
-& E:\felon_workspace\venv_finetune\Scripts\python.exe -m pip install gguf   # runtime dep of the converter
+# T2 used E:\llama-cpp-src\convert_lora_to_gguf.py with PYTHONPATH=E:\llama-cpp-src\gguf-py;E:\llama-cpp-src
+# (that src dir was deleted 8/29). With pip `gguf 0.19.0` installed in venv_finetune, PYTHONPATH may be unnecessary —
+# verify by running the converter's --help first.
+
+# 2. Convert (MERGE into the GGUF base):
+$env:PYTHONPATH=""
 & E:\felon_workspace\venv_finetune\Scripts\python.exe E:\pip_temp\llama-cpp-src\convert_lora_to_gguf.py `
-   --base E:\aide-sovereign-workbench\models\aide-house\base.q8_0.gguf `
+   E:\felon_workspace\cipher_v2\adapter `
    --outfile E:\aide-sovereign-workbench\models\aide-house\cipher_v2_lora.gguf `
-   E:\felon_workspace\cipher_v2_adapter
-# SMOKE: file non-empty; llama-server loads it
-E:\llama-cpp\llama-server.exe -m E:\aide-sovereign-workbench\models\aide-house\base.q8_0.gguf --lora E:\aide-sovereign-workbench\models\aide-house\cipher_v2_lora.gguf --host 127.0.0.1 --port 8085 --ctx-size 2048 --threads 4 --no-warmup --jinja
-# GET http://127.0.0.1:8085/v1/models -> 200
+   --outtype f16
+# NOTE: converter fuses LoRA into the GGUF base it is run against — ensure the fetch's default base matches
+# base.q8_0.gguf or pass --base-model/--base (verify exact flag via --help).
+
+# 3. SMOKE: file non-empty; llama-server loads it (SAME port the battery expects):
+E:\llama-cpp\llama-server.exe -m E:\aide-sovereign-workbench\models\aide-house\base.q8_0.gguf --lora E:\aide-sovereign-workbench\models\aide-house\cipher_v2_lora.gguf --host 127.0.0.1 --port 8091 --ctx-size 2048 --threads 4 --no-warmup --jinja
+# GET http://127.0.0.1:8091/v1/models -> 200
 ```
 
 ### Stage 7 — Promotion is a MANIFEST + serve change, gated
@@ -194,7 +226,7 @@ E:\llama-cpp\llama-server.exe -m E:\aide-sovereign-workbench\models\aide-house\b
 - Do NOT install anything on the C: drive (2.7 GB free — wheel/venv on C: will wedge the OS disk).
 - Do NOT trust that `convert_lora_to_gguf.py` or any *.py exists under `E:\llama-cpp\` — that dir is binaries-only (verified listing). Fetch it.
 - Do NOT train on the Qwen2.5 story — the base IS Qwen3 4B "Mini Coder 4b" (`base.q8_0.gguf`). Any HF base you train must match the GGUF's architecture/shapes or the adapter WILL NOT apply.
-- Do NOT use `bnb_4bit_compute_dtype=torch.bfloat16` on Pascal — use fp16 or fp32.
+- Do NOT use `bnb_4bit_compute_dtype=torch.bfloat16` OR `torch.float16` on Pascal — fp16 compute is 1/64-rate on this card; **fp32 is the native, VERIFIED path** (`pilot_qlora.py` shipped the adapter with `compute_dtype=fp32`, `fp16=False`, `bf16=False`).
 - Do NOT run training with the AIDE engine serving the same GPU.
 - Do NOT promote without the full battery + per-category regression check. Composite-only is insufficient.
 

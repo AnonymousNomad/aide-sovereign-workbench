@@ -117,10 +117,20 @@ action → executor refuses → model recovers via call_user() or alternative pa
 ```
 Thought: <1-3 sentences: current state, goal delta, why THIS action>
 Action: <dsl_call>
+Confidence: <0.00-1.00>        [v1.2 - calibrated from logprobs]
 ```
 
 No markdown fences in serving mode; parsers accept exactly this shape. Training
-format uses the trio chat template with assistant content = the two lines above.
+format uses the trio chat template with assistant content = the lines above.
+
+### Confidence derivation (v1.2 - no retraining required)
+
+Serve with `n_probs>0` (llama.cpp completion_probabilities) OR compute mean
+token logprob over the Action span. Calibrate against recorded trajectory
+outcomes: bucket predicted-confidence vs empirical success rate from the audit
+logs; fit isotonic regression -> published calibration table. Policy mapping:
+>0.90 auto-proceed R1 risk | 0.70-0.90 approval card | <0.70 alternatives +
+operator ask. Recalibrate weekly from new outcome rows.
 
 ## What NOT To Do (hard prohibitions)
 

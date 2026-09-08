@@ -76,6 +76,20 @@ agent-loop endpoints (T1 wires approval cards to WRITE/OPEN/DESTRUCTIVE verdicts
 
 ## Known Bugs / Pitfalls (from field sources)
 
+0. **NEVER `Stop-Process -Name explorer`** — that kills the DESKTOP SHELL
+   (taskbar+desktop), not folder windows. Close Explorer windows by
+   title-scoped WM_CLOSE only. (Near-miss 2026-08-26.)
+0b. **Explorer budget starvation**: flat descendants() walks burn the per-window
+   element budget on the nav pane's 25+ TreeItems BEFORE reaching Items View
+   children -> file/folder targeting fails. PROVEN FIX (rejected alternative:
+   per-control-type descendants(control_type=X) calls = N full tree walks ->
+   25s+ timeouts): keep ONE flat walk, partition in Python (TreeItem vs rest),
+   emit non-TreeItems first, cap TreeItems at 12. Same COM cost, correct order.
+0c. **Detached cmd-wrapper launches die silently on this box**; direct
+   `Start-Process python.exe -RedirectStandard*` launches survive. Also never
+   kill-sweep by commandline substring in the same call that spawns a new
+   process whose commandline contains that substring.
+
 1. Stale elements after window focus change → re-find by runtime id each dispatch,
    never cache across actions.
 2. DPI scaling changes bounds → we don't use coordinates v1; if fallback needed,
@@ -150,6 +164,51 @@ Researched patterns (AutoGUI, Kodo, browsegrab, Orbit — all local-model GUI ag
 | DONE is verified, not trusted ("Gemini incident") | model claims completion falsely | finished() only accepted if assertions PASS else bounced back |
 | Small-model context discipline (Kodo: tiny models overwhelmed by dense full-tree context) | 4B needs ≤4KB observations + short history | history = last 5 (task,recent-action) pairs only |
 
+## COM Apartment Law (the ~13-render degradation root cause — R8 case study)
+
+| Fact | Source |
+|---|---|
+| UIA client worker threads must be **MTA**: `CoInitializeEx(COINIT_MULTITHREADED)`. Never plain `CoInitialize()` (=STA) on a thread that makes sustained UIA calls | Microsoft "UI Automation Threading" doc — verbatim prescription |
+| An STA thread that never pumps messages cannot receive marshaled cross-apartment responses/callbacks; failures surface AFTER sustained volume, not immediately | Raymond Chen 2025-03-14 "COM failing to pump messages"; pywin32 testMarshal ("whole apartment model demo will hang") |
+| Remote UIA element lifetime is bound to the creating apartment; apartment death invalidates marshaled elements | MS doc "COM Apartment Affinity" |
+
+Rules for THIS project:
+1. The singleton UIAWorker initializes **MTA**, never STA.
+2. No message pump needed for MTA; do NOT add PumpWaitingMessages loops to fix
+   STA symptoms — fix the apartment type.
+3. Any future UIA event-handler threads follow the same MTA rule.
+
+## Cached-Walk ControlType Offset Trap (R8 case study #2)
+
+MEASURED on this machine (comtypes gen UIAutomationClient): `CachedControlType`
+returns values in the **50000-series** (Edit=50004, Button=50000, Text=50020)
+while the module's `UIA_*ControlTypeId` constants are the classic
+**30000-series**. A cached walker filtering `id in INTERACTIVE_SET` built from
+the constants silently drops EVERY element — zero rows, zero exceptions.
+Rule: register BOTH domains (`pid` and `pid+20000`) in id→name maps and
+interactive sets; normalize with `int(...)` (values may be enum-typed).
+Symptom signature: cache walk returns children whose names match perfectly
+but rows==0 with empty error lists.
+
+## Verified Window Lifecycle (multi-instance hygiene — R8 codified)
+
+Failure class this encodes: repeated `control_value_equals got=''` / title
+misses caused by stacked same-named windows (ghosts from prior runs/aborts)
+being read as first-match-global.
+
+| Step | Rule |
+|---|---|
+| Pre-launch sweep | WM_CLOSE every window matching scope substrings, then **poll IsWindow until zero match (max 5s)**; survivors → taskkill tree. Sweep without verification is a no-op pretending to be cleanup. |
+| Launch binding | Capture the launched app's HWND at wait-window time; thread it through the session: registry targeting AND value-assertions filter `entry.handle == session_hwnd` — NEVER first-match-global by control name. |
+| Post-task close | Graceful WM_CLOSE to session windows → poll-gone 5s → taskkill tree survivors. Kill alone is last resort only (research: TerminateProcess skips app cleanup; CloseMainWindow = system-menu equivalent). |
+| Assertion timing | ≥1.5s settle after final WRITE before any assertion read. |
+| Multi-window truth | A process kill does destroy its USER windows (kernel-managed) — persistent ghosts mean the WINDOW belonged to a still-alive process (orphaned PS hosts running ShowDialog, earlier aborted runs). Hunt the PROCESS, not just the window. |
+
+Sources: PowerShell#24631 (TerminateProcess has no cleanup hook; CloseMainWindow
+= WM_CLOSE to main window), MSDN Terminating-friendly thread (EnumThreadWindows
+fallback when MainWindowHandle==0), SO WPF-WM_CLOSE (don't early-return in
+EnumWindows callbacks; top-level-only responders).
+
 ## Verification Gates (updated)
 
 - [ ] Warm render <300ms scoped-session (focused-window-first, budgets applied);
@@ -158,4 +217,8 @@ Researched patterns (AutoGUI, Kodo, browsegrab, Orbit — all local-model GUI ag
 - [ ] Mouse verbs: move/click_at/drag land within element rect centers on probe form
 - [ ] Model-driven probe: frontier completes 2 of 3 seeded tasks unassisted; ALL
       runs produce valid trajectory files regardless of success (corpus seed stock)
+- [ ] **Property fuzz (tests/property_gate_fuzz.py): 5000 random trials, 0
+      invariant violations** — I1 forbidden-never-executes, I2 out-of-scope-
+      never-executes, I3 cap-always-rejects, I4 junk-tolerant-no-crash.
+      Rerun after ANY gate/DSL change (collaborator property-testing pattern).
 

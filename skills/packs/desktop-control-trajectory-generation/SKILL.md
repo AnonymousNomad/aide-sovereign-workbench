@@ -95,6 +95,23 @@ or `call_user(reason)`.
 - pilot_qlora.py recipe (consumption side), trajectory-recorder spec (record shape)
 - Fixture bank under E:\desktop_sandbox\fixtures (created by this phase)
 
+## C2 DESIGN LAWS (collaborator-validated, 2026-08-26)
+
+1. **TEST-FIRST STRUCTURE** for all code-touching trajectories: model writes
+   tests from task -> operator approves/edits -> implementation targeting those
+   tests -> sandbox runs -> failures feed retry. Success becomes measurable;
+   hallucinated "it works" impossible. Single biggest quality lever per
+   collaborator research; matches SWE-Hero execution-backed stage.
+2. **SELF-CRITIQUE TURNS**: after implementation, one turn = review own diff
+   for correctness/edge-cases/style vs surrounding code, output PASS or issue
+   list. ~15% of corpus rows are critique turns (pairs with recovery share).
+3. **INCREMENTAL PATCHING RULE**: whole-file rewrites for files <80 lines
+   (weak-model finding: aider data shows diffs fail more on small models);
+   unified-diff emission only for larger edits. Corpus encodes both patterns
+   with the decision boundary demonstrated.
+4. **CONFIDENCE LABELS**: every assistant row carries outcome-derived
+   confidence label (from assertion results) for v1.2 calibration training.
+
 ## Verification Gates (before Phase D fine-tune may start)
 
 - [ ] ≥800 staged rows, all with PASS/recovery stamps + audit-log sha linkage

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-29T00:00:00.000Z",
-  "count": 188,
+  "generated_at": "2026-09-08T16:09:59.742Z",
+  "count": 270,
   "categories": [
     "academy",
     "aide-core",
@@ -32,6 +32,69 @@
       "path": "skills/packs/agent-notes/SKILL.md"
     },
     {
+      "name": "aid-capability-battery-thinking-models",
+      "title": "aid-capability-battery-thinking-models",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/aid-capability-battery-thinking-models/SKILL.md"
+    },
+    {
+      "name": "aid-cipher-4b-fine-tune-pipeline",
+      "title": "aid-cipher-4b-fine-tune-pipeline",
+      "description": "End-to-end recipe for fine-tuning the AIDE in-house cipher-4b model: fix the broken venv, install the ML stack, generate SFT pairs (Node.js, no Python), run QLoRA training, convert LoRA to GGUF adapter, evaluate against the capability battery, promote/archive/rollback. Per the cipher-qlora-finetune skill, the AIDE baseline is 0.683 composite across 23 AIDE-world tasks; the v2 adapter must hit >= 0.02 delta with no category regression > 0.1 to promote. Use whenever the user wants to improve the in-house model, when the SFT corpus needs refreshing, or when a new v2 adapter is needed.",
+      "category": "general",
+      "path": "skills/packs/aid-cipher-4b-fine-tune-pipeline/SKILL.md"
+    },
+    {
+      "name": "aid-closed-loop-on-by-default",
+      "title": "aid-closed-loop-on-by-default",
+      "description": "Wire AIDE's self-improvement loop (`scripts/selfimprove.mjs`) into the daemon lifecycle so it runs continuously, not only on manual invocation. Per the 2026 research (Auto-Dreamer, CLaaS, Sleep-Time Compute), the closed-loop that captures trajectories, clusters failures, and emits verifier-stamped signals for the fine-tune lane is the \"Iron Man suit\" — the model gets better from real use. This skill encodes the exact wire-in: where to hook it in the daemon, what triggers it, what the contract is, and what the verification gate proves. Use whenever the user wants the model to self-improve from real use, when adding a new model to the loop, or when the selfimprove.mjs script is sitting unused.",
+      "category": "general",
+      "path": "skills/packs/aid-closed-loop-on-by-default/SKILL.md"
+    },
+    {
+      "name": "aid-closed-loop-self-improvement",
+      "title": "aid-closed-loop-self-improvement",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/aid-closed-loop-self-improvement/SKILL.md"
+    },
+    {
+      "name": "aid-dap-real-debugpy-fixture",
+      "title": "aid-dap-real-debugpy-fixture",
+      "description": "Wire in a REAL debugpy fixture for the AIDE DAP test batteries. The tests/arch/dap-contract.test.ts and daemon/test-dap-fixture.mjs read fixtures/debuggee/fizz_engine.py — this skill encodes the VERIFIED recipe (9/9 arch pass plus daemon orphan-check pass) so the next agent can reproduce the green path. Use whenever a DAP fixture test fails, when adding a real-DAP test, when wiring debugpy into the AIDE arch build, or when the DAP release-engineering gate needs to be verified.",
+      "category": "general",
+      "path": "skills/packs/aid-dap-real-debugpy-fixture/SKILL.md"
+    },
+    {
+      "name": "aid-double-check-everything",
+      "title": "aid-double-check-everything",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/aid-double-check-everything/SKILL.md"
+    },
+    {
+      "name": "aid-moe-lora-6gb-card",
+      "title": "aid-moe-lora-6gb-card",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/aid-moe-lora-6gb-card/SKILL.md"
+    },
+    {
+      "name": "aid-skills-auto-load-by-context",
+      "title": "aid-skills-auto-load-by-context",
+      "description": "Wire in the AIDE orchestrator to auto-load the right skill (SOP) into every model prompt based on detected task type — the \"fluid model\" pattern from the 2026 research. Theia AI calls this \"Agent Skills (Alpha)\"; Cursor has plans; Copilot has instructions. AIDE already has ~80 skills in the global tree but they are loaded manually by the agent. This skill encodes the exact wire-in: the skill registry, the detection signals, the injection point in harness/orchestrator.mjs, and the test that proves the right skill lands in the system prompt for the right task. Use whenever the user wants the model to behave like an expert per task without naming a skill, or when building any new orchestrator that composes multiple skills.",
+      "category": "general",
+      "path": "skills/packs/aid-skills-auto-load-by-context/SKILL.md"
+    },
+    {
+      "name": "aid-venv-care",
+      "title": "aid-venv-care",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/aid-venv-care/SKILL.md"
+    },
+    {
       "name": "aide-academy-phase-a1-learner-model",
       "title": "aide-academy-phase-a1-learner-model",
       "description": "",
@@ -53,11 +116,46 @@
       "path": "skills/packs/aide-academy-phase-a3-exercise-engine/SKILL.md"
     },
     {
+      "name": "aide-acceptance-test-repair",
+      "title": "aide-acceptance-test-repair",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-acceptance-test-repair/SKILL.md"
+    },
+    {
       "name": "aide-advanced-orchestration",
       "title": "aide-advanced-orchestration",
       "description": "Advanced orchestration patterns for AIDE — multi-lens review (one model, three contexts), clarifying question engine (structured constraint-gathering before PLAN), adaptive context compression at phase handoffs, outcome-based routing preferences, and project provenance capture. Use when implementing the phase router's advanced features, designing review pipelines, or building the measurement/trust layer.",
       "category": "aide-core",
       "path": "skills/packs/aide-advanced-orchestration/SKILL.md"
+    },
+    {
+      "name": "aide-agent-harness-convergence",
+      "title": "aide-agent-harness-convergence",
+      "description": "Converge AIDE's three parallel agent runtimes (legacy daemon model-manager chat + harness/orchestrator.mjs, arch-ts model-router/chat.ts + routes/agent.ts, academy/experts paths) into ONE first-class agent harness contract with VS Code 2026 parity — plan mode, permission slider, hooks, subagents, sessions/handoff, memory, tool registry, sandboxed execution — keeping the twin-orchestrator doctrine (fix both or neither). Use when improving the harness/orchestrator, adding agent modes (plan/act), wiring hooks or permission levels, building subagents, diagnosing \"two orchestrators behave differently\", or any change to how AIDE runs multi-step model tool loops.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-agent-harness-convergence/SKILL.md"
+    },
+    {
+      "name": "aide-agent-workflow-sop",
+      "title": "aide-agent-workflow-sop",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-agent-workflow-sop/SKILL.md"
+    },
+    {
+      "name": "aide-agents-md",
+      "title": "aide-agents-md",
+      "description": "The AIDE pattern for session-scoped, workspace-scoped, and user-scoped agent instructions — the AGENTS.md (and equivalent) file convention. Use when implementing the AIDE analog of Claude Code's CLAUDE.md, Cursor's Rules, Aider's conventions file, or Cline's Memory Bank. Use when the user asks \"make AIDE always do X\" or \"this project uses tabs, never spaces\" or \"when I say commit I mean signed\". Use when reviewing the prompt composition for the chat path.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-agents-md/SKILL.md"
+    },
+    {
+      "name": "aide-aide-stack-launch-and-recover",
+      "title": "aide-aide-stack-launch-and-recover",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-aide-stack-launch-and-recover/SKILL.md"
     },
     {
       "name": "aide-android-build",
@@ -137,6 +235,13 @@
       "path": "skills/packs/aide-arch-terminal/SKILL.md"
     },
     {
+      "name": "aide-arch-test-fixes",
+      "title": "aide-arch-test-fixes",
+      "description": "",
+      "category": "architecture",
+      "path": "skills/packs/aide-arch-test-fixes/SKILL.md"
+    },
+    {
       "name": "aide-arch-training-ecosystem",
       "title": "aide-arch-training-ecosystem",
       "description": "Phase 10 SOP for the AIDE offline-first IDE rebuild — the training arena + tutor + community as contract services: training job manager (job config JSON, spawn via task runner, WS log stream, poll status, graceful-then-tree-kill stop, checkpoint-first), Academy/tutor (course catalog, lesson sessions, deterministic gates, server-gated completion credentials), and the local community hub (feed/projects/issues/discussions/marketplace CRUD, zero cloud). Use whenever wiring RUN VERITAS JOB / STOP TRAINING JOB, lesson check/complete, or community CRUD. Research-grounded in the verified machine reality (GTX 1060 6GB Pascal FP32-only, py -3.10 -E, RAM doctrine) and the existing aide-phase5/6/7 skills.",
@@ -151,6 +256,27 @@
       "path": "skills/packs/aide-arch-wiring/SKILL.md"
     },
     {
+      "name": "aide-architect-editor-implementation",
+      "title": "aide-architect-editor-implementation",
+      "description": "The implementation plan for the architect→editor two-call decomposition in AIDE's agent loop. Use when actually building the feature; the companion skill aide-architect-editor-pattern is the doctrine, this is the code map. Covers node/src/services/agent-loop.mjs integration points, the plan parser, the agent:plan event, the /architect slash command, the test cases, the rollout order, and the failure modes to test.",
+      "category": "architecture",
+      "path": "skills/packs/aide-architect-editor-implementation/SKILL.md"
+    },
+    {
+      "name": "aide-architect-editor-pattern",
+      "title": "aide-architect-editor-pattern",
+      "description": "The two-call decomposition for any agentic surface that needs higher quality from a smaller model — Architect reasons + plans (no file changes, no tools), Editor translates the plan into exact edits. Use when a small/medium model is bottlenecked on direct editing; when chat quality is plateauing on 4B-7B models; when the user asks for \"think harder\" / \"plan first\" / \"/think\"; when a subagent would normally be spawned but the work is small enough to inline. Based on Aider's architect/editor mode (proven with o1 + GPT-4o), generalized for any AIDE surface.",
+      "category": "architecture",
+      "path": "skills/packs/aide-architect-editor-pattern/SKILL.md"
+    },
+    {
+      "name": "aide-autonomous-workflow",
+      "title": "aide-autonomous-workflow",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-autonomous-workflow/SKILL.md"
+    },
+    {
       "name": "aide-backend-autoselect",
       "title": "aide-backend-autoselect",
       "description": "Backend auto-detection and selection SOP for llama-server engines in AIDE — probes candidate binaries via --list-devices, caches capabilities, selects per-model backend/offload (Vulkan/CUDA/CPU) from operator profile override > benchmark verdict > heuristic, ships multi-binary awareness so every download gets optimal tok/s out of the box. Use whenever wiring engine spawn logic, adding GPU offload controls, diagnosing \"model ignores -ngl\" or slow generation, deciding which llama.cpp builds ship in-box, or benchmarking backends.",
@@ -158,109 +284,18 @@
       "path": "skills/packs/aide-backend-autoselect/SKILL.md"
     },
     {
-      "name": "aide-engine-lifecycle-doctrine",
-      "title": "aide-engine-lifecycle-doctrine",
-      "description": "Engine lifecycle & contention doctrine for llama-server under AIDE — why engines die with silent \"exit code=1, zero stderr\", the scoped-kill law (never taskkill /IM llama-server.exe), the memory drain-wait before spawn, the early-exit retry guard, the twin-orchestrator hazard (legacy daemon 4779 vs arch-ts 4778 both managing the same manifest), port-hijack via SO_REUSEADDR, and the exact diagnostic drill to find a machine-wide engine killer. Use whenever engines die unexpectedly, chat returns 409 NOT_READY, a model won't stay loaded, an external job coexists with AIDE engines, or before adding any process-kill logic anywhere.",
+      "name": "aide-background-tasks",
+      "title": "aide-background-tasks",
+      "description": "The AIDE pattern for long-running, durable background tasks — a JSONL outbox on disk that survives daemon restarts, a drain worker that replays idempotently on reconnect, jittered backoff for retries, and a UI badge for queue depth. Use when implementing Claude Code's Routines / Desktop scheduled tasks / cloud-async tasks, when wiring \"kick off a long task and check back later\", when reviewing durability of any in-flight async work, or when the user asks \"what happens if my laptop dies mid-task?\".",
       "category": "aide-core",
-      "path": "skills/packs/aide-engine-lifecycle-doctrine/SKILL.md"
+      "path": "skills/packs/aide-background-tasks/SKILL.md"
     },
     {
-      "name": "aide-desktop-control-integration",
-      "title": "aide-desktop-control-integration",
-      "description": "The full architecture for AIDE's desktop control — single createDesktopControl instance shared across REST routes, Telegram /ask brain, and the agent's <desktop_action> tool; grammar-constrained DSL with privilege-escalation guards; grants/panic/pending/verdict semantics; trajectory capture on every act() (refusal-recovery is training gold); the 7-op allowlist; risk-class tagging for approval cards. Use when wiring any new surface that drives the desktop, when the desktop service is referenced from more than one place, when adding a new op, when integrating the house model into desktop act(), or when the panic/grants semantics need explaining.",
+      "name": "aide-browser-ide",
+      "title": "aide-browser-ide",
+      "description": "Architectural options for running AIDE Sovereign Workbench in the browser so visitors can use it without downloading. Research-grounded, no guessing. Use when deciding between Codespaces, WebContainers, code-server, Tauri, or custom serverless — and when implementing the chosen path.",
       "category": "aide-core",
-      "path": "skills/packs/aide-desktop-control-integration/SKILL.md"
-    },
-    {
-      "name": "aide-context-retrieval-wiring",
-      "title": "aide-context-retrieval-wiring",
-      "description": "Wire the built-but-unwired codebase index (BM25+RRF+optional dense embeddings) into the chat path so answers are grounded in the real workspace — retrieval injection, embed-function supply, freshness loop, @codebase tool, token budgets, jail-safe reads.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-context-retrieval-wiring/SKILL.md"
-    },
-    {
-      "name": "aide-tab-autocomplete",
-      "title": "aide-tab-autocomplete",
-      "description": "Inline tab-autocomplete (FIM) for AIDE using the in-box SmolLM2-360M on a dedicated low-latency engine — Monaco ghost text, prefix/suffix windowing, debouncing, accept/reject telemetry, keep-warm lifecycle. Closes the #1 daily-use gap vs Cursor/Copilot/Windsurf Tab.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-tab-autocomplete/SKILL.md"
-    },
-    {
-      "name": "aide-mcp-inbox-surface",
-      "title": "aide-mcp-inbox-surface",
-      "description": "Build AIDE's in-box MCP server (stdio, all-local) exposing jailed daemon capabilities as tools, consume approved MCP servers inside AIDE, package as .mcpb — reusing path jails and approval gates; tool-poisoning and exfiltration defenses included.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-mcp-inbox-surface/SKILL.md"
-    },
-    {
-      "name": "aide-agent-harness-convergence",
-      "title": "aide-agent-harness-convergence",
-      "description": "Converge AIDE's three parallel agent runtimes into one harness contract with VS Code 2026 parity — plan mode, permission slider, hooks, subagents, sessions/handoff, memory — while keeping twin-orchestrator process isolation and the sandbox single-implementation law.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-agent-harness-convergence/SKILL.md"
-    },
-    {
-      "name": "aide-desktop-control-cipher",
-      "title": "aide-desktop-control-cipher",
-      "description": "Close the desktop-control loop with the in-house model — serve Cipher as the policy model via grammar-constrained actions, expand trajectory categories with verified generation, feed operator verdicts back into QLoRA training, keep grants/panic absolute.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-desktop-control-cipher/SKILL.md"
-    },
-    {
-      "name": "aide-architect-editor-pattern",
-      "title": "aide-architect-editor-pattern",
-      "description": "The two-call decomposition for any agentic surface that needs higher quality from a smaller model — Architect reasons + plans (no file changes, no tools), Editor translates the plan into exact edits. Born from Aider's architect/editor mode. Use when a small/medium model is bottlenecked on direct editing; when chat quality is plateauing on 4B-7B models; when the user asks for think-harder; when a subagent would normally be spawned but the work is small enough to inline. Same model can serve both roles (Aider's explicit finding). Backed by aide-architect-editor-implementation (the code map) and tested in tests/arch/agent-architect-editor.test.ts.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-architect-editor-pattern/SKILL.md"
-    },
-    {
-      "name": "aide-architect-editor-implementation",
-      "title": "aide-architect-editor-implementation",
-      "description": "Engineering playbook for shipping the architect/editor pattern in AIDE. Companion to aide-architect-editor-pattern (the doctrine). The code map: agent-loop.mjs integration points, plan parser, agent:plan event, /architect slash command, the 6 arch tests, the 2-PR rollout. Use when actually building the feature.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-architect-editor-implementation/SKILL.md"
-    },
-    {
-      "name": "aide-workflow-gap-roadmap",
-      "title": "aide-workflow-gap-roadmap",
-      "description": "The full competitive gap analysis for AIDE's workflow / orchestrator / architecture, ordered by leverage x effort. Born 2026-08-28 from Cursor / VS Code / Claude Code / Cline / Aider / Windsurf / Replit research. 6 gaps ranked: (1) architect/editor split [SKIPPED, shipped], (2) subagents, (3) plan-mode tool whitelist + worktree, (4) auto-memory, (5) custom modes / harnesses, (6) hook system. Use when planning workflow features, when triaging what to ship next, when comparing AIDE to rivals.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-workflow-gap-roadmap/SKILL.md"
-    },
-    {
-      "name": "aide-aide-stack-launch-and-recover",
-      "title": "aide-aide-stack-launch-and-recover",
-      "description": "The recovery procedure for the AIDE 3-service + 1-engine stack (arch 4778 / legacy 4779 / facade 4777 / cipher 8091) when it's dead, half-alive, or the telegram bot is connected but `running: false`. Captures the 7-row threat matrix and 7 pitfalls learned from the 2026-08-29 outage: never `taskkill /IM node.exe`, `connected: true, running: false` means call `/api/telegram/start` not `/api/telegram/connect`, Node 22+ `Error.message` getter fix in telegram.mjs, the 25s long-poll can starve `/api/telegram/status` so use `curl -m 40`. Use when /api/health is unresponsive, when fewer than 4 node.exe are running, when arch-err.log shows EADDRINUSE, when the bot stops receiving messages.",
-      "category": "aide-ops",
-      "path": "skills/packs/aide-aide-stack-launch-and-recover/SKILL.md"
-    },
-    {
-      "name": "aide-mcp-server-recommendations",
-      "title": "aide-mcp-server-recommendations",
-      "description": "MCP (Model Context Protocol) servers that improve AIDE's harness / orchestrator workflow when added to the Cline or Claude Code runtime. Research base 2026: modelcontextprotocol.io, github.com/modelcontextprotocol/servers (89.9k stars), mcp.so marketplace. 3 tiers ranked by leverage: Tier 1 (memory, filesystem, git) ship first; Tier 2 (fetch, sequential-thinking, time, everything) high value; Tier 3 (github, postgres, brave, gdrive) only if AIDE grows a product surface. Includes Windows config syntax (npx via cmd /c), 6-row threat matrix, 5 pitfalls (don't wrap AIDE's in-process services as MCP, the official memory server is a complement not a replacement for memory-recall.mjs, etc.). Use when adding a real external capability to the Cline runtime.",
-      "category": "aide-ops",
-      "path": "skills/packs/aide-mcp-server-recommendations/SKILL.md"
-    },
-    {
-      "name": "aide-agent-workflow-sop",
-      "title": "aide-agent-workflow-sop",
-      "description": "The census-research-install-verify SOP for 'improve your own tooling' sessions: 5-gate loop (census what's installed, research official docs, deliberate install as config, smoke-test everything, wire+commit with evidence). Contains the verified 2026-08-29 environment census (6 MCP servers in user mcp.json, 24 VS Code extensions, node v26.4.0/npm 11.17.0/git 2.54.0/uvx), 2026 VS Code MCP facts (agent plugins bundling MCP servers, trust dialogs, chat.mcp.autostart, MCP Registry API v0.1 namespaced server.json), memory-vs-MCP-memory doctrine, and 6 verified pitfalls (PowerShell mangling, Cline cache staleness, 40s tsc backgrounding with literal temp paths, TS narrowing after awaits, editor insert_line duplication, silent push no-ops). Use at the start of any plugin/MCP/skill installation session or when a tooling change needs verification evidence.",
-      "category": "aide-ops",
-      "path": "skills/packs/aide-agent-workflow-sop/SKILL.md"
-    },
-    {
-      "name": "aide-plugin-author-guide",
-      "title": "aide-plugin-author-guide",
-      "description": "How to build an AIDE plugin — manifest contract, capability model, spawn-protocol rules, the Windows-stdin gotcha that bit the skills-inspector prototype, the --permission capability model, and the right testing pattern (spawnSync first, then manager-level). Use when authoring any new plugin under plugins/, when debugging a plugin that exits 0 with no output, or when porting an existing CLI tool into the plugin system.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-plugin-author-guide/SKILL.md"
-    },
-    {
-      "name": "aide-inhouse-only-policy-hook",
-      "title": "aide-inhouse-only-policy-hook",
-      "description": "The doctrine that AIDE's desktop-control act() MUST route the policy inference through the in-house model (Cipher v1, 4B) — never a cloud model, never a BYOK provider. Why this is the differentiator (a small model fine-tuned on a verified desktop-control trajectory corpus is more reliable on that exact task than a giant cloud model with no domain adaptation), how to gate it in routes/desktop.ts and the agent's desktop_action tool, and how the operator-overrides-the-safety-rails exception works for the rare case where the operator chooses a different model. Use when wiring the policy hook, when the desktop service gains a new caller, when reviewing desktop safety, or when a user asks why their cloud provider doesn't work for desktop control.",
-      "category": "aide-core",
-      "path": "skills/packs/aide-inhouse-only-policy-hook/SKILL.md"
+      "path": "skills/packs/aide-browser-ide/SKILL.md"
     },
     {
       "name": "aide-build-b1-task-service",
@@ -335,9 +370,16 @@
     {
       "name": "aide-cipher-self-healing-sop",
       "title": "aide-cipher-self-healing-sop",
-      "description": "Standard operating procedure for Project Cipher's self-healing loop — the state bus, the [learned] block injection, the verification battery, the sleep-time training cycle, and the operator changelog. The runbook for 'how does Cipher get better?' — every step is verifiable. Use when wiring any new component that touches approvals/rejections, when designing new 'learned' sources, when running or extending the verification battery, when investigating why a QLoRA cycle was archived, or when the operator asks about the self-healing mechanism.",
+      "description": "The standard operating procedure for Project Cipher's self-healing loop — state bus, [learned] block injection, verification battery, sleep-time training cycle, operator changelog. Use when wiring any new component that touches approvals/rejections, when designing new \"learned\" sources, when running or extending the verification battery, when investigating why a QLoRA cycle was archived, or when the operator asks \"how does Cipher get better?\"",
       "category": "aide-core",
       "path": "skills/packs/aide-cipher-self-healing-sop/SKILL.md"
+    },
+    {
+      "name": "aide-closed-loop-wiring",
+      "title": "aide-closed-loop-wiring",
+      "description": "Wire AIDE's self-improvement loop (`scripts/selfimprove.mjs`) into the daemon lifecycle so it runs continuously, not only on manual invocation. Verifies the closed-loop wiring: audit emits in the agent loop (approval/rejection/abort), the daemon boot + periodic spawn schedule, the read-only /api/closed-loop/status contract, the hermetic AIDE_SELFIMPROVE_ROOT test override, and the Windows-safe verification battery (346/346 arch tests). Use whenever wiring or debugging the closed-loop schedule, adding a model to the loop, diagnosing \"closed loop never runs\", auditing the audit-emit coverage in agent-loop.mjs, or reproducing the Windows native-abort trap in node:test. Research-grounded on Auto-Dreamer, CLaaS, Sleep-Time Compute.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-closed-loop-wiring/SKILL.md"
     },
     {
       "name": "aide-cloud-economy",
@@ -352,6 +394,13 @@
       "description": "H1+H2 phase SOPs for the AIDE offline-first IDE — H1 portable session handoff bundles (SHIPPED) and H2 Bring-Your-Own-Key provider routing (roles plan/act/utility, DPAPI secret store, journaled opt-in egress). Research-grounded in VS Code 2026 BYOK docs (chatLanguageModels.json, apiType chat-completions/responses/messages, utilityModel), keytar deprecation (unmaintained since 2022 -> safeStorage/DPAPI/@napi-rs/keyring successors), and the project's No-Phone-Home law. Use when building/debugging handoff bundles OR BYOK credential storage, role->model routing, provider endpoints in aide-sovereign-workbench.",
       "category": "cloud-handoff",
       "path": "skills/packs/aide-cloud-handoff/SKILL.md"
+    },
+    {
+      "name": "aide-context-retrieval-wiring",
+      "title": "aide-context-retrieval-wiring",
+      "description": "Wire the built-but-unwired codebase index (node/src/services/index-service.mjs, BM25+RRF+optional dense embeddings, git-aware, /api/index/reindex + /api/index/search already routed) into the actual chat path so every model answer is grounded in the operator's real workspace — retrieval injection in model-router/chat, an @codebase context tool, embed-function supply via the local engine, index freshness on file change, token-budgeted context packs. Use whenever model answers ignore workspace code, when asked \"how do I make chat know my codebase\", when wiring retrieval-augmented generation, tuning context budgets, or diagnosing stale/degraded index results.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-context-retrieval-wiring/SKILL.md"
     },
     {
       "name": "aide-credo-guardrail",
@@ -382,6 +431,20 @@
       "path": "skills/packs/aide-desktop-agent-model-spec/SKILL.md"
     },
     {
+      "name": "aide-desktop-control-cipher",
+      "title": "aide-desktop-control-cipher",
+      "description": "Scale AIDE's desktop control from staged data to a working in-house-model act loop — serve Cipher (or the small model) as the desktop-control policy model, expand trajectory categories beyond the current 2, generate verified trajectories with the existing sandbox discipline, wire the act/pending/verdict flow in routes/desktop.ts to the trained model, and keep the grants + panic safety model absolute. Built on T2's 1,098 verified desktop-control rows (explorer/browser/multi-window/calculator queued). Use when advancing desktop automation, generating or serving desktop-control trajectories, integrating the house model into desktop act(), expanding task categories, or reviewing desktop safety.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-desktop-control-cipher/SKILL.md"
+    },
+    {
+      "name": "aide-desktop-control-integration",
+      "title": "aide-desktop-control-integration",
+      "description": "The full architecture for AIDE's desktop control — agent tool bridge, telegram /ask brain, REST routes, grants/panic/pending/verdict safety, grammar-constrained DSL, single-service law, refusal-recovery as training data. Use when wiring any new surface (agent, telegram, future UI) that drives the desktop; when the desktop service is referenced from more than one place; when a new op is added; when the panic/grants semantics need to be explained; when trajectory capture needs a new channel; or when integrating the house model into desktop act().",
+      "category": "aide-core",
+      "path": "skills/packs/aide-desktop-control-integration/SKILL.md"
+    },
+    {
       "name": "aide-device-benchmark-runner",
       "title": "aide-device-benchmark-runner",
       "description": "SOP for AIDE's MEASURED device benchmark lane — running llama.cpp llama-bench against a candidate GGUF on the user's actual hardware, parsing pp/tg tok/s from JSON, caching verdicts, and merging measured numbers with M2 header-estimate fit verdicts. Extends (does not replace) aide-model-hub-acquisition M2 estimates. Use when implementing the benchmark runner, when \"Will this run fast?\" must be answered with numbers instead of estimates, when interpreting llama-bench output, or when debugging benchmark jobs.",
@@ -396,11 +459,32 @@
       "path": "skills/packs/aide-distribution-packaging/SKILL.md"
     },
     {
+      "name": "aide-engine-lifecycle-doctrine",
+      "title": "aide-engine-lifecycle-doctrine",
+      "description": "Engine lifecycle & contention doctrine for llama-server under AIDE — why engines die with silent \"exit code=1, zero stderr\", the scoped-kill law (never taskkill /IM llama-server.exe), the memory drain-wait before spawn, the early-exit retry guard, the twin-orchestrator hazard (legacy daemon 4779 vs arch-ts 4778 both managing the same manifest), port-hijack via SO_REUSEADDR, and the exact diagnostic drill to find a machine-wide engine killer. Use whenever engines die unexpectedly, chat returns 409 NOT_READY, a model won't stay loaded, an external job (training corpus generator, supervisor, watchdog) coexists with AIDE engines, or before adding any process-kill logic anywhere.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-engine-lifecycle-doctrine/SKILL.md"
+    },
+    {
+      "name": "aide-fine-tune-lane-wire-in",
+      "title": "aide-fine-tune-lane-wire-in",
+      "description": "Wire the AIDE fine-tune lane end-to-end so the closed-loop's verifier-stamped failure signals become a trained, gated, served LoRA adapter. Covers the verified machine reality (GTX 1060 6GB Pascal FP32-only, no CUDA torch on the box, broken venv trap, no convert_lora_to_gguf.py on disk, GGUF-only base), the signal->pairs->train->adapter->gate chain, the exact venv rebuild, the QLoRA-on-e-4b recipe with Pascal-correct compute dtype, the battery gate (composite >= +0.02, no category regress > 0.1), and the promote/archive/rollback decision rules. Corrects the two STALE claims from older skills: the base is Qwen3 4B \"Mini Coder 4b\" at base.q8_0.gguf (NOT Qwen2.5-Coder-4B), and convert_lora_to_gguf.py exists ONLY in the llama.cpp source repo, not on disk. Use whenever training the v2 adapter, unblocking the venv, converting LoRA->GGUF, evaluating the battery, or promoting/archiving the frontier adapter.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-fine-tune-lane-wire-in/SKILL.md"
+    },
+    {
       "name": "aide-frontier-model",
       "title": "aide-frontier-model",
       "description": "",
       "category": "aide-core",
       "path": "skills/packs/aide-frontier-model/SKILL.md"
+    },
+    {
+      "name": "aide-grammar-constrained-generation",
+      "title": "aide-grammar-constrained-generation",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-grammar-constrained-generation/SKILL.md"
     },
     {
       "name": "aide-harness-prompt-scaffolding",
@@ -438,6 +522,20 @@
       "path": "skills/packs/aide-inference-control/SKILL.md"
     },
     {
+      "name": "aide-inhouse-model-runtime",
+      "title": "aide-inhouse-model-runtime",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-inhouse-model-runtime/SKILL.md"
+    },
+    {
+      "name": "aide-inhouse-only-policy-hook",
+      "title": "aide-inhouse-only-policy-hook",
+      "description": "The doctrine that AIDE's desktop-control act() MUST route the policy inference through the in-house model (Cipher v1, 4B) — never a cloud model, never a BYOK provider. Why this is the differentiator (a small model fine-tuned on a verified desktop-control trajectory corpus is more reliable on that exact task than a giant cloud model with no domain adaptation), how to gate it in routes/desktop.ts and the agent's desktop_action tool, and how the operator-overrides-the-safety-rails exception works for the rare case where the operator chooses a different model. Use when wiring the policy hook, when the desktop service gains a new caller, when reviewing desktop safety, or when a user asks \"why doesn't my cloud provider work for desktop control\".",
+      "category": "aide-core",
+      "path": "skills/packs/aide-inhouse-only-policy-hook/SKILL.md"
+    },
+    {
       "name": "aide-iron-suit-orchestrator",
       "title": "aide-iron-suit-orchestrator",
       "description": "",
@@ -452,11 +550,32 @@
       "path": "skills/packs/aide-master-roadmap/SKILL.md"
     },
     {
+      "name": "aide-mcp-inbox-surface",
+      "title": "aide-mcp-inbox-surface",
+      "description": "Build AIDE's in-box MCP (Model Context Protocol) server — a stdio-transport server exposing the daemon's existing capabilities (workspace files, git, codebase index search, desktop control with grants, tasks) as MCP tools, reusing the repo's path jails and approval gates, packaged later as an .mcpb bundle. Makes AIDE's tools callable from ANY MCP client (Cursor, Claude, VS Code) and makes approved MCP servers callable inside AIDE. Operator constraint is all-local: no cloud, works offline. Use when building the MCP surface, adding MCP tools, packaging .mcpb, wiring external MCP servers into AIDE chat, or reviewing MCP security.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-mcp-inbox-surface/SKILL.md"
+    },
+    {
+      "name": "aide-mcp-server-recommendations",
+      "title": "aide-mcp-server-recommendations",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-mcp-server-recommendations/SKILL.md"
+    },
+    {
       "name": "aide-micro-expert-collective",
       "title": "aide-micro-expert-collective",
       "description": "Design and build AIDE's Micro-Expert Collective — thousands-scale registry of distilled 1K-10K-parameter specialist decision modules (routers, gates, classifiers, checkers) trained from the primary in-house model's recorded behavior, activated by response-threshold allocation over shared reinforcement signals, managed in hot/cold residency tiers with performance-based retention. Use when building, extending, or auditing any micro-expert capability.",
       "category": "aide-core",
       "path": "skills/packs/aide-micro-expert-collective/SKILL.md"
+    },
+    {
+      "name": "aide-model-configuration",
+      "title": "aide-model-configuration",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-model-configuration/SKILL.md"
     },
     {
       "name": "aide-model-handoff",
@@ -494,6 +613,27 @@
       "path": "skills/packs/aide-model-task-recommender/SKILL.md"
     },
     {
+      "name": "aide-msvc-build-tools-setup",
+      "title": "aide-msvc-build-tools-setup",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-msvc-build-tools-setup/SKILL.md"
+    },
+    {
+      "name": "aide-north-mini-code-engine",
+      "title": "aide-north-mini-code-engine",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-north-mini-code-engine/SKILL.md"
+    },
+    {
+      "name": "aide-north-mini-code-house-model",
+      "title": "aide-north-mini-code-house-model",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-north-mini-code-house-model/SKILL.md"
+    },
+    {
       "name": "aide-offline-agent-loop",
       "title": "aide-offline-agent-loop",
       "description": "",
@@ -506,6 +646,13 @@
       "description": "A2 phase SOP for the AIDE offline-first IDE — workspace indexing and hybrid retrieval (BM25 + dense vectors + RRF) with ZERO new native deps. Pure-JS structure-aware chunking, in-memory Float32 vector search persisted under .aide/index/, injectable embedFn (local llama_cpp.server /v1/embeddings with nomic prefixes), incremental content-hash reindexing, contract-first routes + WS channel. Research-grounded. Use whenever building/debugging the indexer, chunker, BM25/vector search, hybrid query path, or index routes/UI in aide-sovereign-workbench.",
       "category": "aide-core",
       "path": "skills/packs/aide-offline-rag/SKILL.md"
+    },
+    {
+      "name": "aide-onboarding-walkthrough",
+      "title": "aide-onboarding-walkthrough",
+      "description": "The AIDE first-run walkthrough — a 5-step interactive sequence that takes a new user from \"I just installed\" to \"I have a configured cockpit with my workbench, my BYOK (or offline-only), my desktop-control opt-in, and the system map explaining what AIDE is.\" Research-grounded in the 7-vendor pattern (Cursor Quickstart, VS Code Agents Quickstart, Cline Plan & Act, Windsurf Things to Try, Claude Code Quickstart, Aider tutorial videos, Continue chat-mode). Use when building/auditing the cockpit walkthrough, when a new user reports being confused on cold start, when scoping the P2 Onboarding phase (audit line 89, gate 4 line 149), or when reviewing whether AIDE ships the same \"install to first commit\" experience as the rivals.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-onboarding-walkthrough/SKILL.md"
     },
     {
       "name": "aide-orchestrator-awareness",
@@ -655,6 +802,13 @@
       "path": "skills/packs/aide-phase9-extension-host/SKILL.md"
     },
     {
+      "name": "aide-plugin-author-guide",
+      "title": "aide-plugin-author-guide",
+      "description": "How to build an AIDE plugin — manifest contract, capability model, spawn-protocol rules, the Windows-stdin gotcha that bit the skills-inspector prototype, and the path-resolution patterns that survive both the manager's --permission spawn and direct CLI runs. Use when authoring any new plugin under plugins/, when debugging a plugin that exits 0 with no output, or when porting an existing CLI tool into the plugin system.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-plugin-author-guide/SKILL.md"
+    },
+    {
       "name": "aide-plugins-surface-v1",
       "title": "aide-plugins-surface-v1",
       "description": "Cockpit plugin surface v1 — declarative capability plugins from the 20-preset catalog, install/trust lifecycle over /api/plugins routes, and trusted-plugin UI contributions (git-review, markdown-preview, env-inspector) backed by existing cockpit features. Use when implementing or modifying the PLUGINS panel, plugin trust flow, or adding built-in plugin contributions.",
@@ -667,6 +821,20 @@
       "description": "E1 power-surface SOP for the AIDE cockpit — Ctrl+K command palette (files + commands fuzzy search), workspace-wide find-in-files over the rg-service, and an xterm.js terminal drawer wired to the task/run contracts. Covers exactly which endpoints/files/components to create, why each decision, dependency choices, threat matrix (injection, DoS, egress), pitfalls, and verification gates. Use when implementing or modifying the cockpit palette, global search, or terminal panel.",
       "category": "aide-core",
       "path": "skills/packs/aide-power-surface/SKILL.md"
+    },
+    {
+      "name": "aide-pre-commit-hooks",
+      "title": "aide-pre-commit-hooks",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-pre-commit-hooks/SKILL.md"
+    },
+    {
+      "name": "aide-pre-push-gate",
+      "title": "aide-pre-push-gate",
+      "description": "The versioned root-level git pre-push gate that enforces AIDE's full verification battery before a feature push. Because `git config core.hooksPath` = repo root, a tracked `pre-push` file at the root is picked up automatically by every clone and push. Set AIDE_FULL_BATTERY=1 to run all arch tests before push (Windows-safe: no --test-force-exit locally, since that flag native-asserts on win32; CI/ubuntu uses scripts/run-arch.mjs). Without the env var the gate stays lightweight (staged .mjs syntax + secret scan parity with pre-commit). Use whenever anyone adds a gate rule, moves the hook, pushes a feature/main slice that must be battery-verified, or CI/push behavior around verification changes.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-pre-push-gate/SKILL.md"
     },
     {
       "name": "aide-product-vision",
@@ -683,6 +851,13 @@
       "path": "skills/packs/aide-production-cutover/SKILL.md"
     },
     {
+      "name": "aide-production-readiness-plan",
+      "title": "aide-production-readiness-plan",
+      "description": "Master plan to take the AIDE Sovereign Workbench from current state (3 services + 1 engine, contract-drifted, engine-load racy) to a working production IDE that you can actually use. Encodes the audit of the 2026-08-28 incident (chat 500s, engine-load sometimes-fails, desktop 502s, contract drift), the chosen 4-phase rebuild path (audit → drift+engine fix → plan-from-baseline → execute), the success criteria for each phase, and the doctrine that governs every step. Use at the START of every AIDE session before any code work, when blocked, or when the user asks for a rebuild / production-readiness pass.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-production-readiness-plan/SKILL.md"
+    },
+    {
       "name": "aide-project-replay",
       "title": "aide-project-replay",
       "description": "Project provenance and replay system — captures the full cognitive history of every build (intent, decisions, model handoffs, approvals, rejections, gate results) as a queryable timeline. V1 = structured capture (already flowing via ships.log and provenance JSONL). V2 = narrative renderer with search/filter/jump. Use when designing provenance schemas, building replay UI, or answering 'show me how this was built'.",
@@ -695,6 +870,13 @@
       "description": "",
       "category": "aide-core",
       "path": "skills/packs/aide-provider-connect/SKILL.md"
+    },
+    {
+      "name": "aide-rebrand-name-change",
+      "title": "aide-rebrand-name-change",
+      "description": "Rename a product across the repository while preserving every verified gate. Use whenever the operator changes the public name of the product, the package display name, the Tauri productName/title, the Cargo package name, the doc headers, or any combination. Apply the staged SOP in order; never rename the directory or the GitHub repo without a separate plan; never weaken or hide tests to make the new name pass.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-rebrand-name-change/SKILL.md"
     },
     {
       "name": "aide-release-engineering",
@@ -718,6 +900,13 @@
       "path": "skills/packs/aide-responsive-a11y/SKILL.md"
     },
     {
+      "name": "aide-route-slice-sop",
+      "title": "aide-route-slice-sop",
+      "description": "Mandatory checklist for adding ANY new TS route family to AIDE end-to-end — contracts, service, routes, openapi wiring, facade map, restart order, live verification through :4777. Encodes every repeated failure (facade cache 404 x2, openapi drift x2, verb mismatch, require-depth MODULE_NOT_FOUND, workdir drift) so none is guessed again. Triggered by the twice-fail law — use at the start of every route slice, not after it breaks.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-route-slice-sop/SKILL.md"
+    },
+    {
       "name": "aide-rseries-refactor",
       "title": "aide-rseries-refactor",
       "description": "R-series cockpit milestones — Rename Symbol (F2) with previewed multi-file apply via LSP workspace edits, Find All References view, and format-document/on-save. Research-grounded priorities (rename = #1 refactor at 85.8% adoption; preview+undo drives trust). Use when implementing editor refactoring, references view, or formatter wiring in the AIDE cockpit.",
@@ -725,11 +914,32 @@
       "path": "skills/packs/aide-rseries-refactor/SKILL.md"
     },
     {
+      "name": "aide-sandbox-loop",
+      "title": "aide-sandbox-loop",
+      "description": "SOP for the Sandbox Execution Loop — model proposals are written to an isolated scratch copy, tests/lint run against the SCRATCH, only verified diffs reach the user, failures auto-feed error context back for bounded retries. The single differentiator vs Cursor/Windsurf (they show diffs and hope). Use when building or extending proposal verification anywhere in AIDE.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-sandbox-loop/SKILL.md"
+    },
+    {
+      "name": "aide-secrets-handling-protocol",
+      "title": "aide-secrets-handling-protocol",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-secrets-handling-protocol/SKILL.md"
+    },
+    {
       "name": "aide-security-hardening",
       "title": "aide-security-hardening",
       "description": "Security hardening for AIDE — secret detection pre-commit, vulnerability scanning via Semgrep integration, SBOM generation, secure coding SOPs, and supply-chain audit. Use when implementing security features, auditing code for vulnerabilities, or building the security layer of the IDE.",
       "category": "aide-core",
       "path": "skills/packs/aide-security-hardening/SKILL.md"
+    },
+    {
+      "name": "aide-session-resilience",
+      "title": "aide-session-resilience",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-session-resilience/SKILL.md"
     },
     {
       "name": "aide-skill-curation",
@@ -746,11 +956,46 @@
       "path": "skills/packs/aide-smart-workbench-flow/SKILL.md"
     },
     {
+      "name": "aide-subagent-dispatch",
+      "title": "aide-subagent-dispatch",
+      "description": "The AIDE pattern for spawning specialized sub-agents from a parent agent session — a child AgentLoopService with narrowed tool policy, its own scratch dir, the parent's session as context, and a return-as-tool-result contract. Use when implementing the /api/agent/subagent route, when designing parallel subagent dispatch in the agent loop, when reviewing subagent scoping, when debugging \"subagent didn't return\" or \"subagent has too much privilege\", and when wiring the Anthropic Task tool / Cursor Subagents / Cline Agent Teams parity surface for AIDE. Built on top of aide-agent-harness-convergence, aide-iron-suit-orchestrator (restraint ladder), aide-credo-guardrail, and aide-cipher-house-model.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-subagent-dispatch/SKILL.md"
+    },
+    {
       "name": "aide-supply-chain-audit",
       "title": "aide-supply-chain-audit",
       "description": "",
       "category": "aide-core",
       "path": "skills/packs/aide-supply-chain-audit/SKILL.md"
+    },
+    {
+      "name": "aide-system-map",
+      "title": "aide-system-map",
+      "description": "The AIDE \"system map\" — a single dashboard that shows a user (or a new agent) everything AIDE has live, right now, in this workspace. Eight subsystem cards (in-house model, workbenches, skills, agent loop, micro-experts, DNA-helix memory, veritas+selfheal, BYOK+desktop), each with a live status, a last-updated timestamp, a doctrine link, and a journal link. Read-only: never mutates state, never caches. The \"tell them everything\" surface the audit calls out and the walkthrough step 5 IS. Use when building/auditing the cockpit system-map panel, when the user asks \"what does AIDE actually have?\", when an agent needs to discover what subsystems are live before making a plan, or when reviewing production-readiness claims (the system map is the proof the claim is real, not aspirational).",
+      "category": "aide-core",
+      "path": "skills/packs/aide-system-map/SKILL.md"
+    },
+    {
+      "name": "aide-tab-autocomplete",
+      "title": "aide-tab-autocomplete",
+      "description": "Inline tab-autocomplete (FIM) for AIDE using the in-box SmolLM2-360M model on a dedicated low-latency engine — single-shot completion at cursor, debounced ghost text in Monaco, accept/reject telemetry, prefix/suffix windowing, keep-warm engine management via the same lifecycle doctrine. This is the #1 daily-use feature of every rival IDE (Cursor Tab, Copilot, Windsurf Tab) and AIDE has ZERO inline-completion code. Use when building tab-completion, ghost text, inline suggestions, FIM prompting, low-latency model serving, completion acceptance analytics, or diagnosing slow/wrong inline suggestions.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-tab-autocomplete/SKILL.md"
+    },
+    {
+      "name": "aide-task-verification-battery",
+      "title": "aide-task-verification-battery",
+      "description": "The post-task verification battery AIDE uses to prove work is done, derived from Google Testing Blog (Wacker 2015), Martin Fowler's Practical Test Pyramid (Vocke 2018), the Google SRE Book Chapter 8 on Release Engineering, and Jez Humble's 3-question CI Certification. Use at the END of every task that changes code, skill, or evidence files, BEFORE claiming \"done\". Replaces the \"smoke tsc\" reflex with a real, time-budgeted, layer-by-layer check. If any layer fails, R8 says: stop, research, fix, retry — never lower the threshold. Pairs with: developer-code-and-credo, professional-developer, production-readiness, hard-rules, project-governance.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-task-verification-battery/SKILL.md"
+    },
+    {
+      "name": "aide-telegram-relay-bot",
+      "title": "aide-telegram-relay-bot",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-telegram-relay-bot/SKILL.md"
     },
     {
       "name": "aide-the-quad",
@@ -795,11 +1040,25 @@
       "path": "skills/packs/aide-trio-tuning/SKILL.md"
     },
     {
+      "name": "aide-typescript-strict-pass",
+      "title": "aide-typescript-strict-pass",
+      "description": "The AIDE pattern for passing the strict TypeScript gate (`npm run check:arch` = `tsc -p tsconfig.node.json`) when adding a new `.mjs` service + `.d.mts` companion + `.ts` route + arch test. Use when tsc reports TS2304/TS2345/TS18048/TS7016/TS18046/TS7006/TS6133/TS2749/TS2488 errors, when adding a new service under `node/src/services/`, when the test scaffolding uses `(r: any)` casts that fail under `noUnusedLocals`/`noImplicitAny`, or when the repo's two-runtime doctrine (arch + legacy) needs the same shape exported from both.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-typescript-strict-pass/SKILL.md"
+    },
+    {
       "name": "aide-unified-diff-repair",
       "title": "aide-unified-diff-repair",
       "description": "SOP for fixing the README scorecard blocker — bundled models pass function/planning smoke tests but FAIL strict unified-diff formatting. Covers the two-sided fix (harness-side tolerance+repair loop in the agent-loop parser, and model-side data/training fix via format-targeted post-training), decision rules for which side to fix, and the verification battery that proves the scorecard claim changes honestly. Use when working on diff/SEARCH-REPLACE parsing, when smoke tests fail on formatting, when planning the next post-training round, or before updating README claims.",
       "category": "aide-core",
       "path": "skills/packs/aide-unified-diff-repair/SKILL.md"
+    },
+    {
+      "name": "aide-ux-hardening",
+      "title": "aide-ux-hardening",
+      "description": "",
+      "category": "aide-core",
+      "path": "skills/packs/aide-ux-hardening/SKILL.md"
     },
     {
       "name": "aide-veritas-layer",
@@ -823,6 +1082,20 @@
       "path": "skills/packs/aide-windows-dev-reality/SKILL.md"
     },
     {
+      "name": "aide-workflow-gap-roadmap",
+      "title": "aide-workflow-gap-roadmap",
+      "description": "The full competitive gap analysis for AIDE's workflow / orchestrator / architecture, ordered by leverage × effort. Use when planning workflow features; when comparing AIDE to Cursor/VS Code/Claude Code/Cline/Aider/Windsurf; when designing subagents, hooks, custom modes, or auto-memory; when triaging what to ship next. Born 2026-08-28 from Cursor/VS Code/Claude Code/Cline/Aider/Windsurf/Replit research, focused on what AIDE does NOT have that every rival converges on.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-workflow-gap-roadmap/SKILL.md"
+    },
+    {
+      "name": "aide-worktree-isolation",
+      "title": "aide-worktree-isolation",
+      "description": "The AIDE pattern for shadow-workspace isolation — when the user switches from plan to act, commit the current workspace to a shadow git branch, the agent operates on a worktree copy, and the changes merge back only on user approval. Use when implementing Cursor's shadow workspace, Replit's Worktree pattern, or Claude Code's \"isolate sessions with worktrees\" feature. Use when reviewing AIDE's plan-to-act transition, when designing subagent scratch dirs (composes with aide-subagent-dispatch), or when auditing whether an agent's edits are safe to merge.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-worktree-isolation/SKILL.md"
+    },
+    {
       "name": "anti-trash-data-doctrine",
       "title": "anti-trash-data-doctrine",
       "description": "The Big Tech data-quality doctrine — zero-tolerance \"no trash\" rules for building high-quality training corpora, researched from primary sources (OpenAI GPT-3, Meta Llama 3, Microsoft phi-1, DeepSeek, HF FineWeb, Ai2 Dolma 3, Stanford DSIR, perplexity pruning). Covers the ordered filtering pipeline (cheap heuristics -> dedup -> classifiers), dedup granularity (exact -> MinHash -> substring), quality scoring (classifiers, reference-model perplexity, importance resampling), contamination removal, and the gates that generated/synthetic docs must pass identically to scraped ones. Use whenever curating, filtering, grading, deduplicating, or generating ANY data for the shared ~1B corpus, when deciding what enters or leaves the corpus, or when defending a data-acceptance decision.",
@@ -835,6 +1108,97 @@
       "description": "Anti-loop protocol — if you do not understand something, ask the user, or search and verify from multiple independent sources FIRST, before doing anything else. Never go in circles. Use whenever a task is ambiguous, when a decision keeps stalling, when the same question is being asked twice, or when you are about to repeat work that already happened.",
       "category": "discipline",
       "path": "skills/packs/ask-dont-circle/SKILL.md"
+    },
+    {
+      "name": "cipher-checkpoint",
+      "title": "cipher-checkpoint",
+      "description": "Save, verify, and download FSI Felon Cipher training checkpoints. Use when checkpointing during training, verifying checkpoint integrity, or downloading results from cloud. Phase 5 of cipher-cloud-training.",
+      "category": "general",
+      "path": "skills/packs/cipher-checkpoint/SKILL.md"
+    },
+    {
+      "name": "cipher-cloud-setup",
+      "title": "cipher-cloud-setup",
+      "description": "Set up cloud GPU training environment for FSI Felon Cipher. Use when packaging the project, building Docker, and deploying to cloud GPUs. Phase 3 of cipher-cloud-training.",
+      "category": "general",
+      "path": "skills/packs/cipher-cloud-setup/SKILL.md"
+    },
+    {
+      "name": "cipher-cloud-training",
+      "title": "cipher-cloud-training",
+      "description": "Master orchestrator for training the FSI Felon Cipher model from scratch on cloud GPUs. Use at the START of any cipher training task. Covers the full pipeline: architecture sizing, tokenizer, data prep, cloud deployment, training, checkpoint recovery, and evaluation. 7 phases, 8 skills.",
+      "category": "general",
+      "path": "skills/packs/cipher-cloud-training/SKILL.md"
+    },
+    {
+      "name": "cipher-data-pipeline",
+      "title": "cipher-data-pipeline",
+      "description": "Prepare, tokenize, and shard the FSI Felon Cipher training corpus. Use when building the training data pipeline. Phase 2 of cipher-cloud-training.",
+      "category": "general",
+      "path": "skills/packs/cipher-data-pipeline/SKILL.md"
+    },
+    {
+      "name": "cipher-eval",
+      "title": "cipher-eval",
+      "description": "Evaluate the trained FSI Felon Cipher model. Use when running the eval battery, checking model quality, or integrating into local serving. Phase 6 of cipher-cloud-training. Final phase.",
+      "category": "general",
+      "path": "skills/packs/cipher-eval/SKILL.md"
+    },
+    {
+      "name": "cipher-qlora-finetune",
+      "title": "cipher-qlora-finetune",
+      "description": "QLoRA / LoRA fine-tuning pipeline for the aide-cipher-4b in-house model (Qwen2.5-Coder 4B Q8 + LoRA adapter) on the GTX 1060 6GB. Use when preparing training data, running a fine-tune round, evaluating the new adapter against the capability battery, and promoting/archiving the result. Research-backed, no guessing.",
+      "category": "general",
+      "path": "skills/packs/cipher-qlora-finetune/SKILL.md"
+    },
+    {
+      "name": "cipher-sizing",
+      "title": "cipher-sizing",
+      "description": "Architecture sizing for FSI Felon Cipher cloud training. Use when deciding model size, layer count, expert count, and training hyperparameters for a given GPU time budget. Phase 0 of cipher-cloud-training.",
+      "category": "general",
+      "path": "skills/packs/cipher-sizing/SKILL.md"
+    },
+    {
+      "name": "cipher-tokenizer",
+      "title": "cipher-tokenizer",
+      "description": "Complete the FSI Felon Cipher tokenizer from 500 to 32K vocabulary. Use when building, training, or verifying the cipher tokenizer. Phase 1 of cipher-cloud-training.",
+      "category": "general",
+      "path": "skills/packs/cipher-tokenizer/SKILL.md"
+    },
+    {
+      "name": "cipher-training",
+      "title": "cipher-training",
+      "description": "Execute the FSI Felon Cipher training run on cloud GPUs. Use when launching, monitoring, or debugging the training process. Phase 4 of cipher-cloud-training.",
+      "category": "general",
+      "path": "skills/packs/cipher-training/SKILL.md"
+    },
+    {
+      "name": "cloud-artifact-pack-upload",
+      "title": "cloud-artifact-pack-upload",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/cloud-artifact-pack-upload/SKILL.md"
+    },
+    {
+      "name": "cloud-checkpoint-retrieval",
+      "title": "cloud-checkpoint-retrieval",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/cloud-checkpoint-retrieval/SKILL.md"
+    },
+    {
+      "name": "cloud-pretrain-window-execution",
+      "title": "cloud-pretrain-window-execution",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/cloud-pretrain-window-execution/SKILL.md"
+    },
+    {
+      "name": "cloud-scale-probe-gate",
+      "title": "cloud-scale-probe-gate",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/cloud-scale-probe-gate/SKILL.md"
     },
     {
       "name": "coherence-nlp-training",
@@ -935,11 +1299,151 @@
       "path": "skills/packs/edge-deployment-ci/SKILL.md"
     },
     {
+      "name": "failure-ci-platform-parity",
+      "title": "failure-ci-platform-parity",
+      "description": "Diagnose cross-platform CI failures where Windows-local tests pass but Ubuntu or macOS architecture tests fail. Use when GitHub annotations identify OS-specific commands, filesystem error codes, or environment-dependent executable probes.",
+      "category": "general",
+      "path": "skills/packs/failure-ci-platform-parity/SKILL.md"
+    },
+    {
+      "name": "failure-conventional-commit-message",
+      "title": "failure-conventional-commit-message",
+      "description": "Prevent commit-msg hook failures caused by missing Conventional Commit scopes. Use whenever a repository commit hook requires type(scope): description.",
+      "category": "general",
+      "path": "skills/packs/failure-conventional-commit-message/SKILL.md"
+    },
+    {
+      "name": "failure-desktop-runtime-env-name",
+      "title": "failure-desktop-runtime-env-name",
+      "description": "Diagnose strict desktop staging failures caused by confusing the model-server runtime variable with the packaging binary variable. Use whenever desktop/prepare.mjs rejects a required llama-server runtime.",
+      "category": "general",
+      "path": "skills/packs/failure-desktop-runtime-env-name/SKILL.md"
+    },
+    {
+      "name": "failure-desktop-staged-stack-exit",
+      "title": "failure-desktop-staged-stack-exit",
+      "description": "Diagnose an early exit from the packaged AIDE stack launcher without losing child evidence. Use whenever desktop-staged-stack-smoke or a packaged launcher returns nonzero before backend readiness.",
+      "category": "general",
+      "path": "skills/packs/failure-desktop-staged-stack-exit/SKILL.md"
+    },
+    {
+      "name": "failure-git-api-stage-500",
+      "title": "failure-git-api-stage-500",
+      "description": "Diagnose legacy Git API acceptance failures where an approved stage or commit request returns 500. Use whenever scripts/test-git-api.mjs fails inside a nested or full battery run.",
+      "category": "general",
+      "path": "skills/packs/failure-git-api-stage-500/SKILL.md"
+    },
+    {
+      "name": "failure-harness-trace-contract-drift",
+      "title": "failure-harness-trace-contract-drift",
+      "description": "Diagnose and prevent stale exact trace-count assertions after intentional orchestrator or agent-loop stage additions. Use whenever a harness test reports an unexpected trace length or a chained battery stops in harness/test-orchestrator.mjs.",
+      "category": "general",
+      "path": "skills/packs/failure-harness-trace-contract-drift/SKILL.md"
+    },
+    {
+      "name": "failure-lsp-completion-timeout",
+      "title": "failure-lsp-completion-timeout",
+      "description": "Diagnose a legacy-daemon LSP completion timeout without masking lifecycle or process defects. Use whenever scripts/acceptance-real.mjs or an equivalent real TypeScript-language-server probe returns LSP request timed out.",
+      "category": "general",
+      "path": "skills/packs/failure-lsp-completion-timeout/SKILL.md"
+    },
+    {
+      "name": "failure-model-integrity-declaration",
+      "title": "failure-model-integrity-declaration",
+      "description": "Diagnose and prevent TypeScript `TS7016` failures on project `.mjs` helpers imported by strict TS, and prevent the model-runtime integrity test from asserting a stale error message. Use whenever a new `common/*.mjs` helper is added and `node/src/services/model-runtime.ts` (or another strict TS module) imports it, or whenever the model integrity error contract changes.",
+      "category": "general",
+      "path": "skills/packs/failure-model-integrity-declaration/SKILL.md"
+    },
+    {
+      "name": "failure-npm-lru-cache",
+      "title": "failure-npm-lru-cache",
+      "description": "Diagnose a broken Windows npm or npx installation whose bundled lru-cache export is missing. Use whenever npm exec, npx, or an npm script fails inside the Node distribution with MODULE_NOT_FOUND under npm/node_modules/lru-cache.",
+      "category": "general",
+      "path": "skills/packs/failure-npm-lru-cache/SKILL.md"
+    },
+    {
+      "name": "failure-powershell-foreach-pipeline",
+      "title": "failure-powershell-foreach-pipeline",
+      "description": "Prevent PowerShell parser failures when checking a list with foreach and piping its output. Use whenever a verification command reports an empty pipe element around a foreach statement.",
+      "category": "general",
+      "path": "skills/packs/failure-powershell-foreach-pipeline/SKILL.md"
+    },
+    {
+      "name": "failure-pythonpath-hijack",
+      "title": "failure-pythonpath-hijack",
+      "description": "Fix for PYTHONPATH=E:\\python_packages hijacking venv imports. Old broken torch in global packages overrides venv. Created 2026-08-26.",
+      "category": "general",
+      "path": "skills/packs/failure-pythonpath-hijack/SKILL.md"
+    },
+    {
+      "name": "failure-typescript-mjs-declaration",
+      "title": "failure-typescript-mjs-declaration",
+      "description": "Fix strict TypeScript TS7016 failures for project JavaScript modules without weakening compiler settings. Use whenever a .ts file imports a local .mjs module and tsc reports an implicit-any declaration error.",
+      "category": "general",
+      "path": "skills/packs/failure-typescript-mjs-declaration/SKILL.md"
+    },
+    {
       "name": "felon-master",
       "title": "felon-master",
       "description": "FELON Q-NFRE Edge — master architect skill for building, training, and deploying the 25M param edge IDE model. Use for all FELON development: architecture, training, benchmark evaluation, cybersecurity features, nanobot territory routing, multi-agent orchestration, and edge deployment. Overrides default LLM patterns with FELON-specific closed-loop nanobot swarm architecture.",
       "category": "general",
       "path": "skills/packs/felon-master/SKILL.md"
+    },
+    {
+      "name": "fsi-bash-tool-chunking",
+      "title": "fsi-bash-tool-chunking",
+      "description": "When the bash tool environment kills long-running child processes (every command that takes >~5 min gets SIGKILLed at tool return), chunk the work into <5-min subtasks with stateful resume. Use whenever an acquisition, training, or tokenization step would take >5 min and must complete across multiple bash invocations. Triggered by the twice-fail law — apply at the start of any work that needs to survive the bash tool's process-kill behavior, not after the first silent time-out.",
+      "category": "general",
+      "path": "skills/packs/fsi-bash-tool-chunking/SKILL.md"
+    },
+    {
+      "name": "fsi-cloze-collapse-small-model",
+      "title": "fsi-cloze-collapse-small-model",
+      "description": "Detect and fix the \"function-word prior collapse\" failure mode in small autoregressive LMs (≤200M params) trained on narrow corpora. Use whenever a small model's cloze probes (top-5 next-token prediction) return the same high-frequency function words for every prompt regardless of context, while val cross-entropy looks deceptively healthy. Triggered by the twice-fail law — apply at the first sign of cloze collapse, not after training completes.",
+      "category": "general",
+      "path": "skills/packs/fsi-cloze-collapse-small-model/SKILL.md"
+    },
+    {
+      "name": "fsi-gutenberg-catalog-locc-filter",
+      "title": "fsi-gutenberg-catalog-locc-filter",
+      "description": "Acquire non-fiction Public Domain books from Project Gutenberg using the official pg_catalog.csv.gz with a LoCC-aware, fiction-exclusion filter. Use whenever corpus acquisition needs Public Domain textbook-style content and the source is Project Gutenberg. Triggered by the twice-fail law — apply at the start of any Gutenberg-based corpus design, not after the first silent zero-yield run.",
+      "category": "general",
+      "path": "skills/packs/fsi-gutenberg-catalog-locc-filter/SKILL.md"
+    },
+    {
+      "name": "fsi-license-classifier-url-groundtruth",
+      "title": "fsi-license-classifier-url-groundtruth",
+      "description": "Classify dataset-license metadata strings (HuggingFace, Common Pile, custom scrapes) by treating the URL fragment in the license text as the GROUND TRUTH and only falling back to human-readable label regex when no URL is present. Use whenever a corpus-acquisition script must filter documents by license (CC-BY, CC-BY-SA, CC-BY-NC, GFDL, Public Domain, etc.) and the source provides license metadata in a string that may contain a creativecommons.org URL. Triggered by the twice-fail law — apply at the start of any license-filter design, not after the first false drop.",
+      "category": "general",
+      "path": "skills/packs/fsi-license-classifier-url-groundtruth/SKILL.md"
+    },
+    {
+      "name": "fsi-sft-50m-56-pairs-format-collapse",
+      "title": "fsi-sft-50m-56-pairs-format-collapse",
+      "description": "Detect the \"loss drops but format doesn't learn\" failure mode in 50M-param LMs trained on ≤100 SFT pairs. Cross-entropy drops 0.2-0.3 over 1-2 epochs but the generated output remains random tokens (the model has memorized the input opening but not the answer structure). Triggered by the twice-fail law — apply at the first sign of \"loss is dropping but generation is garbage.\"",
+      "category": "general",
+      "path": "skills/packs/fsi-sft-50m-56-pairs-format-collapse/SKILL.md"
+    },
+    {
+      "name": "fsi-sft-few-pairs-undertrained",
+      "title": "fsi-sft-few-pairs-undertrained",
+      "description": "Detect the \"SFT format is half-learned\" failure mode in small LMs (≤200M params) trained on too-few SFT pairs (<200). The model emits the ChatML envelope start (im_start + credo) but never closes with im_end, and the content between is random tokens. Triggered by the twice-fail law — apply at the first sign of \"the model starts with the right format but never finishes.\"",
+      "category": "general",
+      "path": "skills/packs/fsi-sft-few-pairs-undertrained/SKILL.md"
+    },
+    {
+      "name": "fsi-small-model-gate-underflow",
+      "title": "fsi-small-model-gate-underflow",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/fsi-small-model-gate-underflow/SKILL.md"
+    },
+    {
+      "name": "fsi-tokenizer-byte-level-bpe-gates",
+      "title": "fsi-tokenizer-byte-level-bpe-gates",
+      "description": "Build, train, and gate-verify a fresh byte-level BPE tokenizer with reserved tokens for a small from-scratch LLM pretraining pipeline. Use whenever the corpus is ready (textbook + code + non-fiction mix) and the tokenizer needs to be built with reserved tokens (credo, SOPs, verify, abstain, chat structure) baked into the vocab from the start. Triggered by the twice-fail law — apply at the start of any fresh tokenizer build, not after the first gate-FAIL.",
+      "category": "general",
+      "path": "skills/packs/fsi-tokenizer-byte-level-bpe-gates/SKILL.md"
     },
     {
       "name": "gguf-quantization-deployment",
@@ -1024,6 +1528,76 @@
       "description": "Repair a model that emits multiple output formats or task families without improving one format by regressing another. Use whenever web, code, envelope, safety, or instruction-format repair changes shared decoder behavior.",
       "category": "general",
       "path": "skills/packs/multi-format-retention-repair/SKILL.md"
+    },
+    {
+      "name": "north-phase0-environment",
+      "title": "north-phase0-environment",
+      "description": "Phase 0 — Local environment setup for personality fine-tuning. Creates venv, installs Unsloth + deps, verifies GPU, checks disk/RAM. Run BEFORE anything else. Triggers on: environment setup, venv creation, GPU verification, first-time setup.",
+      "category": "general",
+      "path": "skills/packs/north-phase0-environment/SKILL.md"
+    },
+    {
+      "name": "north-phase1-baseline",
+      "title": "north-phase1-baseline",
+      "description": "Phase 1 — Download Qwen3-4B-Instruct, serve via llama.cpp, run baseline personality battery. Measures BEFORE scores. Triggers on: model download, baseline measurement, serving setup.",
+      "category": "general",
+      "path": "skills/packs/north-phase1-baseline/SKILL.md"
+    },
+    {
+      "name": "north-phase1-serve",
+      "title": "north-phase1-serve",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/north-phase1-serve/SKILL.md"
+    },
+    {
+      "name": "north-phase2-corpus",
+      "title": "north-phase2-corpus",
+      "description": "Phase 2 — Build the personality training corpus (500+ ChatML conversations). Encodes Spock/Sheldon/Machiavelli thinking. LOCAL generation only. Triggers on: corpus building, training data creation, personality data.",
+      "category": "general",
+      "path": "skills/packs/north-phase2-corpus/SKILL.md"
+    },
+    {
+      "name": "north-phase3-finetune",
+      "title": "north-phase3-finetune",
+      "description": "Phase 3 — QLoRA fine-tuning on GTX 1060 6GB with Unsloth. LOCAL ONLY. Personality installation via LoRA adapters. Triggers on: training, fine-tuning, QLoRA, LoRA, personality training.",
+      "category": "general",
+      "path": "skills/packs/north-phase3-finetune/SKILL.md"
+    },
+    {
+      "name": "north-phase4-export",
+      "title": "north-phase4-export",
+      "description": "Phase 4 — Merge LoRA into base, convert to GGUF, quantize, deploy on :8084, run post-training battery. Compare BEFORE vs AFTER. LOCAL ONLY. Triggers on: GGUF export, model merge, deployment, post-training eval.",
+      "category": "general",
+      "path": "skills/packs/north-phase4-export/SKILL.md"
+    },
+    {
+      "name": "north-phase5-enforcement",
+      "title": "north-phase5-enforcement",
+      "description": "Phase 5 — Build the workflow enforcement system: AGENTS.md (always loaded), phase-specific skills (load/unload), deterministic hooks (pre-commit, post-edit). Makes the model follow our workflow when we're not there. Triggers on: workflow enforcement, skill system, rules system, discipline system.",
+      "category": "general",
+      "path": "skills/packs/north-phase5-enforcement/SKILL.md"
+    },
+    {
+      "name": "north-phase6-closedloop",
+      "title": "north-phase6-closedloop",
+      "description": "Phase 6 — Closed-loop improvement system. Collect failures → research → create skill → retrain if needed. Never repeat failures. The model gets better from real use. Triggers on: failure analysis, improvement, retraining, closed-loop.",
+      "category": "general",
+      "path": "skills/packs/north-phase6-closedloop/SKILL.md"
+    },
+    {
+      "name": "nvidia-brev-cloud-access",
+      "title": "nvidia-brev-cloud-access",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/nvidia-brev-cloud-access/SKILL.md"
+    },
+    {
+      "name": "nvidia-cloud-training-master",
+      "title": "nvidia-cloud-training-master",
+      "description": "",
+      "category": "general",
+      "path": "skills/packs/nvidia-cloud-training-master/SKILL.md"
     },
     {
       "name": "on-policy-distillation",

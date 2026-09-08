@@ -104,3 +104,20 @@ Unit green (profile store, arg mapping, precedence, presets); live smoke: start
 bundled model with creative profile → curl chat returns harness meta +
 timings; cockpit Tuning drawer renders current profile and persists an edit;
 benchmark suggestion appears after ctx change. Journal + roadmap DONE entry.
+
+## Prefix/Prompt Cache (verified on dev build 2026-08-26)
+
+Modern llama-server does AUTOMATIC prefix caching across requests
+(--cache-idle-slots enabled by default; saves idle slots to prompt cache;
+requires cache-ram). The legacy file-based --prompt-cache flag is CLI-only.
+
+AIDE-side compliance (all verified):
+- Harness scaffold is byte-deterministic per tier -> identical system prefix
+- Drift reminder + newest-turn edits insert BEFORE the final user message ->
+  shared prefix preserved
+- [learned]/memory blocks change rarely -> prefix stays stable
+- P7 one-model law = single slot, no eviction churn
+
+MEASUREMENT LAW: claim TTFT improvements only from measured request-1 vs
+request-N timing on the SAME served session (compose_ms + timingMs already
+in chat meta). Do not enable extra flags speculatively.

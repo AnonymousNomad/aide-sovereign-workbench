@@ -59,6 +59,14 @@ entry. Running history was unrecoverable. This rule exists because of that.
 - Append an AGENT_NOTES entry after ANY task/change/decision/event
   (governance §1: timestamp, actor, type, status, summary, files, next).
 
+## R8 — FAIL TWICE ⇒ STOP ⇒ RESEARCH ⇒ SKILL ⇒ ACT
+
+- Any failure recurring more than twice is forbidden from a third blind fix.
+- Sequence: stop; research the failure class from primary sources; write/update
+  the governing skill (what to do, how, dependencies, pitfalls, threat matrix);
+  THEN apply the single researched fix; log all four steps.
+- Guessing at fix #3 is a creed violation regardless of outcome.
+
 ---
 
 ## Recovering from a violation (if one happens anyway)

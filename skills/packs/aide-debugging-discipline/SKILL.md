@@ -32,6 +32,10 @@ description: Concrete debugging playbook for the AIDE stack — reproduce minima
 | Undeclared shared var | Feature silently dead (beforeunload handler threw ReferenceError on every fire) | Enable lint gates — eslint catches 49-reference undeclared vars in seconds; static analysis IS feature work |
 | Scope-trapped helper | Click handler at module scope calls fn declared inside another function | Declarations used by top-level wiring must live at module scope |
 | Fixed ports in tests | Test suite exits 1 only when production stack runs (bind EADDRINUSE) | Tests bind port 0 / probe freePort(); NEVER hardcode production ports (4173/4777-4779) |
+| Twice-fail law | Same step failed twice in one session = guessing pattern | STOP at second failure. Research the mechanism, encode in aide-route-slice-sop or matching skill, THEN retry. Attempt #3 from memory is forbidden |
+| Facade route-map cache | New route family 404s via :4777, works via :4778 | Facade loads map at startup — restart facade after editing facade-route-map.json |
+| Contracts regen order | CI arch gate fails openapi-drift on a commit whose routes "worked locally" | npm run contracts is LITERALLY the last edit before committing route/contract changes |
+| Gate chains with ';' | Commit pushed despite failing tsc | Verification chains use && ONLY — failure must halt the chain |
 
 ## Server Won't Start — Systematic Checklist
 

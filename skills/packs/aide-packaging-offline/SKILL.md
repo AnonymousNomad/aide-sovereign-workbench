@@ -7,6 +7,15 @@ description: Packaging SOP for the AIDE offline IDE — ship the workbench with 
 
 Target: `E:\aide-sovereign-workbench` — browser frontend + Node daemon (port 4777) + 3 GGUF models, packaged as a Tauri v2 Windows desktop app that works with ZERO internet. Installers are verified with honest smoke tests (silent install → daemon API probes → uninstall). **No browser is used in smoke tests** (Edge headless networking is broken on this machine — daemon API probes only).
 
+## CURRENT VERIFIED STATE (2026-09-03)
+
+- `desktop/prepare.mjs` stages the UI in `desktop/frontend` and loose runtime/server resources in `desktop/resources`.
+- The loose resource tree contains the TS arch server, legacy daemon, facade, `workbenches/`, shared `common/`, stack launcher, Node runtime, and the four runtime package trees required by the staged server.
+- `desktop/src/main.rs` launches `stack-launcher.mjs`; the launcher starts TS on `4778`, legacy on `4779`, and the facade on `4777`, with writable per-user workspace/model directories.
+- `desktop/tauri.conf.json` uses `resources: {"resources/": ""}`, `targets: "nsis"`, and WebView2 `offlineInstaller`.
+- `npm run desktop:verify` with `AIDE_REQUIRE_MODEL_RUNTIME=1` and `AIDE_LLAMA_SERVER_BINARY=E:\llama-cpp\llama-server.exe` passes. `npm run desktop:staged-smoke` passes through the facade on ephemeral ports.
+- Native Tauri compilation, installer install/uninstall, offline install, and model-pack/chat verification remain open because Rust is not installed on this machine.
+
 ## 1. Research base (verified from primary sources, Aug 2026)
 
 | Topic | Verified fact | Source |
@@ -20,7 +29,7 @@ Target: `E:\aide-sovereign-workbench` — browser frontend + Node daemon (port 4
 
 ## 2. Packaging architecture decision (LOCKED)
 
-- **Shell**: Tauri v2 (`@tauri-apps/cli` ^2.11.4, Rust project at `desktop/`). `desktop/src/main.rs` spawns the Node daemon via `std::process::Command` from the resource dir (`resource_dir/runtime/node.exe`, `resource_dir/daemon/server.mjs`) with `AIDE_WORKSPACE=<resource_dir>`, `AIDE_DAEMON_PORT=4777`, kills it on exit. Daemon stays the single source of truth (HTTP on `http://127.0.0.1:4777`).
+- **Shell**: Tauri v2 (`@tauri-apps/cli` ^2.11.4, Rust project at `desktop/`). `desktop/src/main.rs` spawns the embedded Node runtime and `resources/stack-launcher.mjs`; the launcher starts the TS arch server, legacy daemon, and facade on internal `4778`/`4779` plus user-facing `4777`, with writable `AIDE_WORKSPACE` and `AIDE_MODEL_DIR`, and the shell tree-kills it on exit.
 - **Daemon transport**: Node daemon as an embedded runtime + resources (current design), NOT a pkg-compiled sidecar (avoid extra toolchain; main.rs already works).
 - **Models**: OUTSIDE the installer. Installed model home = `%LOCALAPPDATA%\AIDE\models\`. The installer NEVER contains `.gguf` files (CI builds without `AIDE_INCLUDE_MODEL_WEIGHTS`, enforced by `desktop/verify-prepare.mjs` which fails if a `.gguf` is staged).
 - **WebView2**: `offlineInstaller` (mandatory for the "zero internet" guarantee).
@@ -35,7 +44,7 @@ Target: `E:\aide-sovereign-workbench` — browser frontend + Node daemon (port 4
 ### 3.1 Prereqs on the build machine
 Rust MSVC toolchain + `rustup target add x86_64-pc-windows-msvc`, Node ≥20, and for MSI only: VBSCRIPT optional feature (Settings → Apps → Optional features). NSIS is fetched by the Tauri CLI automatically.
 
-### 3.2 Fix the config first [TODO — currently broken for the built app]
+### 3.2 Historical audit (superseded by CURRENT VERIFIED STATE)
 Current `desktop/tauri.conf.json`:
 ```json
 {
@@ -72,7 +81,8 @@ Problems found in inspection:
 ```powershell
 # from E:\aide-sovereign-workbench
 npm ci
-npm run desktop:verify          # prepare + verify-prepare (fails if GGUF staged without AIDE_INCLUDE_MODEL_WEIGHTS=1)
+npm run desktop:verify          # prepare + verify-prepare + staged TS/legacy/facade smoke
+npm run desktop:staged-smoke    # prepare + staged TS/legacy/facade smoke only
 npm run desktop:build           # = desktop:prepare && tauri build --config desktop/tauri.conf.json
 npm run desktop:smoke           # scripts/desktop-artifact-smoke.mjs: bundle exists, installers non-empty
 ```

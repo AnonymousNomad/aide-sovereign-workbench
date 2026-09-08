@@ -5,7 +5,7 @@ export const HubSort = z.enum(['downloads', 'likes', 'modified']);
 export const HubSearchQuery = z.object({
   q: z.string().min(1).max(200),
   sort: HubSort.optional(),
-  limit: z.number().int().gte(1).lte(50).optional()
+  limit: z.coerce.number().int().gte(1).lte(50).optional()
 }).strict();
 
 export const HubModel = z.object({

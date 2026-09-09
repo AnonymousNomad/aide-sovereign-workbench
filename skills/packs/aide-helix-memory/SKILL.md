@@ -1,71 +1,103 @@
-# X1 — Helix Memory (essentially-unlimited context for ANY plugged-in model)
+---
+name: aide-helix-memory
+description: The Helix Memory subsystem — AIDE's deterministic, model-free 30-day project memory (up to 1 year+ with retention rollups). X1 event spine (memory-spine.mjs), X2 semantic join (helix-join.mjs patterns.jsonl + [learned] injection), X3 retention rollup (helix-retention.mjs months/years). Wired into the daemon via routes/memory.ts refresh-on-read cascade and surfaced by the system-map helix_memory card. Use when wiring, debugging, or extending project memory, when the system-map helix card reports offline, when [learned] lines are missing from chat, when patterns.jsonl never appears, or when adding any new work-event source to memory.
+---
 
-Phase skill for AIDE X-series. Master router: aide-master-roadmap. The user's DNA-helix intuition formalized: every memory is a TWO-STRAND entry — FACT strand (the what) fused with PROVENANCE strand (when/where/from-whom/how-confident). One strand without the other is unusable: facts go stale, provenance without content is noise.
+# AIDE Helix Memory
 
-Research base (2026, refreshed 2026-08-25): Letta/MemGPT OS-style hierarchy (message buffer / pinned core blocks / recall / archival; sleep-time async compaction; "memory = context engineering"), Mem0 ECAI 2025 (extract->consolidate->retrieve; 91% lower p95 latency vs full-context; multi-signal retrieval: semantic+BM25+entity fused), A-MEM Zettelkasten dynamic linking (new memories trigger evolution of neighbors), REMem (episodic time-aware gists + fact triples grounded to timeline; robust REFUSAL on unanswerable questions), unified-framework paper (4 stages: extraction/management/storage/retrieval; heat-based promotion short->mid->long), MemoryBank forgetting-curve decay. NEW 2026-08-25 grounding (docs/MEMORY-30D-RESEARCH.md): sleep-time compute measured (arXiv:2504.13171 — same accuracy at ~5x less test-time compute, consolidation NEVER in turn path); Graphiti bi-temporal law (valid_at/invalid_at — supersede never delete); Claude Code auto-memory taxonomy (user/feedback/project/reference types, index-file load caps); OpenClaw pre-compaction flush (compaction = memory-FORMATION event); CrabTalk survey dual-store law (inspectable markdown profiles + searchable SQLite episodic/semantic); memory-induced hallucination rate = THE production metric (refusal calibration > recall@k). AIDE structural advantage: work events are captured DETERMINISTICALLY (cipher-state bus, ships.log, .traj.json, git) — extraction from text is the SECONDARY path for semantic facts only.
+Deterministic project memory built from event sources AIDE ALREADY captures (the
+cipher-state bus + ships.log). ZERO model involvement, zero new deps, single
+source of truth shared between the legacy daemon and the TS arch server.
 
-## Event spine (deterministic strand — added 2026-08-25)
+## Architecture (three tiers)
 
-Primary work-memory source is structured events, not chat extraction:
-`.aide/memory/events.jsonl` receives appends from cipher-state bus,
-ships.log mirror, agent-loop trajectory closes, git commits, and chat
-session closes. Day-digests roll up hot window deterministically.
-Window policy: HOT 0-7d full detail -> WARM 8-30d day-digests (the
-contributor's "remember 30 days back" tier) -> ARCHIVE >30d week-rollups,
-all retrievable via FTS/RAG, NOTHING deleted.
+- **X1 spine** — `harness/memory-spine.mjs`. Merges `.aide/cipher-state.jsonl`
+  (ship/approval/rejection/abort) + `.aide/metrics/ships.log` (ship_intent) into
+  one chronological event stream, rolls up per-LOCAL-calendar-day digests under
+  `.aide/memory/days/YYYY-MM-DD.json`. Bucketing uses LOCAL date of the event
+  timestamp (NOT ISO/UTC — tests that build events with `toISOString()` misdate
+  by timezone). Digest counts ships/files_touched/approvals/rejections/aborts/
+  ship_intents, sums tools_used per tool, caps highlights at 10 x 220 chars.
+- **X2 join** — `harness/helix-join.mjs`. Reads day digests, extracts pattern-
+  candidates, writes `.aide/memory/patterns.jsonl`. Extraction rules require
+  EVIDENCE: P1 tool affinity needs >= 3 uses AND >= 60% approval; P2 file
+  affinity needs the file in >= 3 different days' highlights; P3 recurring
+  highlight needs >= 2 different days. Lifecycle: >= 3 rejections (most recent)
+  -> demoted; last_seen > 30 days ago -> archived. Exports `refresh()`,
+  `listActive()` (returns `[learned] ...` lines for chat injection),
+  `recordFeedback()`, `status()`. IMPORTANT: `refresh()` on thin/empty data is
+  CORRECT to return 0 patterns — that is honest, not a bug. Patterns only
+  materialize once the evidence thresholds are crossed.
+- **X3 retention** — `harness/helix-retention.mjs`. Idempotent additive rollup.
+  A month earns `.aide/memory/months/YYYY-MM.json` once the month is > 30 days
+  old; a year earns `.aide/memory/years/YYYY.json` once > 365 days old. Day
+  digests are never deleted; summaries redrive from them. Exports `rollup()`,
+  `readSummary(kind, key)`, `status()`. rollup() is idempotent — running twice
+  yields identical written lists.
 
-## Design (all local, all in .aide/memory/)
+## Wired paths (VERIFIED 2026-09-10 — do not regress)
 
-### Strands (per entry)
+- **Refresh cascade lives in the memory route** — `node/src/routes/memory.ts`
+  `createMemoryService().listDigests()` refresh-on-read:
+  1. `spine.refreshDayDigests()` (X1, bounded to requested window)
+  2. fire-and-forget `runHelixCascade()` (X2 `helixJoin.refresh()` then
+     X3 `helixRetention.rollup()`) — best-effort, 1.5s timeout per step, a
+     failing stage is logged and never blocks the digest response (armor:
+     component isolation).
+  The route is registered via `routesForMemory(createMemoryService(workspace))`
+  in `node/src/openapi.ts` and exposed through the production facade
+  (`common/facade-route-map.json` `/api/memory -> ts`).
+- **System-map helix card** — `node/src/services/system-map.mjs` `probeHelixMemory()`
+  reads the REAL artifacts: counts `.aide/memory/days/*.json`, `months/*.json`,
+  `years/*.json` and lines in `patterns.jsonl`. Reports `live` when any exist.
+
+## Traps / dead paths (already fixed — never reintroduce)
+
+- **NO `.aide/memory/helix.jsonl`** exists and nothing ever writes it. The
+  historical probe-reading it could never report live. Fixed 2026-09-10.
+- **`signals.json` is NOT an expert**. `node/src/services/system-map.mjs`
+  `probeMicroExperts()` must exclude `.aide/experts/signals.json` (the
+  signal-intensity cache) from the manifest count. Fixed 2026-09-10.
+- **NO `.aide/logs/agent-events.jsonl`** exists. `probeAgentLoop()` reads the
+  REAL artifact: `.aide/agent-loop-sessions/*.json` (written by routes/agent.ts).
+  Fixed 2026-09-10.
+- **X3 was a stub** (defined helpers, exported nothing) before 2026-09-10. If a
+  `helix_retention` subsystem ever has zero exports again, that is the stub
+  resurfacing.
+- **Tests**: `tests/unit/test-helix-cascade.mjs` (unit), `tests/arch/
+  helix-wiring-runtime.test.ts` (full server end-to-end: digit read drives
+  X1+X2+X3, system-map cards live, read-only probe assertions).
+- **TS7016**: tests importing harness `.mjs` modules must use
+  `createRequire` (like tests/arch/helix-wiring-runtime.test.ts), not a
+  bare ESM import with a `typeof import(...)` cast.
+
+## Adding a new work-event source
+
+1. Normalize it in `memory-spine.mjs` `readWorkEvents()` into `{at, kind,
+   detail}` (kind in ship|approval|rejection|abort|ship_intent).
+2. Add the source file read side-by-side in the `Promise.all` there.
+3. If the new kind needs counting, extend `buildDayDigest()`.
+4. Follow the X2/X3 cascade automatically (they consume day digests).
+5. Prove: run `node --test tests/unit/test-memory-spine.mjs tests/unit/
+   test-helix-cascade.mjs tests/arch/helix-wiring-runtime.test.ts`.
+
+## Manual live probe
+
+Drive the cascade directly against a workspace (no server needed):
+
+```js
+const { refresh } = await import('./harness/helix-join.mjs');
+const { rollup, status } = await import('./harness/helix-retention.mjs');
+const ws = 'E:\\aide-sovereign-workbench';
+console.log(await refresh(ws));
+console.log(await rollup(ws));
+console.log(await status(ws));
 ```
-HelixEntry { id, fact: string,                    // FACT strand
-             provenance: { session_id, ts, source:'user'|'agent'|'tool'|'file',
-                           file?:path, span?:[a,b], confidence:0..1,
-                           derived_from?:entry_id[] },   // PROVENANCE strand
-             entities:string[], links:entry_id[],        // A-MEM linking
-             heat:{ accesses, last_access, strength },    // promotion/decay
-             state:'active'|'superseded'|'archived', superseded_by? }
+
+system-map card check (real workspace):
+
+```js
+const { createSystemMapService } = await import('./node/src/services/system-map.mjs');
+const snap = await createSystemMapService({ workspace: 'E:\\aide-sovereign-workbench' }).getSnapshot();
+console.log(snap.subsystems.find(s => s.id === 'helix_memory'));
 ```
-Contradictions are NEVER deleted (REMem lesson): new entry supersedes old via superseded_by chain — history stays queryable ("what did we believe in March").
-
-### Tiers (MemGPT-shaped, sized for small local models)
-1. **Working** = live context window (~2-4k tokens budget for a 7B-class model): current turn + pinned core blocks.
-2. **Core blocks** (pinned, agent-editable via tools): `project` (stack, conventions, build cmds), `user` (preferences, name, style), `task` (current objective + open subtasks). Hard caps: project 800 tok, user 400, task 600.
-3. **Episodic** (recall): full session logs auto-gisted at session close -> gists + fact-triples with timestamps (REMem style).
-4. **Semantic/archival**: distilled facts + code-knowledge, SQLite + vectors (reuses A2 embedder + FTS5). Entity table for entity-match scoring (Mem0 pattern).
-
-### Flow
-- **Extraction** (async, sleep-time style after turns/session close): small-model or utility-role run extracts candidate facts w/ provenance spans; dedupe vs existing (hash + embedding sim >0.92 => merge not duplicate).
-- **Promotion**: heat score = f(access frequency, recency, explicit pin). Heat above threshold + survived contradiction-checks => migrate episodic -> semantic (MemoryOS-style staged promotion).
-- **Decay**: Ebbinghaus-style strength decay; low-heat entries archive (never delete). Archived entries retrievable by explicit deep-search.
-- **Retrieval** (per turn): query -> parallel semantic + BM25/FTS + entity-match -> RRF fuse -> top-k under token budget -> inject as `[memory]` block WITH provenance chips ("(from src/auth.ts, Mar 3)"). Model sees sources = calibrated trust.
-- **Unlimited-window illusion**: any ctx length handled because working set is bounded; older content always one tool-call away (`memory_search`, `memory_timeline(entity, before)`).
-
-### Tools exposed to ANY model (A1 loop)
-`memory_search(q)`, `memory_read(id)`, `memory_pin(entry,block)`, `memory_write(fact, provenance-auto-filled)`, `memory_forget(id)` (soft). Small-model tolerant arg parsing same as A1.
-
-### Honesty integration (Veritas hook)
-Retrieval returns `null` cleanly when nothing matches -> orchestrator instructs model: "no memory of this — say so or investigate" (feeds refusal calibration, see veritas-layer skill). Staleness gate: facts older than N days on files that changed since (git mtime check) get `stale:true` flag injected.
-
-## Tests FIRST
-
-1. Round-trip: write 500 synthetic facts across fake sessions -> recall precision@5 >= 0.9 on 20 queries (fixture-scored).
-2. Supersession: contradicting fact written -> old marked superseded, timeline query returns BOTH ordered.
-3. Promotion/decay simulation: access patterns -> expected tier migrations after virtual clock advance.
-4. Budget: assembled prompt never exceeds model ctx - reserve; overflow drops lowest-ranked memory first.
-5. Provenance injection: retrieved block carries file/span chips; missing provenance = extraction bug (assert).
-6. Staleness: edit file after fact written -> stale flag set.
-7. Refusal support: empty-retrieval path produces clean null not hallucinated filler.
-8. Perf: retrieval <50ms on 100k entries (FTS5+sqlite realistic scale), extraction async (never blocks turn).
-9. Arch tests: routes strict, openapi zero-diff.
-
-## Pitfalls
-
-- Extraction quality IS the system: bad extraction poisons everything — utility-model extraction runs through Veritas gates too (schema + span verification: quoted text must exist in cited file).
-- Never let memory writes bypass provenance capture (auto-fill from call site; manual writes require source note).
-- RAM discipline: sqlite + vectors on disk, LRU page cache only — no full-index-in-RAM (device-training-1060 doctrine applies).
-- Cross-session identity: single-user local product keeps this SIMPLE (one workspace = one scope) — do not import multi-tenant complexity.
-
-## Gate
-
-Unit+arch green; e2e: 30-turn fixture conversation spanning 3 sessions -> model answers question requiring session-1 fact WITHOUT it being in recent context; honesty probe answered "not in my memory" when true. Journal.

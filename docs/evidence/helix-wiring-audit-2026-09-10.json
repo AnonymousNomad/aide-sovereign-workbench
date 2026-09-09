@@ -1,0 +1,55 @@
+{
+  "id": "helix-wiring-audit-2026-09-10",
+  "date": "2026-09-10",
+  "phase": "cognition-spine wiring audit + fix",
+  "summary": "Full-system audit of harness / micro-experts / closed-loop / 30-day-memory wiring through the production facade; 3 dead-wire defects found and fixed; 1 missing skill authored.",
+  "audit_verdict": {
+    "harness": "LIVE — real-model battery 2/2 measured-pass (qwen2.5-coder-1.5b, parse=true veritas=verified)",
+    "micro_experts": "LIVE — 3 trained manifests (task-router 97.8% val, diff-risk-gate, request-intent-classifier), registry battery 6/6",
+    "closed_loop": "LIVE — daemon schedule boot-kick + 6h interval, selfimprove.log run 08-31, GET /api/closed-loop/status route",
+    "agent_loop": "LIVE — 16 sessions under .aide/agent-loop-sessions; routes wired (openapi.ts:376)",
+    "helix_memory_30day": "FIXED — was dead (retention stub + zero-caller join + nonexistent probe paths); now wired end-to-end"
+  },
+  "defects_fixed": [
+    {
+      "id": "D1",
+      "file": "harness/helix-retention.mjs",
+      "severity": "critical",
+      "finding": "File was a STUB — defined 6 helper functions, exported nothing; X3 monthly/yearly retention contract unimplemented.",
+      "fix": "Implemented rollup()/readSummary()/status() exports: monthly summary when month > 30 days old, yearly when > 365 days old, additive, idempotent."
+    },
+    {
+      "id": "D2",
+      "file": "node/src/routes/memory.ts",
+      "severity": "critical",
+      "finding": "helix-join.refresh() (X2, patterns.jsonl) and helix-retention.rollup() (X3) had ZERO callers in node/src — 30-day semantic memory dead code.",
+      "fix": "Added runHelixCascade() triggered on GET /api/memory/digests refresh-on-read: X1 spine refresh -> X2 join -> X3 rollup, best-effort 1.5s timeout per step, failing stage logged, never blocks response."
+    },
+    {
+      "id": "D3",
+      "file": "node/src/services/system-map.mjs",
+      "severity": "high",
+      "finding": "helix probe read .aide/memory/helix.jsonl which NOTHING writes — card could never report live. Also: signals.json (signal cache) inflated expert count to 4 (real = 3); agent probe read .aide/logs/agent-events.jsonl which nothing writes (real artifact = .aide/agent-loop-sessions/).",
+      "fix": "probeHelixMemory reads real artifacts (days/months/years/*.json + patterns.jsonl); probeMicroExperts excludes signals.json; probeAgentLoop reads session store. Real workspace now reports ALL cards honestly live."
+    }
+  ],
+  "verification": {
+    "unit_tests": "tests/unit/test-helix-cascade.mjs — 4/4 PASS",
+    "arch_tests": [
+      "tests/arch/helix-wiring-runtime.test.ts — PASS (full server: digest read drives X1+X2+X3, system-map cards live, read-only probe assertions)",
+      "tests/arch/system-map-runtime.test.ts — PASS",
+      "tests/arch/memory-recall.test.ts — PASS",
+      "tests/arch/expert-serve-wirein.test.ts — PASS"
+    ],
+    "combined_slice": "23/23 PASS (7 memory/system-map/expert files)",
+    "type_gate": "tsc -p tsconfig.node.json --noEmit — CLEAN",
+    "syntax": "node --check on all 4 edited files — CLEAN",
+    "p0_regression": "P0 AIDE ACCEPTANCE PASSED (boot, file+approval gate, LSP, terminal, task, git, model status, BYOK, agent approval loop, on-disk edit, egress journal, restart recovery)",
+    "live_real_workspace": "system-map snapshot on E:\\aide-sovereign-workbench: helix_memory LIVE (1 day digest), micro_experts LIVE (3 manifests), agent_loop LIVE (16 sessions)",
+    "hygiene": "zero stray listeners on 4173/4777/4778/4779/8081/8082/8083/8087; zero stray llama-server"
+  },
+  "artifacts": {
+    "skills": "aide-helix-memory created (C:\\Users\\Grey_\\.agents\\skills\\aide-helix-memory\\SKILL.md) — encodes verified wiring, dead-path traps, manual probes",
+    "evidence_file": "this file"
+  }
+}

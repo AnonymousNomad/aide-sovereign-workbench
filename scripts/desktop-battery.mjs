@@ -35,6 +35,24 @@ function procExists(image) {
   });
 }
 
+async function waitProc(image, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await procExists(image)) return true;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  return procExists(image);
+}
+
+async function waitProcGone(image, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await procExists(image))) return true;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  return !(await procExists(image));
+}
+
 before(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-desktop-batt-'));
   dc = createDesktopControl({ workspace: dir });
@@ -66,14 +84,13 @@ test('battery: path escape outside granted roots is refused', async () => {
 test('battery: REAL TASK launch->verify-process->close->verify-gone', async () => {
   const launched = await dc.act({ op: 'launch_app', target: 'notepad.exe', approved: true });
   assert.equal(launched.ok, true);
-  await new Promise(r => setTimeout(r, 1200));
-  const up = await procExists('notepad.exe');
+  const up = await waitProc('notepad.exe', 15000);
   assert.equal(up, true, 'notepad must actually be running');
   await new Promise((resolve) => {
     execFile('taskkill', ['/IM', 'notepad.exe', '/F'], { windowsHide: true }, () => resolve(null));
   });
-  await new Promise(r => setTimeout(r, 600));
-  const gone = !(await procExists('notepad.exe'));
+  const gone = await waitProcGone('notepad.exe', 10000);
+  assert.equal(gone, true, 'notepad must be closed after taskkill');
   record('real-task-lifecycle', up && gone, `ran=${up} closed=!${gone}`);
 });
 
@@ -137,6 +154,10 @@ test('battery: trajectory recorder captures assertion-stamped training rows', as
   assert.equal(executed[executed.length - 1].assertion.check, 'process_alive:notepad.exe');
   assert.match(executed[executed.length - 1].thought, /battery probe/);
   record('trajectory-recorder', true, `${rows.length} rows, assertion=${JSON.stringify(executed[executed.length - 1].assertion)}`);
+  await new Promise((resolve) => {
+    execFile('taskkill', ['/IM', 'notepad.exe', '/F'], { windowsHide: true }, () => resolve(null));
+  });
+  await waitProcGone('notepad.exe', 10000);
 });
 
 test('battery: executor seam — submit, list, resolve reject, verdict delivered', async () => {

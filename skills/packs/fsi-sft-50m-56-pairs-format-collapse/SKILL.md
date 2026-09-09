@@ -26,7 +26,7 @@ The loss-mask helps (the model now only gets loss on the answer tokens), the rec
 3. **50M is the bare minimum** for format-learning. The cipher v6 52.9M with 12 layers, d=384 has effective receptive field well under 2K tokens. For long SFT answers (500-1500 tokens), the model literally cannot attend to the full sequence.
 4. **The loss is dominated by entropy, not format.** With 50M params and 50K tokens of training, the optimizer reduces loss by finding better low-entropy continuations. The model can drop loss 0.2 by predicting Latin/math/random tokens with slightly higher likelihood — without learning any format.
 
-## How to detect (the proper Gate 1)
+## How to detect (the proper Gate 1) — 2026-09-08 CORRECTED
 
 ```python
 def gate_1_byte_exact_format(model, tokenizer, test_prompts, kind_tags):
@@ -35,18 +35,36 @@ def gate_1_byte_exact_format(model, tokenizer, test_prompts, kind_tags):
     Per pipeline-phase-7 §6 + pipeline-phase-8 §6: byte-exact formats parse.
     A model that loses 0.2 ce but still produces garbage has FAILED the gate.
     The gate checks GENERATION, not just loss.
+
+    CRITICAL (2026-09-08): the prompt MUST match the TRAINING input shape.
+    The converter builds `instr + <|im_end|>` and the answer is
+    `<|im_start|><|credo|><sop_type>...</sop_type>...<|im_end|>`.
+    So the eval must feed `encode(prompt + "<|im_end|>")` and check the
+    CONTINUATION opens with <|im_start|> and closes with <|im_end|>.
+
+    OLD template `encode(f"<|im_start|><|credo|>\n{prompt}")` is WRONG: that
+    shape never appears in training (after <|credo|> training always has
+    <sop_type>, never task text). Its im_start/credo checks were VACUOUS
+    (those tokens were in the input, echoed) and im_end=False was
+    uninformative (OOD prefix). Any gate that puts im_start/credo into the
+    prompt is testing the wrong distribution.
     """
-    IM_START, IM_END, CREDO = 24023, 24024, 24000
+    IM_START, IM_END = 24023, 24024
     for prompt, kind in zip(test_prompts, kind_tags):
-        ids = encode(f"<|im_start|><|credo|>\n{prompt}")
+        # TRAINING-MATCHING prompt: instr + IM_END (same as the converter).
+        ids = encode(prompt + "<|im_end|>")
+        cont = []  # continuations only, NOT the echoed prompt
         for _ in range(600):
             next_id = greedy(model, ids)
             ids = ids + [next_id]
+            cont.append(next_id)
             if next_id == IM_END:
                 break
+        if not cont or cont[0] != IM_START:
+            return ("FAIL", prompt, "continuation does not open with <|im_start|>")
         if ids[-1] != IM_END:
             return ("FAIL", prompt, "no <|im_end|> in 600 tokens")
-        content = decode(ids)
+        content = decode(cont)
         if looks_like_garbage(content):
             return ("FAIL", prompt, "garbage content (entropy collapse)")
         # Per LIMA: check content is topically on-task
@@ -62,13 +80,31 @@ def gate_1_byte_exact_format(model, tokenizer, test_prompts, kind_tags):
 3. **Scale the model.** Per the locked design: the full cipher is `local140a50` (146.5M), 3x the capacity. Same 56 pairs + 146.5M may close the format gap where 52.9M doesn't.
 4. **Combine #1 and #3:** 1K LIMA-style pairs + 146.5M model = the canonical SOTA path for a 50-150M cipher.
 
-## Cross-references
+## Cross-references (2026-09-08: gate templates corrected above)
 
+- E:\pip_temp\opencode\sft_gate2_trainfmt.py + .log (the CORRECTED probe: training-matching `instr + im_end` prompt; SFT model 7/7 fails to open envelope)
+- E:\pip_temp\opencode\convert_sft_to_shards_v2.py (the loss-mask boundary bug: `t >= instr_len` never grades the `im_end -> im_start` opening transition; fixed by grading `t >= len(instr_ids)`)
 - E:\pip_temp\opencode\pilots\sft_2ep_88.log (the 2-epoch run that DROPS loss but DOESN'T learn format)
-- E:\pip_temp\opencode\gate1_2ep.log (the generation test showing im_start+credo without im_end)
+- E:\pip_temp\opencode\gate1_2ep.log (the OLD generation test — its im_start+credo "pass" was a vacuous echo; superseded by gate2)
 - C:\Users\Grey_\.agents\skills\fsi-sft-few-pairs-undertrained (sister skill: covers the related "less than 200 pairs" failure)
 - C:\Users\Grey_\.agents\skills\pipeline-phase-7-post-train-data
 - C:\Users\Grey_\.agents\skills\pipeline-phase-8-post-train-runs
 - C:\Users\Grey_\.agents\skills\post-training-distill
 - AGENTS.md R8 (Fail Once → Stop → Research → Skill → Act → Verify)
 - Project: FSI FELON cipher pretraining (50-150M, GTX 1060, textbook + code)
+
+## 2026-09-08 23:50 VERIFIED addendum (R8): loss-magnitude, not mask, is the binding constraint
+
+Cross-reference to fsi-sft-few-pairs-undertrained. Same 52.9M SFT run after
+the corrected mask: gate2 still 7/7 opens_im_start=False, but the boundary
+probe proves the association EXISTS (P(im_start) rose ~40x over base to
+3e-5..1e-4) yet UNDERFIRES because marker tokens are ~0.2% of CE mass vs a
+2e-2..1.6e-2 space-? prior. Evidence files:
+- E:\pip_temp\opencode\sft_boundary_probe.log (3-checkpoint boundary probe table)
+- E:\pip_temp\opencode\sft_gate2_fixedmask.log (7/7 fail, but corpus-fluent house output = base prior surfaced)
+- Retrain: sft_run_fixedmask.log (best 9.3920 at step 800 = TRAIN-best mis-selection; eval rose 9.64->10.03)
+
+ACTIONABLE: (1) upweight envelope/marker targets in the SFT CE loss; (2) select
+best by EVAL not train loss; (3) lengthen schedule so LR is not ~0 for the
+final 100 steps. The decode collapse is a symptom of underweighted format
+supervision � fix the loss or the model will keep eating pretrain priors.

@@ -32,7 +32,7 @@ Per LIMA (2305.11206), Phi-1 (2306.11644), SmolLM2 (2502.02737), and LLaMA2 SFT 
 
 The 28-step run on 56 pairs at lr 5e-5 (cosine over 28 steps → ~0 effective LR at end) is the **worst possible SFT configuration** for learning the format. The model gets enough signal to memorize "respond with im_start+credo" but not enough to learn the closing or the content.
 
-## How to detect (the gate to write)
+## How to detect (the gate to write) — 2026-09-08 CORRECTED
 
 ```python
 def gate_1_byte_exact_format(model, tokenizer, test_prompts, kind_tags):
@@ -40,24 +40,88 @@ def gate_1_byte_exact_format(model, tokenizer, test_prompts, kind_tags):
     
     Per pipeline-phase-7 §6: byte-exact formats parse (env strict + chat honest
     gate). The model MUST produce <|im_start|><|credo|>{content}<|im_end|> for
-    every test prompt. Any prompt that produces content without <|im_end|>
-    after 200+ new tokens FAILS.
+    every test prompt.
+
+    CRITICAL (2026-09-08): the prompt MUST match the TRAINING input shape.
+    The converter builds `instr + <|im_end|>` and the answer is
+    `<|im_start|><|credo|><sop_type>...</sop_type>...<|im_end|>`.
+    So feed `encode(prompt + "<|im_end|>")` and check the CONTINUATION.
+    The OLD template `encode(f"<|im_start|><|credo|>\n{prompt}")` never
+    occurs in training -> its im_start/credo checks were VACUOUS echoes.
     """
     for prompt, kind in zip(test_prompts, kind_tags):
-        ids = encode(f"<|im_start|><|credo|>\n{prompt}")
+        ids = encode(prompt + "<|im_end|>")  # TRAINING-MATCHING prompt
+        cont = []
         for _ in range(600):
             next_id = greedy(model, ids)
             ids = ids + [next_id]
+            cont.append(next_id)
             if next_id == 24024:  # <|im_end|>
                 break
+        if not cont or cont[0] != 24023:  # must OPEN with <|im_start|>
+            return ("FAIL", prompt, "continuation does not open with <|im_start|>")
         if ids[-1] != 24024:
             return ("FAIL", prompt, "no <|im_end|> in 600 tokens")
         # Decode and check the content is non-garbage
-        content = decode(ids)
+        content = decode(cont)
         if looks_like_garbage(content):
             return ("FAIL", prompt, "garbage content")
     return ("PASS", None, None)
 ```
+
+## 2026-09-08 VERIFIED root cause addendum (R8)
+
+The gate2 probe (sft_gate2_trainfmt.py) with the CORRECT training-matching
+prompt showed the 52.9M SFT model failing 7/7 to OPEN the envelope (greedy
+= pure space collapse; house decode = function-word soup). The single
+largest fixable cause observed in the shard bytes:
+
+- The loss mask in the converter graded `t >= instr_len` where
+  `instr_len = len(instr_ids) + 1` — i.e. the transition that predicts
+  `<|im_start|>` (position `len(instr_ids)`) is scored `-100`/masked.
+  The model was never given gradient for "after instruction + im_end,
+  emit im_start"; it only ever learned "given im_start, emit credo".
+- The ONLY graded target entering the answer was CREDO, so the envelope's
+  opening token was effectively unsupervised, and generation from a plain
+  instruction had no learned reason to boot the envelope.
+- FIX: grade `t >= len(instr_ids)` (LLaMA2 doctrine — mask the instruction
+  tokens, keep the boundary + full answer in the loss window). Retrain with
+  that mask; re-run gate2 (the corrected gate) as the acceptance check.
+- ALSO verified in the shard: answers already end with `<|im_end|>` and the
+  converter appends a second one (tail `[... , 24024, 24024]`), teaching
+  "im_end -> im_end". Dedupe per the fix plan in the archived logs.
+
+## 2026-09-08 23:50 VERIFIED 2nd addendum (R8): mask fix necessary but NOT sufficient
+
+After the mask fix + stable-grads retrain (LR halved to 2.5e-5, clip 0.5,
+800 steps, 0 NaNs, gn stable 411-2056), the corrected gate (sft_gate2_trainfmt)
+STILL failed 7/7 to open the envelope. Boundary probe
+(sft_boundary_probe.py, 3 checkpoints × 4 prompts, P at boundary position):
+
+    checkpoint                P(im_start)   P(credo)     P(space▁)
+    BASE pretrain             1.13e-06      1.11e-06     2.05e-02
+    SFT pre-maskfix           1.66e-06      6.83e-06     3.05e-02
+    SFT fixed-mask            3e-05..1e-04  4e-05..1.3e-04 2e-03..1.6e-02
+
+Interpretation (evidence, not guess):
+- The mask fix DID teach the boundary: P(im_start) rose ~40x over base and
+  ~30-60x over pre-maskfix. The association instr+im_end -> im_start exists.
+- It is still 20-60x BELOW the space-token prior, so greedy/house decode
+  always collapses to `▁`/corpus tokens. The format skeleton is UNDERWEIGHTED
+  IN THE LOSS: envelope markers are ~0.2% of the total CE mass (960 boundary
+  targets per 516k loss tokens), so their gradient is negligible vs the
+  pretrain prior. This is a LOSS-MAGNITUDE + SCHEDULE problem, not a bug.
+- Schedule artifacts in the same run: best chosen by TRAIN loss at the LAST
+  step while eval ce ROSE 9.64@400 -> 10.03@800 (overfit + LR hit 0 before
+  convergence) — best-by-train-loss picks the most overfit step.
+- Fix candidates (next, in evidence order): (A) UPWEIGHT format/marker targets
+  in CE (multi-token envelope skeleton gets weight > 1), (B) fix the schedule
+  (eval-based best selection, LR not exhausted at the end, more steps),
+  (C) A+B. (D) harness-side logits-bias clamp at decode is a mask of the
+  same deficit — avoid unless model-side fails.
+- Rule to remember: a format token that got 0 gradient in pretrain and
+  <1% loss mass in SFT will NOT beat a 2e-2 pretrain prior at any practical
+  step count. Amplify the format's loss weight or the format never fires.
 
 ## How to fix (in order, per the research)
 

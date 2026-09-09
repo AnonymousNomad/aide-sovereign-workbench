@@ -13,13 +13,17 @@ fn main() {
             let resource_dir = app.path().resource_dir().map_err(|error| error.to_string())?;
             let node_name = if cfg!(windows) { "node.exe" } else { "node" };
             let node = resource_dir.join("runtime").join(node_name);
-            let daemon = resource_dir.join("daemon").join("server.mjs");
-            if node.exists() && daemon.exists() {
+            let launcher = resource_dir.join("stack-launcher.mjs");
+            if node.exists() && launcher.exists() {
                 let child = Command::new(node)
-                    .arg(daemon)
+                    .arg(&launcher)
                     .current_dir(&resource_dir)
                     .env("AIDE_WORKSPACE", &resource_dir)
-                    .env("AIDE_DAEMON_PORT", "4777")
+                    .env("AIDE_MODEL_DIR", resource_dir.join("models"))
+                    .env("AIDE_ARCH_PORT", "4778")
+                    .env("AIDE_LEGACY_PORT", "4779")
+                    .env("AIDE_FACADE_PORT", "4777")
+                    .env("AIDE_LLAMA_SERVER", resource_dir.join("runtime").join(if cfg!(windows) { "llama-server.exe" } else { "llama-server" }))
                     .spawn()
                     .map_err(|error| error.to_string())?;
                 let state = app.state::<DaemonProcess>();

@@ -7,7 +7,7 @@ description: Packaging SOP for the AIDE offline IDE — ship the workbench with 
 
 Target: `E:\aide-sovereign-workbench` — browser frontend + Node daemon (port 4777) + 3 GGUF models, packaged as a Tauri v2 Windows desktop app that works with ZERO internet. Installers are verified with honest smoke tests (silent install → daemon API probes → uninstall). **No browser is used in smoke tests** (Edge headless networking is broken on this machine — daemon API probes only).
 
-## CURRENT VERIFIED STATE (2026-09-03)
+## CURRENT VERIFIED STATE (2026-09-10)
 
 - `desktop/prepare.mjs` stages the UI in `desktop/frontend` and loose runtime/server resources in `desktop/resources`.
 - The loose resource tree contains the TS arch server, legacy daemon, facade, `workbenches/`, shared `common/`, stack launcher, Node runtime, and the four runtime package trees required by the staged server.
@@ -15,6 +15,8 @@ Target: `E:\aide-sovereign-workbench` — browser frontend + Node daemon (port 4
 - `desktop/tauri.conf.json` uses `resources: {"resources/": ""}`, `targets: "nsis"`, and WebView2 `offlineInstaller`.
 - `npm run desktop:verify` with `AIDE_REQUIRE_MODEL_RUNTIME=1` and `AIDE_LLAMA_SERVER_BINARY=E:\llama-cpp\llama-server.exe` passes. `npm run desktop:staged-smoke` passes through the facade on ephemeral ports.
 - Native Tauri compilation, installer install/uninstall, offline install, and model-pack/chat verification remain open because Rust is not installed on this machine.
+- **Engine staging fact (verified this week):** `desktop/prepare.mjs:31` stages the engine directory from `$env:AIDE_ENGINE_SOURCE` (default `E:\llama-cpp`); if the source is absent it prints "skipping engine staging" and continues — a packaged app can then silently ship with NO model engine. Always set `AIDE_ENGINE_SOURCE` to a real llama.cpp build dir when preparing, and verify the staged copy exists before claiming a model-capable build (see `desktop/verify-prepare.mjs`).
+- **Thin-exe fact (verified this week):** `E:\llama-cpp\llama-server.exe` is a 9216-byte THIN LAUNCHER whose real payload lives in 29 sibling DLLs in the same directory. Any packaging step that copies only `llama-server.exe` will silently break model spawns — copy the whole engine directory (exe + DLLs) or preserve the sibling layout. Verify with `desktop/verify-prepare.mjs` + `scripts/desktop-battery.mjs` (12/12) before claiming a staged stack works.
 
 ## 1. Research base (verified from primary sources, Aug 2026)
 

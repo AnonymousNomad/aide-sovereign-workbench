@@ -434,7 +434,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
   }
   const handoffService = createHandoffService({ workspace, agentLoop });
   const secretStore = options.byokSecretStore ?? createSecretStore({ secretsPath: path.join(os.homedir(), '.aide', 'secrets.json') });
-  const byokService = createByokService({ workspace, secretStore, fetchImpl: null, onEgress: entry => logEgress(workspace, { action: entry.kind, url: `https://${entry.host ?? 'unknown'}/`, provider_id: entry.provider_id, role: entry.role }) });
+  const byokService = createByokService({ workspace, secretStore, fetchImpl: globalThis.fetch, onEgress: entry => logEgress(workspace, { action: entry.kind, url: `https://${entry.host ?? 'unknown'}/`, provider_id: entry.provider_id, role: entry.role }) });
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),

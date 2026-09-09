@@ -1,0 +1,63 @@
+{
+  "at": "2026-09-09T19:52:08.719Z",
+  "model": "E:\\aide-sovereign-workbench\\models\\qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+  "engine_binary": "E:\\llama-cpp\\llama-server.exe",
+  "endpoint": "http://127.0.0.1:59349/v1",
+  "results": [
+    {
+      "name": "engine-spawn",
+      "passed": true,
+      "detail": "qwen2.5-coder-1.5b on :59349"
+    },
+    {
+      "name": "engine-alive-8s",
+      "passed": true,
+      "detail": "survived danger window"
+    },
+    {
+      "name": "add-export:awaiting-human-approval",
+      "passed": true,
+      "detail": "parse=true veritas=verified approve-state=awaiting-human-approval"
+    },
+    {
+      "name": "rename-symbol:awaiting-human-approval",
+      "passed": true,
+      "detail": "parse=true veritas=verified approve-state=awaiting-human-approval"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "add-export",
+      "task": "Add a subtract function to fixture-a.js and export it.",
+      "status": "awaiting-human-approval",
+      "patch_parse": true,
+      "veritas": "verified",
+      "veritas_passed": true,
+      "measured_pass": true,
+      "plan_bytes": 1982,
+      "patch_bytes": 2783,
+      "verdict_bytes": 14,
+      "verdict_excerpt": "NEEDS-EVIDENCE",
+      "plan_excerpt": "### Constraints\n1. **Data Integrity**: Ensure that the data provided is accurate and complete.\n2. **Security**: Protect the user and their data by keeping the contract and following the assigned SOP.\n3. **Trust**: Earn trust through evidenc",
+      "patch_excerpt": "diff --git a/fixture-a.js b/fixture-a.js\nindex 1234567..89abcdef 100644\n--- a/fixture-a.js\n+++ b/fixture-a.js\n@@ -1,10 +1,10 @@\n // This is a sample fixture file for testing purposes.\n \n // Define a function to test the data integrity\n function testDataIntegrity() {\n-    // Check if the data is accurate and complete\n+    // Verify if the data is accurate and complete\n     if (data === \"expectedDat",
+      "error": null
+    },
+    {
+      "label": "rename-symbol",
+      "task": "Rename the add function to sum in fixture-a.js, keep the export working.",
+      "status": "awaiting-human-approval",
+      "patch_parse": true,
+      "veritas": "verified",
+      "veritas_passed": true,
+      "measured_pass": true,
+      "plan_bytes": 2241,
+      "patch_bytes": 249,
+      "verdict_bytes": 14,
+      "verdict_excerpt": "NEEDS-EVIDENCE",
+      "plan_excerpt": "### Constraints\n1. **Data Integrity**: Ensure that the data provided is accurate and complete.\n2. **Trust**: The user should be able to trust the information provided.\n3. **Reusability**: The generated answer should be reusable for future t",
+      "patch_excerpt": "diff --git a/fixture-a.js b/fixture-a.js\nindex 1234567..89abcdef 100644\n--- a/fixture-a.js\n+++ b/fixture-a.js\n@@ -1,5 +1,5 @@\n const data = {\n-  key1: 'value1',\n-  key2: 'value2'\n+  key1: 'new_value1',\n+  key2: 'new_value2'\n };\n \n console.log(data);",
+      "error": null
+    }
+  ],
+  "battery_passed": true
+}

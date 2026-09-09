@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-08T16:09:59.742Z",
-  "count": 270,
+  "generated_at": "2026-09-09T20:12:28.194Z",
+  "count": 273,
   "categories": [
     "academy",
     "aide-core",
@@ -473,6 +473,13 @@
       "path": "skills/packs/aide-fine-tune-lane-wire-in/SKILL.md"
     },
     {
+      "name": "aide-flagship-twin-mind-train",
+      "title": "aide-flagship-twin-mind-train",
+      "description": "Continue and productionize the CipherV2 twin-mind MoE flagship pretrain (preset local140a50, ~146.5M total, 48 routed experts = 24 Sheldon + 24 Spock + 2 shared, top_k 8, quorum 2/population) on THIS machine GTX 1060 6GB fp32-only Windows. Use whenever resuming/continuing the flagship pretrain, launching the v6 trainer for local140a50, probing VRAM/throughput, running the 6-check twin-mind battery, or deciding batch/seq/curriculum for the flagship run. Verified-shape commands, dependency matrix, threat matrix, and the gate battery included; never guess a flag.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-flagship-twin-mind-train/SKILL.md"
+    },
+    {
       "name": "aide-frontier-model",
       "title": "aide-frontier-model",
       "description": "",
@@ -496,7 +503,7 @@
     {
       "name": "aide-helix-memory",
       "title": "aide-helix-memory",
-      "description": "",
+      "description": "The Helix Memory subsystem — AIDE's deterministic, model-free 30-day project memory (up to 1 year+ with retention rollups). X1 event spine (memory-spine.mjs), X2 semantic join (helix-join.mjs patterns.jsonl + [learned] injection), X3 retention rollup (helix-retention.mjs months/years). Wired into the daemon via routes/memory.ts refresh-on-read cascade and surfaced by the system-map helix_memory card. Use when wiring, debugging, or extending project memory, when the system-map helix card reports offline, when [learned] lines are missing from chat, when patterns.jsonl never appears, or when adding any new work-event source to memory.",
       "category": "aide-core",
       "path": "skills/packs/aide-helix-memory/SKILL.md"
     },
@@ -1005,6 +1012,13 @@
       "path": "skills/packs/aide-the-quad/SKILL.md"
     },
     {
+      "name": "aide-trace-intelligence",
+      "title": "aide-trace-intelligence",
+      "description": "AIDE Trace Intelligence — the sovereign runtime-trace subsystem (Observe → Trace → Map → Replay → Explain → Fix → Verify) that makes GhostCode's product promise real. Research-grounded on the Node.js V8 inspector / Chrome DevTools Protocol (CDP). Use whenever implementing, extending, testing, or auditing trace-engine.ts, routes/trace.ts, the trace contract, the 'trace' WS channel, the RA 'Analyze Trace' hook, or when feeding runtime-failure evidence into agent prompts or Veritas.",
+      "category": "aide-core",
+      "path": "skills/packs/aide-trace-intelligence/SKILL.md"
+    },
+    {
       "name": "aide-training-phase-b1-dataset-studio",
       "title": "aide-training-phase-b1-dataset-studio",
       "description": "",
@@ -1315,7 +1329,7 @@
     {
       "name": "failure-desktop-runtime-env-name",
       "title": "failure-desktop-runtime-env-name",
-      "description": "Diagnose strict desktop staging failures caused by confusing the model-server runtime variable with the packaging binary variable. Use whenever desktop/prepare.mjs rejects a required llama-server runtime.",
+      "description": "Diagnose desktop staging failures caused by confusing the engine-source variable with model-runtime variables, or by assuming an AIDE_LLAMA_SERVER_BINARY override exists. Use whenever desktop/prepare.mjs skips engine staging, when a staged stack reports a missing llama-server runtime, or when a skill claims AIDE_REQUIRE_MODEL_RUNTIME or AIDE_LLAMA_SERVER_BINARY drive staging.",
       "category": "general",
       "path": "skills/packs/failure-desktop-runtime-env-name/SKILL.md"
     },
@@ -1766,6 +1780,13 @@
       "description": "Consolidated project governance for the FSI-FELON / queen-bee-v5 small-model program. Merges the previously-unregistered skills agent-notes (persistence protocol), kd-corpus-production (KD gold-doc corpus discipline), post-training-pipeline/-sft/-distill/-preference/-closed-loop (the full post-pretraining playbook), and felon-master (FELON edge-model architecture). Use at the start of every session and every context compaction, after ANY task/change/decision/event, when writing training docs or corpus batches, when a pretraining run finishes, and when running any post-training stage or audit. When a section below says \"load the X skill\", the X content IS section N of this file.",
       "category": "general",
       "path": "skills/packs/project-governance/SKILL.md"
+    },
+    {
+      "name": "sft-format-marker-loop",
+      "title": "sft-format-marker-loop",
+      "description": "Detects and fixes the \"marker attractor loop\" failure mode in small-model SFT — the model learns to open the ChatML envelope but then emits <|im_start|>/<|credo|> repeatedly forever, never producing content or <|im_end|> (700-token cap exhausted). Caused by over-aggressive marker-token loss weighting (extreme weights) interacting with greedy self-reinforcement and exposure bias. Use whenever a post-SFT model opens the envelope but loops on marker tokens, whenever marker weighting has been tuned and overshot, or before choosing marker/token weights for a small-model format SFT. Research-grounded: WIT (TACL 2025), CFT (arXiv 2510.10974), Fu et al. NeurIPS 2022 (self-reinforcement loops), Welleck 2020 (unlikelihood), Holtzman 2019 (degeneration), He 2019 / Xu 2021 (exposure bias), AIDE harness deterministic-enforcement doctrine. Triggered by: a marker-weighted SFT run producing pure im_start/credo loops at generation, or a boundary-probe showing P(marker) above the content prior but free-run failing to progress.",
+      "category": "general",
+      "path": "skills/packs/sft-format-marker-loop/SKILL.md"
     },
     {
       "name": "shopify-capability-engineering",

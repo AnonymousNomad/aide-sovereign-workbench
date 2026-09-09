@@ -53,26 +53,32 @@ async function probeSkills(workspace) {
 }
 
 async function probeAgentLoop(workspace) {
-  // Agent loop events: read the events file if present.
-  const eventsPath = path.join(workspace, ".aide", "logs", "agent-events.jsonl");
+  // Agent loop sessions: the real artifact is the session store directory
+  // .aide/agent-loop-sessions/*.json (written by routes/agent.ts). There is
+  // NO .aide/logs/agent-events.jsonl — the historical probe path was dead.
+  const sessionsDir = path.join(workspace, ".aide", "agent-loop-sessions");
   try {
-    const raw = await fs.readFile(eventsPath, "utf8");
-    const lines = raw.trim() ? raw.trim().split("\n") : [];
+    const entries = await fs.readdir(sessionsDir);
+    const sessions = entries.filter(f => f.endsWith(".json"));
     return {
-      state: lines.length > 0 ? "live" : "offline",
-      detail: lines.length + " agent events journaled",
+      state: sessions.length > 0 ? "live" : "offline",
+      detail: sessions.length + " agent-loop sessions journaled",
       doctrine: "aide-offline-agent-loop"
     };
   } catch {
-    return { state: "offline", detail: "no agent events yet", doctrine: "aide-offline-agent-loop" };
+    return { state: "offline", detail: "no agent-loop sessions yet", doctrine: "aide-offline-agent-loop" };
   }
 }
 
 async function probeMicroExperts(workspace) {
+  // Real expert manifests are the trained matrices (task-router, diff-risk-gate,
+  // request-intent-classifier). .aide/experts/signals.json is the signal-inten-
+  // sity cache, NOT an expert — exclude it (the historical count was inflated).
   const dir = path.join(workspace, ".aide", "experts");
+  const SESSION_JSON = "signals.json";
   try {
     const entries = await fs.readdir(dir);
-    const manifests = entries.filter(f => f.endsWith(".json"));
+    const manifests = entries.filter(f => f.endsWith(".json") && f !== SESSION_JSON);
     return {
       state: manifests.length > 0 ? "live" : "offline",
       detail: manifests.length + " expert manifests registered",
@@ -84,18 +90,43 @@ async function probeMicroExperts(workspace) {
 }
 
 async function probeHelixMemory(workspace) {
-  const helixPath = path.join(workspace, ".aide", "memory", "helix.jsonl");
+  // Real helix artifacts (aide-helix-memory contract):
+  //   X1 spine  -> .aide/memory/days/YYYY-MM-DD.json
+  //   X2 join   -> .aide/memory/patterns.jsonl
+  //   X3 reten  -> .aide/memory/months/YYYY-MM.json + years/YYYY.json
+  // There is NO .aide/memory/helix.jsonl (historical probe path — dead).
+  const memoryDir = path.join(workspace, ".aide", "memory");
+  let days = 0, patterns = 0, months = 0, years = 0;
   try {
-    const raw = await fs.readFile(helixPath, "utf8");
-    const lines = raw.trim() ? raw.trim().split("\n") : [];
-    return {
-      state: lines.length > 0 ? "live" : "offline",
-      detail: lines.length + " helix memory entries (X1 spine / X2 join / X3 retention)",
-      doctrine: "aide-helix-memory"
-    };
-  } catch {
+    const entries = await fs.readdir(memoryDir, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      if (e.name === "days") days = await countJson(path.join(memoryDir, e.name));
+      else if (e.name === "months") months = await countJson(path.join(memoryDir, e.name));
+      else if (e.name === "years") years = await countJson(path.join(memoryDir, e.name));
+    }
+  } catch { /* no memory dir yet */ }
+  try {
+    const raw = await fs.readFile(path.join(memoryDir, "patterns.jsonl"), "utf8");
+    patterns = raw.trim() ? raw.trim().split("\n").length : 0;
+  } catch { /* no patterns yet */ }
+
+  if (days === 0 && patterns === 0 && months === 0 && years === 0) {
     return { state: "offline", detail: "no helix memory yet", doctrine: "aide-helix-memory" };
   }
+  const parts = [];
+  if (days > 0) parts.push(days + " day digests");
+  if (patterns > 0) parts.push(patterns + " patterns");
+  if (months > 0) parts.push(months + " month summaries");
+  if (years > 0) parts.push(years + " year summaries");
+  return { state: "live", detail: "X1/X2/X3 helix memory: " + parts.join(", "), doctrine: "aide-helix-memory" };
+}
+
+async function countJson(dir) {
+  try {
+    const entries = await fs.readdir(dir);
+    return entries.filter(f => f.endsWith(".json")).length;
+  } catch { return 0; }
 }
 
 async function probeVeritasSelfheal(workspace) {

@@ -3,7 +3,11 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 function runDpapi(mode, data) {
-  const b64Payload = Buffer.from(data, 'utf16le').toString('base64');
+  // protect: data is the plaintext key -> transport as UTF-8 bytes.
+  // unprotect: data is the stored DPAPI blob (already base64) -> embed verbatim.
+  // (Fixing utf16le on BOTH branches made unprotect re-encode the ASCII blob as
+  // UTF-16LE bytes, so Unprotect always threw "The data is invalid".)
+  const b64Payload = mode === 'protect' ? Buffer.from(data, 'utf8').toString('base64') : data;
   const script =
     mode === 'protect'
       ? `Add-Type -AssemblyName System.Security; $b=[Convert]::FromBase64String('${b64Payload}'); $e=[Security.Cryptography.ProtectedData]::Protect($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser); [Convert]::ToBase64String($e)`

@@ -9,7 +9,7 @@ import { HealthResponse } from '../../common/contracts/health.ts';
 import { WorkspaceListResponse } from '../../common/contracts/workspace.ts';
 import { routeForFileRead, routeForFileWrite, routeForSearch, routeForSearchReplace } from './routes/fs.ts';
 import { routeForSessionGet, routeForSessionPut } from './routes/session.ts';
-import { routeForModelStatus, routeForModelStart, routeForModelStop, routeForModelIngest } from './routes/models.ts';
+import { routeForModelStatus, routeForModelStart, routeForModelStop, routeForModelIngest, routeForModelReady, routeForModelRegister, routeForModelProfile } from './routes/models.ts';
 import { routeForRoutes, routeForRoute, routeForFit } from './routes/routing.ts';
 import { routeForChat, routeForChatStream, routeForChatHistory, routeForChatHistorySave } from './routes/chat.ts';
 import { ChatStore } from './services/chat-store.ts';
@@ -483,6 +483,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForModelStart(modelRuntime),
     routeForModelStop(modelRuntime),
     routeForModelIngest(modelRuntime),
+    routeForModelReady(modelRuntime),
+    routeForModelRegister(modelRuntime),
+    routeForModelProfile(modelRuntime),
     routeForRoutes(modelRouter),
     routeForRoute(modelRouter),
     routeForFit(),

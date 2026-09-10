@@ -358,16 +358,16 @@ $('#import-btn').addEventListener('click', async () => {
   const p = $('#import-path').value.trim();
   const out = $('#import-result');
   if (!p) return;
-  const ctx = Number($('#import-ctx').value) || undefined;
-  out.textContent = 'Importing (copying into AIDE models folder)…';
+  out.textContent = 'Registering (file stays in place; engine added to MODELS)…';
   try {
-    const r = await fetch(`${API}/api/models/import`, {
+    const r = await fetch(`${API}/api/models/ingest`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_path: p, context_tokens: ctx })
+      body: JSON.stringify({ path: p })
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-    out.textContent = `Imported as engine "${j.id}" (${(j.bytes / 1048576).toFixed(1)} MB${ctx ? `, ctx ${ctx}` : ''}). It now appears in Engines.`;
+    const mb = j.fit ? (j.fit.fileBytes / 1048576).toFixed(1) : '?';
+    out.textContent = `Imported as engine "${j.id}" (${mb} MB${j.context_tokens ? `, ctx ${j.context_tokens}` : ''}). It now appears in Engines.`;
     refreshEngineList();
     setStrip(`Imported ${j.id} — press USE then START when ready.`);
   } catch (e) {

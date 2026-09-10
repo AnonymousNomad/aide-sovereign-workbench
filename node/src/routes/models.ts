@@ -7,7 +7,13 @@ import {
   ModelStartResponse,
   ModelStopResponse,
   ModelIngestRequest,
-  ModelIngestResponse
+  ModelIngestResponse,
+  ModelReadyQuery,
+  ModelReadyResponse,
+  ModelRegisterRequest,
+  ModelRegisterResponse,
+  ModelProfileRequest,
+  ModelProfileResponse
 } from '../../../common/contracts/models.ts';
 
 export function routeForModelStatus(manager: ModelRuntime): Route {
@@ -73,6 +79,61 @@ export function routeForModelIngest(manager: ModelRuntime): Route {
       const request = body as { path: string };
       try {
         return await manager.ingest(request.path);
+      } catch (error) {
+        throw toRouteError(error);
+      }
+    }
+  };
+}
+
+export function routeForModelReady(manager: ModelRuntime): Route {
+  return {
+    method: 'GET',
+    path: '/api/model/ready',
+    query: ModelReadyQuery,
+    response: ModelReadyResponse,
+    handler: async ({ query }) => {
+      try {
+        const request = query as { id: string };
+        return await manager.isReady(request.id);
+      } catch (error) {
+        throw toRouteError(error);
+      }
+    }
+  };
+}
+
+export function routeForModelRegister(manager: ModelRuntime): Route {
+  return {
+    method: 'POST',
+    path: '/api/models/register',
+    body: ModelRegisterRequest,
+    response: ModelRegisterResponse,
+    handler: async ({ body }) => {
+      const request = body as Parameters<ModelRuntime['register']>[0];
+      try {
+        return await manager.register(request);
+      } catch (error) {
+        throw toRouteError(error);
+      }
+    }
+  };
+}
+
+export function routeForModelProfile(manager: ModelRuntime): Route {
+  return {
+    method: 'POST',
+    path: '/api/models/profile',
+    body: ModelProfileRequest,
+    response: ModelProfileResponse,
+    handler: async ({ body }) => {
+      const { id, preset, samplers, runtime } = body as { id: string; preset?: string; samplers?: Record<string, number>; runtime?: Record<string, number | string | boolean> };
+      try {
+        const patch: { preset?: string; samplers?: Record<string, number>; runtime?: Record<string, number | string | boolean> } = {};
+        if (preset !== undefined) patch.preset = preset;
+        if (samplers !== undefined) patch.samplers = samplers;
+        if (runtime !== undefined) patch.runtime = runtime;
+        return await manager.saveProfile(id, patch);
       } catch (error) {
         throw toRouteError(error);
       }

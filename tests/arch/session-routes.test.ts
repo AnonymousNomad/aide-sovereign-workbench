@@ -109,3 +109,66 @@ test('corrupt session file is backed up and reset instead of 500ing', async () =
   const backups = await fs.readdir(path.join(dir, '.aide'));
   assert.ok(backups.some(name => name.startsWith('session.json.legacy-')), 'legacy backup must exist');
 });
+
+test('session preserves the legacy key set through PUT and GET', async () => {
+  const port = (httpServer.address() as { port: number }).port;
+  const legacy = {
+    version: 1,
+    tabs: [{ uri: 'file:///app.js' }],
+    active_file: 'app.js',
+    open_files: ['app.js', 'lib\\core.ts'],
+    buffers: { 'app.js': 'let x = 1;' },
+    panel: 'terminal',
+    selected_engine_id: 'house-engine'
+  };
+  const put = await fetch(`http://127.0.0.1:${port}/api/session`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(legacy)
+  });
+  assert.equal(put.status, 200);
+  const saved = dataOf(await put.json()).data as Record<string, unknown>;
+  assert.equal(saved.active_file, 'app.js');
+  assert.deepEqual(saved.open_files, ['app.js', 'lib\\core.ts']);
+  assert.equal((saved.buffers as Record<string, string>)['app.js'], 'let x = 1;');
+  assert.equal(saved.panel, 'terminal');
+  assert.equal(saved.selected_engine_id, 'house-engine');
+
+  const got = dataOf(await get(port, '/api/session')).data as Record<string, unknown>;
+  assert.equal(got.active_file, 'app.js');
+  assert.deepEqual(got.open_files, ['app.js', 'lib\\core.ts']);
+  assert.equal(got.selected_engine_id, 'house-engine');
+});
+
+test('session partial patch merges and preserves legacy keys', async () => {
+  const port = (httpServer.address() as { port: number }).port;
+  const seed = {
+    version: 1,
+    tabs: [{ uri: 'file:///seed.ts' }],
+    active_file: 'seed.ts',
+    open_files: ['seed.ts'],
+    panel: 'terminal'
+  };
+  const seedRes = await fetch(`http://127.0.0.1:${port}/api/session`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(seed)
+  });
+  assert.equal(seedRes.status, 200);
+
+  const patch = { tabs: [{ uri: 'file:///patched.ts' }] };
+  const put = await fetch(`http://127.0.0.1:${port}/api/session`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch)
+  });
+  assert.equal(put.status, 200);
+  const saved = dataOf(await put.json()).data as { tabs: { uri: string }[]; active_file: string; open_files: string[]; panel: string };
+  assert.equal(saved.active_file, 'seed.ts');
+  assert.deepEqual(saved.open_files, ['seed.ts']);
+  assert.equal(saved.panel, 'terminal');
+  assert.equal(saved.tabs.length, 1);
+  const patchedTab = saved.tabs[0];
+  assert.ok(patchedTab, 'patched tab must exist');
+  assert.equal(patchedTab.uri, 'file:///patched.ts');
+});

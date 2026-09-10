@@ -7760,6 +7760,63 @@
         ]
       }
     },
+    "/api/model/ready": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "ready": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "running",
+                        "warming",
+                        "conflict",
+                        "not-ready"
+                      ]
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ready",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
     "/api/modelhub/download": {
       "post": {
         "responses": {
@@ -8463,6 +8520,153 @@
                 },
                 "required": [
                   "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/profile": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "preset": {
+                      "type": "string"
+                    },
+                    "saved": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "preset",
+                    "saved"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "preset": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50
+                  },
+                  "samplers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  },
+                  "runtime": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": [
+                        "number",
+                        "string",
+                        "boolean"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/register": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "status": {
+                      "type": "string",
+                      "const": "ready"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status",
+                    "endpoint"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "repo_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "quant_label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "context_tokens": {
+                    "type": "integer",
+                    "minimum": 128,
+                    "maximum": 262144
+                  }
+                },
+                "required": [
+                  "filename"
                 ],
                 "additionalProperties": false
               }
@@ -12053,6 +12257,36 @@
                         "type": "string",
                         "minLength": 1
                       }
+                    },
+                    "active_file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "open_files": {
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      }
+                    },
+                    "buffers": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string",
+                        "maxLength": 524288
+                      }
+                    },
+                    "panel": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "selected_engine_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
                     }
                   },
                   "required": [
@@ -12116,6 +12350,36 @@
                         "type": "string",
                         "minLength": 1
                       }
+                    },
+                    "active_file": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "open_files": {
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      }
+                    },
+                    "buffers": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string",
+                        "maxLength": 524288
+                      }
+                    },
+                    "panel": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "selected_engine_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
                     }
                   },
                   "required": [
@@ -12144,7 +12408,6 @@
                     "minLength": 1
                   },
                   "tabs": {
-                    "default": [],
                     "maxItems": 200,
                     "type": "array",
                     "items": {
@@ -12176,12 +12439,38 @@
                       "type": "string",
                       "minLength": 1
                     }
+                  },
+                  "active_file": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "open_files": {
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  },
+                  "buffers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 524288
+                    }
+                  },
+                  "panel": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "selected_engine_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
                   }
                 },
-                "required": [
-                  "version",
-                  "tabs"
-                ],
                 "additionalProperties": false
               }
             }

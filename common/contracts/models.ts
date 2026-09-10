@@ -83,8 +83,65 @@ export const ModelIngestResponse = z
   })
   .strict();
 
+export const ModelReadyQuery = z
+  .object({
+    id: z.string().min(1)
+  })
+  .strict();
+
+// Same shape the legacy /api/model/ready poll returned: the cockpit reads
+// ready + status ('conflict') + error; e2e asserts ready is a boolean.
+export const ModelReadyResponse = z
+  .object({
+    id: z.string().min(1),
+    ready: z.boolean(),
+    status: z.enum(['running', 'warming', 'conflict', 'not-ready']),
+    endpoint: z.string().optional(),
+    error: z.string().optional()
+  })
+  .strict();
+
+export const ModelRegisterRequest = z
+  .object({
+    filename: z.string().min(1).max(500),
+    repo_id: z.string().min(1).max(200).optional(),
+    quant_label: z.string().min(1).max(100).optional(),
+    context_tokens: z.number().int().min(128).max(262144).optional()
+  })
+  .strict();
+
+export const ModelRegisterResponse = z
+  .object({
+    id: z.string().min(1),
+    status: z.literal('ready'),
+    endpoint: z.string()
+  })
+  .strict();
+
+export const ModelProfileRequest = z
+  .object({
+    id: z.string().min(1),
+    preset: z.string().min(1).max(50).optional(),
+    samplers: z.record(z.string(), z.number()).optional(),
+    runtime: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])).optional()
+  })
+  .strict();
+
+export const ModelProfileResponse = z
+  .object({
+    id: z.string().min(1),
+    preset: z.string(),
+    saved: z.literal(true)
+  })
+  .strict();
+
 export type ModelStateT = z.infer<typeof ModelState>;
 export type ModelStatusEntryT = z.infer<typeof ModelStatusEntry>;
 export type ModelStatusResponseT = z.infer<typeof ModelStatusResponse>;
 export type ModelIngestResponseT = z.infer<typeof ModelIngestResponse>;
 export type ModelFitReportT = z.infer<typeof ModelFitReport>;
+export type ModelReadyResponseT = z.infer<typeof ModelReadyResponse>;
+export type ModelRegisterRequestT = z.infer<typeof ModelRegisterRequest>;
+export type ModelRegisterResponseT = z.infer<typeof ModelRegisterResponse>;
+export type ModelProfileRequestT = z.infer<typeof ModelProfileRequest>;
+export type ModelProfileResponseT = z.infer<typeof ModelProfileResponse>;

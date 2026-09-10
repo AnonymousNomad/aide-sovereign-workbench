@@ -10,8 +10,8 @@ import { estimateTokens } from './history-fit.ts';
 import type { ModelFitReportT } from '../../../common/contracts/models.ts';
 
 export class ModelRuntimeError extends Error {
-  readonly code: 'NOT_READY' | 'CONFLICT' | 'CHILD_FAILED';
-  constructor(code: 'NOT_READY' | 'CONFLICT' | 'CHILD_FAILED', message: string) {
+  readonly code: 'NOT_READY' | 'CONFLICT' | 'CHILD_FAILED' | 'BAD_REQUEST';
+  constructor(code: 'NOT_READY' | 'CONFLICT' | 'CHILD_FAILED' | 'BAD_REQUEST', message: string) {
     super(message);
     this.code = code;
   }
@@ -82,6 +82,8 @@ export interface ModelEntry {
   ingested?: boolean;
   file: string;
   fileSize?: number;
+  repo_id?: string;
+  quant_label?: string;
 }
 
 export interface ModelRuntimeOptions {
@@ -173,6 +175,8 @@ export class ModelRuntime {
     };
     if (typeof raw.system_prompt === 'string') entry.system_prompt = raw.system_prompt;
     if (typeof raw.file_size === 'number') entry.fileSize = raw.file_size;
+    if (typeof raw.repo_id === 'string') entry.repo_id = raw.repo_id;
+    if (typeof raw.quant_label === 'string') entry.quant_label = raw.quant_label;
     return entry;
   }
 
@@ -832,6 +836,118 @@ export class ModelRuntime {
     };
   }
 
+  // Readiness poll parity with the legacy /api/model/ready: verify the
+  // endpoint, warm it, report running/warming/conflict/not-ready. Never
+  // spawns — the cockpit polls this until ready, then calls start() which
+  // adopts the verified server. Adoption bridge shares warmed/changed state.
+  async isReady(id: string, timeoutMs = 5000): Promise<{ id: string; ready: boolean; status: 'running' | 'warming' | 'conflict' | 'not-ready'; endpoint: string; error?: string }> {
+    const model = this.models.get(id);
+    if (!model) return { id, ready: false, status: 'not-ready', endpoint: '', error: 'model is not allowlisted' };
+    try {
+      const verified = await this.verifyEndpointModel(id, timeoutMs);
+      if (verified.ready) {
+        const warmed = await this.warmup(id);
+        if (!warmed) return { id, ready: false, status: 'warming', endpoint: model.endpoint, error: 'model endpoint answered but warmup did not complete' };
+        this.onStatusChange(id, 'running');
+        return { id, ready: true, status: 'running', endpoint: model.endpoint };
+      }
+      return {
+        id,
+        ready: false,
+        status: verified.status === 'conflict' ? 'conflict' : 'not-ready',
+        endpoint: model.endpoint,
+        ...(verified.error !== undefined ? { error: verified.error } : {})
+      };
+    } catch (error) {
+      return { id, ready: false, status: 'conflict', endpoint: model.endpoint, error: error instanceof Error ? error.message : 'endpoint verification failed' };
+    }
+  }
+
+  // Register parity with the legacy /api/models/register: a downloaded GGUF in
+  // the models directory becomes a ready engine. Persists to the TS dynamic
+  // store (ingested-models.json), NOT the checked-in manifest.json — the
+  // manifest stays pristine (git clean); the ingested store survives restarts.
+  async register(options: { filename: string; repo_id?: string; quant_label?: string; context_tokens?: number }): Promise<{ id: string; status: string; endpoint: string }> {
+    const rel = String(options.filename || '');
+    if (!/\.gguf$/i.test(rel)) throw new ModelRuntimeError('BAD_REQUEST', 'only .gguf artifacts can be registered');
+    if (rel.includes('\\') || rel.startsWith('/') || rel.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
+      throw new ModelRuntimeError('BAD_REQUEST', 'filename must be a relative path of safe segments');
+    }
+    const file = path.resolve(this.modelDir, rel);
+    if (!file.startsWith(`${path.resolve(this.modelDir)}${path.sep}`)) throw new ModelRuntimeError('BAD_REQUEST', 'path escaped model directory');
+    const stat = await fs.stat(file).catch(() => {
+      throw new ModelRuntimeError('BAD_REQUEST', `artifact not found in models directory: ${rel}`);
+    });
+    const id = path.basename(rel).replace(/\.gguf$/i, '').toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+    const existing = this.models.get(id);
+    if (existing) return { id: existing.id, status: 'ready', endpoint: existing.endpoint };
+    const port = nextFreePort(this.models);
+    const entry: ModelEntry = {
+      id,
+      name: path.basename(rel).replace(/\.gguf$/i, ''),
+      status: 'ready',
+      roles: ['chat'],
+      endpoint: `http://127.0.0.1:${port}/v1`,
+      model: rel,
+      artifact_uri: `local://${rel}`,
+      context_tokens: Number(options.context_tokens) || 2048,
+      ingested: true,
+      file,
+      fileSize: stat.size
+    };
+    if (options.repo_id) entry.repo_id = options.repo_id;
+    if (options.quant_label) entry.quant_label = options.quant_label;
+    this.models.set(id, entry);
+    await this.persistIngested();
+    this.logger?.info('model registered', { id, endpoint: entry.endpoint, source: rel });
+    return { id, status: 'ready', endpoint: entry.endpoint };
+  }
+
+  // Profile parity with the legacy /api/models/profile: presets + sampler /
+  // runtime key validation (unknown keys -> BAD_REQUEST). Persists the next to
+  // the same `${file}.profile.json` sidecar the engine layer reads.
+  async saveProfile(id: string, patch: { preset?: string; samplers?: Record<string, number>; runtime?: Record<string, number | string | boolean> }): Promise<{ id: string; preset: string; saved: true }> {
+    const model = this.models.get(id);
+    if (!model) throw new ModelRuntimeError('BAD_REQUEST', 'model is not allowlisted');
+    const SAMPLER_KEYS = ['temperature', 'top_k', 'top_p', 'min_p', 'mirostat', 'mirostat_tau', 'mirostat_eta', 'repeat_penalty', 'seed'];
+    const RUNTIME_KEYS = ['ngl', 'flash_attn', 'backend'];
+    const PRESETS: Record<string, Record<string, number>> = {
+      precise: { temperature: 0.1, min_p: 0.05, repeat_penalty: 1.05, seed: 0 },
+      balanced: { temperature: 0.7, top_p: 0.9, min_p: 0.05 },
+      creative: { temperature: 1.0, top_p: 0.95, min_p: 0.03 },
+      mirostat: { mirostat: 2, mirostat_tau: 5.0, mirostat_eta: 0.1 }
+    };
+    const base = readProfileSidecar(model.file);
+    let next: Record<string, unknown>;
+    if (patch.preset) {
+      const preset = PRESETS[patch.preset];
+      if (!preset) throw new ModelRuntimeError('BAD_REQUEST', `unknown preset: ${patch.preset}`);
+      next = { ...base, preset: patch.preset, samplers: { ...preset } };
+    } else if (patch.samplers !== undefined) {
+      for (const [key, value] of Object.entries(patch.samplers)) {
+        if (!SAMPLER_KEYS.includes(key)) throw new ModelRuntimeError('BAD_REQUEST', `unknown sampler key: ${key}`);
+        if (typeof value !== 'number' || !Number.isFinite(value)) throw new ModelRuntimeError('BAD_REQUEST', `sampler ${key} must be a finite number`);
+      }
+      next = { ...base, preset: patch.preset || 'custom', samplers: patch.samplers };
+    } else if (patch.runtime !== undefined) {
+      for (const [key, value] of Object.entries(patch.runtime)) {
+        if (!RUNTIME_KEYS.includes(key)) throw new ModelRuntimeError('BAD_REQUEST', `unknown runtime key: ${key}`);
+        if (key === 'backend' ? typeof value !== 'string' : typeof value !== 'number' || !Number.isFinite(value)) {
+          throw new ModelRuntimeError('BAD_REQUEST', `runtime ${key} has invalid type`);
+        }
+      }
+      next = { ...base, runtime: patch.runtime };
+    } else {
+      throw new ModelRuntimeError('BAD_REQUEST', 'profile requires preset, samplers or runtime');
+    }
+    if (model.file.length > 0) {
+      await fs.writeFile(`${model.file}.profile.json`, JSON.stringify(next, null, 2), 'utf8').catch(error => {
+        this.logger?.warn('profile write failed', { id, error: error instanceof Error ? error.message : String(error) });
+      });
+    }
+    return { id, preset: String(next.preset ?? 'custom'), saved: true };
+  }
+
   private async persistIngested(): Promise<void> {
     const ingested = [...this.models.values()]
       .filter(model => model.ingested === true)
@@ -846,6 +962,8 @@ export class ModelRuntime {
         context_tokens: model.context_tokens,
         file: model.file,
         file_size: model.fileSize,
+        repo_id: model.repo_id,
+        quant_label: model.quant_label,
         ingested: true
       }));
     await fs.mkdir(path.dirname(this.ingestedPath), { recursive: true }).catch(() => {});
@@ -868,4 +986,21 @@ async function allocateFreePort(): Promise<number> {
       server.close(() => resolve(port));
     });
   });
+}
+
+// Register-port doctrine (legacy parity): claim from the 8090 pool, skipping
+// any port already declared by another engine (running OR manifest-reserved)
+// so two registrations never straddle the same endpoint.
+function nextFreePort(models: ReadonlyMap<string, ModelEntry>): number {
+  const used = new Set<number>();
+  for (const model of models.values()) {
+    try {
+      used.add(Number(new URL(model.endpoint).port));
+    } catch {
+      // malformed endpoint — ignore
+    }
+  }
+  let port = 8090;
+  while (used.has(port) && port < 8199) port += 1;
+  return port;
 }

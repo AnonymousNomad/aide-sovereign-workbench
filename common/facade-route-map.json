@@ -20,10 +20,13 @@
     "/api/notifications": "ts",
     "/api/orch": "ts",
     "/api/problems": "ts",
+    "/api/providers": "ts",
     "/api/resident": "ts",
     "/api/rg": "ts",
+    "/api/search": "ts",
     "/api/telegram": "ts",
-    "/api/settings": "ts"
+    "/api/settings": "ts",
+    "/api/workspace": "ts"
   },
   "exact": {
     "/api/file": "ts",

@@ -10976,6 +10976,9 @@
                               "unreachable",
                               "checking"
                             ]
+                          },
+                          "configured": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -10984,7 +10987,8 @@
                           "kind",
                           "baseUrl",
                           "models",
-                          "status"
+                          "status",
+                          "configured"
                         ],
                         "additionalProperties": false
                       }
@@ -16957,6 +16961,70 @@
                     "entries"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspace/tree": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workspace": {
+                      "type": "string"
+                    },
+                    "tree": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/__schema0"
+                      }
+                    }
+                  },
+                  "required": [
+                    "workspace",
+                    "tree"
+                  ],
+                  "additionalProperties": false,
+                  "definitions": {
+                    "__schema0": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "file",
+                            "directory"
+                          ]
+                        },
+                        "children": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/definitions/__schema0"
+                          }
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "path",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
                 }
               }
             }

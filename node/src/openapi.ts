@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z, type ZodTypeAny } from 'zod';
 import { HealthResponse } from '../../common/contracts/health.ts';
-import { WorkspaceListResponse } from '../../common/contracts/workspace.ts';
+import { WorkspaceListResponse, WorkspaceTreeResponse } from '../../common/contracts/workspace.ts';
 import { routeForFileRead, routeForFileWrite, routeForSearch, routeForSearchReplace } from './routes/fs.ts';
 import { routeForSessionGet, routeForSessionPut } from './routes/session.ts';
 import { routeForModelStatus, routeForModelStart, routeForModelStop, routeForModelIngest, routeForModelReady, routeForModelRegister, routeForModelProfile } from './routes/models.ts';
@@ -473,6 +473,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
   const core: Route[] = [
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
+    makeWorkspaceTreeRoute(fsService),
     routeForFileRead(fsService),
     routeForFileWrite(fsService),
     routeForSearch(fsService),
@@ -735,6 +736,15 @@ function makeWorkspaceListRoute(workspace: string): Route {
           .map(entry => ({ name: entry.name, kind: entry.isDirectory() ? 'directory' : 'file' }))
       };
     }
+  };
+}
+
+function makeWorkspaceTreeRoute(service: WorkspaceService): Route {
+  return {
+    method: 'GET',
+    path: '/api/workspace/tree',
+    response: WorkspaceTreeResponse,
+    handler: async () => ({ workspace: service.root, tree: await service.tree() })
   };
 }
 

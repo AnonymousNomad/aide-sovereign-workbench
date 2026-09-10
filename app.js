@@ -1203,7 +1203,7 @@ $('#gs-replace-all').addEventListener('click', async () => {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
-    threadMsg('system', `Replaced ${j.occurrences} occurrence(s) in ${j.filesChanged} file(s).`);
+    threadMsg('system', `Replaced ${j.occurrences} occurrence(s) in ${j.files_changed} file(s).`);
     await runGlobalSearch();
     refreshRail();
   } catch (e) {

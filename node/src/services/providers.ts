@@ -139,7 +139,8 @@ export class ProviderService {
         kind: provider.kind,
         baseUrl: provider.baseUrl,
         models: provider.models,
-        status
+        status,
+        configured: status !== 'not_connected'
       };
     });
   }

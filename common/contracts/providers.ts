@@ -10,7 +10,8 @@ export const ProviderInfo = z.object({
   kind: ProviderKind,
   baseUrl: z.string(),
   models: z.array(z.string()),
-  status: ProviderConnectionStatus
+  status: ProviderConnectionStatus,
+  configured: z.boolean()
 });
 
 export const ProviderListResponse = z.object({

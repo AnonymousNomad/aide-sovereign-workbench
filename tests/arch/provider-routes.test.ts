@@ -75,9 +75,9 @@ test('GET /api/providers lists the built-ins through the envelope without keys',
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
   if (!envelope.success || !envelope.data.ok) return;
-  const payload = envelope.data.data as { providers: { id: string; status: string }[] };
+  const payload = envelope.data.data as { providers: { id: string; status: string; configured: boolean }[] };
   assert.equal(payload.providers.length, 6);
-  assert.ok(payload.providers.every(provider => provider.status === 'not_connected'));
+  assert.ok(payload.providers.every(provider => provider.status === 'not_connected' && provider.configured === false));
   assert.ok(!JSON.stringify(payload).match(/sk-|api[_-]?key/i), 'the list must never leak key material');
 });
 

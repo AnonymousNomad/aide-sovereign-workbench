@@ -1,6 +1,10 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { RouteError } from '../server.ts';
+import type { WorkspaceTreeNodeT } from '../../../common/contracts/workspace.ts';
+
+export const TREE_MAX_DEPTH = 4;
+const TREE_EXCLUDES = new Set(['node_modules', 'target', 'dist']);
 
 export class WorkspaceService {
   readonly root: string;
@@ -42,5 +46,29 @@ export class WorkspaceService {
     await fs.writeFile(temporary, content, { mode: 0o600 });
     await fs.rename(temporary, target);
     return { path: relativePath, bytes: Buffer.byteLength(content) };
+  }
+
+  async tree(maxDepth: number = TREE_MAX_DEPTH): Promise<WorkspaceTreeNodeT[]> {
+    const walk = async (directory: string, depth: number): Promise<WorkspaceTreeNodeT[]> => {
+      if (depth > maxDepth) return [];
+      const entries = await fs.readdir(directory, { withFileTypes: true });
+      const nodes: WorkspaceTreeNodeT[] = [];
+      for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+        if (entry.name.startsWith('.') || TREE_EXCLUDES.has(entry.name)) continue;
+        const relative = path.relative(this.root, path.join(directory, entry.name)).split(path.sep).join('/');
+        if (entry.isDirectory()) {
+          nodes.push({
+            name: entry.name,
+            path: relative,
+            kind: 'directory' as const,
+            children: await walk(path.join(directory, entry.name), depth + 1)
+          });
+        } else {
+          nodes.push({ name: entry.name, path: relative, kind: 'file' as const });
+        }
+      }
+      return nodes;
+    };
+    return walk(this.root, 0);
   }
 }

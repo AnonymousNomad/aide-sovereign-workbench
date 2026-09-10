@@ -248,6 +248,7 @@ test('generated route map routes the files domain to ts without touching legacy-
   assert.equal(map.exact['/api/file'], 'ts');
   assert.equal(map.exact['/api/file/write'], 'ts');
   assert.equal(map.prefixes['/api/index'], 'ts');
+  assert.equal(map.prefixes['/api/git'], 'ts');
   const allTargets = Object.values(map.prefixes).concat(Object.values(map.exact), Object.values(map.upgrades));
   assert.ok(allTargets.every(t => t === 'ts' || t === 'legacy'));
   assert.equal('/api/workspace/tree' in map.exact, false);

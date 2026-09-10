@@ -23,6 +23,7 @@ before(async () => {
   await git('init -b main');
   await git('config user.email aide@test.local');
   await git('config user.name AIDE Test');
+  await fs.writeFile(path.join(workspace, '.gitignore'), '.aide/\narch-test.log\n');
   const alphaBase = Array.from({ length: 16 }, (_, i) => `line ${String(i + 1).padStart(2, '0')}`).join('\n') + '\n';
   await fs.writeFile(path.join(workspace, 'alpha.txt'), alphaBase);
   await fs.writeFile(path.join(workspace, 'beta.txt'), 'beta v1\n');
@@ -147,6 +148,65 @@ test('path escape and empty message are rejected with typed codes', async () => 
 
   const emptyMessage = await post<{ message: string }>('/api/git/commit', { message: '   ' });
   assert.equal(emptyMessage.status, 400);
+});
+
+test('commit records intent telemetry to ships.log', async () => {
+  const staged = await post<{ oid?: string }>('/api/git/stage', { paths: ['alpha.txt'] });
+  assert.equal(staged.status, 200);
+  const committed = await post<{ oid: string }>('/api/git/commit', { message: 'telemetry alpha', intent: 'test intent' });
+  assert.equal(committed.status, 200);
+  assert.match(committed.body.data!.oid, /^[0-9a-f]{7,40}$/);
+  const ships = await fs.readFile(path.join(workspace, '.aide', 'metrics', 'ships.log'), 'utf8');
+  const last = ships.trim().split('\n').at(-1)!;
+  const record = JSON.parse(last);
+  assert.equal(record.message, 'telemetry alpha');
+  assert.equal(record.intent, 'test intent');
+});
+
+test('commit with no staged changes maps to BAD_REQUEST', async () => {
+  const empty = await post('/api/git/commit', { message: 'nothing staged here' });
+  assert.equal(empty.status, 400);
+  assert.equal(empty.body.error?.code, 'BAD_REQUEST');
+  assert.match(empty.body.error?.message ?? '', /no changes to commit/);
+});
+
+test('checkout switches branches and refuses a dirty tree', async () => {
+  await git('branch feature/switch');
+  const switched = await post<{ branch: string }>('/api/git/checkout', { branch: 'feature/switch' });
+  assert.equal(switched.status, 200);
+  assert.equal(switched.body.data?.branch, 'feature/switch');
+  const after = await get<{ branch: string | null }>('/api/git/status');
+  assert.equal(after.body.data?.branch, 'feature/switch');
+
+  await fs.appendFile(path.join(workspace, 'beta.txt'), 'dirty line\n');
+  const refused = await post('/api/git/checkout', { branch: 'main' });
+  assert.equal(refused.status, 400);
+  assert.equal(refused.body.error?.code, 'BAD_REQUEST');
+  assert.match(refused.body.error?.message ?? '', /uncommitted changes/);
+
+  await git('checkout -- beta.txt');
+  const back = await post<{ branch: string }>('/api/git/checkout', { branch: 'main' });
+  assert.equal(back.status, 200);
+  assert.equal(back.body.data?.branch, 'main');
+});
+
+test('push uploads the current branch to an explicit local remote and records egress', async () => {
+  const bare = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-p4-bare-'));
+  try {
+    await run('git', ['init', '--bare', '-q', bare], { cwd: os.tmpdir() });
+    await run('git', ['-C', workspace, 'remote', 'add', 'origin', bare]);
+    const pushed = await post<{ pushed: boolean; output: string }>('/api/git/push', {});
+    assert.equal(pushed.status, 200);
+    assert.equal(pushed.body.data?.pushed, true);
+    assert.equal(typeof pushed.body.data?.output, 'string');
+    const remoteLog = await run('git', ['--git-dir', bare, 'log', '-1', '--format=%s', 'main']);
+    assert.equal(remoteLog.stdout.trim(), 'telemetry alpha');
+    const egress = await fs.readFile(path.join(workspace, '.aide', 'logs', 'egress.log'), 'utf8');
+    assert.match(egress, /git\.push/);
+    assert.match(egress, /origin/);
+  } finally {
+    await fs.rm(bare, { recursive: true, force: true }).catch(() => {});
+  }
 });
 
 test('not-a-repo workspace maps to NOT_A_REPO code', async () => {

@@ -49,7 +49,8 @@ export const GitPathsRequest = z
 
 export const GitCommitRequest = z
   .object({
-    message: z.string().min(1).max(8192)
+    message: z.string().min(1).max(8192),
+    intent: z.string().max(200).optional()
   })
   .strict();
 
@@ -147,5 +148,31 @@ export const GitBlameResponse = z
   .object({
     lines: z.array(GitBlameLine),
     truncated: z.boolean()
+  })
+  .strict();
+
+export const GitCheckoutRequest = z
+  .object({
+    branch: z.string().min(1).max(200).regex(/^[\w.\/-]+$/)
+  })
+  .strict();
+
+export const GitCheckoutResponse = z
+  .object({
+    branch: z.string()
+  })
+  .strict();
+
+export const GitPushRequest = z
+  .object({
+    branch: z.string().min(1).max(200).regex(/^[\w.\/-]+$/).optional(),
+    remote: z.string().min(1).max(200).regex(/^[\w.\/-]+$/).optional()
+  })
+  .strict();
+
+export const GitPushResponse = z
+  .object({
+    pushed: z.literal(true),
+    output: z.string()
   })
   .strict();

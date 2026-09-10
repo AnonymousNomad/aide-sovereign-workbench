@@ -234,13 +234,13 @@ try {
   assert.equal(status.status, 'passed', 'task passes');
   assert.match(status.stdout, /p0-task-ok/, 'task stdout');
 
-  // PHASE 6: git (legacy route via facade)
+  // PHASE 6: git (canonical TS route via facade)
   res = await request(facadePort, '/api/git/status');
   body = await expectOk(res, 'git status');
-  assert.ok(body.files.some(file => file.path === 'README.md'), 'git status lists README.md');
-  res = await post(facadePort, '/api/git/stage', { paths: ['README.md'], approved: true });
+  assert.ok(body.changes.some(change => change.path === 'README.md'), 'git status lists README.md');
+  res = await post(facadePort, '/api/git/stage', { paths: ['README.md'] });
   await expectOk(res, 'git stage');
-  res = await post(facadePort, '/api/git/commit', { message: 'acceptance edit', approved: true });
+  res = await post(facadePort, '/api/git/commit', { message: 'acceptance edit' });
   await expectOk(res, 'git commit');
 
   // PHASE 7: model status surface (legacy route via facade, empty-but-alive)

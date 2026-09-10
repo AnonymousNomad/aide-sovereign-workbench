@@ -159,7 +159,7 @@ export class GitService {
         },
         (error, stdout, stderr) => {
           if (error) {
-            const err = new Error(String(stderr || error.message));
+            const err = new Error(String(stderr || stdout || error.message));
             err.code = error.code;
             err.killed = error.killed === true;
             reject(err);
@@ -191,6 +191,22 @@ export class GitService {
   async status() {
     const { stdout } = await this.run(['status', '--porcelain=v2', '--branch', '--no-renames'], { timeoutMs: 10000 });
     return parseStatusPorcelainV2(stdout);
+  }
+
+  async currentBranch() {
+    const { stdout } = await this.run(['rev-parse', '--abbrev-ref', 'HEAD'], { timeoutMs: 8000 });
+    const name = stdout.trim();
+    return name === 'HEAD' ? null : name;
+  }
+
+  async checkout(branch) {
+    const { stdout } = await this.run(['status', '--porcelain', '-z'], { timeoutMs: 10000 });
+    if (stdout.length > 0) throw Object.assign(new Error('working tree has uncommitted changes'), { name: 'DIRTY_TREE' });
+    await this.run(['checkout', branch], { timeoutMs: 20000 });
+  }
+
+  async push(remote, branch) {
+    return this.run(['push', remote, `${branch}:${branch}`], { timeoutMs: 30000 });
   }
 
   async diff(pathArg, cached) {

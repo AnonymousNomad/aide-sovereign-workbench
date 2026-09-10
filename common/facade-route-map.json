@@ -8,6 +8,7 @@
     "/api/desktop": "ts",
     "/api/experts": "ts",
     "/api/editor": "ts",
+    "/api/git": "ts",
     "/api/health": "ts",
     "/api/hooks": "ts",
     "/api/index": "ts",

@@ -4,6 +4,9 @@ export declare class GitService {
   hasRepo(): Promise<boolean>;
   guard(relativePath: string): string;
   status(): Promise<Record<string, unknown>>;
+  currentBranch(): Promise<string | null>;
+  checkout(branch: string): Promise<void>;
+  push(remote: string, branch: string): Promise<{ stdout: string; stderr: string }>;
   diff(pathArg: string | undefined, cached: boolean): Promise<{ text: string; truncated: boolean }>;
   stage(paths: string[]): Promise<void>;
   unstage(paths: string[]): Promise<void>;

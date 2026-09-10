@@ -557,13 +557,13 @@ async function workflowPlan(task) {
 }
 async function showDiff() {
   try {
-    const d = await jget(`${API}/api/git/diff`);
+    const d = await jpost(`${API}/api/git/diff`, {});
     document.body.classList.replace('state-cold', 'state-ready');
     $('#cold-card').hidden = true;
     $('#editor-slot').hidden = false;
     const box = $('#diff-view');
     box.hidden = false;
-    box.innerHTML = `<div class="eyebrow">CHANGES — GIT DIFF</div><pre>${esc(d.diff || d.unavailable || '(no changes detected)')}</pre>`;
+    box.innerHTML = `<div class="eyebrow">CHANGES — GIT DIFF</div><pre>${esc(d.text || '(no changes detected)')}</pre>`;
   } catch { /* diff is best-effort */ }
 }
 
@@ -571,8 +571,8 @@ async function refreshRail() {
   try {
     const g = await jget(`${API}/api/git/status`);
     const b = $('#git-badge');
-    b.textContent = String(g.branch || g.status || 'repo').slice(0, 14).toUpperCase();
-    b.className = 'badge' + (g.unavailable ? '' : ' on');
+    b.textContent = String(g.branch || 'repo').slice(0, 14).toUpperCase();
+    b.className = 'badge on';
   } catch { /* leave placeholder */ }
   try {
     const d = await jget(`${API}/api/diagnostics`);
@@ -991,7 +991,8 @@ async function openShipPanel() {
 async function refreshShipFiles() {
   try {
     const g = await jget(`${API}/api/git/status`);
-    const files = (g.files || []).filter(f => f.status !== 'untracked' || true);
+    const statusOf = c => c.untracked ? '?' : (c.staged ? (c.x === 'A' ? 'A' : 'M') : (c.y === 'D' ? 'D' : 'M'));
+    const files = (g.changes || []).map(c => ({ path: c.path, status: statusOf(c) }));
     const box = $('#ship-files');
     if (!files.length) { box.innerHTML = '<span class="muted small">Working tree clean — nothing to ship.</span>'; return; }
     box.innerHTML = files.map((f, i) => {
@@ -1027,12 +1028,12 @@ $('#ship-commit').addEventListener('click', async () => {
   try {
     const s = await fetch(`${API}/api/git/stage`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paths, approved: true })
+      body: JSON.stringify({ paths })
     });
     if (!s.ok) { const sj = await s.json().catch(() => ({})); throw new Error(sj.error || `stage HTTP ${s.status}`); }
     const c = await fetch(`${API}/api/git/commit`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: finalMessage, approved: true, intent: lastIntent || undefined })
+      body: JSON.stringify({ message: finalMessage, intent: lastIntent || undefined })
     });
     const cj = await c.json().catch(() => ({}));
     if (!c.ok) throw new Error(cj.error || `commit HTTP ${c.status}`);
@@ -1270,7 +1271,7 @@ async function openGitSheet() {
   try {
     const b = await jget(`${API}/api/git/branches`);
     const sel = $('#git-branch-select');
-    sel.innerHTML = b.branches.map(br => `<option${br === b.current ? ' selected' : ''}>${esc(br)}</option>`).join('');
+    sel.innerHTML = b.branches.map(br => `<option${br.current ? ' selected' : ''}>${esc(br.name)}</option>`).join('');
   } catch { /* status fallback below */ }
   await refreshGitSheet();
 }
@@ -1278,17 +1279,17 @@ async function openGitSheet() {
 async function refreshGitSheet() {
   try {
     const s = await jget(`${API}/api/git/status`);
-    $('#git-ab').textContent = `${s.branch || '?'} · ahead ${s.ahead ?? 0} · behind ${s.behind ?? 0} · ${s.files.length} change(s)`;
+    $('#git-ab').textContent = `${s.branch || '?'} · ahead ${s.ahead ?? 0} · behind ${s.behind ?? 0} · ${s.changes.length} change(s)`;
     $('#git-push').disabled = !(Number(s.ahead) > 0);
     $('#push-note').textContent = Number(s.ahead) > 0
-      ? `Push uploads ${s.ahead} commit(s) to ${s.tracking || 'origin'} — one logged network call.`
+      ? `Push uploads ${s.ahead} commit(s) to ${s.upstream || 'origin'} — one logged network call.`
       : 'Nothing to push — local branch is in sync.';
   } catch {}
   try {
-    const l = await jget(`${API}/api/git/log?n=30`);
+    const l = await jpost(`${API}/api/git/log`, { limit: 30 });
     const commits = l.commits || [];
     $('#git-history').innerHTML = commits.map(c =>
-      `<div class="cmdk-item"><b>${esc(c.hash)}</b> ${esc(c.subject)}<span class="engine-meta">${esc((c.date || '').slice(0, 16))}</span></div>`
+      `<div class="cmdk-item"><b>${esc(c.short)}</b> ${esc(c.subject)}<span class="engine-meta">${esc((c.date || '').slice(0, 16))}</span></div>`
     ).join('') || '<span class="muted small">No commits yet.</span>';
     // DORA rework signal v0: revert-style subjects within the recent window.
     const reworks = commits.filter(c => /^(revert|Revert )|^(fix|chore):.*\brevert\b/i.test(c.subject)).length;
@@ -1323,7 +1324,7 @@ $('#git-push').addEventListener('click', async () => {
   try {
     const r = await fetch(`${API}/api/git/push`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ approved: true })
+      body: JSON.stringify({})
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);

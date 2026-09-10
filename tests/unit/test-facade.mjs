@@ -47,6 +47,18 @@ function get(port, requestPath) {
   });
 }
 
+function request(port, requestPath, { method = 'GET', headers = {} } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: HOST, port, path: requestPath, method, headers, agent: false }, res => {
+      let body = '';
+      res.on('data', chunk => { body += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 test('prefix routes hit the mapped backend on both sides', async () => {
   const ts = fakeBackend('ts');
   const legacy = fakeBackend('legacy');
@@ -87,6 +99,68 @@ test('longest prefix wins and unknown paths fall to legacy', async () => {
   assert.equal(ts.seen.some(s => s.url === '/api/nested/x'), false);
   await facade.close();
   for (const s of [ts.server, legacy.server]) { s.closeAllConnections?.(); s.close(); }
+});
+
+test('OPTIONS preflight for a ts route is answered by the facade (204 + CORS) without hitting the backend', async () => {
+  const ts = fakeBackend('ts');
+  const tsPort = await listen(ts.server);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: { '/ts-fam': 'ts' }, exact: {}, upgrades: {} },
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
+  });
+  const port = facade.server.address().port;
+  const origin = 'http://127.0.0.1:4173';
+  const preflight = await request(port, '/ts-fam/anything', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' } });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers['access-control-allow-origin'], origin);
+  assert.match(preflight.headers['access-control-allow-methods'], /OPTIONS/);
+  assert.match(preflight.headers['access-control-allow-headers'], /Content-Type/);
+  assert.equal(preflight.headers['access-control-max-age'], '86400');
+  assert.equal(ts.seen.length, 0, 'preflight must be answered locally, never proxied');
+  const plain = await request(port, '/ts-fam/anything', { method: 'OPTIONS' });
+  assert.equal(plain.status, 204);
+  assert.equal(plain.headers['access-control-allow-origin'], undefined);
+  await facade.close();
+  ts.server.closeAllConnections?.(); ts.server.close();
+});
+
+test('cross-origin reads are decorated with the allow-listed Origin and Vary: Origin', async () => {
+  const ts = fakeBackend('ts');
+  const tsPort = await listen(ts.server);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: { '/ts-fam': 'ts' }, exact: {}, upgrades: {} },
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
+  });
+  const port = facade.server.address().port;
+  const origin = 'http://127.0.0.1:4173';
+  const res = await request(port, '/ts-fam/ping', { headers: { Origin: origin } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers['access-control-allow-origin'], origin);
+  assert.equal(res.headers['vary'], 'Origin');
+  await facade.close();
+  ts.server.closeAllConnections?.(); ts.server.close();
+});
+
+test('disallowed origins get no Access-Control-Allow-Origin (fail-closed)', async () => {
+  const ts = fakeBackend('ts');
+  const tsPort = await listen(ts.server);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: { '/ts-fam': 'ts' }, exact: {}, upgrades: {} },
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
+  });
+  const port = facade.server.address().port;
+  const evil = 'http://evil.example';
+  const res = await request(port, '/ts-fam/ping', { headers: { Origin: evil } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers['access-control-allow-origin'], undefined);
+  const preflight = await request(port, '/ts-fam/anything', { method: 'OPTIONS', headers: { Origin: evil } });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers['access-control-allow-origin'], undefined);
+  await facade.close();
+  ts.server.closeAllConnections?.(); ts.server.close();
 });
 
 test('sse streams are not buffered by the facade', async () => {

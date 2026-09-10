@@ -16,6 +16,37 @@ function stripHopByHop(headers) {
   return out;
 }
 
+// The facade is the browser-facing edge. The TS backend emits no CORS headers and has no
+// OPTIONS handler, so cross-origin preflights/reads for ts-targeted routes (origin 4173 UI
+// vs 4777 API, and the Tauri webview in the packaged app) were dead in browsers. CORS is
+// centralized here so upstreams stay origin-agnostic.
+const DEFAULT_ALLOWED_ORIGINS = new Set([
+  'http://127.0.0.1:4173',
+  'http://localhost:4173',
+  'http://tauri.localhost',
+  'https://tauri.localhost',
+  'tauri://localhost'
+]);
+
+function allowedOrigins() {
+  const config = process.env.AIDE_ALLOWED_ORIGINS;
+  if (!config) return DEFAULT_ALLOWED_ORIGINS;
+  return new Set(config.split(',').map(origin => origin.trim()).filter(Boolean));
+}
+
+// Returns CORS response headers if the request Origin is allow-listed, else null (fail-closed).
+function corsHeadersFor(request) {
+  const origin = request.headers.origin;
+  if (!origin || !allowedOrigins().has(origin)) return null;
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin'
+  };
+}
+
 function canonicalPath(rawUrl) {
   let pathname;
   try {
@@ -102,10 +133,17 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
     if (request.method === 'GET' && (pathname === '/api/health/ts' || pathname === '/api/health/legacy')) {
       const name = pathname === '/api/health/ts' ? 'ts' : 'legacy';
       finish(200, name);
-      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.writeHead(200, { 'Content-Type': 'application/json', ...(corsHeadersFor(request) ?? {}) });
       response.end(JSON.stringify({ ok: true, target: name }));
       return;
     }
+    if (request.method === 'OPTIONS') {
+      finish(204, 'cors');
+      response.writeHead(204, { 'Content-Length': '0', ...(corsHeadersFor(request) ?? {}) });
+      response.end();
+      return;
+    }
+    const corsForRequest = corsHeadersFor(request);
     const targetName = pickTarget(routeMap, pathname);
     const target = targets[targetName];
     const headers = stripHopByHop(request.headers);
@@ -113,6 +151,7 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
     const proxied = http.request({ host: target.host, port: target.port, method: request.method, path: request.url, headers, agent: upstreamAgent }, proxiedResponse => {
       finish(proxiedResponse.statusCode, targetName);
       const outHeaders = stripHopByHop(proxiedResponse.headers);
+      if (corsForRequest) Object.assign(outHeaders, corsForRequest);
       const status = proxiedResponse.statusCode || 502;
       const contentType = String(outHeaders['content-type'] || '');
       if (contentType.includes('application/json') && targetName === 'ts') {
@@ -127,7 +166,7 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
         proxiedResponse.on('end', () => {
           if (overflow) {
             finish(502, targetName);
-            response.writeHead(502, { 'Content-Type': 'application/json' });
+            response.writeHead(502, { 'Content-Type': 'application/json', ...(corsForRequest ?? {}) });
             response.end(JSON.stringify({ error: 'upstream response body exceeded facade adaptation cap', code: 'backend_error' }));
             return;
           }
@@ -146,7 +185,7 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
     proxied.on('error', () => {
       finish(502, targetName);
       if (!response.headersSent) {
-        response.writeHead(502, { 'Content-Type': 'application/json' });
+        response.writeHead(502, { 'Content-Type': 'application/json', ...(corsForRequest ?? {}) });
         response.end(JSON.stringify({ error: { code: 'backend_unavailable', message: `target ${targetName} at ${target.host}:${target.port} unreachable` } }));
       } else {
         response.destroy();

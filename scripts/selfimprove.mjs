@@ -197,6 +197,7 @@ async function journal(result) {
 }
 
 async function main() {
+  try { await fs.mkdir(path.dirname(LOG), { recursive: true }); } catch { /* diagnostic log is best-effort */ }
   log(`=== selfimprove.mjs (since=${SINCE_HOURS}h, dry_run=${DRY_RUN}) ===`);
   const events = await readState(SINCE_HOURS);
   log(`OBSERVE: ${events.length} events in last ${SINCE_HOURS}h`);

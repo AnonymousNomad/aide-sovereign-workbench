@@ -6,7 +6,7 @@ export declare class AgentSessionError extends Error {
 }
 
 export interface AgentLoopService {
-  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, opts?: { architectEditor?: boolean }): { session_id: string };
+  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, opts?: { architectEditor?: boolean; residentProvider?: () => Promise<string> | string | null; skillProvider?: (task?: string) => Promise<string> | string | null }): { session_id: string };
   decide(sessionId: string, approvalId: string, decision: 'approve' | 'reject' | 'abort'): { ok: boolean };
   status(sessionId: string): AgentStatusResponseT;
   list(): AgentStatusResponseT[];
@@ -28,6 +28,9 @@ export declare function createAgentLoop(options: {
     emitToolResult(event: { sessionId: string; tool: string; ok: boolean; output?: string; iteration?: number; extra?: Record<string, unknown> }): Promise<void>;
     emitApproval(event: { sessionId: string; tool: string; decision: 'approve' | 'reject' | 'abort'; argsPreview?: string; extra?: Record<string, unknown> }): Promise<void>;
   } | null;
+  residentProvider?: () => Promise<string> | string | null;
+  skillProvider?: (task?: string) => Promise<string> | string | null;
+  onSessionEnd?(info: { session_id: string; outcome: string; passed: boolean; status: string; evidence_file?: string }): Promise<void> | void;
 }): AgentLoopService;
 
 export type { AgentApprovalT };

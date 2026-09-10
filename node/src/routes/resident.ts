@@ -39,6 +39,10 @@ export type ResidentService = {
   decisions(): ResidentDecisionT[];
 };
 
+export type ResidentOptions = {
+  onSummary?: (summary: ResidentSummaryT) => void | Promise<void>;
+};
+
 const LSP_OK = new Set(['available', 'running', 'starting']);
 
 function fileExists(root: string, name: string): Promise<boolean> {
@@ -46,6 +50,26 @@ function fileExists(root: string, name: string): Promise<boolean> {
     .access(path.join(root, name))
     .then(() => true)
     .catch(() => false);
+}
+
+export function renderResidentContext(context: ResidentContextT): string {
+  const lines = [
+    `project: ${context.projectType}`,
+    `workspace: ${context.workspace}`,
+    `git: ${context.git_status}`,
+    `model: ${context.model_status}`,
+    ''
+  ];
+  if (context.changed_files.length) {
+    lines.push('changed files:', ...context.changed_files.slice(0, 25).map(f => `  - ${f}`), '');
+  }
+  if (context.diagnostics.length) {
+    lines.push('diagnostics:', ...context.diagnostics.map(d => `  - ${d}`), '');
+  }
+  if (context.conditions.length) {
+    lines.push('conditions:', ...context.conditions.map(c => `  - ${c}`), '');
+  }
+  return lines.join('\n');
 }
 
 async function detectProject(workspace: string): Promise<{ projectType: ResidentProjectTypeT; hasTestScript: boolean; deps: ResidentSummaryT['deps'] }> {
@@ -94,7 +118,7 @@ async function detectProject(workspace: string): Promise<{ projectType: Resident
   };
 }
 
-export function createResidentService(workspace: string, probes: ResidentProbes = {}): ResidentService {
+export function createResidentService(workspace: string, probes: ResidentProbes = {}, options: ResidentOptions = {}): ResidentService {
   const git = new GitService({ workspace });
   const decisions: ResidentDecisionT[] = [];
   let lastSummary: ResidentSummaryT | null = null;
@@ -314,6 +338,11 @@ export function createResidentService(workspace: string, probes: ResidentProbes 
       else decisions.push(entry);
     }
     while (decisions.length > 100) decisions.shift();
+    if (typeof options.onSummary === 'function') {
+      // Fire-and-forget: advisory observations must never delay the
+      // read-only surface (R2: armor/fail-closed component isolation).
+      void Promise.resolve().then(() => options.onSummary!(summary)).catch(() => {});
+    }
     return summary;
   }
 

@@ -4,13 +4,20 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, readdir, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const run = promisify(execFile);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function localDate(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -297,6 +304,63 @@ try {
   assert.match(journalText, /byok-chat/, 'egress journal records chat egress');
   assert.match(journalText, /hermetic/, 'egress journal records provider id');
   assert.ok(providerCalls.some(call => call.path === '/v1/chat/completions'), 'provider served chat completions');
+
+  // PHASE 9.5: Mission 1 closed-loop wiring — deterministic verification,
+  // evidence ledger, memory digest, resident observation (all through the
+  // real production chain: facade -> TS arch -> audit trail -> bus -> disk).
+  async function pathExists(p) {
+    try { await stat(p); return true; } catch { return false; }
+  }
+  async function waitForFile(dir, predicate, max = 40) {
+    for (let i = 0; i < max; i += 1) {
+      try {
+        const names = await readdir(dir);
+        const hit = names.find(predicate);
+        if (hit) return hit;
+      } catch {}
+      await sleep(100);
+    }
+    return null;
+  }
+  const verFile = await waitForFile(path.join(workspace, '.aide', 'verifications'), n => n.endsWith('.verification.json'));
+  assert.ok(verFile, 'Phase 9.5: agent.verification evidence file written');
+  const verRecord = JSON.parse(await readFile(path.join(workspace, '.aide', 'verifications', verFile), 'utf8'));
+  assert.equal(verRecord.outcome, 'done', 'Phase 9.5: verification outcome = done');
+  assert.equal(verRecord.trajectory_format, 'aide-1', 'Phase 9.5: veritas evidence format');
+  const trajFile = await waitForFile(path.join(workspace, '.aide', 'trajectories'), n => n.endsWith('.traj.json'));
+  assert.ok(trajFile, 'Phase 9.5: trajectory file written');
+  const busText = await readFile(path.join(workspace, '.aide', 'cipher-state.jsonl'), 'utf8');
+  const busRows = busText.split(/\r?\n/).filter(Boolean).map(l => JSON.parse(l));
+  const busTypes = busRows.map(r => r.type);
+  assert.ok(busTypes.includes('agent.start'), 'Phase 9.5: bus has agent.start');
+  assert.ok(busTypes.includes('approval'), 'Phase 9.5: bus has legacy approval row (emitApproval piggyback)');
+  assert.ok(busTypes.includes('agent.approval'), 'Phase 9.5: bus has agent.approval envelope');
+  assert.ok(busTypes.includes('agent.verification'), 'Phase 9.5: bus has agent.verification row');
+  // resident observation rows land after onSessionEnd flush (fire-and-forget)
+  let residentRow = busRows.find(r => r.type === 'resident');
+  if (!residentRow) {
+    for (let i = 0; i < 40 && !residentRow; i += 1) {
+      await sleep(100);
+      const text2 = await readFile(path.join(workspace, '.aide', 'cipher-state.jsonl'), 'utf8');
+      residentRow = text2.split(/\r?\n/).filter(Boolean).map(l => JSON.parse(l)).find(r => r.type === 'resident');
+    }
+  }
+  assert.ok(residentRow, 'Phase 9.5: resident observation row on bus');
+  res = await request(facadePort, '/api/resident/summary');
+  body = await expectOk(res, 'resident summary');
+  assert.ok(body.summary && typeof body.summary.status === 'string', 'Phase 9.5: resident summary status');
+  res = await request(facadePort, `/api/audit/session?id=${session_id}`);
+  await expectOk(res, 'audit session');
+  // memory day digest lands after onSessionEnd digest() flush (local date per memory-spine)
+  const today = localDate();
+  const dayFile = path.join(workspace, '.aide', 'memory', 'days', `${today}.json`);
+  let dayExists = await pathExists(dayFile);
+  for (let i = 0; i < 40 && !dayExists; i += 1) { await sleep(100); dayExists = await pathExists(dayFile); }
+  assert.ok(dayExists, 'Phase 9.5: memory day digest file written (Mission 1 item 4)');
+  const dayDigest = JSON.parse(await readFile(dayFile, 'utf8'));
+  assert.equal(dayDigest.date, today, 'Phase 9.5: day digest date matches');
+  assert.ok(dayDigest.approvals >= 1, 'Phase 9.5: digest counts the approval');
+  assert.ok(typeof dayDigest.tools_used.write_file === 'number' || typeof dayDigest.tools_used.replace_in_file === 'number', 'Phase 9.5: digest tracks tool affinity');
 
   // PHASE 10: session state (legacy route via facade)
   res = await put(facadePort, '/api/session', { active_file: 'note.md', open_files: ['note.md', 'README.md'], panel: 'terminal' });

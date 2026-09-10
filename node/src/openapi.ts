@@ -54,7 +54,7 @@ import { routesForSystemMap } from './routes/system-map.ts';
 import { routesForDesktop, createDesktopService } from './routes/desktop.ts';
 import { routesForTelegram, createTelegramBridgeService } from './routes/telegram.ts';
 import { routesForExperts, createExpertsService } from './routes/experts.ts';
-import { routesForResident, createResidentService } from './routes/resident.ts';
+import { routesForResident, createResidentService, renderResidentContext } from './routes/resident.ts';
 import { createRequire } from 'node:module';
 import { createOrchService } from './services/orch-context.mjs';
 import { createAgentTools } from './services/agent-tools.mjs';
@@ -62,6 +62,7 @@ import { createCheckpointService } from '../../node/src/services/agent-checkpoin
 import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
 import { routesForAgent } from './routes/agent.ts';
 import { createAuditTrail } from './services/audit-trail.mjs';
+import { createSkillsLoader } from './services/skills-loader.mjs';
 import { routesForAudit } from './routes/audit.ts';
 import { routesForClosedLoop } from './routes/closed-loop.ts';
 import { createIndexService } from '../../node/src/services/index-service.mjs';
@@ -113,6 +114,10 @@ export interface BuildRoutesOptions {
   // for online (offline: false) MCP servers. Default = none. The WorkbenchManager
   // uses this as the consent signal when setTrust(server, true) is called.
   workbenchEgressAllowlist?: string[];
+  // Override the skills root used by the deterministic skill SOP injector —
+  // the BASE directory that contains the skills/ folder (registry.json lives
+  // at <skillsRoot>/skills/registry.json). Tests supply a hermetic temp dir.
+  skillsRoot?: string;
 }
 
 export function lspEntryPath(repoRoot: string): string {
@@ -372,7 +377,30 @@ export async function buildRoutes(workspace: string, version: string, options: B
   // through /api/audit/* (aide-closed-loop-wiring skill). The same instance
   // is injected into the agent loop so emits stay best-effort (fail-closed:
   // a failed write must never break the operation it audits).
+  const memoryService = createMemoryService(workspace);
+  // Resident Assistant: quiet in-workspace observation layer (aide-resident-assistant).
+  // §10 milestone: workspace/probe state, deterministic rules, ADVISORY only.
+  // §4 pre-push: advisory READY / ATTENTION_REQUIRED — never blocks.
+  const residentService = createResidentService(workspace, {
+    modelStatus: () => modelRuntime.status(),
+    lspStatus: async () => {
+      const entries = manager.status();
+      return entries.map(e => ({ languageId: e.languageId, status: e.status }));
+    }
+  }, {
+    onSummary: async (summary) => {
+      void auditTrail.emitResident({
+        status: summary.status,
+        projectType: summary.projectType,
+        conditionCount: summary.conditions.length,
+        recommendation: summary.recommendation,
+        extra: { generated_at: summary.generated_at }
+      });
+    }
+  });
   const auditTrail = createAuditTrail({ workspace });
+  const skillsRoot = options.skillsRoot ?? repoRoot;
+  const skillProvider = createSkillsLoader({ skillsRoot });
   const agentLoop = createAgentLoop({
     workspace,
     rg: rgService.available() ? rgService : null,
@@ -383,7 +411,24 @@ export async function buildRoutes(workspace: string, version: string, options: B
       const result = await modelRouter.chat(selection.modelId, messages.map(message => ({ role: message.role as 'system' | 'user' | 'assistant', content: message.content })), {});
       return result.text;
     }),
-    onEvent: event => options.events?.publish('agent', event)
+    onEvent: event => options.events?.publish('agent', event),
+    residentProvider: async () => renderResidentContext(await residentService.context()),
+    skillProvider: (task?: string) => (task ? skillProvider(task) : Promise.resolve('')),
+    onSessionEnd: async ({ session_id, outcome, passed, status, evidence_file }) => {
+      try {
+        const { refreshed } = await memoryService.digest();
+        await auditTrail.emitResident({
+          status: 'observation',
+          projectType: 'pending',
+          conditionCount: 0,
+          recommendation: `Agent session ${outcome} (${passed ? 'verified' : 'unverified'}); memory digest refreshed: ${refreshed.length} day(s).`,
+          extra: { session_id, outcome, passed, status, evidence_file }
+        });
+      } catch {
+        // Best-effort; a digest or emit failure must not swallow
+        // the session finish (R2: armor/fail-closed component isolation).
+      }
+    }
   });
   // Resolve the embeddings gate BEFORE the index service exists (see gate
   // comment): real fn = dense+BM25, null = BM25-only with honest degraded flag.
@@ -404,16 +449,6 @@ export async function buildRoutes(workspace: string, version: string, options: B
   // desktopServiceRef. The /api/experts/* routes and the agent loop's
   // consultExpert callback both close over this one instance.
   const expertsService = createExpertsService(workspace);
-  // Resident Assistant: quiet in-workspace observation layer (aide-resident-assistant).
-  // §10 milestone: workspace/probe state, deterministic rules, ADVISORY only.
-  // §4 pre-push: advisory READY / ATTENTION_REQUIRED — never blocks.
-  const residentService = createResidentService(workspace, {
-    modelStatus: () => modelRuntime.status(),
-    lspStatus: async () => {
-      const entries = manager.status();
-      return entries.map(e => ({ languageId: e.languageId, status: e.status }));
-    }
-  });
   // Freshness: fs watcher → 5s debounce → incremental reindex. Opt-in via
   // options.watchIndex (server boot only; see BuildRoutesOptions note). .aide
   // is filtered or the index's own persist writes would retrigger forever.
@@ -492,7 +527,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...buildNotificationWiredRoutes(workspace, options),
     ...routesForProblems(workspace),
     ...routesForOrch(createOrchService({ workspace: workspace, runtime: modelRuntime })),
-    ...routesForMemory(createMemoryService(workspace)),
+    ...routesForMemory(memoryService),
     ...routesForWorkbenches(new WorkbenchManager({
       workspace,
       // exactOptionalPropertyTypes: pass `null` (not `undefined`) to the

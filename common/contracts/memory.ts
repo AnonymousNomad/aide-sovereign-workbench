@@ -28,4 +28,10 @@ export const MemoryDigestsResponse = z
   })
   .strict();
 
+export const MemoryDigestResponse = z
+  .object({
+    refreshed: z.array(z.string())
+  })
+  .strict();
+
 export type DayDigestT = z.infer<typeof DayDigest>;

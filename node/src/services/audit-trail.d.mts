@@ -23,6 +23,8 @@ export interface AuditTrailService {
   emitSubagentDone(event: { parentSessionId: string; childSessionId: string; status: string; filesChanged?: string[]; extra?: Record<string, unknown> }): Promise<void>;
   emitSubagentError(event: { parentSessionId: string; childSessionId: string; error: string; extra?: Record<string, unknown> }): Promise<void>;
   emitDesktop(event: { action: string; target?: string; extra?: Record<string, unknown> }): Promise<void>;
+  emitVerification(event: { sessionId: string; outcome: string; passed: boolean; status: string; score?: number; threshold?: number; evidenceLevel?: string; failedChecks?: string[]; extra?: Record<string, unknown> }): Promise<void>;
+  emitResident(event: { status: string; projectType: string; conditionCount: number; recommendation: string; extra?: Record<string, unknown> }): Promise<void>;
   readEvents(filter?: { type?: string; sessionId?: string; bundleId?: string; since?: string; limit?: number }): Promise<AuditEvent[]>;
   knownTypes(): string[];
   sessionTrajectory(sessionId: string, options?: { limit?: number }): Promise<{

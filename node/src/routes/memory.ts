@@ -1,5 +1,5 @@
 import { type Route } from '../server.ts';
-import { MemoryDigestsQuery, MemoryDigestsResponse } from '../../../common/contracts/memory.ts';
+import { MemoryDigestResponse, MemoryDigestsQuery, MemoryDigestsResponse } from '../../../common/contracts/memory.ts';
 import { createRequire } from 'node:module';
 
 // X1.a memory spine routes — digest reads over the deterministic event log.
@@ -11,6 +11,7 @@ const helixRetention = require('../../../harness/helix-retention.mjs');
 
 export type MemoryService = {
   listDigests(query: { from?: string; to?: string }): Promise<{ digests: unknown[]; refreshed: string[] }>;
+  digest(): Promise<{ refreshed: string[] }>;
 };
 
 const CASCADE_TIMEOUT_MS = 1500;
@@ -50,6 +51,14 @@ export function createMemoryService(workspace: string): MemoryService {
         if (digest) digests.push(digest);
       }
       return { digests, refreshed };
+    },
+    async digest() {
+      // Session-completion consolidate (Mission 1, item 4): refresh from
+      // the bus + ships stream, then redrive the X2 join + X3 retention
+      // cascade. Bounded, best-effort, fire-and-forget friendly.
+      void runHelixCascade(workspace);
+      const refreshed = await spine.refreshDayDigests(workspace);
+      return { refreshed };
     }
   };
 }
@@ -62,6 +71,12 @@ export function routesForMemory(service: MemoryService): Route[] {
       query: MemoryDigestsQuery,
       response: MemoryDigestsResponse,
       handler: async ({ query }) => service.listDigests(query as { from?: string; to?: string })
+    },
+    {
+      method: 'POST',
+      path: '/api/memory/digest',
+      response: MemoryDigestResponse,
+      handler: async () => service.digest()
     }
   ];
 }

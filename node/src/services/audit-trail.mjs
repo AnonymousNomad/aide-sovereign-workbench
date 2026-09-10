@@ -59,6 +59,12 @@ const KNOWN_TYPES = new Set([
   'subagent.done',
   'subagent.error',
   'desktop',
+  // Deterministic verification stamp for a finished agent session
+  // (Mission 1 wiring: verification must be observable + replayable).
+  'agent.verification',
+  // Resident Assistant workspace-observation row (advisory state). The
+  // closed-loop OBSERVE stage sees it; DETECT ignores it (not a failure).
+  'resident',
   // Pre-existing shapes from the older capture (X1.a decisions); kept
   // for backwards compatibility with the [learned] injector.
   'approval',
@@ -246,6 +252,39 @@ export function createAuditTrail({ workspace }) {
      *  newer envelope). */
     async emitDesktop({ action, target, extra = {} } = {}) {
       await emit({ type: 'desktop', action, target, ...extra });
+    },
+
+    /** Deterministic verification outcome for a finished agent session
+     *  (Mission 1: verification after agent actions -> observable + replayable
+     *  on the bus; surfaces through /api/audit/events and the 'agent' WS
+     *  channel via the loop's onEvent('verification')). */
+    async emitVerification({ sessionId, outcome, passed, status, score, threshold, evidenceLevel, failedChecks = [], extra = {} } = {}) {
+      await emit({
+        type: 'agent.verification',
+        session_id: sessionId,
+        outcome,
+        passed: Boolean(passed),
+        verdict: status,
+        score: Math.max(0, Math.min(1, Number(score) || 0)),
+        threshold: Number(threshold) || 0,
+        evidence_level: evidenceLevel,
+        failed_checks: Array.isArray(failedChecks) ? failedChecks : [],
+        ...extra
+      });
+    },
+
+    /** Resident Assistant workspace-observation row. Advisory state only;
+     *  DETECT never treats it as a failure. Lets the OBSERVE stage see what
+     *  the workspace looked like around the session. */
+    async emitResident({ status, projectType, conditionCount, recommendation, extra = {} } = {}) {
+      await emit({
+        type: 'resident',
+        status,
+        project_type: projectType,
+        condition_count: Number(conditionCount) || 0,
+        recommendation: trim(recommendation, 400),
+        ...extra
+      });
     },
 
     // Read APIs. The audit endpoint hits these.

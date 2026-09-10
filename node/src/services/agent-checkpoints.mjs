@@ -15,7 +15,11 @@ export class CheckpointError extends Error {
 
 function git(shadowDir, args) {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd: shadowDir, env: GIT_ENV, windowsHide: true, maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+    // Timeout: on Windows a concurrent writer can transiently stall `git add`
+    // on a worktree file lock. The checkpoint must fail-losed (reject) so the
+    // agent loop never hangs on a stuck git; the caller treats rejection as
+    // an expendable checkpoint skip.
+    execFile('git', args, { cwd: shadowDir, env: GIT_ENV, windowsHide: true, maxBuffer: 32 * 1024 * 1024, timeout: 30000 }, (error, stdout, stderr) => {
       if (error) {
         const message = String(stderr || error.message).slice(0, 500);
         reject(new CheckpointError(`git ${args[0]} failed: ${message}`));

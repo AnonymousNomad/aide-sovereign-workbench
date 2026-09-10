@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +8,10 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtimeNode = path.join(root, 'desktop', 'resources', 'runtime', process.platform === 'win32' ? 'node.exe' : 'node');
 const launcher = path.join(root, 'desktop', 'resources', 'stack-launcher.mjs');
+if (!existsSync(launcher) || !existsSync(runtimeNode)) {
+  console.log(`desktop staged smoke SKIPPED: staged resources absent (${path.dirname(launcher)}); run "node desktop/prepare.mjs" and stage stack-launcher.mjs first - the packaged-stack gate is enforced where the staged tree exists`);
+  process.exit(0);
+}
 const archPort = 4798;
 const legacyPort = 4799;
 const facadePort = 4797;

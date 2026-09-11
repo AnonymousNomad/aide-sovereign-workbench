@@ -13,7 +13,7 @@ import { routeForModelStatus, routeForModelStart, routeForModelStop, routeForMod
 import { routeForRoutes, routeForRoute, routeForFit } from './routes/routing.ts';
 import { routeForChat, routeForChatStream, routeForChatHistory, routeForChatHistorySave } from './routes/chat.ts';
 import { ChatStore } from './services/chat-store.ts';
-import { routeForLspStatus, routeForLspStart, routeForLspOpen, routeForLspClose, routeForLspChange, routeForLspCompletion, routeForLspHover, routeForLspDefinition, lspDiagnosticsToMarkers } from './routes/lsp.ts';
+import { routeForLspStatus, routeForLspStart, routeForLspOpen, routeForLspClose, routeForLspChange, routeForLspCompletion, routeForLspHover, routeForLspDefinition, routeForLspNotify, routeForLspRequest, routeForLspStop, lspDiagnosticsToMarkers } from './routes/lsp.ts';
 import {
   routeForDapStatus,
   routeForDapStart,
@@ -715,6 +715,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForLspCompletion(manager),
     routeForLspHover(manager),
     routeForLspDefinition(manager),
+    routeForLspNotify(manager),
+    routeForLspRequest(manager),
+    routeForLspStop(manager),
     routeForDapStatus(dapManager),
     routeForDapStart(dapManager),
     routeForDapStop(dapManager),

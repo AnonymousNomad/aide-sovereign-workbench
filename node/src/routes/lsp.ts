@@ -15,7 +15,13 @@ import {
   LspFeatureRequest,
   LspCompletionResponse,
   LspHoverResponse,
-  LspDefinitionResponse
+  LspDefinitionResponse,
+  LspRawNotifyRequest,
+  LspRawNotifyResponse,
+  LspRawRequestRequest,
+  LspRawRequestResponse,
+  LspRawStopRequest,
+  LspRawStopResponse
 } from '../../../common/contracts/lsp.ts';
 
 const SEVERITY_LSP_TO_MONACO: Record<number, number> = { 1: 8, 2: 4, 3: 2, 4: 1 };
@@ -166,6 +172,84 @@ export function routeForLspDefinition(manager: LspManager): Route {
         return { locations };
       } catch (error) {
         throw new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'language server failed on definition');
+      }
+    }
+  };
+}
+
+const WORKSPACE_PLACEHOLDER = 'file:///workspace/';
+const WORKSPACE_PLACEHOLDER_RE = /^file:\/\/\/workspace\/?/;
+
+function rewriteIncoming(message: unknown): unknown {
+  if (!message || typeof message !== 'object') return message;
+  const record = message as Record<string, unknown>;
+  const params = (record.params ?? {}) as Record<string, unknown>;
+  if (params.rootUri && typeof params.rootUri === 'string') {
+    params.rootUri = WORKSPACE_PLACEHOLDER_RE.test(params.rootUri)
+      ? `file:///${process.env.AIDE_WORKSPACE ?? ''}/${params.rootUri.slice(WORKSPACE_PLACEHOLDER.length)}`
+      : params.rootUri;
+  }
+  const textDocument = params.textDocument;
+  if (textDocument && typeof textDocument === 'object') {
+    const td = textDocument as Record<string, unknown>;
+    if (typeof td.uri === 'string') {
+      td.uri = WORKSPACE_PLACEHOLDER_RE.test(td.uri)
+        ? `file:///${process.env.AIDE_WORKSPACE ?? ''}/${td.uri.slice(WORKSPACE_PLACEHOLDER.length)}`
+        : td.uri;
+    }
+  }
+  return record;
+}
+
+export function routeForLspNotify(manager: LspManager): Route {
+  return {
+    method: 'POST',
+    path: '/api/lsp/notify',
+    body: LspRawNotifyRequest,
+    response: LspRawNotifyResponse,
+    handler: async ({ body }) => {
+      const request = body as { id: string; message: { method: string; params?: unknown } };
+      try {
+        manager.notify(request.id, (rewriteIncoming(request.message) as { method: string; params?: unknown }).method, (rewriteIncoming(request.message) as { method: string; params?: unknown }).params);
+        return { sent: true };
+      } catch (error) {
+        throw new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'language server notify failed');
+      }
+    }
+  };
+}
+
+export function routeForLspRequest(manager: LspManager): Route {
+  return {
+    method: 'POST',
+    path: '/api/lsp/request',
+    body: LspRawRequestRequest,
+    response: LspRawRequestResponse,
+    handler: async ({ body }) => {
+      const request = body as { id: string; message: { method: string; params?: unknown } };
+      try {
+        const rewritten = rewriteIncoming(request.message) as { method: string; params?: unknown };
+        return await manager.request(request.id, rewritten.method, rewritten.params, 15000);
+      } catch (error) {
+        throw new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'language server request failed');
+      }
+    }
+  };
+}
+
+export function routeForLspStop(manager: LspManager): Route {
+  return {
+    method: 'POST',
+    path: '/api/lsp/stop',
+    body: LspRawStopRequest,
+    response: LspRawStopResponse,
+    handler: async ({ body }) => {
+      const request = body as { id: string };
+      try {
+        await manager.stop(request.id);
+        return { id: request.id, status: 'stopped' };
+      } catch (error) {
+        throw new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'language server stop failed');
       }
     }
   };

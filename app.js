@@ -812,7 +812,7 @@ async function ensureLsp() {
   try {
     const r = await fetch(`${API}/api/lsp/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: 'typescript' })
+      body: JSON.stringify({ languageId: 'typescript' })
     });
     lspState.started = r.ok;
     return lspState.started;

@@ -130,6 +130,61 @@ export const LspStatusEvent = z
   })
   .strict();
 
+export const LspRawNotifyRequest = z
+  .object({
+    id: z.string().min(1),
+    message: z.object({
+      method: z.string().min(1),
+      params: z.unknown().optional()
+    }).strict()
+  })
+  .strict();
+
+export const LspRawNotifyResponse = z
+  .object({
+    sent: z.literal(true)
+  })
+  .strict();
+
+export const LspRawRequestRequest = z
+  .object({
+    id: z.string().min(1),
+    message: z.object({
+      method: z.string().min(1),
+      params: z.unknown().optional()
+    }).strict()
+  })
+  .strict();
+
+export const LspRawRequestResponse = z
+  .object({
+    jsonrpc: z.string().optional(),
+    id: z.unknown().optional(),
+    result: z.unknown().optional(),
+    error: z.unknown().optional()
+  })
+  .strict();
+
+export const LspRawStopRequest = z
+  .object({
+    id: z.string().min(1)
+  })
+  .strict();
+
+export const LspRawStopResponse = z
+  .object({
+    id: z.string().min(1),
+    status: z.literal('stopped')
+  })
+  .strict();
+
+export type LspRawNotifyRequestT = z.infer<typeof LspRawNotifyRequest>;
+export type LspRawNotifyResponseT = z.infer<typeof LspRawNotifyResponse>;
+export type LspRawRequestRequestT = z.infer<typeof LspRawRequestRequest>;
+export type LspRawRequestResponseT = z.infer<typeof LspRawRequestResponse>;
+export type LspRawStopRequestT = z.infer<typeof LspRawStopRequest>;
+export type LspRawStopResponseT = z.infer<typeof LspRawStopResponse>;
+
 export type LspServerStateT = z.infer<typeof LspServerState>;
 export type LspStatusEntryT = z.infer<typeof LspStatusEntry>;
 export type LspStatusResponseT = z.infer<typeof LspStatusResponse>;

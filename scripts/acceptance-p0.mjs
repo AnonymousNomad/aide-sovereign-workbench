@@ -204,8 +204,8 @@ try {
   body = await res.json();
   assert.match(body.content, /edited by acceptance/, 'file content round-trips');
 
-  // PHASE 3: language server (legacy route via facade default)
-  res = await post(facadePort, '/api/lsp/start', { id: 'typescript' });
+  // PHASE 3: language server (TS route via facade)
+  res = await post(facadePort, '/api/lsp/start', { languageId: 'typescript' });
   await expectOk(res, 'lsp start');
   const lspCapabilities = { textDocument: { publishDiagnostics: { relatedInformation: true }, completion: { completionItem: { snippetSupport: true } }, definition: { linkSupport: true }, hover: { contentFormat: ['markdown', 'plaintext'] } } };
   res = await post(facadePort, '/api/lsp/request', { id: 'typescript', message: { method: 'initialize', params: { processId: null, rootUri: 'file:///workspace', capabilities: lspCapabilities } } });
@@ -219,7 +219,7 @@ try {
   assert.ok((completion.result?.items || completion.result || []).length > 0, `lsp completion returned items (${JSON.stringify(completion).slice(0, 200)})`);
   await post(facadePort, '/api/lsp/stop', { id: 'typescript' });
 
-  // PHASE 4: terminal (legacy route via facade)
+  // PHASE 4: terminal (TS route via facade)
   res = await post(facadePort, '/api/terminal/run', { program: 'echo', args: ['p0-terminal-ok'], approved: true });
   body = await expectOk(res, 'terminal run');
   assert.match(body.stdout, /p0-terminal-ok/, 'terminal stdout');

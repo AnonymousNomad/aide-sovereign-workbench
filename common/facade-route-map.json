@@ -14,6 +14,7 @@
     "/api/hooks": "ts",
     "/api/index": "ts",
     "/api/keybindings": "ts",
+    "/api/lsp": "ts",
     "/api/learner": "ts",
     "/api/memory": "ts",
     "/api/modelhub": "ts",

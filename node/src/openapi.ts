@@ -62,6 +62,7 @@ import { routesForSystemMap } from './routes/system-map.ts';
 import { routesForDesktop, createDesktopService } from './routes/desktop.ts';
 import { routesForTelegram, createTelegramBridgeService } from './routes/telegram.ts';
 import { routesForExperts, createExpertsService } from './routes/experts.ts';
+import { routesForHardware } from './routes/hardware.ts';
 import { routesForResident, createResidentService, renderResidentContext } from './routes/resident.ts';
 import { createRequire } from 'node:module';
 import { createOrchService } from './services/orch-context.mjs';
@@ -630,7 +631,8 @@ export async function buildRoutes(workspace: string, version: string, options: B
       return [
         ...routesForDesktop(desktopService),
         ...routesForTelegram(createTelegramBridgeService(workspace, input => brain.onCommand(input))),
-        ...routesForExperts(expertsService)
+        ...routesForExperts(expertsService),
+        ...routesForHardware()
       ];
     })(),
     // Audit envelope (aide-closed-loop-wiring): read API over the same

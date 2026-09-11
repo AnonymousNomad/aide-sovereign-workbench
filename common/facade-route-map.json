@@ -37,7 +37,8 @@
     "/api/replays": "ts",
     "/api/tasks": "ts",
     "/api/terminal": "ts",
-    "/api/patch": "ts"
+    "/api/patch": "ts",
+    "/api/hardware": "ts"
   },
   "exact": {
     "/api/file": "ts",

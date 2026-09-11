@@ -7509,6 +7509,229 @@
         }
       }
     },
+    "/api/hardware/profile": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalRamBytes": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "freeRamBytes": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "logicalCpus": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "vramBytes": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "freeVramBytes": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "vramSource": {
+                      "type": "string",
+                      "enum": [
+                        "nvidia-smi",
+                        "none"
+                      ]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": [
+                        "S",
+                        "M",
+                        "L",
+                        "XL"
+                      ]
+                    },
+                    "backend": {
+                      "type": "string",
+                      "enum": [
+                        "vulkan",
+                        "cuda",
+                        "cpu",
+                        "apple"
+                      ]
+                    },
+                    "detectedAt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "totalRamBytes",
+                    "freeRamBytes",
+                    "logicalCpus",
+                    "vramBytes",
+                    "freeVramBytes",
+                    "vramSource",
+                    "tier",
+                    "backend",
+                    "detectedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hardware/recommend": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "device": {
+                      "type": "object",
+                      "properties": {
+                        "tier": {
+                          "type": "string",
+                          "enum": [
+                            "S",
+                            "M",
+                            "L",
+                            "XL"
+                          ]
+                        },
+                        "backend": {
+                          "type": "string",
+                          "enum": [
+                            "vulkan",
+                            "cuda",
+                            "cpu",
+                            "apple"
+                          ]
+                        },
+                        "totalRamGb": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "logicalCpus": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "vramMb": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "tier",
+                        "backend",
+                        "totalRamGb",
+                        "logicalCpus",
+                        "vramMb"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "recommendations": {
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "planner",
+                              "coder",
+                              "reviewer"
+                            ]
+                          },
+                          "modelId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "parametersB": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "quant": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "fileBytes": {
+                            "type": "number",
+                            "minimum": 0
+                          },
+                          "contextTokens": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "fit": {
+                            "type": "string",
+                            "enum": [
+                              "COMFORTABLE",
+                              "TIGHT",
+                              "OVER"
+                            ]
+                          },
+                          "onDisk": {
+                            "type": "boolean"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "modelId",
+                          "name",
+                          "parametersB",
+                          "quant",
+                          "fileBytes",
+                          "contextTokens",
+                          "fit",
+                          "onDisk",
+                          "reason"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "generatedAt": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "device",
+                    "recommendations",
+                    "generatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "responses": {

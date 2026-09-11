@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-09-09T20:12:28.194Z",
-  "count": 273,
+  "count": 274,
   "categories": [
     "academy",
     "aide-core",
@@ -1290,6 +1290,13 @@
       "description": "Applies the Mandalorian creed-like discipline and philosophy to development engineering. Teaches how to translate the 'Way of the Developer' principles into development practice, verification-first mindset, and continuous discipline throughout the development lifecycle.",
       "category": "general",
       "path": "skills/packs/developer-discipline-engineering/SKILL.md"
+    },
+    {
+      "name": "developer-way",
+      "title": "THE DEVELOPER'S WAY",
+      "description": "The revised universal credo applying at all times — build with purpose, one failure is a signal, protect the system, follow the Way but serve truth, make no claim without evidence, master your tools, leave evidence behind, close the loop, prove it. Supersedes prior credo versions. Use at session start, before every task, before claiming anything done, whenever behavior must be judged, and whenever evidence contradicts a procedure. The canonical developer discipline document.",
+      "category": "discipline",
+      "path": "skills/packs/developer-way/SKILL.md"
     },
     {
       "name": "device-training-1060",

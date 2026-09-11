@@ -1,0 +1,25 @@
+{
+  "started": "2026-09-11T23:39:38.118Z",
+  "ended": "2026-09-11T23:39:58.033Z",
+  "args": [
+    "--experimental-strip-types",
+    "--no-warnings",
+    "--import",
+    "./scripts/http-close-shim.mjs",
+    "--test",
+    "--test-concurrency=1",
+    "--test-timeout=120000",
+    "tests/arch/ws-events.test.ts",
+    "tests/arch/model-routes.test.ts",
+    "tests/arch/provider-routes.test.ts",
+    "tests/arch/workbench-routes.test.ts",
+    "tests/arch/workbench-manager.test.ts",
+    "tests/arch/openapi-drift.test.ts"
+  ],
+  "pid": 21816,
+  "freeMemoryBytes": 4181995520,
+  "code": 0,
+  "signal": null,
+  "stdout": "✔ GET /api/models/status lists the bundled models through the envelope (10225.4389ms)\n✔ POST /api/models/start rejects an unknown model with CHILD_FAILED (8.0355ms)\n✔ POST /api/models/ingest rejects a non-gguf path (5.5349ms)\n✔ POST /api/chat on an unstarted model returns NOT_READY (65.6436ms)\n✔ POST /api/chat/stream on an unstarted model emits a validated error event (10.955ms)\n✔ openapi.json is up to date (run npm run contracts to regenerate) (146.5692ms)\n✔ openapi.json documents every non-raw route with a schema (55.4914ms)\n✔ GET /api/providers lists the built-ins through the envelope without keys (133.1617ms)\n✔ POST /api/providers/connect returns invalid_key for a rejected key and never echoes it (9.6719ms)\n✔ POST /api/providers/connect with an unapproved custom host is forbidden (4.2283ms)\n✔ POST /api/providers/connect with a valid key returns connected (4.6133ms)\n✔ POST /api/providers/import stores imported chats through the envelope (11.493ms)\n✔ POST /api/providers/import rejects oversized payloads (121.6744ms)\n✔ list() returns the shipped sovereign-coder bundle summary, installed=false (52.4562ms)\n✔ install() persists state with all components disabled and zero trust (10.6924ms)\n✔ trusting an offline server succeeds with no egress consent call (12.974ms)\n✔ trusting an online server without consent throws CONSENT_REQUIRED (fail-closed) (5.5992ms)\n✔ trusting an online server with explicit consent succeeds and enables the bundle (9.6178ms)\n✔ uninstall removes the installed state and get() reports installed=false (bundle stays discoverable) (15.1057ms)\n✔ installing a non-existent workbench fails with a validation error naming the id (2.2275ms)\n✔ GET /api/workbenches lists the shipped sovereign-coder bundle (123.4081ms)\n✔ POST /api/workbenches/install installs and returns the detail with all disabled (13.7036ms)\n✔ trusting an online server without consent returns FORBIDDEN + CONSENT_REQUIRED (15.5958ms)\n✔ trusting an offline server succeeds and the API reports trusted=true (14.5489ms)\n✔ uninstall removes the installed state and a subsequent detail call reports installed=false (12.0225ms)\n✔ openapi.json is served raw (no envelope) with documented paths (130.1226ms)\n✔ ws client receives log events after subscribing to the log channel (14.4673ms)\n✔ ws client receives nothing on unsubscribed channels (313.8028ms)\n✔ invalid event payload is never sent (fail closed) (304.216ms)\nℹ tests 29\nℹ suites 0\nℹ pass 29\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 19832.4809\n",
+  "stderr": ""
+}

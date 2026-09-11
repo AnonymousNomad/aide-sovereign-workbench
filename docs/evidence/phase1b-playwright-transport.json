@@ -1,0 +1,19 @@
+{
+  "started": "2026-09-11T23:48:54.316Z",
+  "ended": "2026-09-11T23:49:35.695Z",
+  "args": [
+    "node_modules/@playwright/test/cli.js",
+    "test",
+    "tests/e2e/arch.spec.ts",
+    "--config",
+    "playwright.config.ts",
+    "--grep",
+    "boots and|ws event|exp chat|route endpoint|fit endpoint|providers panel|imports a chatgpt"
+  ],
+  "pid": 21948,
+  "freeMemoryBytes": 2408099840,
+  "code": 0,
+  "signal": null,
+  "stdout": "\nRunning 8 tests using 1 worker\n\n  ✓  1 tests\\e2e\\arch.spec.ts:56:1 › boots and shows daemon status (1.6s)\n  ✓  2 tests\\e2e\\arch.spec.ts:113:1 › ws event bus drops to err and reconnects to ok after a connection failure (16.1s)\n  ✓  3 tests\\e2e\\arch.spec.ts:167:1 › exp chat panel lists models and surfaces not-ready honestly (1.7s)\n  ✓  4 tests\\e2e\\arch.spec.ts:182:1 › exp chat panel binds per conversation and shows the down-switch banner (1.4s)\n  ✓  5 tests\\e2e\\arch.spec.ts:203:1 › route endpoint reports not-ready honestly when no model is running (1.2s)\n  ✓  6 tests\\e2e\\arch.spec.ts:218:1 › fit endpoint estimates tokens and reports dropped turns (5.3s)\n  ✓  7 tests\\e2e\\arch.spec.ts:260:1 › providers panel lists built-in providers and renders connect forms (1.4s)\n  ✓  8 tests\\e2e\\arch.spec.ts:277:1 › imports a chatgpt export into local history (1.4s)\n\n  8 passed (40.1s)\n",
+  "stderr": "[WebServer] (node:13716) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n[WebServer] (node:22136) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n[WebServer] (node:20944) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n(node:18596) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+}

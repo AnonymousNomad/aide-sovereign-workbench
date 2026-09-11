@@ -59,6 +59,8 @@ function request(port, requestPath, { method = 'GET', headers = {} } = {}) {
   });
 }
 
+const ENVELOPE_HEADER = { 'X-AIDE-API-Format': 'envelope-v1' };
+
 test('prefix routes hit the mapped backend on both sides', async () => {
   const ts = fakeBackend('ts');
   const legacy = fakeBackend('legacy');
@@ -383,6 +385,69 @@ test('facade never rewrites legacy-target JSON bodies', async () => {
   assert.deepEqual(JSON.parse(res.body), { ok: true, data: { a: 1 } });
   await facade.close();
   legacy.closeAllConnections?.(); legacy.close();
+});
+
+test('explicit envelope-v1 preserves TS success and error envelopes while absence stays bare', async () => {
+  const seenFormats = [];
+  const ts = http.createServer((req, res) => {
+    seenFormats.push(req.headers['x-aide-api-format']);
+    res.writeHead(req.url === '/x/error' ? 409 : 200, { 'Content-Type': 'application/json' });
+    res.end(req.url === '/x/error'
+      ? JSON.stringify({ ok: false, error: { code: 'CONFLICT', message: 'already running' } })
+      : JSON.stringify({ ok: true, data: { value: 7 } }));
+  });
+  const tsPort = await listen(ts);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: { '/x': 'ts' }, exact: {}, upgrades: {} },
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
+  });
+  const port = facade.server.address().port;
+  assert.deepEqual(JSON.parse((await get(port, '/x/success')).body), { value: 7 });
+  assert.deepEqual(JSON.parse((await request(port, '/x/success', { headers: ENVELOPE_HEADER })).body), { ok: true, data: { value: 7 } });
+  assert.deepEqual(JSON.parse((await request(port, '/x/error', { headers: ENVELOPE_HEADER })).body), { ok: false, error: { code: 'CONFLICT', message: 'already running' } });
+  assert.deepEqual(seenFormats, [undefined, undefined, undefined], 'internal format selection header must not reach a backend');
+  await facade.close();
+  ts.closeAllConnections?.(); ts.close();
+});
+
+test('unsupported formats and envelope requests for legacy-owned routes fail deterministically', async () => {
+  const legacy = fakeBackend('legacy');
+  const legacyPort = await listen(legacy.server);
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: {}, exact: { '/legacy': 'legacy' }, upgrades: {} },
+    targets: { ts: { host: HOST, port: 1 }, legacy: { host: HOST, port: legacyPort } }
+  });
+  const port = facade.server.address().port;
+  for (const headers of [{ 'X-AIDE-API-Format': 'future-v2' }, ENVELOPE_HEADER]) {
+    const response = await request(port, '/legacy', { headers });
+    assert.equal(response.status, 400);
+    assert.equal(JSON.parse(response.body).ok, false);
+    assert.equal(JSON.parse(response.body).error.code, 'BAD_REQUEST');
+  }
+  assert.equal(legacy.seen.length, 0, 'format rejection must happen at the facade without rerouting');
+  await facade.close();
+  legacy.server.closeAllConnections?.(); legacy.server.close();
+});
+
+test('typed facade errors use envelope-v1 without changing legacy error compatibility', async () => {
+  const dead = net.createServer();
+  const deadPort = await listen(dead);
+  dead.close();
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: { '/dead': 'ts' }, exact: {}, upgrades: {} },
+    targets: { ts: { host: HOST, port: deadPort }, legacy: { host: HOST, port: 1 } }
+  });
+  const port = facade.server.address().port;
+  const typed = await request(port, '/dead/x', { headers: ENVELOPE_HEADER });
+  assert.equal(typed.status, 502);
+  assert.deepEqual(JSON.parse(typed.body), { ok: false, error: { code: 'CHILD_FAILED', message: `target ts at ${HOST}:${deadPort} unreachable` } });
+  const bare = await get(port, '/dead/x');
+  assert.equal(bare.status, 502);
+  assert.equal(JSON.parse(bare.body).error.code, 'backend_unavailable');
+  await facade.close();
 });
 
 after(() => {

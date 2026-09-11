@@ -6,6 +6,9 @@
 // from the user. The data comes from GET /api/workbenches; the
 // actions go through POST /api/workbenches/{install,trust,uninstall}.
 
+import { api } from '../services/api.ts';
+import type { WorkbenchListResponseT } from '../../../common/contracts/workbench.ts';
+
 // Local DOM element factory (T2 — workbenches.ts is mid-flight; this
 // shim keeps the typecheck green until the real helper lands).
 type ElChild = Node | string | number;
@@ -37,27 +40,6 @@ interface BundleSummary {
   mcp_servers?: Array<{ name: string; offline: boolean; trusted: boolean }>;
 }
 
-interface BundleListResponse {
-  ok: boolean;
-  data: { workbenches: BundleSummary[] };
-}
-
-interface BundleDetailResponse {
-  ok: boolean;
-  data: { workbench: BundleSummary };
-}
-
-async function api<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
-  const init: RequestInit = { method };
-  if (body !== undefined) {
-    init.headers = { 'Content-Type': 'application/json' };
-    init.body = JSON.stringify(body);
-  }
-  const res = await fetch(path, init);
-  if (!res.ok) throw new Error(`${method} ${path} -> ${res.status}`);
-  return (await res.json()) as T;
-}
-
 export function createWorkbenchesPanel(root: HTMLElement, opts: { onToast: (code: string, message: string) => void }): WorkbenchesPanel {
   root.innerHTML = '';
   const header = el('div', { class: 'workbenches-header' }, [
@@ -72,9 +54,9 @@ export function createWorkbenchesPanel(root: HTMLElement, opts: { onToast: (code
 
   async function refresh(): Promise<void> {
     list.innerHTML = '<div class="workbench-loading">Loading bundles…</div>';
-    let res: BundleListResponse;
+    let res: WorkbenchListResponseT;
     try {
-      res = await api<BundleListResponse>('GET', '/api/workbenches');
+      res = await api.workbenches();
     } catch (e) {
       list.innerHTML = '';
       list.appendChild(el('div', { class: 'workbench-error' }, [`Failed to load bundles: ${(e as Error).message}`]));
@@ -82,11 +64,11 @@ export function createWorkbenchesPanel(root: HTMLElement, opts: { onToast: (code
       return;
     }
     list.innerHTML = '';
-    if (res.data.workbenches.length === 0) {
+    if (res.workbenches.length === 0) {
       list.appendChild(el('div', { class: 'workbench-empty' }, ['No bundles available.']));
       return;
     }
-    for (const wb of res.data.workbenches) list.appendChild(renderBundle(wb));
+    for (const wb of res.workbenches) list.appendChild(renderBundle(wb));
   }
 
   function renderBundle(wb: BundleSummary): HTMLElement {
@@ -140,7 +122,7 @@ export function createWorkbenchesPanel(root: HTMLElement, opts: { onToast: (code
     btn.disabled = true;
     btn.textContent = 'INSTALLING\u2026';
     try {
-      await api<BundleDetailResponse>('POST', '/api/workbenches/install', { id });
+      await api.workbenchInstall(id);
       opts.onToast('OK', `Installed ${id}`);
       await refresh();
     } catch (e) {
@@ -152,7 +134,7 @@ export function createWorkbenchesPanel(root: HTMLElement, opts: { onToast: (code
 
   async function trust(id: string, server: string): Promise<void> {
     try {
-      await api<BundleDetailResponse>('POST', '/api/workbenches/trust', { id, server, trusted: true });
+      await api.workbenchTrust(id, server, true);
       opts.onToast('OK', `Trusted ${server} in ${id}`);
       await refresh();
     } catch (e) {
@@ -163,7 +145,7 @@ export function createWorkbenchesPanel(root: HTMLElement, opts: { onToast: (code
   async function uninstall(id: string): Promise<void> {
     if (!window.confirm(`Uninstall bundle ${id}?`)) return;
     try {
-      await api('POST', '/api/workbenches/uninstall', { id });
+      await api.workbenchUninstall(id);
       opts.onToast('OK', `Uninstalled ${id}`);
       await refresh();
     } catch (e) {

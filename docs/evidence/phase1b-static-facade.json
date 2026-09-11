@@ -1,0 +1,14 @@
+{
+  "started": "2026-09-11T23:53:25.069Z",
+  "ended": "2026-09-11T23:53:25.139Z",
+  "args": [
+    "--check",
+    "scripts/facade.mjs"
+  ],
+  "pid": 22320,
+  "freeMemoryBytes": 3141423104,
+  "code": 0,
+  "signal": null,
+  "stdout": "",
+  "stderr": ""
+}

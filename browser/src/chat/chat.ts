@@ -2,7 +2,6 @@
 /// <reference lib="webworker" />
 
 import { api } from '../services/api.ts';
-import { egressFetch } from '../services/egress.ts';
 import type { ChatMessageT } from '../../../common/contracts/chat.ts';
 import type { RouteEntryT } from '../../../common/contracts/routing.ts';
 
@@ -219,13 +218,7 @@ export function createChatPanel(container: HTMLElement, opts: ChatPanelOptions =
     const modelId = boundModelId;
     controller = new AbortController();
     try {
-      const response = await egressFetch('/api/chat/stream', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ modelId, messages: history }),
-        signal: controller.signal
-      });
-      if (!response.ok) throw new Error(`daemon returned HTTP ${response.status}`);
+      const response = await api.chatStream(modelId, history, controller.signal);
       if (response.body === null) throw new Error('daemon returned no stream');
       const reader = response.body.getReader();
       const decoder = new TextDecoder();

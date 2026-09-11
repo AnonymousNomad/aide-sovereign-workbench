@@ -8,11 +8,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:4778',
+        target: 'http://127.0.0.1:4777',
         changeOrigin: false
       },
       '/ws': {
-        target: 'ws://127.0.0.1:4778',
+        target: 'ws://127.0.0.1:4777',
         ws: true,
         changeOrigin: false
       }
@@ -23,11 +23,11 @@ export default defineConfig({
     port: 4173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:4778',
+        target: 'http://127.0.0.1:4777',
         changeOrigin: false
       },
       '/ws': {
-        target: 'ws://127.0.0.1:4778',
+        target: 'ws://127.0.0.1:4777',
         ws: true,
         changeOrigin: false
       }

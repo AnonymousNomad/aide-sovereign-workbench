@@ -65,6 +65,7 @@ import {
 import {
   ChatResponse,
   type ChatResponseT,
+  ChatStreamRequest,
   ChatHistoryResponse,
   type ChatHistoryResponseT,
   ChatHistorySaveRequest,
@@ -102,6 +103,20 @@ import {
   ResidentSummaryResponse,
   type ResidentSummaryResponseT
 } from '../../../common/contracts/resident.ts';
+import {
+  WorkbenchListResponse,
+  WorkbenchDetailResponse,
+  WorkbenchUninstallResponse,
+  WorkbenchInstallRequest,
+  WorkbenchTrustRequest,
+  WorkbenchUninstallRequest,
+  type WorkbenchListResponseT,
+  type WorkbenchDetailResponseT,
+  type WorkbenchUninstallResponseT
+} from '../../../common/contracts/workbench.ts';
+
+export const API_FORMAT_HEADER = 'X-AIDE-API-Format';
+export const API_FORMAT = 'envelope-v1';
 
 export class ApiError extends Error {
   readonly code: string;
@@ -112,6 +127,23 @@ export class ApiError extends Error {
     this.code = code;
     this.detail = detail;
   }
+}
+
+export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set(API_FORMAT_HEADER, API_FORMAT);
+  return egressFetch(path, { ...init, headers });
+}
+
+async function throwResponseError(res: Response): Promise<never> {
+  let env: unknown;
+  try { env = await res.json(); }
+  catch { throw new ApiError('BAD_RESPONSE', `daemon returned non-JSON status ${res.status}`); }
+  const parsed = Envelope.safeParse(env);
+  if (parsed.success && !parsed.data.ok) {
+    throw new ApiError(parsed.data.error.code, parsed.data.error.message, parsed.data.error.detail);
+  }
+  throw new ApiError('BAD_RESPONSE', `daemon returned invalid error envelope status ${res.status}`);
 }
 
 export async function call<T>(path: string, opts: { query?: unknown; body?: unknown; method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; schema: ZodType<T> }): Promise<T> {
@@ -126,7 +158,7 @@ export async function call<T>(path: string, opts: { query?: unknown; body?: unkn
     headers: { 'content-type': 'application/json' }
   };
   if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
-  const res = await egressFetch(url, init);
+  const res = await apiFetch(url, init);
   let env: unknown;
   try {
     env = await res.json();
@@ -232,6 +264,16 @@ export const api = {
   chat(modelId: string, messages: ChatMessageT[]): Promise<ChatResponseT> {
     return call('/api/chat', { body: { modelId, messages }, schema: ChatResponse });
   },
+  async chatStream(modelId: string, messages: ChatMessageT[], signal?: AbortSignal): Promise<Response> {
+    const body = ChatStreamRequest.safeParse({ modelId, messages });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid chat stream request');
+    const response = await apiFetch('/api/chat/stream', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body.data), ...(signal ? { signal } : {})
+    });
+    if (!response.ok) return throwResponseError(response);
+    return response;
+  },
   chatHistory(): Promise<ChatHistoryResponseT> {
     return call('/api/chat/history', { schema: ChatHistoryResponse });
   },
@@ -293,5 +335,23 @@ export const api = {
   },
   residentSummary(): Promise<ResidentSummaryResponseT> {
     return call('/api/resident/summary', { schema: ResidentSummaryResponse });
+  },
+  workbenches(): Promise<WorkbenchListResponseT> {
+    return call('/api/workbenches', { schema: WorkbenchListResponse });
+  },
+  workbenchInstall(id: string): Promise<WorkbenchDetailResponseT> {
+    const body = WorkbenchInstallRequest.safeParse({ id });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid workbench install request');
+    return call('/api/workbenches/install', { body: body.data, schema: WorkbenchDetailResponse });
+  },
+  workbenchTrust(id: string, server: string, trusted: boolean): Promise<WorkbenchDetailResponseT> {
+    const body = WorkbenchTrustRequest.safeParse({ id, server, trusted });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid workbench trust request');
+    return call('/api/workbenches/trust', { body: body.data, schema: WorkbenchDetailResponse });
+  },
+  workbenchUninstall(id: string): Promise<WorkbenchUninstallResponseT> {
+    const body = WorkbenchUninstallRequest.safeParse({ id });
+    if (!body.success) throw new ApiError('BAD_REQUEST', 'invalid workbench uninstall request');
+    return call('/api/workbenches/uninstall', { body: body.data, schema: WorkbenchUninstallResponse });
   }
 };

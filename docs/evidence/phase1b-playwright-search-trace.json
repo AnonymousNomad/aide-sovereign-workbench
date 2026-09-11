@@ -1,0 +1,21 @@
+{
+  "started": "2026-09-11T23:45:11.243Z",
+  "ended": "2026-09-11T23:45:20.700Z",
+  "args": [
+    "node_modules/@playwright/test/cli.js",
+    "test",
+    "tests/e2e/arch.spec.ts",
+    "--config",
+    "playwright.config.ts",
+    "--grep",
+    "search finds",
+    "--trace",
+    "on"
+  ],
+  "pid": 21528,
+  "freeMemoryBytes": 6088155136,
+  "code": 1,
+  "signal": null,
+  "stdout": "\nRunning 1 test using 1 worker\n\n  ✘  1 tests\\e2e\\arch.spec.ts:84:1 › search finds a match and opens the hit (2.0s)\n\n\n  1) tests\\e2e\\arch.spec.ts:84:1 › search finds a match and opens the hit ──────────────────────────\n\n    Error: locator.click: Error: strict mode violation: getByRole('button', { name: 'Search' }) resolved to 2 elements:\n        1) <button type=\"button\">phase1b-search-probe.log</button> aka getByRole('button', { name: 'phase1b-search-probe.log' })\n        2) <button type=\"submit\">Search</button> aka getByRole('button', { name: 'Search', exact: true })\n\n    Call log:\n      - waiting for getByRole('button', { name: 'Search' })\n\n\n      86 |   await page.locator('[data-activity=\"map\"]').click();\n      87 |   await page.locator('#search-q').fill('\"name\"');\n    > 88 |   await page.getByRole('button', { name: 'Search' }).click();\n         |                                                      ^\n      89 |   await expect(page.locator('.search-results .search-hit').first()).toBeVisible();\n      90 |   await expect(page.locator('.search-summary')).toContainText('match');\n      91 |   await page.locator('.search-results .search-hit').first().click();\n        at E:\\aide-sovereign-workbench\\tests\\e2e\\arch.spec.ts:88:54\n\n    Error Context: test-results\\arch-search-finds-a-match-and-opens-the-hit\\error-context.md\n\n    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────\n    test-results\\arch-search-finds-a-match-and-opens-the-hit\\trace.zip\n    Usage:\n\n        npx playwright show-trace test-results\\arch-search-finds-a-match-and-opens-the-hit\\trace.zip\n\n    ────────────────────────────────────────────────────────────────────────────────────────────────\n\n  1 failed\n    tests\\e2e\\arch.spec.ts:84:1 › search finds a match and opens the hit ───────────────────────────\n",
+  "stderr": "[WebServer] (node:19112) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n[WebServer] (node:15248) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n[WebServer] (node:1724) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n(node:19484) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+}

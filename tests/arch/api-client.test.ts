@@ -6,10 +6,10 @@ import { egressFetch } from '../../browser/src/services/egress.ts';
 import { ok, fail } from '../../common/errors.ts';
 import { healthFixtures, fileReadFixtures, fileWriteFixtures, searchFixtures, searchReplaceFixtures, sessionFixtures, lspFixtures } from '../fixtures/index.ts';
 
-function mockFetch(payload: unknown, status = 200): { seen: { url: string; method: string }[] } {
-  const seen: { url: string; method: string }[] = [];
+function mockFetch(payload: unknown, status = 200): { seen: { url: string; method: string; format: string | null }[] } {
+  const seen: { url: string; method: string; format: string | null }[] = [];
   mock.method(globalThis, 'fetch', async (url: string | URL | Request, init?: RequestInit) => {
-    seen.push({ url: String(url), method: init?.method ?? 'GET' });
+    seen.push({ url: String(url), method: init?.method ?? 'GET', format: new Headers(init?.headers).get('X-AIDE-API-Format') });
     return new Response(JSON.stringify(payload), { status });
   });
   return { seen };
@@ -65,7 +65,68 @@ test('api.fileRead serializes the query and validates the response', async () =>
   const file = await api.fileRead('src/a.ts');
   assert.equal(file.content, 'export const a = 1;\n');
   assert.equal(seen[0]?.url, '/api/file?path=src%2Fa.ts');
+  assert.equal(seen[0]?.format, 'envelope-v1');
   mock.restoreAll();
+});
+
+test('api.chatStream uses the shared versioned transport and propagates cancellation', async () => {
+  const controller = new AbortController();
+  mock.method(globalThis, 'fetch', async (_url: string | URL | Request, init?: RequestInit) => {
+    assert.equal(new Headers(init?.headers).get('X-AIDE-API-Format'), 'envelope-v1');
+    assert.equal(init?.signal, controller.signal);
+    return await new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+    });
+  });
+  const pending = api.chatStream('model-1', [{ role: 'user', content: 'hello' }], controller.signal);
+  controller.abort();
+  await assert.rejects(pending, (error: unknown) => error instanceof Error && error.name === 'AbortError');
+  mock.restoreAll();
+});
+
+test('workbench operations use the shared versioned transport and validated contracts', async () => {
+  const summary = {
+    id: 'sovereign-coder', name: 'Sovereign Coder', version: '1.0.0', description: 'Local bundle',
+    installed: false, enabled: false, plugins_count: 1, skills_count: 1, mcp_count: 0,
+    online_mcp_count: 0, validated: true, issues: []
+  };
+  const detail = {
+    workbench: {
+      id: summary.id, name: summary.name, version: summary.version, description: summary.description,
+      offline_by_default: true, installed: true, enabled: false, plugins: [], skills: [],
+      mcp_servers: [], recommended_models: [], setup: [], validated: true, issues: []
+    }
+  };
+  const seen: Array<{ url: string; method: string; format: string | null; body: unknown }> = [];
+  mock.method(globalThis, 'fetch', async (url: string | URL | Request, init?: RequestInit) => {
+    const path = String(url);
+    seen.push({
+      url: path,
+      method: init?.method ?? 'GET',
+      format: new Headers(init?.headers).get('X-AIDE-API-Format'),
+      body: typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
+    });
+    const payload = path === '/api/workbenches'
+      ? { workbenches: [summary] }
+      : path.endsWith('/uninstall') ? { removed: summary.id } : detail;
+    return new Response(JSON.stringify(ok(payload)), { status: 200 });
+  });
+  try {
+    assert.equal((await api.workbenches()).workbenches[0]?.id, summary.id);
+    assert.equal((await api.workbenchInstall(summary.id)).workbench.installed, true);
+    assert.equal((await api.workbenchTrust(summary.id, 'filesystem', true)).workbench.id, summary.id);
+    assert.equal((await api.workbenchUninstall(summary.id)).removed, summary.id);
+    assert.deepEqual(seen.map(entry => [entry.url, entry.method]), [
+      ['/api/workbenches', 'GET'],
+      ['/api/workbenches/install', 'POST'],
+      ['/api/workbenches/trust', 'POST'],
+      ['/api/workbenches/uninstall', 'POST']
+    ]);
+    assert.ok(seen.every(entry => entry.format === 'envelope-v1'));
+    assert.deepEqual(seen[2]?.body, { id: summary.id, server: 'filesystem', trusted: true });
+  } finally {
+    mock.restoreAll();
+  }
 });
 
 test('api.fileRead surfaces the too_large flag from the fixture', async () => {

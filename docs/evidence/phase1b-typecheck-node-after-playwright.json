@@ -1,0 +1,17 @@
+{
+  "started": "2026-09-11T23:41:39.553Z",
+  "ended": "2026-09-11T23:41:45.017Z",
+  "args": [
+    "node_modules/typescript/bin/tsc",
+    "-p",
+    "tsconfig.node.json",
+    "--pretty",
+    "false"
+  ],
+  "pid": 2564,
+  "freeMemoryBytes": 3149975552,
+  "code": 0,
+  "signal": null,
+  "stdout": "",
+  "stderr": ""
+}

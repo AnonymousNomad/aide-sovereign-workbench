@@ -1,0 +1,15 @@
+{
+  "phase": "1B",
+  "phase1a_commit": "61e5edc8d0250016deac6295d3f41000503136d8",
+  "static": { "status": "pass", "facade_syntax_exit": 0, "diff_check_errors": 0 },
+  "typecheck": { "status": "pass", "node_exit": 0, "browser_exit": 0 },
+  "unit_and_composed": { "status": "pass", "tests": 43, "pass": 43, "fail": 0, "cancelled": 0, "skipped": 0 },
+  "affected_integration": { "status": "pass", "tests": 29, "pass": 29, "fail": 0, "cancelled": 0, "skipped": 0 },
+  "frontend_build": { "status": "pass", "exit": 0 },
+  "playwright_transport": { "status": "pass", "tests": 8, "pass": 8, "fail": 0 },
+  "acceptance_p0": { "status": "pass", "exit": 0, "classification": "hermetic scripted integration" },
+  "lint": { "status": "pass_with_warnings", "exit": 0, "errors": 0, "warnings": 65 },
+  "full_playwright": { "status": "not_green", "edge_pass_before_failure": 3, "search_fail": 1, "not_run": 13, "reason": "existing workspace search exceeded 15 second UI assertion under active local workload" },
+  "architecture_battery": { "status": "deferred", "reason": "resource-heavy model lifecycle could interfere with independent local-model workload" },
+  "real_model_coding_acceptance": { "status": "not_run" }
+}

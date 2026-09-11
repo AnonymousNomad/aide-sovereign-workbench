@@ -5,6 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HOP_BY_HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade']);
+const API_FORMAT_HEADER = 'x-aide-api-format';
+const ENVELOPE_V1 = 'envelope-v1';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function stripHopByHop(headers) {
@@ -41,10 +43,21 @@ function corsHeadersFor(request) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-AIDE-API-Format',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin'
   };
+}
+
+function apiFormatFor(request) {
+  const value = request.headers[API_FORMAT_HEADER];
+  if (value === undefined) return { kind: 'legacy-bare' };
+  if (value === ENVELOPE_V1) return { kind: ENVELOPE_V1 };
+  return { kind: 'unsupported', value: Array.isArray(value) ? value.join(',') : String(value) };
+}
+
+function envelopeError(code, message) {
+  return { ok: false, error: { code, message } };
 }
 
 function canonicalPath(rawUrl) {
@@ -120,21 +133,32 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
   const upstreamAgent = new http.Agent({ keepAlive: true, maxSockets: 16 });
   const server = http.createServer(async (request, response) => {
     const started = Date.now();
+    const apiFormat = apiFormatFor(request);
     const pathname = canonicalPath(request.url || '/');
     const finish = (status, target) => {
       console.log(`${request.method} ${pathname ?? '(bad)'} -> ${target} ${status} ${Date.now() - started}ms`);
     };
+    if (apiFormat.kind === 'unsupported') {
+      finish(400, '-');
+      const payload = JSON.stringify(envelopeError('BAD_REQUEST', `unsupported X-AIDE-API-Format: ${apiFormat.value}`));
+      response.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...(corsHeadersFor(request) ?? {}) });
+      response.end(payload);
+      return;
+    }
     if (pathname === null) {
       finish(400, '-');
       response.writeHead(400, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ error: { code: 'bad_request', message: 'malformed path' } }));
+      response.end(JSON.stringify(apiFormat.kind === ENVELOPE_V1
+        ? envelopeError('BAD_REQUEST', 'malformed path')
+        : { error: { code: 'bad_request', message: 'malformed path' } }));
       return;
     }
     if (request.method === 'GET' && (pathname === '/api/health/ts' || pathname === '/api/health/legacy')) {
       const name = pathname === '/api/health/ts' ? 'ts' : 'legacy';
       finish(200, name);
       response.writeHead(200, { 'Content-Type': 'application/json', ...(corsHeadersFor(request) ?? {}) });
-      response.end(JSON.stringify({ ok: true, target: name }));
+      const health = { target: name };
+      response.end(JSON.stringify(apiFormat.kind === ENVELOPE_V1 ? { ok: true, data: health } : { ok: true, ...health }));
       return;
     }
     if (request.method === 'OPTIONS') {
@@ -145,8 +169,16 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
     }
     const corsForRequest = corsHeadersFor(request);
     const targetName = pickTarget(routeMap, pathname);
+    if (apiFormat.kind === ENVELOPE_V1 && targetName === 'legacy') {
+      finish(400, targetName);
+      const payload = JSON.stringify(envelopeError('BAD_REQUEST', 'envelope-v1 is unavailable for a legacy-owned route'));
+      response.writeHead(400, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...(corsForRequest ?? {}) });
+      response.end(payload);
+      return;
+    }
     const target = targets[targetName];
     const headers = stripHopByHop(request.headers);
+    delete headers[API_FORMAT_HEADER];
     headers.host = `${target.host}:${target.port}`;
     const proxied = http.request({ host: target.host, port: target.port, method: request.method, path: request.url, headers, agent: upstreamAgent }, proxiedResponse => {
       finish(proxiedResponse.statusCode, targetName);
@@ -154,7 +186,7 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
       if (corsForRequest) Object.assign(outHeaders, corsForRequest);
       const status = proxiedResponse.statusCode || 502;
       const contentType = String(outHeaders['content-type'] || '');
-      if (contentType.includes('application/json') && targetName === 'ts') {
+      if (contentType.includes('application/json') && targetName === 'ts' && apiFormat.kind !== ENVELOPE_V1) {
         const chunks = [];
         let total = 0;
         let overflow = false;
@@ -186,10 +218,17 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
       finish(502, targetName);
       if (!response.headersSent) {
         response.writeHead(502, { 'Content-Type': 'application/json', ...(corsForRequest ?? {}) });
-        response.end(JSON.stringify({ error: { code: 'backend_unavailable', message: `target ${targetName} at ${target.host}:${target.port} unreachable` } }));
+        const message = `target ${targetName} at ${target.host}:${target.port} unreachable`;
+        response.end(JSON.stringify(apiFormat.kind === ENVELOPE_V1
+          ? envelopeError('CHILD_FAILED', message)
+          : { error: { code: 'backend_unavailable', message } }));
       } else {
         response.destroy();
       }
+    });
+    request.once('aborted', () => proxied.destroy());
+    response.once('close', () => {
+      if (!response.writableEnded) proxied.destroy();
     });
     request.pipe(proxied);
   });

@@ -1,0 +1,21 @@
+{
+  "started": "2026-09-11T23:46:14.172Z",
+  "ended": "2026-09-11T23:46:44.836Z",
+  "args": [
+    "node_modules/@playwright/test/cli.js",
+    "test",
+    "tests/e2e/arch.spec.ts",
+    "--config",
+    "playwright.config.ts",
+    "--grep",
+    "search finds",
+    "--trace",
+    "on"
+  ],
+  "pid": 20252,
+  "freeMemoryBytes": 4496101376,
+  "code": 1,
+  "signal": null,
+  "stdout": "\nRunning 1 test using 1 worker\n\n  ✘  1 tests\\e2e\\arch.spec.ts:84:1 › search finds a match and opens the hit (18.6s)\n\n\n  1) tests\\e2e\\arch.spec.ts:84:1 › search finds a match and opens the hit ──────────────────────────\n\n    Error: expect(locator).toBeVisible() failed\n\n    Locator: locator('.search-results .search-hit').first()\n    Expected: visible\n    Timeout: 15000ms\n    Error: element(s) not found\n\n    Call log:\n      - Expect \"toBeVisible\" with timeout 15000ms\n      - waiting for locator('.search-results .search-hit').first()\n\n\n      87 |   await page.locator('#search-q').fill('\"name\"');\n      88 |   await page.getByRole('button', { name: 'Search' }).click();\n    > 89 |   await expect(page.locator('.search-results .search-hit').first()).toBeVisible();\n         |                                                                     ^\n      90 |   await expect(page.locator('.search-summary')).toContainText('match');\n      91 |   await page.locator('.search-results .search-hit').first().click();\n      92 |   await expect(page.locator('.group-tabbar .tab').first()).toBeVisible();\n        at E:\\aide-sovereign-workbench\\tests\\e2e\\arch.spec.ts:89:69\n\n    Error Context: test-results\\arch-search-finds-a-match-and-opens-the-hit\\error-context.md\n\n    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────\n    test-results\\arch-search-finds-a-match-and-opens-the-hit\\trace.zip\n    Usage:\n\n        npx playwright show-trace test-results\\arch-search-finds-a-match-and-opens-the-hit\\trace.zip\n\n    ────────────────────────────────────────────────────────────────────────────────────────────────\n\n  1 failed\n    tests\\e2e\\arch.spec.ts:84:1 › search finds a match and opens the hit ───────────────────────────\n",
+  "stderr": "[WebServer] (node:7208) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n[WebServer] (node:4468) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n[WebServer] (node:16820) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)\n(node:2184) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+}

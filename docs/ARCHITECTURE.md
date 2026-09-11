@@ -101,23 +101,24 @@ Bucket definitions:
 | `GET /api/blueprint` | **DROP** (legacy overlay, superseded by routed MAP surface) |
 | `GET/POST/PUT/DELETE /api/community*` (4) | **PORT** → community store CRUD contract (workbenches-adjacent) |
 | `GET /api/dap/state`, `POST /api/dap/request` | **DROP** (raw JSON-RPC proxy; TS DAP uses typed sub-routes) |
-| `GET /api/diagnostics` | **PORT** → TS problems/notifications surface |
-| `POST /api/git/checkout` | **PORT** → git service |
-| `POST /api/git/push` | **PORT** → git service |
-| `GET/POST /api/handoff/*` (3) | **PORT** → handoff service exists in TS |
-| `POST /api/lsp/notify`, `POST /api/lsp/request`, `POST /api/lsp/stop` | **DROP** (raw JSON-RPC proxy; TS LSP typed routes) |
-| `GET /api/model/ready`, `POST /api/model/start`, `GET /api/model/status`, `POST /api/model/stop` (singular) | **DROP** (superseded by `/api/models/*` plural in TS) |
-| `GET /api/models` | **PORT** → TS models list contract |
-| `POST /api/models/profile` | **PORT** → models/fit surface |
-| `POST /api/models/register` | **PORT** → models import contract |
-| `POST /api/operator` | **DROP** (legacy orchestration; TS orch/agent supersede) |
-| `POST /api/patch/apply` | **PORT** → editor/fs apply contract |
-| `GET/POST /api/plugins*` (5) | **PORT** → extension host contracts (aide-arch-extensions surface) |
-| `POST /api/providers/chat` | **DROP** (TS byok/providers chat supersede) |
-| `GET/POST /api/replays` (2) | **PORT** → project-replay surface |
-| `POST /api/terminal/run` | **PORT** → task-service/terminal contract |
-| `GET /api/workspace/tree` | **PORT** → workspace service tree surface |
-| `POST /api/workflow/apply`, `POST /api/workflow/plan` | **DROP** (legacy workflow; TS orch + agent decision supersede) |
+| `GET /api/diagnostics` | **DEFER** — reads live LSP state from the legacy LSP manager; app.js drives LSP via legacy raw-proxy (`notify`/`request`). Porting before the LSP surface flips would report empty diagnostics (false CLEAN). Port together with the `/api/lsp` typed-route flip. |
+| `POST /api/git/checkout` | **PORT** → git service (TS routes exist; `/api/git` prefix already ts) |
+| `POST /api/git/push` | **PORT** → git service (TS routes exist; `/api/git` prefix already ts) |
+| `GET/POST /api/handoff/*` | **PORTED** ✅ `common/contracts` + `routes/handoff.ts`; `/api/handoff` facade→ts (2026-09-11) |
+| `POST /api/lsp/notify`, `POST /api/lsp/request`, `POST /api/lsp/stop` | **DROP** (raw JSON-RPC proxy; TS LSP typed routes). Blocked until app.js LSP callers migrate. |
+| `GET /api/model/ready`, `POST /api/model/start`, `GET /api/model/status`, `POST /api/model/stop` (singular) | **DROP** (superseded by `/api/models/*` plural in TS; no app.js callers) |
+| `GET /api/models` | **PORTED** ✅ (`/api/models` prefix already ts) |
+| `POST /api/models/profile` | **PORTED** ✅ (`/api/models` prefix already ts; `routeForModelProfile`) |
+| `POST /api/models/register` | **PORTED** ✅ (`/api/models` prefix already ts; `routeForModelRegister`) |
+| `POST /api/operator` | **DROP** (legacy orchestration; TS orch/agent supersede; no app.js callers) |
+| `POST /api/patch/apply` | **PORTED** ✅ `common/contracts/patch.ts` + `routeForPatchApply`; WorkspaceService.applyPatch; `/api/patch` facade→ts (2026-09-11) |
+| `GET/POST /api/plugins*` (5) | **PORTED** ✅ Bucket C + `/api/plugins` facade→ts (2026-09-11) |
+| `POST /api/providers/chat` | **DROP** (TS byok/providers chat supersede; no app.js callers) |
+| `GET/POST /api/replays` (2) | **PORTED** ✅ Bucket C + `/api/replays` facade→ts (2026-09-11) |
+| `POST /api/terminal/run` | **PORTED** ✅ `common/contracts/terminal.ts` + `routes/terminal.ts` (allowlist + flag-deny + pwd/echo/ls/cat builtins); `/api/terminal` facade→ts (2026-09-11) |
+| `GET /api/workspace/tree` | **PORTED** ✅ (`makeWorkspaceTreeRoute`) |
+| `POST /api/workflow/apply`, `POST /api/workflow/plan` | **DROP** (legacy workflow; TS orch + agent decision supersede). app.js still calls — deferred until `browser/src` replaces `app.js`. |
+| `GET /api/tasks`, `/api/tasks/*` | **PORTED** ✅ `routes/tasks.ts` (B1); `/api/tasks` facade→ts (2026-09-11) |
 
 ### 4.4 Migration order (depends on nothing new being built first)
 

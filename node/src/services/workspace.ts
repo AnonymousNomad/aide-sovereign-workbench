@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
 import { RouteError } from '../server.ts';
 import type { WorkspaceTreeNodeT } from '../../../common/contracts/workspace.ts';
 
@@ -46,6 +47,32 @@ export class WorkspaceService {
     await fs.writeFile(temporary, content, { mode: 0o600 });
     await fs.rename(temporary, target);
     return { path: relativePath, bytes: Buffer.byteLength(content) };
+  }
+
+  async applyPatch(patch: string, approved: boolean): Promise<{ applied: boolean; bytes: number }> {
+    if (approved !== true) throw new RouteError('FORBIDDEN', 'explicit approval required');
+    if (typeof patch !== 'string' || !patch.startsWith('diff --git ')) {
+      throw new RouteError('BAD_REQUEST', 'unified diff required');
+    }
+    if (patch.length > 200_000) throw new RouteError('BAD_REQUEST', 'patch exceeds size limit');
+    const temporary = path.join(this.root, `.aide-patch-${process.pid}.diff`);
+    await fs.writeFile(temporary, patch, { mode: 0o600 });
+    try {
+      await this.runGit(['apply', '--check', '--whitespace=error', temporary]);
+      await this.runGit(['apply', '--whitespace=error', temporary]);
+      return { applied: true, bytes: Buffer.byteLength(patch) };
+    } finally {
+      await fs.rm(temporary, { force: true });
+    }
+  }
+
+  runGit(args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      execFile('git', args, { cwd: this.root, timeout: 15000, maxBuffer: 256 * 1024 }, (error, stdout, stderr) => {
+        if (error) reject(new Error(stderr.trim() || error.message));
+        else resolve(stdout);
+      });
+    });
   }
 
   async tree(maxDepth: number = TREE_MAX_DEPTH): Promise<WorkspaceTreeNodeT[]> {

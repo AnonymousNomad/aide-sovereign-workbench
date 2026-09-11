@@ -24,6 +24,11 @@ import {
   type SearchResponseT,
   type SearchReplaceResponseT
 } from '../../../common/contracts/search.ts';
+import {
+  PatchApplyRequest,
+  PatchApplyResponse,
+  type PatchApplyResponseT
+} from '../../../common/contracts/patch.ts';
 
 export const FILE_READ_TOO_LARGE_BYTES = 1024 * 1024;
 
@@ -86,6 +91,24 @@ export function routeForFileWrite(workspace: WorkspaceService): Route {
     handler: async ({ body }): Promise<FileWriteResponseT> => {
       const request = body as { path: string; content: string; approved: boolean };
       return workspace.write(request.path, request.content, request.approved);
+    }
+  };
+}
+
+export function routeForPatchApply(workspace: WorkspaceService): Route {
+  return {
+    method: 'POST',
+    path: '/api/patch/apply',
+    body: PatchApplyRequest,
+    response: PatchApplyResponse,
+    handler: async ({ body }): Promise<PatchApplyResponseT> => {
+      const request = body as { patch: string; approved: boolean };
+      try {
+        return await workspace.applyPatch(request.patch, request.approved);
+      } catch (error) {
+        if (error instanceof RouteError) throw error;
+        throw new RouteError('BAD_REQUEST', 'patch could not be applied', (error as Error).message);
+      }
     }
   };
 }

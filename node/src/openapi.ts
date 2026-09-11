@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { z, type ZodTypeAny } from 'zod';
 import { HealthResponse } from '../../common/contracts/health.ts';
 import { WorkspaceListResponse, WorkspaceTreeResponse } from '../../common/contracts/workspace.ts';
-import { routeForFileRead, routeForFileWrite, routeForSearch, routeForSearchReplace } from './routes/fs.ts';
+import { routeForFileRead, routeForFileWrite, routeForSearch, routeForSearchReplace, routeForPatchApply } from './routes/fs.ts';
 import { routeForSessionGet, routeForSessionPut } from './routes/session.ts';
 import { routeForModelStatus, routeForModelStart, routeForModelStop, routeForModelIngest, routeForModelReady, routeForModelRegister, routeForModelProfile } from './routes/models.ts';
 import { routeForRoutes, routeForRoute, routeForFit } from './routes/routing.ts';
@@ -47,6 +47,7 @@ import { routeForRgQuickOpen, routeForRgFiles, routeForRgSearch } from './routes
 import { routeForEditorOptions } from './routes/editor-options.ts';
 import { routesForGit } from './routes/git.ts';
 import { routesForTasks } from './routes/tasks.ts';
+import { routesForTerminal } from './routes/terminal.ts';
 import { routesForProblems } from './routes/problems.ts';
 import { routesForNotifications } from './routes/notifications.ts';
 import { NotificationService } from '../../node/src/services/notification-service.mjs';
@@ -502,6 +503,8 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForFileWrite(fsService),
     routeForSearch(fsService),
     routeForSearchReplace(fsService),
+    routeForPatchApply(fsService),
+    ...routesForTerminal(fsService),
     routeForSessionGet(new SessionStore(workspace)),
     routeForSessionPut(new SessionStore(workspace)),
     routeForModelStatus(modelRuntime),

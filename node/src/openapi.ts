@@ -634,6 +634,21 @@ export async function buildRoutes(workspace: string, version: string, options: B
         } catch { /* silent: never block on the expert */ }
         return null;
       },
+      // Effective-context tier for the loop's system prompt (single
+      // discipline source per THE QUAD Law #1). Resolves the model the agent
+      // session will actually chat against (same route chat uses) and reports
+      // the engine's EFFECTIVE served context (clamped n_ctx, via
+      // modelRuntime) — falling back to the route's declared contextLength,
+      // then null (legacy full prompt) when nothing is known yet.
+      resolveEffectiveContext: async () => {
+        try {
+          const selection = await modelRouter.routeForRole('chat');
+          const modelId = selection.modelId.startsWith('local:') ? selection.modelId.slice('local:'.length) : selection.modelId;
+          const effective = modelRuntime.getEffectiveContext(modelId);
+          return effective ?? selection.contextLength ?? null;
+        } catch { /* no model ready yet — legacy full prompt */ }
+        return null;
+      },
       dispatchTool: async (name: string, args: Record<string, string>, opts: { sandbox?: string }) => {
         const ALIASES: Record<string, string> = { str_replace_editor: 'replace_in_file', execute_bash: 'run_command', think: '__think' };
         const resolved = ALIASES[name] || name;

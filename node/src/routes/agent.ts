@@ -20,7 +20,7 @@ import {
 import { RouterError } from '../services/model-router.ts';
 
 type AgentLoopService = {
-  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, opts?: { architectEditor?: boolean }): { session_id: string };
+  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, opts?: { architectEditor?: boolean; effectiveContextTokens?: number | null }): { session_id: string };
   decide(sessionId: string, approvalId: string, decision: 'approve' | 'reject' | 'abort'): { ok: boolean };
   status(sessionId: string): unknown;
   list(): unknown[];
@@ -67,6 +67,12 @@ export function routesForAgent(service: AgentLoopService, options: {
   // (aide-subagent-dispatch PR A wires this for the expert inference; PR B
   // is the agent-loop runtime.)
   consultExpert?: (task: string) => Promise<{ expert: string; phase: string; confidence: number } | null>;
+  // Effective-context tier resolver (harness/scaffold.mjs micro/compact/full).
+  // Returns the served context tokens of the model that will handle this
+  // session, or null (unknown -> legacy full prompt). Contributes to THE QUAD
+  // Law #1 (single discipline source threaded per served context) and the
+  // collaborator finding that the micro tier never reached the live loop.
+  resolveEffectiveContext?: () => Promise<number | null>;
 } = {}): Route[] {
   return [
     { method: 'POST', path: '/api/agent/start', body: AgentStartRequest, response: AgentStartResponse, handler: wrap(async ({ body }) => {
@@ -130,7 +136,10 @@ export function routesForAgent(service: AgentLoopService, options: {
           return inner(messages);
         };
       }
-      return service.start(request.task, request.mode ?? 'act', chatFnOverride, { architectEditor: request.architectEditor === true });
+      return service.start(request.task, request.mode ?? 'act', chatFnOverride, {
+        architectEditor: request.architectEditor === true,
+        ...(options.resolveEffectiveContext ? { effectiveContextTokens: (await options.resolveEffectiveContext()) ?? null } : {})
+      });
     }) },
     { method: 'POST', path: '/api/agent/decision', body: AgentDecisionRequest, response: AgentDecisionResponse, handler: wrap(async ({ body }) => {
       const request = body as { session_id: string; approval_id: string; decision: 'approve' | 'reject' | 'abort' };

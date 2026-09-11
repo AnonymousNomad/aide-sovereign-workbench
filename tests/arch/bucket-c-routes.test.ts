@@ -10,8 +10,7 @@ import { Envelope } from '../../common/errors.ts';
 import {
   AcademyCatalogResponse,
   AcademySessionResponse,
-  AcademyCheckResponse,
-  AcademyCertificateResponse
+  AcademyCheckResponse
 } from '../../common/contracts/academy.ts';
 import { CommunityRoot, CommunityItemResponse } from '../../common/contracts/community.ts';
 import { PluginsListResponse, PluginPresetsResponse } from '../../common/contracts/plugins.ts';
@@ -60,6 +59,7 @@ test('GET /api/academy returns the catalog with progress under the envelope', as
   if (!payload.success) return;
   assert.ok(payload.data.courses.length >= 1);
   const first = payload.data.courses[0];
+  assert.ok(first, 'catalog must contain at least one course');
   assert.ok(first.lessons.length >= 1);
   assert.equal(typeof first.progress.eligible_for_certificate, 'boolean');
   assert.deepEqual(first.progress.completed, []);
@@ -71,7 +71,9 @@ test('GET /api/academy/session?course=... returns the active lesson', async () =
   if (!catalogEnvelope.success || !catalogEnvelope.data.ok) return assert.fail('catalog broken');
   const catalogBody = AcademyCatalogResponse.safeParse(catalogEnvelope.data.data);
   if (!catalogBody.success) return assert.fail('catalog payload broken');
-  const courseId = catalogBody.data.courses[0].id;
+  const course = catalogBody.data.courses[0];
+  if (!course) return assert.fail('catalog must contain at least one course');
+  const courseId = course.id;
 
   const response = await fetch(`${base}/api/academy/session?course=${encodeURIComponent(courseId)}`);
   assert.equal(response.status, 200);
@@ -256,7 +258,9 @@ test('plugin scaffold + trust + execute-without-entrypoint round-trips', async (
   if (!presetEnvelope.success || !presetEnvelope.data.ok) return assert.fail('presets envelope broken');
   const presets = PluginPresetsResponse.safeParse(presetEnvelope.data.data);
   if (!presets.success) return assert.fail('presets payload broken');
-  const presetId = presets.data.presets[0].id;
+  const preset = presets.data.presets[0];
+  if (!preset) return assert.fail('preset catalog must not be empty');
+  const presetId = preset.id;
 
   const scaffold = await fetch(`${base}/api/plugins/scaffold`, {
     method: 'POST',

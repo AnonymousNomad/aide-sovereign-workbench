@@ -74,7 +74,9 @@ test('GET /api/workspace lists dot-filtered entries with name+kind (parity: buil
   const data = await dataOf<WorkspaceListData>(await fetch(`${base}/api/workspace`));
   assert.equal(data.workspace, workspace);
   const names = data.entries.map(entry => entry.name).sort();
-  assert.deepEqual(names, ['a.txt', 'lib', 'node_modules', 'src', 'zed.txt']);
+  // plugins/ is created by the Bucket C PluginManager load (legacy parity:
+  // the legacy runtime also mkdirs <workspace>/plugins at boot).
+  assert.deepEqual(names, ['a.txt', 'lib', 'node_modules', 'plugins', 'src', 'zed.txt']);
   assert.ok(!names.includes('.hidden'), 'dot entries are filtered by the list route');
   assert.ok(data.entries.every(entry => entry.kind === 'file' || entry.kind === 'directory'));
 });
@@ -83,7 +85,7 @@ test('GET /api/workspace/tree is parity with legacy - nested posix nodes, dot/bu
   const data = await dataOf<WorkspaceTreeData>(await fetch(`${base}/api/workspace/tree`));
   assert.equal(data.workspace, workspace);
   const names = data.tree.map(node => node.name);
-  assert.deepEqual(names, ['a.txt', 'lib', 'src', 'zed.txt']);
+  assert.deepEqual(names, ['a.txt', 'lib', 'plugins', 'src', 'zed.txt']);
 
   const lib = data.tree.find(node => node.name === 'lib');
   assert.ok(lib);

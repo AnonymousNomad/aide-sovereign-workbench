@@ -34,6 +34,11 @@ import { routeForProvidersList, routeForProviderConnect, routeForProviderDisconn
 import { routeForLearnerState, routeForLearnerReviews, routeForLearnerAttempt } from './routes/learner.ts';
 import { routeForAcademyHint } from './routes/hint.ts';
 import { routeForExerciseNext, routeForExerciseAttempt } from './routes/exercise.ts';
+import { routesForAcademy } from './routes/academy.ts';
+import { routesForCommunity } from './routes/community.ts';
+import { routesForPlugins } from './routes/plugins.ts';
+import { routesForReplays } from './routes/replays.ts';
+import { routeForArtifacts } from './routes/artifacts.ts';
 import { routeForDatasetList, routeForDatasetCreate, routeForDatasetAppend, routeForDatasetRead, routeForDatasetDelete } from './routes/dataset.ts';
 import { routeForTrainingPresets, routeForTrainingStatus, routeForTrainingStart, routeForTrainingStop, routeForTrainingCheckpoints } from './routes/training.ts';
 import { routeForEvalRun, routeForExportCreate, routeForExportsList } from './routes/eval-export.ts';
@@ -80,6 +85,9 @@ import { ExerciseEngine } from '../../academy/exercise-engine.mjs';
 import { DatasetStore } from '../../daemon/dataset-store.mjs';
 import { TrainingRunner } from '../../daemon/training-runner.mjs';
 import { EvalExportGate } from '../../daemon/eval-export.mjs';
+import { ReplayStore } from '../../daemon/replay-store.mjs';
+import { CommunityStore } from '../../community/store.mjs';
+import { PluginManager } from '../../plugins/manager.mjs';
 import { CommandRegistry } from './services/command-registry.mjs';
 import { KeybindingService } from './services/keybinding-service.mjs';
 import { SettingsService } from './services/settings-service.mjs';
@@ -345,6 +353,20 @@ export async function buildRoutes(workspace: string, version: string, options: B
     exportsDir: path.join(workspace, '.aide', 'exports')
   });
   await evalExportGate.load();
+  // Bucket C runtime stores (strangler-fig migration from legacy
+  // community/store.mjs, plugins/manager.mjs, daemon/replay-store.mjs).
+  // File paths mirror the legacy daemon's .aide layout exactly, so the two
+  // servers share the same persisted state on the shared WORKSPACE root.
+  const communityStore = new CommunityStore(path.join(workspace, '.aide', 'community-store.json'));
+  await communityStore.load().catch(() => {});
+  const replayStore = new ReplayStore(path.join(workspace, '.aide', 'replays.json'));
+  await replayStore.load().catch(() => {});
+  const pluginManager = new PluginManager({
+    pluginsDir: path.join(workspace, 'plugins'),
+    statePath: path.join(workspace, '.aide', 'plugins.json'),
+    presetsPath: path.join(repoRoot, 'plugins', 'presets.json')
+  });
+  await pluginManager.load().catch(() => {});
   const commandRegistry = new CommandRegistry({ onEvent: (_event: string, body: Record<string, unknown>) => options.events?.publish('command', body) });
   const BUILTIN_COMMANDS: Array<{ id: string; title: string; category: string }> = [
     { id: 'aide.commandPalette.show', title: 'Show All Commands', category: 'View' },
@@ -506,6 +528,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForAcademyHint(tutorManager),
     routeForExerciseNext(exerciseEngine),
     routeForExerciseAttempt(exerciseEngine),
+    ...routesForAcademy(tutorManager),
     routeForDatasetList(datasetStore),
     routeForDatasetCreate(datasetStore),
     routeForDatasetAppend(datasetStore),
@@ -519,6 +542,10 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForEvalRun(evalExportGate),
     routeForExportCreate(evalExportGate),
     routeForExportsList(evalExportGate),
+    routeForArtifacts(evalExportGate),
+    ...routesForCommunity(communityStore),
+    ...routesForPlugins(pluginManager),
+    ...routesForReplays(replayStore),
     routeForCommandList(commandRegistry),
     routeForCommandInvoke(commandRegistry),
     routeForKeybindingList(keybindingService),

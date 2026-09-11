@@ -27,7 +27,12 @@
     "/api/search": "ts",
     "/api/telegram": "ts",
     "/api/settings": "ts",
-    "/api/workspace": "ts"
+    "/api/workspace": "ts",
+    "/api/academy": "ts",
+    "/api/artifacts": "ts",
+    "/api/community": "ts",
+    "/api/plugins": "ts",
+    "/api/replays": "ts"
   },
   "exact": {
     "/api/file": "ts",

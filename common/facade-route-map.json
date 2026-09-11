@@ -5,6 +5,7 @@
     "/api/closed-loop": "ts",
     "/api/byok": "ts",
     "/api/commands": "ts",
+    "/api/dap": "ts",
     "/api/desktop": "ts",
     "/api/experts": "ts",
     "/api/editor": "ts",

@@ -20,7 +20,11 @@ import {
   DapScopesResponse,
   DapVariablesRequest,
   DapVariablesResponse,
-  DapDisconnectResponse
+  DapDisconnectResponse,
+  DapStateQuery,
+  DapStateResponse,
+  DapRawRequest,
+  DapRawResponse
 } from '../../../common/contracts/dap.ts';
 
 function toRouteError(error: unknown): RouteError {
@@ -206,6 +210,34 @@ export function routeForDapVariables(manager: DapManager): Route {
       try {
         const variables = await manager.variables(request.adapterId, request.variablesReference);
         return { variables };
+      } catch (error) {
+        throw toRouteError(error);
+      }
+    }
+  };
+}
+
+export function routeForDapState(manager: DapManager): Route {
+  return {
+    method: 'GET',
+    path: '/api/dap/state',
+    query: DapStateQuery,
+    response: DapStateResponse,
+    handler: ({ query }) => manager.state((query as { id: string }).id)
+  };
+}
+
+export function routeForDapRawRequest(manager: DapManager): Route {
+  return {
+    method: 'POST',
+    path: '/api/dap/request',
+    body: DapRawRequest,
+    response: DapRawResponse,
+    handler: async ({ body }) => {
+      const request = body as { id: string; command: string; args?: unknown };
+      try {
+        const result = await manager.request(request.id, request.command, request.args);
+        return { result };
       } catch (error) {
         throw toRouteError(error);
       }

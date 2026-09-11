@@ -26,7 +26,9 @@ import {
   routeForDapStack,
   routeForDapScopes,
   routeForDapVariables,
-  routeForDapDisconnect
+  routeForDapDisconnect,
+  routeForDapState,
+  routeForDapRawRequest
 } from './routes/dap.ts';
 import { routeForProvidersList, routeForProviderConnect, routeForProviderDisconnect, routeForProviderImport } from './routes/providers.ts';
 import { routeForLearnerState, routeForLearnerReviews, routeForLearnerAttempt } from './routes/learner.ts';
@@ -679,7 +681,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForDapStack(dapManager),
     routeForDapScopes(dapManager),
     routeForDapVariables(dapManager),
-    routeForDapDisconnect(dapManager)
+    routeForDapDisconnect(dapManager),
+    routeForDapState(dapManager),
+    routeForDapRawRequest(dapManager)
   ];
   const doc = generateOpenApi(core, { title: 'AIDE Arch Daemon API', version });
   return [...core, makeOpenApiRoute(doc)];

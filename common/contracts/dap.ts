@@ -161,6 +161,33 @@ export const DapDisconnectResponse = z
   })
   .strict();
 
+export const DapStateQuery = z
+  .object({
+    id: z.string().min(1)
+  })
+  .strict();
+
+export const DapStateResponse = z
+  .object({
+    id: z.string().min(1),
+    active: z.boolean()
+  })
+  .strict();
+
+export const DapRawRequest = z
+  .object({
+    id: z.string().min(1),
+    command: z.string().min(1),
+    args: z.unknown().optional()
+  })
+  .strict();
+
+export const DapRawResponse = z
+  .object({
+    result: z.unknown()
+  })
+  .strict();
+
 export const DapEvent = z
   .object({
     adapterId: z.string().min(1),
@@ -177,4 +204,6 @@ export type DapBreakpointEntryT = z.infer<typeof DapBreakpointEntry>;
 export type DapStackFrameT = z.infer<typeof DapStackFrame>;
 export type DapScopeEntryT = z.infer<typeof DapScopeEntry>;
 export type DapVariableEntryT = z.infer<typeof DapVariableEntry>;
+export type DapStateResponseT = z.infer<typeof DapStateResponse>;
+export type DapRawRequestT = z.infer<typeof DapRawRequest>;
 export type DapEventT = z.infer<typeof DapEvent>;

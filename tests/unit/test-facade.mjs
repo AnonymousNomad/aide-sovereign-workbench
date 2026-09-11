@@ -243,7 +243,7 @@ test('loadRouteMap reads an override file and rejects traversal entries', async 
   }
 });
 
-test('generated route map routes file/search/workspace/providers to ts without touching legacy-only surface', async () => {
+test('generated route map routes file/search/workspace/providers/dap to ts without touching legacy-only surface', async () => {
   const map = await loadRouteMap(path.resolve(import.meta.dirname, '../../common/facade-route-map.json'));
   assert.equal(map.exact['/api/file'], 'ts');
   assert.equal(map.exact['/api/file/write'], 'ts');
@@ -252,6 +252,7 @@ test('generated route map routes file/search/workspace/providers to ts without t
   assert.equal(map.prefixes['/api/search'], 'ts');
   assert.equal(map.prefixes['/api/workspace'], 'ts');
   assert.equal(map.prefixes['/api/providers'], 'ts');
+  assert.equal(map.prefixes['/api/dap'], 'ts');
   const allTargets = Object.values(map.prefixes).concat(Object.values(map.exact), Object.values(map.upgrades));
   assert.ok(allTargets.every(t => t === 'ts' || t === 'legacy'));
   assert.equal('/api/workspace/tree' in map.exact, false);

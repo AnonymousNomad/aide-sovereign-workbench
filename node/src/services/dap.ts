@@ -81,6 +81,10 @@ export class DapManager {
     return this.status().find(entry => entry.id === id);
   }
 
+  state(id: string): { id: string; active: boolean } {
+    return { id, active: this.children.has(id) };
+  }
+
   async start(id: string): Promise<DapAdapterStateT> {
     const current = this.states.get(id);
     if (current === 'running' || current === 'starting') return current;

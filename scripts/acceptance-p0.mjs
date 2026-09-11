@@ -121,6 +121,8 @@ await writeFile(path.join(workspace, 'README.md'), 'base\n');
 await writeFile(path.join(workspace, 'note.md'), 'alpha\nbeta\ngamma\n');
 await writeFile(path.join(workspace, 'sample.ts'), "const message = 'p0';\nmessage.\n");
 await writeFile(path.join(workspace, 'tasks', 'manifest.json'), JSON.stringify({ tasks: [{ id: 'p0-task', label: 'P0 task', program: 'node', args: ['-e', "process.stdout.write('p0-task-ok')"] }] }));
+await mkdir(path.join(workspace, '.aide'), { recursive: true });
+await writeFile(path.join(workspace, '.aide', 'tasks.json'), JSON.stringify({ version: '2.0.0', tasks: [{ label: 'P0 task', type: 'shell', command: 'node', args: ['-e', "process.stdout.write('p0-task-ok')"] }] }));
 await writeFile(path.join(workspace, 'plugins', 'presets.json'), '[]');
 await writeFile(path.join(workspace, 'plugins', 'p0-plugin', 'aide-plugin.json'), JSON.stringify({ id: 'p0-plugin', name: 'P0 Plugin', version: '1.0.0', api_version: '1', entry: 'index.mjs', capabilities: ['ui.view'] }));
 await writeFile(path.join(workspace, 'plugins', 'p0-plugin', 'index.mjs'), "let d='';process.stdin.on('data', c => d += c);process.stdin.on('end', () => process.stdout.write(JSON.stringify({accepted:JSON.parse(d).value})));\n");
@@ -222,17 +224,22 @@ try {
   body = await expectOk(res, 'terminal run');
   assert.match(body.stdout, /p0-terminal-ok/, 'terminal stdout');
 
-  // PHASE 5: task (legacy route via facade)
-  res = await post(facadePort, '/api/tasks/run', { id: 'p0-task' });
-  let status = await expectOk(res, 'task run');
-  for (let i = 0; i < 20; i += 1) {
+  // PHASE 5: task (TS route via facade)
+  res = await post(facadePort, '/api/tasks/run', { label: 'P0 task' });
+  body = await expectOk(res, 'task run');
+  const jobId = body.job_id;
+  assert.ok(jobId, 'task run returns job_id');
+  let finalJob = null;
+  for (let i = 0; i < 60; i += 1) {
     await sleep(100);
     res = await request(facadePort, '/api/tasks/status');
-    status = await res.json();
-    if (status.status !== 'running') break;
+    body = await res.json();
+    finalJob = body.jobs?.find(j => j.job_id === jobId);
+    if (finalJob && finalJob.status !== 'running') break;
   }
-  assert.equal(status.status, 'passed', 'task passes');
-  assert.match(status.stdout, /p0-task-ok/, 'task stdout');
+  assert.ok(finalJob, 'task job found in status');
+  assert.equal(finalJob.status, 'exited', 'task exited');
+  assert.equal(finalJob.exitCode, 0, 'task exits cleanly');
 
   // PHASE 6: git (canonical TS route via facade)
   res = await request(facadePort, '/api/git/status');

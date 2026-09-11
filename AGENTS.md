@@ -92,11 +92,13 @@ Before claiming "done":
 5. Compare to baseline
 
 ## Skill Loading Protocol
-- Start of session: Load AGENTS.md (always)
+
+- Start of session: Load AGENTS.md (always) + **developer-way** (permanent operating creed — applies at all times, never unloaded)
 - Start of phase: Load phase-specific skill
-- End of phase: Unload phase skill, keep AGENTS.md
+- End of phase: Unload phase skill, keep AGENTS.md and developer-way
 - On failure: Load the failure-specific skill created from research
 - Never run without AGENTS.md loaded
+- Never run without developer-way loaded
 - Never run without knowing which phase you're in
 
 ## Hardware Truth

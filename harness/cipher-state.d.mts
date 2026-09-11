@@ -8,8 +8,10 @@ export type CipherStateEntry = {
   [extra: string]: unknown;
 };
 
+export type PersistenceResult = { persisted: true } | { persisted: false; error: string };
+
 export type CipherStateBus = {
-  append(event: CipherStateEntry): Promise<void>;
+  append(event: CipherStateEntry): Promise<PersistenceResult>;
   readState(opts?: { type?: string; since?: string; limit?: number }): Promise<CipherStateEntry[]>;
   getPreferences(minCount?: number, limit?: number): Promise<string[]>;
 };

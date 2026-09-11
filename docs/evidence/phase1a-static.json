@@ -1,0 +1,59 @@
+{
+  "at": "2026-09-11T23:15:05.619Z",
+  "head": "536d08996d269d86aef997c5a514cd498c5686b8",
+  "freeMemoryBytes": 8080781312,
+  "trackedFiles": [
+    "AGENT_NOTES.md",
+    "common/contracts/agent.ts",
+    "common/contracts/audit.ts",
+    "common/openapi.json",
+    "harness/cipher-state.d.mts",
+    "harness/cipher-state.mjs",
+    "node/src/events.ts",
+    "node/src/openapi.ts",
+    "node/src/routes/agent.ts",
+    "node/src/services/agent-loop.d.mts",
+    "node/src/services/agent-loop.mjs",
+    "node/src/services/audit-trail.d.mts",
+    "node/src/services/audit-trail.mjs",
+    "node/src/services/skills-loader.d.mts",
+    "node/src/services/skills-loader.mjs",
+    "tests/arch/audit-routes.test.ts",
+    "tests/arch/closed-loop-mission.test.ts",
+    "tests/unit/test-agent-loop-tier.mjs"
+  ],
+  "diffCheck": "passed",
+  "boundaryCheck": "passed",
+  "syntax": [
+    {
+      "file": "harness/cipher-state.mjs",
+      "code": 0,
+      "stderr": ""
+    },
+    {
+      "file": "node/src/services/agent-loop.mjs",
+      "code": 0,
+      "stderr": ""
+    },
+    {
+      "file": "node/src/services/audit-trail.mjs",
+      "code": 0,
+      "stderr": ""
+    },
+    {
+      "file": "node/src/services/skills-loader.mjs",
+      "code": 0,
+      "stderr": ""
+    },
+    {
+      "file": "tests/unit/test-agent-loop-tier.mjs",
+      "code": 0,
+      "stderr": ""
+    }
+  ],
+  "tierAssertionsUnchanged": 16,
+  "trackedDiffStat": " AGENT_NOTES.md                         |   4 +\n common/contracts/agent.ts              |  46 ++++-\n common/contracts/audit.ts              |   5 +-\n common/openapi.json                    | 230 +++++++++++++++++++++++-\n harness/cipher-state.d.mts             |   4 +-\n harness/cipher-state.mjs               |  22 ++-\n node/src/events.ts                     |  16 +-\n node/src/openapi.ts                    |  29 ++-\n node/src/routes/agent.ts               |   5 +-\n node/src/services/agent-loop.d.mts     |  18 +-\n node/src/services/agent-loop.mjs       | 314 ++++++++++++++++++++-------------\n node/src/services/audit-trail.d.mts    |  30 ++--\n node/src/services/audit-trail.mjs      |  55 +++---\n node/src/services/skills-loader.d.mts  |   2 +-\n node/src/services/skills-loader.mjs    |  23 +--\n tests/arch/audit-routes.test.ts        |  16 ++\n tests/arch/closed-loop-mission.test.ts |   3 +-\n tests/unit/test-agent-loop-tier.mjs    |  21 ++-\n 18 files changed, 623 insertions(+), 220 deletions(-)\n",
+  "trackedNumstat": "4\t0\tAGENT_NOTES.md\n44\t2\tcommon/contracts/agent.ts\n4\t1\tcommon/contracts/audit.ts\n227\t3\tcommon/openapi.json\n3\t1\tharness/cipher-state.d.mts\n18\t4\tharness/cipher-state.mjs\n13\t3\tnode/src/events.ts\n14\t15\tnode/src/openapi.ts\n4\t1\tnode/src/routes/agent.ts\n9\t9\tnode/src/services/agent-loop.d.mts\n190\t124\tnode/src/services/agent-loop.mjs\n16\t14\tnode/src/services/audit-trail.d.mts\n28\t27\tnode/src/services/audit-trail.mjs\n1\t1\tnode/src/services/skills-loader.d.mts\n12\t11\tnode/src/services/skills-loader.mjs\n16\t0\ttests/arch/audit-routes.test.ts\n2\t1\ttests/arch/closed-loop-mission.test.ts\n18\t3\ttests/unit/test-agent-loop-tier.mjs\n",
+  "newIntegrityTestLines": 293,
+  "note": "Untracked Phase-0 docs and four operator scripts predate Phase 1A; not staged or modified by this repair."
+}

@@ -1,0 +1,16 @@
+{
+  "started": "2026-09-11T22:31:24.105Z",
+  "ended": "2026-09-11T22:31:28.190Z",
+  "args": [
+    "node_modules/typescript/bin/tsc",
+    "-p",
+    "browser/tsconfig.browser.json",
+    "--noEmit"
+  ],
+  "pid": 12432,
+  "freeMemoryBytes": 3144986624,
+  "code": 0,
+  "signal": null,
+  "stdout": "",
+  "stderr": ""
+}

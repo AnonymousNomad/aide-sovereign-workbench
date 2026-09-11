@@ -1,0 +1,18 @@
+{
+  "started": "2026-09-11T22:32:33.701Z",
+  "ended": "2026-09-11T22:32:34.681Z",
+  "args": [
+    "--import",
+    "./scripts/http-close-shim.mjs",
+    "--test",
+    "--test-concurrency=1",
+    "--test-timeout=120000",
+    "tests/arch/openapi-drift.test.ts"
+  ],
+  "pid": 2468,
+  "freeMemoryBytes": 3166081024,
+  "code": 0,
+  "signal": null,
+  "stdout": "✔ openapi.json is up to date (run npm run contracts to regenerate) (110.171ms)\n✔ openapi.json documents every non-raw route with a schema (58.5645ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 893.3421\n",
+  "stderr": ""
+}

@@ -13,17 +13,21 @@ const MAX_EXCERPT = 1200;
 export async function createSkillsLoader({ skillsRoot }) {
   const registryPath = path.join(skillsRoot, 'skills', 'registry.json');
   let skills = [];
+  let registryError = null;
   try {
     const raw = await fs.readFile(registryPath, 'utf8');
     const parsed = JSON.parse(raw);
-    skills = Array.isArray(parsed?.skills) ? parsed.skills : [];
-  } catch {
-    // Registry absent or malformed: the model runs with no extra
-    // SOP context. Fail-closed, not fatal.
-    skills = [];
+    if (!Array.isArray(parsed?.skills) || parsed.skills.some(s => !s || typeof s.path !== 'string')) {
+      throw new Error('invalid skills registry');
+    }
+    skills = parsed.skills;
+  } catch (error) {
+    // Defer the failure to context assembly, so health/status remain usable.
+    registryError = new Error(`skill registry failed: ${error.message}`);
   }
 
   return async function loadSkills(task) {
+    if (registryError) throw registryError;
     if (!task || typeof task !== 'string') return '';
     const lower = task.toLowerCase();
     const tokens = new Set(lower.match(/[a-z0-9_/-]{3,}/g) || []);
@@ -41,12 +45,9 @@ export async function createSkillsLoader({ skillsRoot }) {
       .slice(0, MAX_SKILLS);
     const excerpts = await Promise.all(picked.map(async skill => {
       const skillPath = path.join(skillsRoot, skill.path);
-      try {
-        const raw = await fs.readFile(skillPath, 'utf8');
-        return String(raw).slice(0, MAX_EXCERPT);
-      } catch {
-        return '';
-      }
+      const raw = await fs.readFile(skillPath, 'utf8');
+      if (!raw.trim()) throw new Error(`selected skill is empty: ${skill.path}`);
+      return String(raw).slice(0, MAX_EXCERPT);
     }));
     return excerpts.filter(Boolean).join('\n\n--- SKILL BOUNDARY ---\n\n');
   };

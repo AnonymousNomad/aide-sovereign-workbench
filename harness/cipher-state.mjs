@@ -9,10 +9,24 @@ export function createStateBus(workspace) {
   const filePath = path.join(workspace, STATE_FILE);
 
   async function append(event) {
-    if (!event || typeof event !== 'object') return;
-    const entry = { ...event, at: new Date().toISOString() };
-    await fs.mkdir(path.dirname(filePath), { recursive: true }).catch(() => {});
-    await fs.appendFile(filePath, JSON.stringify(entry) + '\n').catch(() => {});
+    let handle;
+    try {
+      if (!event || typeof event !== 'object') throw new Error('invalid state event');
+      const entry = { ...event, at: new Date().toISOString() };
+      const line = JSON.stringify(entry) + '\n';
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      handle = await fs.open(filePath, 'a');
+      await handle.writeFile(line);
+      await handle.sync();
+      await handle.close();
+      handle = null;
+      return { persisted: true };
+    } catch (error) {
+      // Observable does not mean fatal: callers choose their own policy.
+      return { persisted: false, error: String(error?.message ?? error).slice(0, 500) };
+    } finally {
+      if (handle) await handle.close().catch(() => {});
+    }
   }
 
   async function readState({ type, since, limit = 100 } = {}) {

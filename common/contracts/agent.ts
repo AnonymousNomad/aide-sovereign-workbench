@@ -54,6 +54,22 @@ export const AgentStatusQuery = z.object({
   id: z.string().min(1)
 }).strict();
 
+export const AgentVerification = z.object({
+  execution: z.enum(['pending', 'succeeded', 'failed', 'aborted']),
+  state: z.enum(['pending', 'passed', 'failed', 'incomplete', 'unavailable', 'errored']),
+  passed: z.boolean(),
+  checks: z.array(z.object({
+    name: z.string().min(1),
+    state: z.enum(['passed', 'failed', 'incomplete', 'unavailable']),
+    reason: z.string()
+  }).strict()),
+  evidence_file: z.string().nullable(),
+  trajectory_file: z.string().nullable(),
+  audit: z.enum(['pending', 'persisted', 'failed', 'unavailable']),
+  publication: z.enum(['pending', 'accepted', 'rejected', 'unavailable']),
+  errors: z.array(z.string())
+}).strict();
+
 export const AgentStatusResponse = z.object({
   session_id: z.string().min(1),
   state: AgentSessionState,
@@ -61,7 +77,8 @@ export const AgentStatusResponse = z.object({
   iterations: z.number().int().gte(0),
   mistake_count: z.number().int().gte(0),
   error: z.string().nullable(),
-  pending_approval: AgentApproval.nullable()
+  pending_approval: AgentApproval.nullable(),
+  verification: AgentVerification.optional()
 }).strict();
 
 export const AgentSessionsListResponse = z.object({
@@ -126,6 +143,28 @@ export const AgentAbortedEvent = z.object({
   session_id: z.string().min(1)
 }).strict();
 
+export const AgentContextEvent = z.object({
+  event: z.literal('context'),
+  session_id: z.string().min(1),
+  source: z.enum(['skills', 'resident']),
+  status: z.enum(['no_match', 'injected', 'unavailable', 'failed']),
+  error: z.string().nullable()
+}).strict();
+
+export const AgentVerificationEvent = z.object({
+  event: z.literal('verification'),
+  session_id: z.string().min(1),
+  outcome: z.enum(['done', 'error', 'aborted']),
+  passed: z.boolean(),
+  status: z.enum(['verified', 'failed', 'incomplete', 'unavailable', 'errored']),
+  verification: AgentVerification
+}).strict();
+
+export const AgentPlanEvent = z.object({
+  event: z.literal('plan'), session_id: z.string().min(1), plan: z.string(),
+  cycle: z.number().int().positive(), max_cycles: z.number().int().positive()
+}).strict();
+
 export const AgentStreamEvent = z.discriminatedUnion('event', [
   AgentMessageEvent,
   AgentToolCallEvent,
@@ -133,7 +172,10 @@ export const AgentStreamEvent = z.discriminatedUnion('event', [
   AgentAwaitingApprovalEvent,
   AgentDoneEvent,
   AgentErrorEvent,
-  AgentAbortedEvent
+  AgentAbortedEvent,
+  AgentContextEvent,
+  AgentVerificationEvent,
+  AgentPlanEvent
 ]);
 
 export type AgentModeT = z.infer<typeof AgentMode>;

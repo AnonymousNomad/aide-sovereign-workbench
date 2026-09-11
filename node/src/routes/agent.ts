@@ -42,6 +42,7 @@ function toRouteError(error: unknown): RouteError {
   const code = (error as { code?: string })?.code;
   const message = String((error as Error)?.message ?? error).slice(0, 500);
   if (code === 'SESSION_NOT_FOUND') return new RouteError('NOT_FOUND', message);
+  if (code === 'FORBIDDEN') return new RouteError('FORBIDDEN', message);
   if (code === 'VALIDATION' || code === 'NOT_AWAITING') return new RouteError('BAD_REQUEST', message);
   if (error instanceof Error && error.name === 'NOT_READY') return new RouteError('NOT_READY', message);
   return new RouteError('CHILD_FAILED', message);
@@ -153,7 +154,9 @@ export function routesForAgent(service: AgentLoopService, options: {
     }) },
     { method: 'POST', path: '/api/agent/tool', body: AgentToolInvokeRequest, response: AgentToolObservation, handler: wrap(async ({ body }) => {
       if (!options.dispatchTool) throw new RouteError('NOT_READY', 'tool dispatch is not wired on this instance');
-      const request = body as { name: string; arguments?: Record<string, string>; sandbox?: string; approved?: boolean };
+      // approved is a legacy input, not trusted session authority. The
+      // dispatcher denies direct mutation regardless of that field's value.
+      const request = body as { name: string; arguments?: Record<string, string>; sandbox?: string };
       const opts = request.sandbox !== undefined ? { sandbox: request.sandbox } : {};
       return options.dispatchTool(request.name, request.arguments ?? {}, opts);
     }) }

@@ -1,0 +1,20 @@
+{
+  "started": "2026-09-11T22:53:59.162Z",
+  "ended": "2026-09-11T22:54:16.772Z",
+  "args": [
+    "--import",
+    "./scripts/http-close-shim.mjs",
+    "--test",
+    "--test-concurrency=1",
+    "--test-timeout=120000",
+    "tests/arch/exercise-routes.test.ts",
+    "tests/arch/dap-contract.test.ts",
+    "tests/arch/process-manager.test.ts"
+  ],
+  "pid": 24028,
+  "freeMemoryBytes": 7694241792,
+  "code": 0,
+  "signal": null,
+  "stdout": "✔ dap status lists adapters with command availability before any start (6.9165ms)\n✔ dap start rejects an unallowlisted adapter id (2.4193ms)\n✔ dap start runs the fake adapter and stores capabilities (133.7905ms)\n✔ full debug session: breakpoints, launch, stopped, stack, scopes, variables, step, continue, disconnect (220.8119ms)\n✔ dap unverified breakpoint lines are reported as such (129.1311ms)\n✔ dap request times out when the adapter never responds (2622.9868ms)\n✔ dap adapter crash marks error and rejects pending requests (122.7479ms)\n✔ dap launch rejects paths escaping the workspace (127.3312ms)\n✔ real debugpy adapter round trip on the fizz_engine fixture (10024.9378ms)\n✔ next returns a public exercise without the answer (125.7166ms)\n✔ wrong submission is verified by real execution and reveals the answer once (91.778ms)\n✔ correct submission passes with no reveal and feeds learner state (93.5945ms)\n✔ unknown exercise id returns NOT_FOUND envelope (3.8206ms)\n✔ stop() terminates a spawned child (346.8014ms)\n✔ shutdownAll() tree-kills children (358.2038ms)\n✔ execFile captures exit code and output (114.4905ms)\nℹ tests 16\nℹ suites 0\nℹ pass 16\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 17528.3938\n",
+  "stderr": ""
+}

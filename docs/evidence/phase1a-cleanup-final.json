@@ -1,0 +1,11 @@
+{
+  "checkedAt": "2026-09-12T04:54:24.1638698+05:45",
+  "method": "Get-Process recorded IDs, elevated Win32_Process runtime inventory, netstat selected ports",
+  "testOwnedRuntimeSurvivors": [],
+  "matchingPortRows": [],
+  "checkedPorts": [4173, 4777, 4778, 4779, 59676, 59677],
+  "recycledPidsNotKilled": [{"pid":7152,"name":"svchost"},{"pid":10000,"name":"svchost"},{"pid":11616,"name":"WMIADAP"}],
+  "preservedOperatorPids": [14332,7048,17172,17212,17976],
+  "currentCodexPid": 17848,
+  "note": "Operator generator/model running under supervisor after resume; not restarted by this agent. Preserved because heavy testing is finished. No task-owned runtime remains. PID reuse checked by identity."
+}

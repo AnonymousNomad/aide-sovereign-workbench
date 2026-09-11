@@ -68,7 +68,7 @@ import { createRequire } from 'node:module';
 import { createOrchService } from './services/orch-context.mjs';
 import { createAgentTools } from './services/agent-tools.mjs';
 import { createCheckpointService } from '../../node/src/services/agent-checkpoints.mjs';
-import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
+import { createAgentLoop, requiresToolApproval } from '../../node/src/services/agent-loop.mjs';
 import { routesForAgent } from './routes/agent.ts';
 import { createAuditTrail } from './services/audit-trail.mjs';
 import { createSkillsLoader } from './services/skills-loader.mjs';
@@ -426,7 +426,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
   });
   const auditTrail = createAuditTrail({ workspace });
   const skillsRoot = options.skillsRoot ?? repoRoot;
-  const skillProvider = createSkillsLoader({ skillsRoot });
+  const skillProvider = await createSkillsLoader({ skillsRoot });
   const agentLoop = createAgentLoop({
     workspace,
     rg: rgService.available() ? rgService : null,
@@ -443,16 +443,17 @@ export async function buildRoutes(workspace: string, version: string, options: B
     onSessionEnd: async ({ session_id, outcome, passed, status, evidence_file }) => {
       try {
         const { refreshed } = await memoryService.digest();
-        await auditTrail.emitResident({
+        const persisted = await auditTrail.emitResident({
           status: 'observation',
           projectType: 'pending',
           conditionCount: 0,
           recommendation: `Agent session ${outcome} (${passed ? 'verified' : 'unverified'}); memory digest refreshed: ${refreshed.length} day(s).`,
           extra: { session_id, outcome, passed, status, evidence_file }
         });
-      } catch {
-        // Best-effort; a digest or emit failure must not swallow
-        // the session finish (R2: armor/fail-closed component isolation).
+        if (!persisted.persisted) throw new Error(persisted.error);
+      } catch (error) {
+        // The loop preserves execution success and records evidence failure.
+        throw new Error(`session memory/audit callback failed: ${String(error)}`);
       }
     }
   });
@@ -684,17 +685,9 @@ export async function buildRoutes(workspace: string, version: string, options: B
       dispatchTool: async (name: string, args: Record<string, string>, opts: { sandbox?: string }) => {
         const ALIASES: Record<string, string> = { str_replace_editor: 'replace_in_file', execute_bash: 'run_command', think: '__think' };
         const resolved = ALIASES[name] || name;
-        // desktop_action is the agent's bridge into the desktop service; it
-        // is mutating, so it requires approved:true. The desktop service
-        // performs its own allowlist + grants + panic checks on top of this.
-        const MUTATING = new Set(['write_file', 'replace_in_file', 'run_command', 'desktop_action']);
-        if (MUTATING.has(resolved) && !args.approved && !opts.sandbox) {
-          throw Object.assign(new Error(`tool ${resolved} is mutating and requires approved: true`), { code: 'VALIDATION' });
-        }
         let rootForTools = workspace;
         if (opts.sandbox) {
           const sandboxPath = path.join(workspace, '.aide', 'sandboxes', opts.sandbox);
-          await fs.mkdir(sandboxPath, { recursive: true });
           rootForTools = sandboxPath;
         }
         const desktopForAgent = desktopServiceRef;
@@ -702,6 +695,12 @@ export async function buildRoutes(workspace: string, version: string, options: B
         const toolMap = new Map(toolSet.tools.map((t: any) => [t.name as string, t]));
         const tool = (toolMap.get(resolved) as any);
         if (!tool) throw Object.assign(new Error(`unknown tool ${name}`), { code: 'VALIDATION' });
+        // This direct route has no trusted pending session decision. Payload
+        // approval fields (including true) cannot manufacture that authority.
+        // Sandbox selection changes the root, never the permission decision.
+        if (requiresToolApproval(rootForTools, tool, args)) {
+          throw Object.assign(new Error(`tool ${resolved} requires a session approval; use agent/start and agent/decision`), { code: 'FORBIDDEN' });
+        }
         const result = await tool.execute(args);
         return { ok: result.ok !== false, output: String(result.output || ''), terminal: result.terminal === true };
       }

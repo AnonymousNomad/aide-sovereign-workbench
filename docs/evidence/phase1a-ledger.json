@@ -1,0 +1,396 @@
+{
+  "generatedAt": "2026-09-11T23:15:06.460Z",
+  "phase": "1A",
+  "gates": [
+    {
+      "file": "phase1a-acceptance-p0-final.json",
+      "args": [
+        "scripts/acceptance-p0.mjs"
+      ],
+      "started": "2026-09-11T22:59:39.885Z",
+      "ended": "2026-09-11T22:59:57.512Z",
+      "code": 0,
+      "signal": null,
+      "pid": 11616,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-affected-1.json",
+      "args": [
+        "--import",
+        "./scripts/http-close-shim.mjs",
+        "--test",
+        "--test-concurrency=1",
+        "--test-timeout=120000",
+        "tests/arch/agent-execution-integrity.test.ts",
+        "tests/arch/agent-routes.test.ts",
+        "tests/arch/audit-routes.test.ts",
+        "tests/arch/closed-loop-mission.test.ts",
+        "tests/arch/events-contract.test.ts",
+        "tests/arch/ws-events.test.ts",
+        "tests/unit/test-agent-loop-tier.mjs"
+      ],
+      "started": "2026-09-11T22:20:51.327Z",
+      "ended": "2026-09-11T22:21:46.241Z",
+      "code": 1,
+      "signal": null,
+      "pid": 23980,
+      "counts": {
+        "tests": 59,
+        "pass": 57,
+        "fail": 2,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-affected-2.json",
+      "args": [
+        "--import",
+        "./scripts/http-close-shim.mjs",
+        "--test",
+        "--test-concurrency=1",
+        "--test-timeout=120000",
+        "tests/arch/agent-execution-integrity.test.ts",
+        "tests/arch/agent-routes.test.ts",
+        "tests/arch/audit-routes.test.ts",
+        "tests/arch/closed-loop-mission.test.ts",
+        "tests/arch/events-contract.test.ts",
+        "tests/arch/ws-events.test.ts",
+        "tests/unit/test-agent-loop-tier.mjs"
+      ],
+      "started": "2026-09-11T22:28:19.279Z",
+      "ended": "2026-09-11T22:30:03.171Z",
+      "code": 0,
+      "signal": null,
+      "pid": 8876,
+      "counts": {
+        "tests": 60,
+        "pass": 60,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-architecture-full-1.json",
+      "args": [
+        "scripts/run-arch.mjs"
+      ],
+      "started": "2026-09-11T22:33:38.971Z",
+      "ended": "2026-09-11T22:51:08.132Z",
+      "code": 1,
+      "signal": null,
+      "pid": 14588,
+      "counts": {
+        "tests": 438,
+        "pass": 433,
+        "fail": 4,
+        "cancelled": 0,
+        "skipped": 1
+      },
+      "loggerWriteWarnings": 4
+    },
+    {
+      "file": "phase1a-architecture-full-final.json",
+      "args": [
+        "scripts/run-arch.mjs"
+      ],
+      "started": "2026-09-11T22:54:31.398Z",
+      "ended": "2026-09-11T22:59:21.524Z",
+      "code": 0,
+      "signal": null,
+      "pid": 5364,
+      "counts": {
+        "tests": 438,
+        "pass": 438,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "loggerWriteWarnings": 6
+    },
+    {
+      "file": "phase1a-contract-drift-final.json",
+      "args": [
+        "--import",
+        "./scripts/http-close-shim.mjs",
+        "--test",
+        "--test-concurrency=1",
+        "--test-timeout=120000",
+        "tests/arch/openapi-drift.test.ts"
+      ],
+      "started": "2026-09-11T22:32:33.701Z",
+      "ended": "2026-09-11T22:32:34.681Z",
+      "code": 0,
+      "signal": null,
+      "pid": 2468,
+      "counts": {
+        "tests": 2,
+        "pass": 2,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-contracts-final.json",
+      "args": [
+        "scripts/contracts.mjs"
+      ],
+      "started": "2026-09-11T22:32:23.922Z",
+      "ended": "2026-09-11T22:32:26.607Z",
+      "code": 0,
+      "signal": null,
+      "pid": 21592,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-environment-focused.json",
+      "args": [
+        "--import",
+        "./scripts/http-close-shim.mjs",
+        "--test",
+        "--test-concurrency=1",
+        "--test-timeout=120000",
+        "tests/arch/exercise-routes.test.ts",
+        "tests/arch/dap-contract.test.ts",
+        "tests/arch/process-manager.test.ts"
+      ],
+      "started": "2026-09-11T22:53:59.162Z",
+      "ended": "2026-09-11T22:54:16.772Z",
+      "code": 0,
+      "signal": null,
+      "pid": 24028,
+      "counts": {
+        "tests": 16,
+        "pass": 16,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-lint-1.json",
+      "args": [
+        "node_modules/eslint/bin/eslint.js",
+        "."
+      ],
+      "started": "2026-09-11T22:31:32.232Z",
+      "ended": "2026-09-11T22:32:16.725Z",
+      "code": 0,
+      "signal": null,
+      "pid": 7320,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-regression-after-1.json",
+      "args": [
+        "--import",
+        "./scripts/http-close-shim.mjs",
+        "--test",
+        "--test-concurrency=1",
+        "--test-timeout=60000",
+        "tests/arch/agent-execution-integrity.test.ts"
+      ],
+      "started": "2026-09-11T22:19:38.026Z",
+      "ended": "2026-09-11T22:19:55.327Z",
+      "code": 0,
+      "signal": null,
+      "pid": 14968,
+      "counts": {
+        "tests": 29,
+        "pass": 29,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-regression-before.json",
+      "args": [
+        "--import",
+        "./scripts/http-close-shim.mjs",
+        "--test",
+        "--test-concurrency=1",
+        "--test-timeout=60000",
+        "tests/arch/agent-execution-integrity.test.ts"
+      ],
+      "started": "2026-09-11T22:08:14.794Z",
+      "ended": "2026-09-11T22:10:14.461Z",
+      "code": 1,
+      "signal": null,
+      "pid": 21884,
+      "counts": {
+        "tests": 21,
+        "pass": 8,
+        "fail": 13,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-static-final.json",
+      "args": [
+        "docs/evidence/phase1a-static.mjs"
+      ],
+      "started": "2026-09-11T22:32:39.965Z",
+      "ended": "2026-09-11T22:32:43.762Z",
+      "code": 0,
+      "signal": null,
+      "pid": 4296,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-static-handoff.json",
+      "args": [
+        "docs/evidence/phase1a-static.mjs"
+      ],
+      "started": "2026-09-11T23:15:04.163Z",
+      "ended": "2026-09-11T23:15:05.984Z",
+      "code": 0,
+      "signal": null,
+      "pid": 3840,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-tier-final.json",
+      "args": [
+        "--import",
+        "./scripts/http-close-shim.mjs",
+        "--test",
+        "--test-timeout=60000",
+        "tests/unit/test-agent-loop-tier.mjs"
+      ],
+      "started": "2026-09-11T22:27:18.161Z",
+      "ended": "2026-09-11T22:27:32.027Z",
+      "code": 0,
+      "signal": null,
+      "pid": 24036,
+      "counts": {
+        "tests": 4,
+        "pass": 4,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-typecheck-browser-1.json",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "browser/tsconfig.browser.json",
+        "--noEmit"
+      ],
+      "started": "2026-09-11T22:18:18.126Z",
+      "ended": "2026-09-11T22:18:21.293Z",
+      "code": 0,
+      "signal": null,
+      "pid": 18532,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-typecheck-browser-final.json",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "browser/tsconfig.browser.json",
+        "--noEmit"
+      ],
+      "started": "2026-09-11T22:31:24.105Z",
+      "ended": "2026-09-11T22:31:28.190Z",
+      "code": 0,
+      "signal": null,
+      "pid": 12432,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-typecheck-node-1.json",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.node.json",
+        "--noEmit"
+      ],
+      "started": "2026-09-11T22:16:38.313Z",
+      "ended": "2026-09-11T22:16:58.588Z",
+      "code": 2,
+      "signal": null,
+      "pid": 440,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-typecheck-node-2.json",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.node.json",
+        "--noEmit"
+      ],
+      "started": "2026-09-11T22:18:05.292Z",
+      "ended": "2026-09-11T22:18:10.990Z",
+      "code": 0,
+      "signal": null,
+      "pid": 23684,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    },
+    {
+      "file": "phase1a-typecheck-node-final.json",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.node.json",
+        "--noEmit"
+      ],
+      "started": "2026-09-11T22:30:52.391Z",
+      "ended": "2026-09-11T22:31:03.475Z",
+      "code": 0,
+      "signal": null,
+      "pid": 2856,
+      "counts": {},
+      "loggerWriteWarnings": 0
+    }
+  ],
+  "environmentOverrides": {
+    "runs": [
+      "environment-focused",
+      "architecture-full-final",
+      "acceptance-p0-final"
+    ],
+    "AIDE_PYTHON": "E:\\Python310\\python.exe",
+    "executionPermission": "approved outside sandbox",
+    "scope": "child environment only; no global configuration or installed packages changed"
+  },
+  "classification": {
+    "static": "syntax, diff and approved tracked-file boundary",
+    "typecheck": "node and browser",
+    "unit": "tier prompt tests; pure contract and state tests within broader runs",
+    "integration": "production routes with scripted provider, real sockets and disk failure injection",
+    "runtime": "existing local LSP, debugpy, process and model lifecycle fixtures in architecture battery",
+    "acceptance": "acceptance-p0 is a scripted-provider integration journey, not real-model coding acceptance",
+    "realLocalModelCodingAcceptance": "NOT RUN; separate future gate"
+  },
+  "notes": [
+    "Counts overlap across runs and must not be summed as independent coverage.",
+    "First architecture run failed and required manual cleanup of two confirmed test children.",
+    "No affirmative requirement-bound code-verification capability is claimed.",
+    "No Phase 1B/1C, staging, commit or push authorized/performed."
+  ]
+}

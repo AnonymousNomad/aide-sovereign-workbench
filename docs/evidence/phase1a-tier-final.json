@@ -1,0 +1,17 @@
+{
+  "started": "2026-09-11T22:27:18.161Z",
+  "ended": "2026-09-11T22:27:32.027Z",
+  "args": [
+    "--import",
+    "./scripts/http-close-shim.mjs",
+    "--test",
+    "--test-timeout=60000",
+    "tests/unit/test-agent-loop-tier.mjs"
+  ],
+  "pid": 24036,
+  "freeMemoryBytes": 851509248,
+  "code": 0,
+  "signal": null,
+  "stdout": "✔ tier: default (no effectiveContextTokens) keeps the legacy full-credo prompt (2060.2745ms)\n✔ tier: micro (<8192) swaps full credo for the 3-line operating layer but keeps the machine contract (653.2125ms)\n✔ tier: full (>=8192) composes credo via the scaffold, not the hand-rolled loader (472.8281ms)\n✔ tier: per-session override beats the loop-level default (462.8872ms)\nℹ tests 4\nℹ suites 0\nℹ pass 4\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 7784.4759\n",
+  "stderr": ""
+}

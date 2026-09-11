@@ -10,6 +10,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { createAuditTrail } from '../../node/src/services/audit-trail.mjs';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-audit-routes-'));
 let server: ArchServer;
@@ -109,4 +110,19 @@ test('audit envelope: events route supports type/session_id/bundle_id/since/limi
   // limit coercion (string -> number)
   const coercedLimit = await getJson<{ count?: number; events?: unknown[] }>('/api/audit/events?limit=10');
   assert.equal(coercedLimit.status, 200);
+});
+
+test('context audit rows with no error survive events and session read contracts', async () => {
+  const audit = createAuditTrail({ workspace });
+  const sessionId = 'context-null-error';
+  assert.deepEqual(await audit.emitContext({ sessionId, source: 'skills', status: 'no_match', error: null }), { persisted: true });
+  assert.deepEqual(await audit.emitContext({ sessionId, source: 'resident', status: 'failed', error: 'provider failed' }), { persisted: true });
+  const events = await getJson<{ events: Array<{ error: string | null }> }>(`/api/audit/events?type=agent.context&session_id=${sessionId}`);
+  assert.equal(events.status, 200);
+  assert.equal(events.body.data?.events.length, 2);
+  assert.ok(events.body.data?.events.some(event => event.error === null));
+  assert.ok(events.body.data?.events.some(event => event.error === 'provider failed'));
+  const session = await getJson<{ event_count: number }>(`/api/audit/session?id=${sessionId}`);
+  assert.equal(session.status, 200);
+  assert.equal(session.body.data?.event_count, 2);
 });

@@ -30,6 +30,9 @@ const SCHEMAS: Record<ChannelName, ZodType> = {
 
 export const CHANNELS = Object.keys(SCHEMAS) as ChannelName[];
 
+// Acceptance is schema validation, NOT subscriber delivery or persistence.
+export type PublishResult = { accepted: true } | { accepted: false; error: string };
+
 interface WsClient {
   socket: WebSocket;
   channels: Set<ChannelName>;
@@ -64,19 +67,26 @@ export class EventHub {
     });
   }
 
-  publish(channel: ChannelName, data: unknown): void {
+  publish(channel: ChannelName, data: unknown): PublishResult {
     const schema = SCHEMAS[channel];
     const parsed = schema.safeParse(data);
     if (!parsed.success) {
       this.logger.error('event payload violates the contract; event not sent', { channel, issues: parsed.error.issues });
-      return;
+      return { accepted: false, error: 'event payload violates the contract' };
     }
     const payload = JSON.stringify({ channel, ts: Date.now(), data: parsed.data });
     for (const client of this.clients) {
       if (client.channels.has(channel) && client.socket.readyState === WebSocket.OPEN) {
-        client.socket.send(payload);
+        try {
+          client.socket.send(payload, error => {
+            if (error) this.logger.error('event subscriber send failed', { channel, error: error.message });
+          });
+        } catch (error) {
+          this.logger.error('event subscriber send failed', { channel, error: String(error) });
+        }
       }
     }
+    return { accepted: true };
   }
 
   clientCount(): number {

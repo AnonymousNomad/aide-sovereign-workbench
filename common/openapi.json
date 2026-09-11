@@ -1155,6 +1155,112 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "verification": {
+                            "type": "object",
+                            "properties": {
+                              "execution": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "succeeded",
+                                  "failed",
+                                  "aborted"
+                                ]
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "passed",
+                                  "failed",
+                                  "incomplete",
+                                  "unavailable",
+                                  "errored"
+                                ]
+                              },
+                              "passed": {
+                                "type": "boolean"
+                              },
+                              "checks": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "state": {
+                                      "type": "string",
+                                      "enum": [
+                                        "passed",
+                                        "failed",
+                                        "incomplete",
+                                        "unavailable"
+                                      ]
+                                    },
+                                    "reason": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "state",
+                                    "reason"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "evidence_file": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "trajectory_file": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "audit": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "persisted",
+                                  "failed",
+                                  "unavailable"
+                                ]
+                              },
+                              "publication": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "accepted",
+                                  "rejected",
+                                  "unavailable"
+                                ]
+                              },
+                              "errors": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "execution",
+                              "state",
+                              "passed",
+                              "checks",
+                              "evidence_file",
+                              "trajectory_file",
+                              "audit",
+                              "publication",
+                              "errors"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -1351,6 +1457,112 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "verification": {
+                      "type": "object",
+                      "properties": {
+                        "execution": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "succeeded",
+                            "failed",
+                            "aborted"
+                          ]
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "passed",
+                            "failed",
+                            "incomplete",
+                            "unavailable",
+                            "errored"
+                          ]
+                        },
+                        "passed": {
+                          "type": "boolean"
+                        },
+                        "checks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "passed",
+                                  "failed",
+                                  "incomplete",
+                                  "unavailable"
+                                ]
+                              },
+                              "reason": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "state",
+                              "reason"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "evidence_file": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "trajectory_file": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "audit": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "persisted",
+                            "failed",
+                            "unavailable"
+                          ]
+                        },
+                        "publication": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "accepted",
+                            "rejected",
+                            "unavailable"
+                          ]
+                        },
+                        "errors": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "execution",
+                        "state",
+                        "passed",
+                        "checks",
+                        "evidence_file",
+                        "trajectory_file",
+                        "audit",
+                        "publication",
+                        "errors"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -1573,7 +1785,10 @@
                             "type": "number"
                           },
                           "error": {
-                            "type": "string"
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "action": {
                             "type": "string"
@@ -1713,7 +1928,10 @@
                             "type": "number"
                           },
                           "error": {
-                            "type": "string"
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "action": {
                             "type": "string"
@@ -1812,6 +2030,9 @@
                 "agent.tool.call",
                 "agent.tool.result",
                 "agent.approval",
+                "agent.verification",
+                "agent.context",
+                "resident",
                 "agent.bundle.preview",
                 "agent.bundle.run",
                 "subagent.spawn",
@@ -1920,7 +2141,10 @@
                               "type": "number"
                             },
                             "error": {
-                              "type": "string"
+                              "type": [
+                                "string",
+                                "null"
+                              ]
                             },
                             "action": {
                               "type": "string"

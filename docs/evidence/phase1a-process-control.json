@@ -1,0 +1,13 @@
+{
+  "authorization": "User explicitly prioritized Phase-1A work and authorized stopping competing processes.",
+  "identity_check": "Win32_Process: python.exe with exact gen_chat_corpus_v2.py command; current llama-server.exe child of PID 13768.",
+  "stopped": [
+    {"pid": 11180, "role": "corpus generator wrapper"},
+    {"pid": 13768, "role": "corpus generator interpreter"},
+    {"pid": 4324, "parent_pid": 13768, "role": "current local model child"}
+  ],
+  "result": "VERIFIED: stopped identified corpus generator and its model child; zero targeted survivors",
+  "data_policy": "No scripts, corpus records, checkpoints or model files edited or removed. Generator source flushes each completed record; in-flight generation may be lost.",
+  "restart": "Not restarted automatically.",
+  "scope": "No blanket process-name kill. Codex and unrelated processes preserved."
+}

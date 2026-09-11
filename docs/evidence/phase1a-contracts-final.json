@@ -1,0 +1,13 @@
+{
+  "started": "2026-09-11T22:32:23.922Z",
+  "ended": "2026-09-11T22:32:26.607Z",
+  "args": [
+    "scripts/contracts.mjs"
+  ],
+  "pid": 21592,
+  "freeMemoryBytes": 3135856640,
+  "code": 0,
+  "signal": null,
+  "stdout": "wrote E:\\aide-sovereign-workbench\\common\\openapi.json (664030 bytes, 203 documented routes)\n",
+  "stderr": ""
+}

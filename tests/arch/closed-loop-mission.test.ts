@@ -228,7 +228,8 @@ test('mission 1: approved agent action writes verification + evidence + bus rows
   // find the verification row for this session
   const vRow = rows.find(r => r.type === 'agent.verification' && r.session_id === sessionId);
   assert.ok(vRow, 'verification row references this session');
-  assert.equal(vRow.passed, true, 'verification records the approved-and-executed action as passed');
+  assert.equal(vRow.passed, false, 'an approved write is not independent code/test verification');
+  assert.equal(vRow.execution_state, 'succeeded', 'execution success remains observable separately');
 
   // --- /api/audit/session ---
   const sessRes = await request(port, `/api/audit/session?id=${sessionId}`);

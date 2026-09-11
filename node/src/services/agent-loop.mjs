@@ -174,12 +174,14 @@ function buildAdvisoryContext(resident, skills) {
 
 async function resolveStringProvider(provider, arg) {
   if (typeof provider !== 'function') return '';
-  try {
-    const value = arg !== undefined ? await provider(arg) : await provider();
-    return value ? String(value).trim() : '';
-  } catch {
-    return '';
-  }
+  const value = arg !== undefined ? await provider(arg) : await provider();
+  if (typeof value !== 'string') throw new Error('context provider returned non-string context');
+  return value.trim();
+}
+
+// Shared decision rule. Tool arguments never confer execution authority.
+export function requiresToolApproval(workspace, tool, args) {
+  return tool?.readOnly !== true || computeRisks(workspace, tool.name, args).length > 0;
 }
 
 // Architect/Editor pattern (aide-architect-editor-pattern). The architect
@@ -232,22 +234,47 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
 
   function emit(event) {
     try {
-      onEvent(event);
-    } catch {}
+      const result = onEvent(event);
+      return result?.accepted === true ? result : { accepted: false, error: result?.error ?? 'event publication unavailable' };
+    } catch (error) {
+      return { accepted: false, error: String(error?.message ?? error) };
+    }
   }
 
   // Fail-closed audit wiring (aide-closed-loop-wiring skill): every emit
   // goes through the injected audit trail (a sparse interface). When no
   // trail is injected (standalone agent-loop usage/tests), every call is a
   // no-op — the loop never depending on the audit existing.
-  const auditSafe = {
-    emitAgentStart: (...args) => { try { return audit?.emitAgentStart(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } },
-    emitToolCall: (...args) => { try { return audit?.emitToolCall(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } },
-    emitToolResult: (...args) => { try { return audit?.emitToolResult(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } },
-    emitApproval: (...args) => { try { return audit?.emitApproval(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } },
-    emitVerification: (...args) => { try { return audit?.emitVerification(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } },
-    emitResident: (...args) => { try { return audit?.emitResident(...args) ?? Promise.resolve(); } catch { return Promise.resolve(); } }
-  };
+  const auditSafe = Object.fromEntries(['emitAgentStart', 'emitToolCall', 'emitToolResult', 'emitApproval', 'emitVerification', 'emitContext'].map(method => [method, args => {
+    const session = sessions.get(args.sessionId);
+    const write = Promise.resolve().then(async () => {
+      const result = await audit?.[method]?.(args);
+      if (result?.persisted !== true) throw new Error(result?.error ?? 'audit persistence unavailable');
+      return result;
+    }).catch(error => {
+      const message = `${method}: ${String(error?.message ?? error).slice(0, 500)}`;
+      session?.evidenceErrors.push(message);
+      session?.auditErrors.push(message);
+      return { persisted: false, error: message };
+    });
+    session?.auditWrites.push(write);
+    return write;
+  }]));
+
+  async function contextFor(session, source, provider, arg) {
+    let content = '', error = null;
+    let status = 'unavailable';
+    try {
+      if (typeof provider === 'function') {
+        content = await resolveStringProvider(provider, arg);
+        status = content ? 'injected' : 'no_match';
+      }
+    } catch (cause) {
+      error = `${source} context failed: ${String(cause?.message ?? cause).slice(0, 500)}`;
+      status = 'failed';
+    }
+    return { source, status, error, content };
+  }
 
   async function runSession(session) {
     const { id } = session;
@@ -260,12 +287,24 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       emit({ event: 'message', session_id: id, text: `task received (${session.mode} mode)` });
       // Advisory context (Mission 1 items 8+9) resolves in parallel and is
       // appended as a separate system message before the first model call.
-      const [residentCtx, skillCtx] = await Promise.all([
-        resolveStringProvider(session.residentProvider),
-        resolveStringProvider(session.skillProvider, session.task)
+      const contexts = await Promise.all([
+        contextFor(session, 'resident', session.residentProvider),
+        contextFor(session, 'skills', session.skillProvider, session.task)
       ]);
-      const advisory = buildAdvisoryContext(residentCtx, skillCtx);
-      if (advisory) session.transcript.push({ role: 'system', content: advisory });
+      const failedContext = contexts.find(result => result.status === 'failed');
+      if (!failedContext) {
+        const advisory = buildAdvisoryContext(contexts[0].content, contexts[1].content);
+        if (advisory) session.transcript.push({ role: 'system', content: advisory });
+      }
+      for (const context of contexts) {
+        const { source, error } = context;
+        // If assembly failed, none of the otherwise loaded text was injected.
+        const status = failedContext && context.status === 'injected' ? 'unavailable' : context.status;
+        const published = emit({ event: 'context', session_id: session.id, source, status, error });
+        if (!published.accepted) session.evidenceErrors.push(`${source} context: ${published.error}`);
+        await auditSafe.emitContext({ sessionId: session.id, source, status, error });
+      }
+      if (failedContext) throw new Error(failedContext.error);
 
       while (session.iterations < maxIterations && session.state === 'running') {
         session.iterations += 1;
@@ -323,7 +362,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
 
         const completion = calls.find(call => call.name === 'attempt_completion');
         if (completion) {
-          finishDone(session, String(completion.args.result ?? ''));
+          await finishDone(session, String(completion.args.result ?? ''));
           return;
         }
 
@@ -338,7 +377,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
           if (aborted || blocked) break;
           const outcome = await executeCall(session, call);
           if (outcome === 'abort') {
-            abortSession(session);
+            await abortSession(session);
             aborted = true;
           } else if (outcome === 'mistake') {
             blocked = true;
@@ -347,17 +386,17 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       }
 
       if (session.state === 'running') {
-        finishError(session, `reached the maximum of ${maxIterations} iterations without completing`);
+        await finishError(session, `reached the maximum of ${maxIterations} iterations without completing`);
       }
     } catch (error) {
-      finishError(session, error instanceof Error ? error.message : String(error));
+      await finishError(session, error instanceof Error ? error.message : String(error));
     }
   }
 
   async function recordMistake(session, message) {
     session.mistakeCount += 1;
     if (session.mistakeCount >= maxMistakes) {
-      finishError(session, `aborted after ${maxMistakes} consecutive malformed steps: ${message}`);
+      await finishError(session, `aborted after ${maxMistakes} consecutive malformed steps: ${message}`);
       return;
     }
     session.transcript.push({ role: 'user', content: `ERROR: ${message}` });
@@ -384,13 +423,15 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
     auditSafe.emitToolCall({ sessionId: session.id, tool: call.name, args, iteration: session.iterations });
 
     const risks = computeRisks(rootAbs, call.name, args);
-    if (!tool.readOnly || risks.length > 0) {
+    if (requiresToolApproval(rootAbs, tool, args)) {
       const decision = await requestApproval(session, call.name, args, risks);
       if (decision === 'abort') return 'abort';
       if (decision === 'reject') {
+        session.toolLog.push({ tool: call.name, ok: false, skipped: true, output: 'user rejected action' });
         session.transcript.push({ role: 'user', content: dataWrap(call.name, false, 'the user REJECTED this action. Ask what to do differently or adjust your approach.') });
         return 'continue';
       }
+      if (decision !== 'approve') return 'abort';
     }
 
     if (!tool.readOnly && session.checkpointHash === null && checkpoints) {
@@ -405,6 +446,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
     let result;
     try {
       result = await tool.execute(args);
+      if (result?.ok !== true) throw new Error(String(result?.output ?? 'tool returned no successful result'));
     } catch (error) {
       const code = error?.code ? `[${error.code}] ` : '';
       const message = `${code}${error instanceof Error ? error.message : String(error)}`;
@@ -414,7 +456,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       auditSafe.emitToolResult({ sessionId: session.id, tool: call.name, ok: false, output: message, iteration: session.iterations });
       session.mistakeCount += 1;
       if (session.mistakeCount >= maxMistakes) {
-        finishError(session, `aborted after repeated failures of ${call.name}: ${message}`);
+        await finishError(session, `aborted after repeated failures of ${call.name}: ${message}`);
         return 'mistake';
       }
       return 'continue';
@@ -455,10 +497,11 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
     approval.preview = await buildPreview(toolName, args).catch(() => null);
     session.pendingApproval = approval;
     session.state = 'awaiting_approval';
-    emit({ event: 'awaiting_approval', session_id: session.id, approval });
-    const decision = await new Promise(resolve => {
+    const pending = new Promise(resolve => {
       session.deferred = resolve;
     });
+    emit({ event: 'awaiting_approval', session_id: session.id, approval });
+    const decision = await pending;
     session.deferred = null;
     session.pendingApproval = null;
     session.state = 'running';
@@ -505,118 +548,128 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
   // Trajectory persistence (mini-swe-agent .traj.json compatible): full
   // transcript + tool log + outcome, written at every terminal state. This is
   // the raw material for the fine-tune flywheel (Loop C).
-  const trajectoryDir = () => path.join(rootAbs, '.aide', 'trajectories');
 
-  function persistTrajectory(session, outcome) {
-    const record = {
-      trajectory_format: 'aide-1',
-      session_id: session.id,
-      task: session.task,
-      mode: session.mode,
-      outcome,
-      iterations: session.iterations,
-      mistake_count: session.mistakeCount,
-      error: session.error,
-      started_at: session.startedAt,
-      ended_at: new Date().toISOString(),
-      transcript: session.transcript,
-      tool_log: session.toolLog
-    };
-    const target = path.join(trajectoryDir(), `${session.id}.traj.json`);
-    fs.mkdir(path.dirname(target), { recursive: true })
-      .then(() => fs.writeFile(target, JSON.stringify(record, null, 2)))
-      .catch(() => {});
+  async function persistJson(session, directory, name, record) {
+    let handle;
+    try {
+      const target = path.join(rootAbs, '.aide', directory, name);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      handle = await fs.open(target, 'w');
+      await handle.writeFile(JSON.stringify(record, null, 2));
+      await handle.sync();
+      await handle.close();
+      handle = null;
+      return name;
+    } catch (error) {
+      session.evidenceErrors.push(`${directory}: ${String(error?.message ?? error).slice(0, 500)}`);
+      return null;
+    } finally {
+      if (handle) await handle.close().catch(() => {});
+    }
   }
 
-  // Deterministic verification (Mission 1, items 1+3): every terminal state
-  // that persists evidence gets a verifier stamp. Uses the harness Veritas
-  // evaluator (synchronous, pure, no model). The evidence ledger is the
-  // session's own tool log. Fail-closed: a ledger write or event failure
-  // never breaks the session finish.
-  const verificationDir = () => path.join(rootAbs, '.aide', 'verifications');
+  async function persistTrajectory(session, outcome) {
+    return persistJson(session, 'trajectories', `${session.id}.traj.json`, {
+      trajectory_format: 'aide-1', session_id: session.id, task: session.task,
+      mode: session.mode, outcome, iterations: session.iterations,
+      mistake_count: session.mistakeCount, error: session.error,
+      started_at: session.startedAt, ended_at: new Date().toISOString(),
+      transcript: session.transcript, tool_log: session.toolLog
+    });
+  }
 
   function buildExecution(session, outcome) {
-    const results = (session.toolLog || []).map((entry, index) => ({
-      name: `${index + 1}.${entry.tool}`,
-      passed: entry.ok !== false,
-      skipped: false,
-      reason: entry.ok === false ? String(entry.output || 'tool failure').slice(0, 160) : undefined
+    const results = session.toolLog.map((entry, index) => ({
+      name: `${index + 1}.${entry.tool}`, passed: entry.ok === true,
+      skipped: entry.skipped === true, reason: entry.output
     }));
-    const allSuccessful = results.length === 0 || results.every(r => r.passed);
-    return {
-      passed: outcome === 'done' && allSuccessful,
-      checks: {
-        'completion-reached': outcome === 'done',
-        'no-failed-tool': allSuccessful
-      },
-      score: results.length ? results.filter(r => r.passed).length / results.length : (outcome === 'done' ? 1 : 0),
-      results
-    };
+    const succeeded = outcome === 'done' && results.every(r => r.passed && !r.skipped);
+    // Tool success is execution evidence only. The current loop has no trusted
+    // requirement-bound artifact/test verifier. Neither completion prose,
+    // approved shell commands nor printed "PASS" establish that proof.
+    const changed = session.toolLog.some(e => ['write_file', 'replace_in_file'].includes(e.tool) && e.ok === true);
+    const checks = [
+      { name: 'execution', state: succeeded ? 'passed' : 'failed', reason: succeeded ? 'Completion reached with successful executed tools.' : 'Execution failed, was aborted, or an action was rejected.' },
+      { name: 'required-artifacts', state: changed ? 'unavailable' : 'incomplete', reason: changed ? 'A write executed; no requirement-bound artifact validator is configured.' : 'No successful code artifact production was recorded.' },
+      { name: 'required-tests', state: 'unavailable', reason: 'No independent requirement-bound test verifier is configured; command success is not test evidence.' }
+    ];
+    return { passed: succeeded, results, checks: Object.fromEntries(checks.map(c => [c.name, c.state === 'passed'])), verificationChecks: checks };
   }
 
-  function verifyOutcome(session, outcome) {
+  async function emitVerificationOutcome(session, outcome) {
+    await Promise.all(session.auditWrites);
     const execution = buildExecution(session, outcome);
-    const verdict = evaluateExecution({ taskClass: 'code-change', execution });
-    const evidenceFile = `${session.id}.verification.json`;
-    const record = {
-      trajectory_format: 'aide-1',
-      session_id: session.id,
-      task: session.task,
-      mode: session.mode,
-      outcome,
-      generated_at: new Date().toISOString(),
-      verifier: 'harness/veritas.mjs evaluateExecution (evaluateVeritas)',
-      verdict,
-      execution,
-      trajectory_file: `${session.id}.traj.json`
-    };
-    const target = path.join(verificationDir(), evidenceFile);
-    fs.mkdir(path.dirname(target), { recursive: true })
-      .then(() => fs.writeFile(target, JSON.stringify(record, null, 2)))
-      .catch(() => {});
-    return { verdict, record, evidenceFile };
-  }
-
-  function emitVerificationOutcome(session, outcome) {
-    const { verdict, evidenceFile } = verifyOutcome(session, outcome);
-    auditSafe.emitVerification({
-      sessionId: session.id,
-      outcome,
-      passed: verdict.passed,
-      status: verdict.status,
-      score: verdict.score,
-      threshold: verdict.threshold,
-      evidenceLevel: verdict.evidence_level,
-      failedChecks: verdict.failed_checks,
-      extra: { evidence_file: evidenceFile }
-    });
-    emit({ event: 'verification', session_id: session.id, outcome, passed: verdict.passed, status: verdict.status, score: verdict.score, threshold: verdict.threshold, failed_checks: verdict.failed_checks, evidence_file: evidenceFile });
-    if (typeof onSessionEnd === 'function') {
-      // Fire-and-forget: the memory digest must never delay the finish.
-      void Promise.resolve()
-        .then(() => onSessionEnd({ session_id: session.id, outcome, passed: verdict.passed, status: verdict.status, evidence_file: evidenceFile }))
-        .catch(() => {});
+    let verdict;
+    try {
+      const verificationInput = { ...execution, passed: execution.verificationChecks.every(c => c.state === 'passed') };
+      verdict = evaluateExecution({ taskClass: 'code-change', execution: verificationInput });
+    } catch (error) {
+      session.evidenceErrors.push(`verifier: ${String(error?.message ?? error)}`);
     }
-    return { verdict, evidenceFile };
+    const verification = {
+      execution: outcome === 'aborted' ? 'aborted' : execution.passed ? 'succeeded' : 'failed',
+      state: !execution.passed ? 'failed' : execution.verificationChecks.some(c => c.state === 'incomplete') ? 'incomplete' : 'unavailable',
+      passed: false, checks: execution.verificationChecks,
+      evidence_file: null, trajectory_file: null,
+      audit: audit ? 'pending' : 'unavailable', publication: 'pending', errors: session.evidenceErrors
+    };
+    session.verification = verification;
+    verification.trajectory_file = await persistTrajectory(session, outcome);
+    if (session.evidenceErrors.length) verification.state = 'errored';
+    const honestVerdict = { ...verdict, passed: false, status: verification.state };
+    verification.evidence_file = await persistJson(session, 'verifications', `${session.id}.verification.json`, {
+      trajectory_format: 'aide-1', session_id: session.id, task: session.task,
+      mode: session.mode, outcome, generated_at: new Date().toISOString(),
+      verifier: 'harness/veritas.mjs; agent required-evidence policy',
+      verdict: honestVerdict, execution, trajectory_file: verification.trajectory_file,
+      // A persisted report is not itself a passed verification.
+      verification: { ...verification, publication: 'pending', audit: audit ? 'pending' : 'unavailable' }
+    });
+    if (session.evidenceErrors.length) verification.state = 'errored';
+    const auditResult = await auditSafe.emitVerification({
+      sessionId: session.id, outcome, passed: false, status: verification.state,
+      score: verdict?.score ?? 0, threshold: verdict?.threshold ?? 0.9,
+      evidenceLevel: verdict?.evidence_level ?? 'missing',
+      failedChecks: verdict?.failed_checks ?? ['verifier-unavailable'],
+      extra: { evidence_file: verification.evidence_file, execution_state: verification.execution }
+    });
+    verification.audit = auditResult.persisted && session.auditErrors.length === 0 ? 'persisted' : audit ? 'failed' : 'unavailable';
+    if (session.evidenceErrors.length) verification.state = 'errored';
+    const published = emit({
+      event: 'verification', session_id: session.id, outcome, passed: false,
+      status: verification.state, verification: structuredClone(verification)
+    });
+    verification.publication = published.accepted ? 'accepted' : published.error === 'event publication unavailable' ? 'unavailable' : 'rejected';
+    if (!published.accepted) {
+      session.evidenceErrors.push(`verification event: ${published.error}`);
+      verification.state = 'errored';
+    }
+    if (typeof onSessionEnd === 'function') {
+      try {
+        await onSessionEnd({ session_id: session.id, outcome, passed: false, status: verification.state, evidence_file: verification.evidence_file });
+      } catch (error) {
+        session.evidenceErrors.push(`session evidence callback: ${String(error?.message ?? error)}`);
+        verification.state = 'errored';
+      }
+    }
   }
 
-  function finishDone(session, summary) {
-    session.state = 'done';
+  async function finishDone(session, summary) {
     session.error = null;
-    persistTrajectory(session, 'done');
+    await emitVerificationOutcome(session, 'done');
+    session.state = 'done';
     emit({ event: 'done', session_id: session.id, summary: summary.slice(0, 4000) });
-    emitVerificationOutcome(session, 'done');
   }
 
-  function finishError(session, message) {
-    session.state = 'error';
+  async function finishError(session, message) {
     session.error = message.slice(0, 1000);
-    persistTrajectory(session, 'error', session.error);
+    await emitVerificationOutcome(session, 'error');
+    session.state = 'error';
     emit({ event: 'error', session_id: session.id, error: session.error });
-    emitVerificationOutcome(session, 'error');
   }
 
-  function abortSession(session) {
+  async function abortSession(session) {
+    await emitVerificationOutcome(session, 'aborted');
     session.state = 'aborted';
     emit({ event: 'aborted', session_id: session.id });
   }
@@ -644,6 +697,14 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         checkpointHash: null,
         startedAt: new Date().toISOString(),
         toolLog: [],
+        auditWrites: [],
+        auditErrors: [],
+        evidenceErrors: [],
+        verification: {
+          execution: 'pending', state: 'pending', passed: false, checks: [],
+          evidence_file: null, trajectory_file: null, audit: 'pending',
+          publication: 'pending', errors: []
+        },
         chatFn: typeof chatFnOverride === 'function' ? chatFnOverride : null,
         // Effective-context tier (micro/compact/full discipline layer per
         // harness/scaffold.mjs). Per-session override beats the loop-level
@@ -682,6 +743,9 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       return { session_id: session.id };
     },
     decide(sessionId, approvalId, decision) {
+      if (!['approve', 'reject', 'abort'].includes(decision)) {
+        throw new AgentSessionError('VALIDATION', 'invalid approval decision');
+      }
       const session = sessions.get(sessionId);
       if (!session) throw new AgentSessionError('SESSION_NOT_FOUND', `no such session: ${sessionId}`);
       if (session.state !== 'awaiting_approval' || session.pendingApproval === null) {
@@ -691,9 +755,9 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         throw new AgentSessionError('VALIDATION', 'approval_id does not match the pending approval');
       }
       const resolve = session.deferred;
-      if (decision === 'reject') resolve('reject');
-      else if (decision === 'abort') resolve('abort');
-      else resolve('approve');
+      if (typeof resolve !== 'function') throw new AgentSessionError('NOT_AWAITING', 'approval already consumed');
+      session.deferred = null;
+      resolve(decision);
       // Loop C capture (X1.a): decisions feed the memory spine — this is the
       // writer side of the approval/rejection events getPreferences reads.
       // The audit-trail emitApproval preserves the exact legacy shape
@@ -720,7 +784,8 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         iterations: session.iterations,
         mistake_count: session.mistakeCount,
         error: session.error,
-        pending_approval: session.pendingApproval
+        pending_approval: session.pendingApproval,
+        verification: structuredClone(session.verification)
       };
     },
     list() {
@@ -731,7 +796,8 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         iterations: session.iterations,
         mistake_count: session.mistakeCount,
         error: session.error,
-        pending_approval: session.pendingApproval
+        pending_approval: session.pendingApproval,
+        verification: structuredClone(session.verification)
       }));
     },
     transcriptOf(sessionId) {

@@ -1,0 +1,16 @@
+{
+  "started": "2026-09-11T22:16:38.313Z",
+  "ended": "2026-09-11T22:16:58.588Z",
+  "args": [
+    "node_modules/typescript/bin/tsc",
+    "-p",
+    "tsconfig.node.json",
+    "--noEmit"
+  ],
+  "pid": 440,
+  "freeMemoryBytes": 3080790016,
+  "code": 2,
+  "signal": null,
+  "stdout": "tests/arch/agent-execution-integrity.test.ts(10,44): error TS7016: Could not find a declaration file for module '../../scripts/facade.mjs'. 'E:/aide-sovereign-workbench/scripts/facade.mjs' implicitly has an 'any' type.\r\n",
+  "stderr": ""
+}

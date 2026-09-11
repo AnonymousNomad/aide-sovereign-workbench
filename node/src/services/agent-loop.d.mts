@@ -1,4 +1,8 @@
-import type { AgentApprovalT, AgentStatusResponseT } from '../../common/contracts/agent.ts';
+import type { AgentApprovalT, AgentStatusResponseT } from '../../../common/contracts/agent.ts';
+import type { AuditTrailService } from './audit-trail.mjs';
+import type { PublishResult } from '../events.ts';
+
+export function requiresToolApproval(workspace: string, tool: { name: string; readOnly?: boolean }, args: Record<string, string>): boolean;
 
 export declare class AgentSessionError extends Error {
   code: string;
@@ -19,18 +23,14 @@ export declare function createAgentLoop(options: {
   chatFn(messages: Array<{ role: string; content: string }>): Promise<string>;
   rg?: { available(): boolean; search(options: { query: string; maxResults?: number }): Promise<{ matches: unknown[]; truncated: boolean }> } | null;
   checkpoints?: { commit(message: string): Promise<string>; restore(hash: string): Promise<void>; headHash(): Promise<string> } | null;
-  onEvent?(event: Record<string, unknown> & { event: string; session_id: string }): void;
+  onEvent?(event: Record<string, unknown> & { event: string; session_id: string }): PublishResult | void;
   maxIterations?: number;
   maxMistakes?: number;
-  audit?: {
-    emitAgentStart(event: { sessionId: string; mode: string; task: string; chatSource?: string; extra?: Record<string, unknown> }): Promise<void>;
-    emitToolCall(event: { sessionId: string; tool: string; args?: Record<string, unknown>; iteration?: number; extra?: Record<string, unknown> }): Promise<void>;
-    emitToolResult(event: { sessionId: string; tool: string; ok: boolean; output?: string; iteration?: number; extra?: Record<string, unknown> }): Promise<void>;
-    emitApproval(event: { sessionId: string; tool: string; decision: 'approve' | 'reject' | 'abort'; argsPreview?: string; extra?: Record<string, unknown> }): Promise<void>;
-  } | null;
+  architectEditor?: boolean;
+  audit?: Partial<AuditTrailService> | null;
   residentProvider?: () => Promise<string> | string | null;
   skillProvider?: (task?: string) => Promise<string> | string | null;
-  onSessionEnd?(info: { session_id: string; outcome: string; passed: boolean; status: string; evidence_file?: string }): Promise<void> | void;
+  onSessionEnd?(info: { session_id: string; outcome: string; passed: boolean; status: string; evidence_file: string | null }): Promise<void> | void;
   effectiveContextTokens?: number | null;
 }): AgentLoopService;
 

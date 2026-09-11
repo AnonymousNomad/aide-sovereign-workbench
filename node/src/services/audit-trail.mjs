@@ -9,8 +9,8 @@
 // This module is a thin wrapper around `createStateBus(workspace)` (the
 // cipher-state.jsonl bus). It adds typed event schemas, a session_id
 // correlation key, and a read API that powers the new GET /api/audit/events
-// endpoint. Fail-closed: every emit is best-effort try/catch so the audit
-// never breaks the operation it audits.
+// endpoint. Emit results expose persistence failure without throwing by default.
+// Callers decide whether evidence failure blocks their operation.
 //
 // Event taxonomy (the chassis v1 surface):
 //   - chat                  : operator sends a chat message
@@ -62,6 +62,7 @@ const KNOWN_TYPES = new Set([
   // Deterministic verification stamp for a finished agent session
   // (Mission 1 wiring: verification must be observable + replayable).
   'agent.verification',
+  'agent.context',
   // Resident Assistant workspace-observation row (advisory state). The
   // closed-loop OBSERVE stage sees it; DETECT ignores it (not a failure).
   'resident',
@@ -87,17 +88,12 @@ export function createAuditTrail({ workspace }) {
   // elsewhere; we add typed event helpers + a richer read API.
   const bus = createStateBus(workspace);
 
-  // Per-emit helper. Every emit is best-effort: a failed write must
-  // NEVER break the operation it audits. The try/catch is in the
-  // helper, not the caller, so call sites stay clean.
+  // One persistence authority; never infer durability from a resolved void.
   async function emit(event) {
-    if (!event || typeof event !== 'object') return;
-    if (!isValidType(event.type)) return; // unknown type is a no-op, not a throw
-    try {
-      await bus.append(event);
-    } catch {
-      // best-effort: never break the operation
+    if (!event || typeof event !== 'object' || !isValidType(event.type)) {
+      return { persisted: false, error: 'invalid audit event type' };
     }
+    return bus.append(event);
   }
 
   return {
@@ -112,12 +108,12 @@ export function createAuditTrail({ workspace }) {
       // and the [learned] injector does NOT scan chat.task. The cap keeps
       // the JSONL file small enough that readState's last-100 read is
       // fast even after months of usage.
-      await emit({ type: 'chat', task: trim(task, 500), modelId, source, ...extra });
+      return emit({ type: 'chat', task: trim(task, 500), modelId, source, ...extra });
     },
 
     /** Agent session begins (after chassis adapter compose, before any tool). */
     async emitAgentStart({ sessionId, mode, task, bundleId, chatSource, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'agent.start',
         session_id: sessionId,
         mode,
@@ -130,7 +126,7 @@ export function createAuditTrail({ workspace }) {
 
     /** Assistant message emitted by the loop. */
     async emitAgentMessage({ sessionId, role, content, iteration, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'agent.message',
         session_id: sessionId,
         role,
@@ -142,7 +138,7 @@ export function createAuditTrail({ workspace }) {
 
     /** Every tool call the agent makes (BEFORE the operator approves). */
     async emitToolCall({ sessionId, tool, args, iteration, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'agent.tool.call',
         session_id: sessionId,
         tool,
@@ -154,7 +150,7 @@ export function createAuditTrail({ workspace }) {
 
     /** Every tool result (BEFORE the next turn). */
     async emitToolResult({ sessionId, tool, ok, output, iteration, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'agent.tool.result',
         session_id: sessionId,
         tool,
@@ -182,17 +178,18 @@ export function createAuditTrail({ workspace }) {
         summary: trim(String(argsPreview || ''), 160)
       };
       const enriched = { ...legacy, session_id: sessionId, ...extra };
-      await emit(enriched);
+      const legacyResult = await emit(enriched);
       // The newer envelope: keep the wire field name 'type' for the
       // legacy [learned] injector but tag the human-readable shape
       // alongside it. This is a no-op for old readers (they ignore
       // unknown fields) and a strict superset for new ones.
-      await emit({ type: 'agent.approval', session_id: sessionId, tool, decision, ...extra });
+      const result = await emit({ type: 'agent.approval', session_id: sessionId, tool, decision, ...extra });
+      return legacyResult.persisted ? result : legacyResult;
     },
 
     /** Operator requests a bundle preview (chassis → agent adapter). */
     async emitBundlePreview({ task, mode, bundleId, primarySkill, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'agent.bundle.preview',
         task: trim(task, 8000),
         mode,
@@ -204,7 +201,7 @@ export function createAuditTrail({ workspace }) {
 
     /** Operator starts an agent session with a reviewed bundle_id. */
     async emitBundleRun({ bundleId, sessionId, chatSource, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'agent.bundle.run',
         bundle_id: bundleId,
         session_id: sessionId,
@@ -215,7 +212,7 @@ export function createAuditTrail({ workspace }) {
 
     /** Subagent dispatch begins. */
     async emitSubagentSpawn({ parentSessionId, childSessionId, role, policy, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'subagent.spawn',
         parent_session_id: parentSessionId,
         child_session_id: childSessionId,
@@ -227,7 +224,7 @@ export function createAuditTrail({ workspace }) {
 
     /** Subagent finishes (any terminal state). */
     async emitSubagentDone({ parentSessionId, childSessionId, status, filesChanged, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'subagent.done',
         parent_session_id: parentSessionId,
         child_session_id: childSessionId,
@@ -239,7 +236,7 @@ export function createAuditTrail({ workspace }) {
 
     /** Subagent hits a fault. */
     async emitSubagentError({ parentSessionId, childSessionId, error, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'subagent.error',
         parent_session_id: parentSessionId,
         child_session_id: childSessionId,
@@ -251,7 +248,7 @@ export function createAuditTrail({ workspace }) {
     /** Desktop control event (re-emitted for shape consistency with the
      *  newer envelope). */
     async emitDesktop({ action, target, extra = {} } = {}) {
-      await emit({ type: 'desktop', action, target, ...extra });
+      return emit({ type: 'desktop', action, target, ...extra });
     },
 
     /** Deterministic verification outcome for a finished agent session
@@ -259,11 +256,11 @@ export function createAuditTrail({ workspace }) {
      *  on the bus; surfaces through /api/audit/events and the 'agent' WS
      *  channel via the loop's onEvent('verification')). */
     async emitVerification({ sessionId, outcome, passed, status, score, threshold, evidenceLevel, failedChecks = [], extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'agent.verification',
         session_id: sessionId,
         outcome,
-        passed: Boolean(passed),
+        passed: passed === true,
         verdict: status,
         score: Math.max(0, Math.min(1, Number(score) || 0)),
         threshold: Number(threshold) || 0,
@@ -277,7 +274,7 @@ export function createAuditTrail({ workspace }) {
      *  DETECT never treats it as a failure. Lets the OBSERVE stage see what
      *  the workspace looked like around the session. */
     async emitResident({ status, projectType, conditionCount, recommendation, extra = {} } = {}) {
-      await emit({
+      return emit({
         type: 'resident',
         status,
         project_type: projectType,
@@ -285,6 +282,10 @@ export function createAuditTrail({ workspace }) {
         recommendation: trim(recommendation, 400),
         ...extra
       });
+    },
+
+    async emitContext({ sessionId, source, status, error = null }) {
+      return emit({ type: 'agent.context', session_id: sessionId, source, status, error });
     },
 
     // Read APIs. The audit endpoint hits these.

@@ -1,0 +1,13 @@
+{
+  "started": "2026-09-11T22:59:39.885Z",
+  "ended": "2026-09-11T22:59:57.512Z",
+  "args": [
+    "scripts/acceptance-p0.mjs"
+  ],
+  "pid": 11616,
+  "freeMemoryBytes": 7294820352,
+  "code": 0,
+  "signal": null,
+  "stdout": "P0 AIDE ACCEPTANCE PASSED: boot, file+approval gate, LSP, terminal, task, git, model status, BYOK consent+routing, provider test (fetchImpl wiring), agent approval loop, on-disk edit, egress journal, session recovery across full restack restart\n",
+  "stderr": ""
+}

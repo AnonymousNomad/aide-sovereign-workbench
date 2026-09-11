@@ -4,4 +4,4 @@
 
 export type SkillsLoader = (task: string) => Promise<string>;
 
-export function createSkillsLoader(options: { skillsRoot: string }): SkillsLoader;
+export function createSkillsLoader(options: { skillsRoot: string }): Promise<SkillsLoader>;

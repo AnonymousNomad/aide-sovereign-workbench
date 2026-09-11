@@ -17,19 +17,34 @@ const IDENTITY = 'You are AIDE, an offline coding agent working inside a local w
 
 let tmpRoot;
 let ws;
+let terminations;
 
 beforeEach(async () => {
+  terminations = [];
   tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-tier-'));
   ws = path.join(tmpRoot, 'ws');
   await fs.mkdir(ws, { recursive: true });
 });
 
 afterEach(async () => {
+  await Promise.all(terminations);
   await fs.rm(tmpRoot, { recursive: true, force: true });
 });
 
+function trackedLoop(options) {
+  const { promise, resolve } = Promise.withResolvers();
+  terminations.push(promise);
+  return createAgentLoop({
+    ...options,
+    onEvent(event) {
+      // These events are emitted after session evidence persistence finishes.
+      if (['done', 'error', 'aborted'].includes(event.event)) resolve();
+    }
+  });
+}
+
 function seededSystemPrompt(options) {
-  const loop = createAgentLoop({
+  const loop = trackedLoop({
     workspace: ws,
     checkpoints: null,
     chatFn: async () => COMPLETION,
@@ -67,7 +82,7 @@ test('tier: full (>=8192) composes credo via the scaffold, not the hand-rolled l
 });
 
 test('tier: per-session override beats the loop-level default', async () => {
-  const loop = createAgentLoop({
+  const loop = trackedLoop({
     workspace: ws,
     checkpoints: null,
     chatFn: async () => COMPLETION,

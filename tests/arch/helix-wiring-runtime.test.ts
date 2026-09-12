@@ -209,3 +209,50 @@ test('GET /api/memory/digests is an authority-bound durable operation', async ()
     await cleanup(workspace, httpServer);
   }
 });
+
+test('POST /api/memory/digest is an authority-bound workspace operation', async () => {
+  const workspace = await fsp.mkdtemp(path.join(os.tmpdir(), 'aide-helix-digest-'));
+  const D = '2026-08-01';
+  await fsp.mkdir(path.join(workspace, '.aide'), { recursive: true });
+  await fsp.writeFile(
+    path.join(workspace, '.aide', 'cipher-state.jsonl'),
+    JSON.stringify({ at: `${D}T12:00:00.000Z`, type: 'ship', message: 'digest authority probe', files_count: 2 }) + '\n',
+    'utf8'
+  );
+  const daysDir = path.join(workspace, '.aide', 'memory', 'days');
+
+  let httpServer: http.Server | undefined;
+  try {
+    const server = new ArchServer(workspace, path.join(workspace, 'arch-helix-digest.log'));
+    for (const route of routesForAuthority()) server.route(route);
+    for (const route of routesForMemory(createMemoryService(workspace))) server.route(route);
+    httpServer = await server.listen(0);
+    const address = httpServer.address();
+    assert.ok(address && typeof address === 'object');
+    const base = 'http://127.0.0.1:' + address.port;
+    const owner = await pairFixture(server, base);
+
+    const anonymous = await fetch(base + '/api/memory/digest', { method: 'POST' });
+    assert.equal(anonymous.status, 403, 'anonymous/unpaired access denied');
+
+    const blocked = await owner.request('/api/memory/digest', { method: 'POST' });
+    assert.equal(blocked.status, 409, 'missing approval must fail');
+    assert.equal(await fsp.readdir(daysDir).catch(() => null), null, 'no digests written without approval');
+
+    const headers = await owner.approve('POST', '/api/memory/digest', undefined, 'task:digest');
+    const applied = await owner.request('/api/memory/digest', { method: 'POST', headers });
+    assert.equal(applied.status, 200);
+    const appliedBody = (await applied.json()) as { ok: boolean; data: { refreshed: string[] } };
+    assert.ok(appliedBody.data.refreshed.includes(D), 'approved digest refresh covers the seeded date');
+    const digestRaw = await fsp.readFile(path.join(daysDir, `${D}.json`), 'utf8');
+    assert.match(digestRaw, /digest authority probe/);
+
+    const replay = await owner.request('/api/memory/digest', { method: 'POST', headers });
+    assert.equal(replay.status, 409, 'consumed digest approval cannot replay');
+
+    const token = owner.headers.Authorization.slice(7);
+    assert.ok(!digestRaw.includes(token) && !digestRaw.includes(owner.actorId), 'digest artifacts must not serialize authority material');
+  } finally {
+    await cleanup(workspace, httpServer);
+  }
+});

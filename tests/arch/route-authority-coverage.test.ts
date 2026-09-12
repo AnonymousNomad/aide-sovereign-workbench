@@ -24,7 +24,7 @@ import type { Route } from '../../node/src/server.ts';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const PHASE2A_ACCEPTANCE_REQUESTED = false;
-const EXPECTED_WAIVER_COUNT = 59;
+const EXPECTED_WAIVER_COUNT = 56;
 
 type WaiverClassification = 'READY-DESCRIPTOR' | 'ARCHITECTURE-DECISION';
 interface MigrationWaiverEntry { method: string; path: string; classification: WaiverClassification }
@@ -35,7 +35,6 @@ const MIGRATION_WAIVER: MigrationWaiverEntry[] = [
   { method: 'GET', path: '/api/modelhub/search', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/byok/test', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/chat', classification: 'ARCHITECTURE-DECISION' },
-  { method: 'POST', path: '/api/chat/history', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/chat/stream', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/commands/invoke', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/dap/breakpoints', classification: 'ARCHITECTURE-DECISION' },
@@ -56,7 +55,6 @@ const MIGRATION_WAIVER: MigrationWaiverEntry[] = [
   { method: 'POST', path: '/api/experts/infer', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/experts/intent', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/experts/thaw', classification: 'ARCHITECTURE-DECISION' },
-  { method: 'POST', path: '/api/experts/train', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/handoff/export', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/handoff/import', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/index/reindex', classification: 'READY-DESCRIPTOR' },
@@ -67,7 +65,6 @@ const MIGRATION_WAIVER: MigrationWaiverEntry[] = [
   { method: 'POST', path: '/api/lsp/request', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/lsp/start', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/lsp/stop', classification: 'READY-DESCRIPTOR' },
-  { method: 'POST', path: '/api/memory/digest', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/modelhub/download', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/modelhub/downloads/cancel', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/models/import', classification: 'ARCHITECTURE-DECISION' },

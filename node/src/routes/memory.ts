@@ -106,6 +106,11 @@ export function routesForMemory(service: MemoryService): Route[] {
       method: 'POST',
       path: '/api/memory/digest',
       response: MemoryDigestResponse,
+      // No caller inputs: the approved operation is "refresh all day digests
+      // and drive the bounded Helix cascade" for this workspace.
+      describeOperation: async (_ctx, taskId): Promise<OperationInput> => ({
+        workspace: service.workspace, taskId, kind: 'capability.write', args: { body: {} }
+      }),
       handler: async () => service.digest()
     }
   ];

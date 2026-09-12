@@ -1,5 +1,6 @@
 import { type Route } from '../server.ts';
 import { RouteError } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import { createRequire } from 'node:module';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -9,6 +10,7 @@ const { createExpertRegistry } = require('../../../harness/micro-experts.mjs');
 const { taskRouterFeatures, diffRiskFeatures, requestIntentFeatures } = require('../../../harness/expert-featurizers.mjs');
 
 export type ExpertsService = {
+  workspace: string;
   intent(message: string): Promise<{ expert: string; phase: string; confidence: number }>;
   diffRisk(diff: string): Promise<{ expert: string; risk: string; confidence: number }>;
   classifyRequest(message: string): Promise<{ expert: string; intent: string; confidence: number }>;
@@ -49,6 +51,7 @@ export function createExpertsService(workspace: string): ExpertsService {
     } catch { return []; }
   }
   return {
+    workspace,
     async intent(message) {
       try {
         const expert = await registry.allocate('orchestrator.intent');
@@ -210,6 +213,14 @@ export function routesForExperts(service: ExpertsService): Route[] {
       path: '/api/experts/train',
       body: TrainBody,
       response: TrainResponse,
+      // In-process micro-expert training: pure local compute plus one manifest
+      // write under the workspace. The approved operation binds the exact
+      // training rows; no process, egress, dataset, or unrelated target is
+      // involved.
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const { rows } = body as { rows: Array<{ features: Record<string, number>; label: string; role: string; domain: string }> };
+        return { workspace: service.workspace, taskId, kind: 'capability.execute', args: { body: { rows } } };
+      },
       handler: async ({ body }) => service.train((body as { rows: Array<{ features: Record<string, number>; label: string; role: string; domain: string }> }).rows)
     },
     {

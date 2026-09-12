@@ -11,6 +11,9 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createRequire } from 'node:module';
+import { ArchServer } from '../../node/src/server.ts';
+import { routesForAuthority } from '../../node/src/routes/authority.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const require = createRequire(import.meta.url);
 const { createExpertRegistry } = require('../../harness/micro-experts.mjs');
@@ -103,4 +106,54 @@ test('expert serve wire-in: diff-risk + classify-request advisory routes', async
   assert.throws(() => clsRoute.body.parse({ message: 'x', extra: 1 }));
   assert.deepEqual([...diffRoute.response.shape.risk.options].sort(), ['block', 'low', 'review']);
   assert.deepEqual([...clsRoute.response.shape.intent.options].sort(), ['business', 'code', 'system']);
+
+  // 5. HTTP authority: micro-expert training requires an approved exact
+  //    capability.execute operation bound to the full training rows.
+  const server = new ArchServer(dir, path.join(dir, 'serve-wirein.log'));
+  try {
+    for (const route of routesForAuthority()) server.route(route);
+    for (const route of routesForExperts(service)) server.route(route);
+    const httpServer = await server.listen(0);
+    const address = httpServer.address();
+    assert.ok(address && typeof address === 'object');
+    const base = `http://127.0.0.1:${address.port}`;
+    const owner = await pairFixture(server, base);
+
+    const rows: Array<{ features: Record<string, number>; label: string; role: string; domain: string }> = [];
+    for (let i = 0; i < 24; i++) {
+      const [text, label] = DIFF_TEXTS[i % DIFF_TEXTS.length] as [string, string];
+      rows.push({ features: diffRiskFeatures(text), label, role: 'gate', domain: 'agent.proposal.diff' });
+    }
+    const trainBody = { rows };
+
+    const anonymous = await fetch(`${base}/api/experts/train`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(trainBody)
+    });
+    assert.equal(anonymous.status, 403, 'anonymous actor rejected');
+
+    const noApproval = await owner.request('/api/experts/train', { method: 'POST', body: JSON.stringify(trainBody) });
+    assert.equal(noApproval.status, 409, 'paired actor without approval fails');
+
+    const headers = await owner.approve('POST', '/api/experts/train', trainBody, 'task:expert-train');
+    const changedAttempt = await owner.request('/api/experts/train', { method: 'POST', headers, body: JSON.stringify({ rows: rows.slice(0, 20) }) });
+    assert.equal(changedAttempt.status, 409, 'changed training rows cannot reuse approval');
+
+    const applied = await owner.request('/api/experts/train', { method: 'POST', headers, body: JSON.stringify(trainBody) });
+    assert.equal(applied.status, 200);
+    const appliedBody = (await applied.json()) as { data: { name: string; params: number } };
+    assert.ok(appliedBody.data.name.length > 0);
+    const manifestRaw = await fs.readFile(path.join(dir, '.aide', 'experts', `${appliedBody.data.name}.json`), 'utf8');
+    const token = owner.headers.Authorization.slice(7);
+    assert.ok(!manifestRaw.includes(token) && !manifestRaw.includes(owner.actorId), 'expert manifest must not serialize authority material');
+    assert.ok(!manifestRaw.includes(headers['X-AIDE-Operation']), 'expert manifest must not serialize operation ids');
+
+    const replay = await owner.request('/api/experts/train', { method: 'POST', headers, body: JSON.stringify(trainBody) });
+    assert.equal(replay.status, 409, 'consumed training approval cannot replay');
+
+    httpServer.closeAllConnections();
+    await new Promise<void>(resolve => httpServer.close(() => resolve()));
+  } finally {
+    server.authority.control.close();
+    server.events.close();
+  }
 });

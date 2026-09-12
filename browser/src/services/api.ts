@@ -114,6 +114,7 @@ import {
   type WorkbenchDetailResponseT,
   type WorkbenchUninstallResponseT
 } from '../../../common/contracts/workbench.ts';
+import { facadeHttpUrl } from './runtime-config.ts';
 
 export const API_FORMAT_HEADER = 'X-AIDE-API-Format';
 export const API_FORMAT = 'envelope-v1';
@@ -132,7 +133,7 @@ export class ApiError extends Error {
 export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set(API_FORMAT_HEADER, API_FORMAT);
-  return egressFetch(path, { ...init, headers });
+  return egressFetch(facadeHttpUrl(path), { ...init, headers });
 }
 
 async function throwResponseError(res: Response): Promise<never> {

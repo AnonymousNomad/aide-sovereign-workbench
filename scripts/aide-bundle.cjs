@@ -12,7 +12,7 @@
 //   aide-bundle trust sovereign-coder filesystem
 //   aide-bundle uninstall sovereign-coder
 //
-// Default AIDE host is http://127.0.0.1:4173. Override with
+// Default AIDE host is the canonical facade at http://127.0.0.1:4777. Override with
 // AIDE_HOST env or --host flag.
 //
 // This is the shell-verb the user asked for ("the user has to do
@@ -21,7 +21,7 @@
 
 const http = require('http');
 
-const DEFAULT_HOST = process.env.AIDE_HOST || 'http://127.0.0.1:4173';
+const DEFAULT_HOST = process.env.AIDE_HOST || 'http://127.0.0.1:4777';
 
 function parseArgs(argv) {
   const args = { command: argv[2], positional: [], flags: {} };
@@ -154,7 +154,7 @@ function usage() {
   console.log('  aide-bundle uninstall sovereign-coder');
   console.log('');
   console.log('Environment:');
-  console.log('  AIDE_HOST   default http://127.0.0.1:4173');
+  console.log('  AIDE_HOST   default http://127.0.0.1:4777');
   process.exit(2);
 }
 

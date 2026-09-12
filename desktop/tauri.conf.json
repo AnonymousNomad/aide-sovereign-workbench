@@ -4,8 +4,10 @@
   "version": "0.1.0",
   "identifier": "org.ferrellsyntheticintelligence.aide",
   "build": {
-    "frontendDist": "frontend",
-    "devUrl": "http://127.0.0.1:4173"
+    "frontendDist": "../browser/dist",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeDevCommand": {"script": "npm run dev:frontend", "cwd": "..", "wait": false},
+    "beforeBuildCommand": {"script": "npm run desktop:prepare", "cwd": ".."}
   },
   "app": {
     "windows": [{"title": "AIDE Sovereign Workbench", "width": 1440, "height": 900, "minWidth": 900, "minHeight": 600}],

@@ -127,7 +127,7 @@ test('OPTIONS preflight for a ts route is answered by the facade (204 + CORS) wi
   ts.server.closeAllConnections?.(); ts.server.close();
 });
 
-test('cross-origin reads are decorated with the allow-listed Origin and Vary: Origin', async () => {
+test('production and Vite-development reads are decorated for their allow-listed origins', async () => {
   const ts = fakeBackend('ts');
   const tsPort = await listen(ts.server);
   const facade = await createFacade({
@@ -136,11 +136,12 @@ test('cross-origin reads are decorated with the allow-listed Origin and Vary: Or
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
   });
   const port = facade.server.address().port;
-  const origin = 'http://127.0.0.1:4173';
-  const res = await request(port, '/ts-fam/ping', { headers: { Origin: origin } });
-  assert.equal(res.status, 200);
-  assert.equal(res.headers['access-control-allow-origin'], origin);
-  assert.equal(res.headers['vary'], 'Origin');
+  for (const origin of ['http://127.0.0.1:4173', 'http://127.0.0.1:5173']) {
+    const res = await request(port, '/ts-fam/ping', { headers: { Origin: origin } });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers['access-control-allow-origin'], origin);
+    assert.equal(res.headers['vary'], 'Origin');
+  }
   await facade.close();
   ts.server.closeAllConnections?.(); ts.server.close();
 });

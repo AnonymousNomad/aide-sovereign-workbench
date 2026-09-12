@@ -44,12 +44,9 @@ async function closeServer(server: http.Server): Promise<void> {
 }
 
 async function withRelativeFetch<T>(base: string, run: () => Promise<T>): Promise<T> {
-  const nativeFetch = globalThis.fetch;
-  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
-    const resolved = typeof input === 'string' && input.startsWith('/') ? base + input : input;
-    return nativeFetch(resolved, init);
-  }) as typeof fetch;
-  try { return await run(); } finally { globalThis.fetch = nativeFetch; }
+  const previous = globalThis.__AIDE_RUNTIME_CONFIG__;
+  globalThis.__AIDE_RUNTIME_CONFIG__ = { facadeOrigin: base };
+  try { return await run(); } finally { globalThis.__AIDE_RUNTIME_CONFIG__ = previous; }
 }
 
 test('real typed browser client receives success, backend error, malformed response and facade error through the facade', async () => {

@@ -64,13 +64,13 @@ try {
   const health = await waitFor(`http://127.0.0.1:${facadePort}/api/health`);
   checks.push({ name: 'staged facade /api/health', pass: health.status === 200, detail: `${health.status} ${health.body.slice(0, 120)}` });
 
-  const models = await waitFor(`http://127.0.0.1:${facadePort}/api/models`);
+  const models = await waitFor(`http://127.0.0.1:${facadePort}/api/models/status`);
   let modelsOk = false;
   try {
     const parsed = JSON.parse(models.body);
-    modelsOk = Array.isArray(parsed) || (parsed && Array.isArray(parsed.models)) || (parsed && Array.isArray(parsed.data));
+    modelsOk = parsed && typeof parsed.runtime === 'boolean' && Array.isArray(parsed.models);
   } catch {}
-  checks.push({ name: 'staged facade /api/models', pass: models.status === 200 && modelsOk, detail: `${models.status} ${models.body.slice(0, 120)}` });
+  checks.push({ name: 'staged facade /api/models/status', pass: models.status === 200 && modelsOk, detail: `${models.status} ${models.body.slice(0, 120)}` });
 
   const tsHealth = await waitFor(`http://127.0.0.1:${facadePort}/api/health/ts`);
   checks.push({ name: 'staged facade /api/health/ts sentinel', pass: tsHealth.status === 200 && tsHealth.body.includes('ok'), detail: `${tsHealth.status} ${tsHealth.body.slice(0, 80)}` });

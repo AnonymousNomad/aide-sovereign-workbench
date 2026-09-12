@@ -51,6 +51,9 @@ import { routesForTerminal } from './routes/terminal.ts';
 import { routesForProblems } from './routes/problems.ts';
 import { routesForNotifications } from './routes/notifications.ts';
 import { NotificationService } from '../../node/src/services/notification-service.mjs';
+import { HookExecutor } from '../../node/src/services/hook-executor.mjs';
+import type { TaskEventMeta } from '../../node/src/services/task-service.mjs';
+import type { TaskEventT } from '../../common/contracts/tasks.ts';
 import { createHubService } from '../../node/src/services/modelhub.mjs';
 import { routesForModelHub } from './routes/modelhub.ts';
 import { routesForOrch } from './routes/orch.ts';
@@ -73,6 +76,7 @@ import { routesForAgent } from './routes/agent.ts';
 import { createAuditTrail } from './services/audit-trail.mjs';
 import { createSkillsLoader } from './services/skills-loader.mjs';
 import { routesForAudit } from './routes/audit.ts';
+import { routesForAuthority } from './routes/authority.ts';
 import { routesForClosedLoop } from './routes/closed-loop.ts';
 import { createIndexService } from '../../node/src/services/index-service.mjs';
 import { routesForIndex } from './routes/index.ts';
@@ -109,6 +113,7 @@ import type { Route } from './server.ts';
 type SchemaObject = Record<string, unknown>;
 
 export interface BuildRoutesOptions {
+  authority?: import('./services/execution-authority.mjs').ExecutionAuthority;
   events?: EventHub;
   logger?: Logger;
   lspManager?: LspManager;
@@ -396,7 +401,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
   const settingsService = new SettingsService({ workspace });
   await settingsService.load();
   const rgService = new RgService({ workspace });
-  const agentCheckpoints = createCheckpointService({ workspace });
+  const agentCheckpoints = createCheckpointService({ workspace, authority: options.authority });
   // Audit trail: single instance per process, one bus per service. Shares
   // the cipher-state.jsonl bus with the memory spine; adds the typed event
   // envelope so every agent-loop boundary event is observable and replayable
@@ -429,6 +434,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
   const skillProvider = await createSkillsLoader({ skillsRoot });
   const agentLoop = createAgentLoop({
     workspace,
+    authority: options.authority,
     rg: rgService.available() ? rgService : null,
     checkpoints: agentCheckpoints,
     audit: auditTrail,
@@ -498,6 +504,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
   const secretStore = options.byokSecretStore ?? createSecretStore({ secretsPath: path.join(os.homedir(), '.aide', 'secrets.json') });
   const byokService = createByokService({ workspace, secretStore, fetchImpl: globalThis.fetch, onEgress: entry => logEgress(workspace, { action: entry.kind, url: `https://${entry.host ?? 'unknown'}/`, provider_id: entry.provider_id, role: entry.role }) });
   const core: Route[] = [
+    ...routesForAuthority(),
     makeHealthRoute(workspace, version),
     makeWorkspaceListRoute(workspace),
     makeWorkspaceTreeRoute(fsService),
@@ -562,7 +569,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForRgSearch(rgService),
     routeForEditorOptions(settingsService),
     ...routesForGit(workspace),
-    ...buildNotificationWiredRoutes(workspace, options),
+    ...await buildNotificationWiredRoutes(workspace, options),
     ...routesForProblems(workspace),
     ...routesForOrch(createOrchService({ workspace: workspace, runtime: modelRuntime })),
     ...routesForMemory(memoryService),
@@ -607,8 +614,10 @@ export async function buildRoutes(workspace: string, version: string, options: B
       // guarantees — single source of desktop truth, per the doctrine.
       const req = createRequire(import.meta.url);
       const { createTelegramBrain } = req('./services/telegram-brain.mjs');
-      const desktopService = createDesktopService(workspace);
+      const desktopService = createDesktopService(workspace, options.authority);
       const brain = createTelegramBrain({
+        authority: options.authority,
+        workspace,
         desktop: desktopService,
         resolveEngineChat: async (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) => {
           try {
@@ -631,7 +640,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
       desktopServiceRef = desktopService;
       return [
         ...routesForDesktop(desktopService),
-        ...routesForTelegram(createTelegramBridgeService(workspace, input => brain.onCommand(input))),
+        ...routesForTelegram(createTelegramBridgeService(workspace, input => brain.onCommand(input), options.authority)),
         ...routesForExperts(expertsService),
         ...routesForHardware()
       ];
@@ -738,12 +747,14 @@ export async function buildRoutes(workspace: string, version: string, options: B
   return [...core, makeOpenApiRoute(doc)];
 }
 
-function buildNotificationWiredRoutes(workspace: string, options: BuildRoutesOptions): Route[] {
+async function buildNotificationWiredRoutes(workspace: string, options: BuildRoutesOptions): Promise<Route[]> {
   const notifications = new NotificationService({
     workspace,
+    authority: options.authority,
     onEvent: body => options.events?.publish('notifications', body)
   });
-  void notifications.loadHooks().catch(() => {});
+  await notifications.loadHooks().catch(() => {});
+  const hookExecutor = options.authority ? new HookExecutor({ authority: options.authority, notifications }) : null;
   const hub = createHubService({
     workspace,
     modelsDir: path.join(workspace, 'models'),
@@ -752,9 +763,14 @@ function buildNotificationWiredRoutes(workspace: string, options: BuildRoutesOpt
   return [
     ...routesForNotifications(notifications),
     ...routesForTasks(workspace, {
-      onEvent: body => {
+      authority: options.authority,
+      onEvent: (body: TaskEventT, meta?: TaskEventMeta) => {
         options.events?.publish('tasks', body);
+        // Observation is unconditional: task events always become descriptive
+        // notifications. Execution-capable hooks still require a fresh,
+        // operator-approved capability.execute handle via HookExecutor.
         notifications.ingestTaskEvent(body as Parameters<NotificationService['ingestTaskEvent']>[0]);
+        hookExecutor?.onTaskEvent(body, meta);
       }
     }),
     ...routesForModelHub(hub as any)

@@ -36,11 +36,15 @@ export type PublishResult = { accepted: true } | { accepted: false; error: strin
 interface WsClient {
   socket: WebSocket;
   channels: Set<ChannelName>;
+  assertAuthorized?: () => void;
+  authenticate?: (token: string) => () => void;
+  authDeadline: ReturnType<typeof setTimeout>;
 }
 
 export interface WsSubscribeMessage {
   type?: string;
   channels?: unknown;
+  token?: unknown;
 }
 
 export class EventHub {
@@ -52,16 +56,24 @@ export class EventHub {
     this.logger = logger;
   }
 
-  attach(server: Server): void {
-    this.wss = new WebSocketServer({ server, path: '/ws' });
-    this.wss.on('connection', socket => {
-      const client: WsClient = { socket, channels: new Set() };
+  attach(server: Server, authenticate?: (token: string, origin: string) => () => void): void {
+    this.wss = new WebSocketServer({ server, path: '/ws', maxPayload: 8192 });
+    this.wss.on('connection', (socket, request) => {
+      // No URL credentials, no subscription or event before real actor proof.
+      // Missing authority fails closed, including standalone EventHub callers.
+      const origin = typeof request.headers.origin === 'string' ? request.headers.origin : '';
+      const authDeadline = setTimeout(() => socket.terminate(), 5000);
+      authDeadline.unref();
+      const client: WsClient = { socket, channels: new Set(), authDeadline,
+        ...(authenticate ? { authenticate: (token: string) => authenticate(token, origin) } : {}) };
       this.clients.add(client);
       socket.on('message', (raw: RawData) => this.onMessage(client, raw));
       socket.on('close', () => {
+        clearTimeout(client.authDeadline);
         this.clients.delete(client);
       });
       socket.on('error', () => {
+        clearTimeout(client.authDeadline);
         this.clients.delete(client);
       });
     });
@@ -76,6 +88,9 @@ export class EventHub {
     }
     const payload = JSON.stringify({ channel, ts: Date.now(), data: parsed.data });
     for (const client of this.clients) {
+      if (!client.assertAuthorized) continue;
+      try { client.assertAuthorized(); }
+      catch { client.channels.clear(); client.socket.close(1008, 'actor expired or revoked'); continue; }
       if (client.channels.has(channel) && client.socket.readyState === WebSocket.OPEN) {
         try {
           client.socket.send(payload, error => {
@@ -95,7 +110,8 @@ export class EventHub {
 
   close(): void {
     for (const client of this.clients) {
-      client.socket.close();
+      clearTimeout(client.authDeadline);
+      client.socket.terminate();
     }
     this.clients.clear();
     this.wss?.close();
@@ -108,8 +124,25 @@ export class EventHub {
     try {
       message = JSON.parse(text) as WsSubscribeMessage;
     } catch {
+      client.socket.close(1008, 'invalid event protocol');
       return;
     }
+    if (!message || typeof message !== 'object') { client.socket.close(1008, 'invalid event protocol'); return; }
+    if (!client.assertAuthorized) {
+      if (message.type !== 'authenticate' || typeof message.token !== 'string' || !client.authenticate) {
+        client.socket.close(1008, 'authenticated actor required'); return;
+      }
+      try {
+        client.assertAuthorized = client.authenticate(message.token);
+        client.assertAuthorized();
+        delete client.authenticate;
+        clearTimeout(client.authDeadline);
+        client.socket.send(JSON.stringify({ type: 'authenticated' }));
+      } catch { client.socket.close(1008, 'invalid actor credential'); }
+      return;
+    }
+    try { client.assertAuthorized(); }
+    catch { client.socket.close(1008, 'actor expired or revoked'); return; }
     if (message.type === 'subscribe' && Array.isArray(message.channels)) {
       const channels = message.channels.filter((name: unknown): name is ChannelName => typeof name === 'string' && name in SCHEMAS);
       client.channels = new Set(channels);

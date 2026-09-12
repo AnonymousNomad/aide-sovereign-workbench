@@ -8,6 +8,11 @@ import { Logger } from './services/logger.ts';
 import { ProcessManager } from './services/process-manager.ts';
 import { EventHub } from './events.ts';
 import { buildRoutes, createLspManager, createDapManager, createModelRuntime } from './openapi.ts';
+import { createExecutionAuthority, AuthorityError, type ExecutionAuthority, type ActorHandle, type AuthorityOperation, type ExecutionHandle } from './services/execution-authority.mjs';
+import { createAuditTrail } from './services/audit-trail.mjs';
+import { httpOperationKind, type OperationInput } from '../../common/security/operation-policy.mjs';
+import { routesForAuthority } from './routes/authority.ts';
+import { connectAuthorityChannel, type AuthorityPeer } from '../../common/security/authority-channel.mjs';
 
 export class RouteError extends Error {
   readonly code: ErrorCode;
@@ -23,6 +28,11 @@ export class RouteError extends Error {
 export interface RouteContext {
   query: Record<string, string>;
   body: unknown;
+  actor?: ActorHandle;
+  execution?: ExecutionHandle;
+  authority?: ExecutionAuthority;
+  origin?: string;
+  prepareOperation?: (input: { adapter?: 'ts' | 'legacy' | undefined; method: string; path: string; task_id: string; body?: unknown }) => Promise<AuthorityOperation>;
 }
 
 export interface Route {
@@ -30,9 +40,11 @@ export interface Route {
   path: string;
   prefix?: boolean;
   raw?: boolean;
+  authorityMode?: 'pair' | 'control';
   query?: ZodTypeAny;
   body?: ZodTypeAny;
   response: ZodTypeAny;
+  describeOperation?: (ctx: RouteContext, taskId: string) => Promise<OperationInput>;
   handler: (ctx: RouteContext) => Promise<unknown> | unknown;
   stream?: (ctx: RouteContext, res: http.ServerResponse) => Promise<void>;
 }
@@ -40,6 +52,7 @@ export interface Route {
 export const MAX_BODY_BYTES = 5 * 1024 * 1024;
 
 export class ArchServer {
+  readonly authority: ExecutionAuthority;
   readonly logger: Logger;
   readonly processes: ProcessManager;
   readonly events: EventHub;
@@ -47,6 +60,7 @@ export class ArchServer {
   readonly logFile: string;
   private readonly routes: Route[] = [];
   private readonly shutdownHooks: Array<() => Promise<void>> = [];
+  legacyDescribe?: (input: { method: string; path: string; task_id: string; body?: unknown }) => Promise<OperationInput>;
 
   constructor(workspace: string, logFile: string) {
     this.workspace = workspace;
@@ -54,6 +68,8 @@ export class ArchServer {
     this.logger = new Logger(logFile);
     this.processes = new ProcessManager(this.logger);
     this.events = new EventHub(this.logger);
+    const audit = createAuditTrail({ workspace: this.workspace });
+    this.authority = createExecutionAuthority({ workspace: this.workspace, record: event => audit.emitAuthority(event) });
   }
 
   addShutdownHook(hook: () => Promise<void>): this {
@@ -71,13 +87,18 @@ export class ArchServer {
   }
 
   async listen(port: number, host = '127.0.0.1'): Promise<http.Server> {
+    for (const route of routesForAuthority()) if (!this.match(route.method, route.path)) this.route(route);
     const server = http.createServer((request, response) => {
       void this.handle(request, response);
     });
     server.on('error', error => {
       this.logger.error('server error', { message: error.message });
     });
-    this.events.attach(server);
+    this.events.attach(server, (token, origin) => {
+      const actor = this.authority.authenticate(token, origin);
+      return () => this.authority.assertActor(actor);
+    });
+    server.once('close', () => { this.events.close(); this.authority.control.close(); });
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject);
       server.listen(port, host, () => resolve());
@@ -101,6 +122,14 @@ export class ArchServer {
       return this.send(response, 404, fail('NOT_FOUND', 'route not found'));
     }
     try {
+      const origin = typeof request.headers.origin === 'string' ? request.headers.origin : '';
+      const publicHealth = route.method === 'GET' && route.path === '/api/health';
+      let actor: ActorHandle | undefined;
+      if (!publicHealth && route.authorityMode !== 'pair') {
+        const authorization = request.headers.authorization;
+        if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) throw new RouteError('FORBIDDEN', 'authenticated actor required');
+        actor = this.authority.authenticate(authorization.slice(7), origin);
+      }
       const query: Record<string, string> = {};
       for (const [key, value] of url.searchParams) query[key] = value;
       const queryResult = route.query ? route.query.safeParse(query) : { success: true as const, data: query };
@@ -108,12 +137,30 @@ export class ArchServer {
       const body = await this.readBody(request);
       const bodyResult = route.body ? route.body.safeParse(body) : { success: true as const, data: body };
       if (!bodyResult.success) throw new RouteError('BAD_REQUEST', 'invalid request body', bodyResult.error.issues);
+      const context: RouteContext = { query: queryResult.data as Record<string, string>, body: bodyResult.data, authority: this.authority, origin,
+        ...(actor ? { actor, prepareOperation: (input: { adapter?: 'ts' | 'legacy' | undefined; method: string; path: string; task_id: string; body?: unknown }) => this.prepareOperation(actor, input) } : {}) };
+      const invoke = async () => route.stream ? route.stream(context, response) : route.handler(context);
+      const dispatch = async () => {
+        if (publicHealth || route.authorityMode) return invoke();
+        if (!actor) throw new RouteError('FORBIDDEN', 'authenticated actor required');
+        const input = await this.operationInput(route, url, context, String(request.headers['x-aide-task'] ?? `http:${actor.id}`));
+        let id = request.headers['x-aide-operation'];
+        if (input.kind.endsWith('.read')) {
+          id = (await this.authority.prepare(actor, input)).operation_id;
+        } else if (typeof id !== 'string') {
+          throw new RouteError('NOT_READY', 'exact operation approval required', { reason: 'APPROVAL_REQUIRED', adapter: 'ts' });
+        }
+        return this.authority.execute(actor, String(id), input, async (_operation, execution) => {
+          context.execution = execution;
+          return invoke();
+        });
+      };
       if (route.stream !== undefined) {
-        await route.stream({ query: queryResult.data as Record<string, string>, body: bodyResult.data }, response);
+        await dispatch();
         this.logger.info('stream ok', { method: request.method, path: url.pathname, ms: Date.now() - started });
         return;
       }
-      const data = await route.handler({ query: queryResult.data as Record<string, string>, body: bodyResult.data });
+      const data = await dispatch();
       const responseResult = route.response.safeParse(data);
       if (!responseResult.success) {
         this.logger.error('handler produced a response that violates the contract', { route: route.path, issues: responseResult.error.issues });
@@ -128,9 +175,9 @@ export class ArchServer {
       this.events.publish('log', { level: 'info', message: 'request ok', method: request.method, path: url.pathname, ms: Date.now() - started });
       return this.send(response, 200, ok(responseResult.data));
     } catch (error) {
-      const code = error instanceof RouteError ? error.code : 'INTERNAL';
+      const code: ErrorCode = error instanceof RouteError ? error.code : error instanceof AuthorityError ? error.code as ErrorCode : 'INTERNAL';
       const message = error instanceof Error ? error.message : 'local daemon error';
-      const detail = error instanceof RouteError ? error.detail : undefined;
+      const detail = error instanceof RouteError || error instanceof AuthorityError ? error.detail : undefined;
       if (code === 'INTERNAL') {
         this.logger.error('request failed', { method: request.method, path: url.pathname, message, stack: (error as Error).stack });
         this.events.publish('log', { level: 'error', message: 'request failed', method: request.method, path: url.pathname, code });
@@ -144,6 +191,29 @@ export class ArchServer {
 
   private match(method: string, pathname: string): Route | undefined {
     return this.routes.find(route => route.method === method && (route.prefix ? pathname.startsWith(route.path) : pathname === route.path));
+  }
+
+  private async operationInput(route: Route, url: URL, context: RouteContext, taskId: string): Promise<OperationInput> {
+    if (route.describeOperation) return route.describeOperation(context, taskId);
+    const kind = httpOperationKind(route.method, route.path);
+    if (!kind) throw new RouteError('FORBIDDEN', 'capability has no authority policy');
+    return { workspace: this.workspace, taskId, kind, args: JSON.parse(JSON.stringify({ method: route.method, path: url.pathname, query: context.query, body: context.body })) as unknown };
+  }
+
+  private async prepareOperation(actor: ActorHandle, input: { adapter?: 'ts' | 'legacy' | undefined; method: string; path: string; task_id: string; body?: unknown }): Promise<AuthorityOperation> {
+    if (input.adapter === 'legacy') {
+      if (!this.legacyDescribe) throw new RouteError('NOT_READY', 'legacy authority adapter unavailable');
+      return this.authority.prepare(actor, await this.legacyDescribe(input));
+    }
+    if (!input.path.startsWith('/') || input.path.startsWith('//') || input.path.includes('#')) throw new RouteError('BAD_REQUEST', 'local API path required');
+    const url = new URL(input.path, 'http://127.0.0.1');
+    const route = this.match(input.method, url.pathname);
+    if (!route || route.authorityMode) throw new RouteError('FORBIDDEN', 'operation target unavailable');
+    const query = Object.fromEntries(url.searchParams);
+    const queryResult = route.query ? route.query.safeParse(query) : { success: true as const, data: query };
+    const bodyResult = route.body ? route.body.safeParse(input.body ?? {}) : { success: true as const, data: input.body ?? {} };
+    if (!queryResult.success || !bodyResult.success) throw new RouteError('BAD_REQUEST', 'invalid operation parameters');
+    return this.authority.prepare(actor, await this.operationInput(route, url, { query: queryResult.data as Record<string, string>, body: bodyResult.data }, input.task_id));
   }
 
   private async readBody(request: http.IncomingMessage): Promise<unknown> {
@@ -224,6 +294,32 @@ export async function main(): Promise<void> {
   const version = process.env.AIDE_VERSION || 'dev';
   const port = Number(process.env.AIDE_ARCH_PORT || 4778);
   const server = new ArchServer(workspace, path.join(workspace, '.aide', 'logs', 'arch-daemon.log'));
+  // Parent-owned IPC is the only bootstrap origin. HTTP cannot call this.
+  if (typeof process.send !== 'function') throw new Error('trusted launch supervisor required; use npm start or npm run dev');
+  let resolveReady!: (value: unknown) => void;
+  const ready = new Promise<unknown>(resolve => { resolveReady = resolve; });
+  const authorityChannel = connectAuthorityChannel(process as unknown as AuthorityPeer, async (method, input) => {
+    if (method === 'supervisor.ready') return ready;
+    if (method === 'supervisor.pairing') return { proof: server.authority.control.createPairing(input?.origin) };
+    if (method === 'transport.authenticate') {
+      const actor = server.authority.authenticate(input?.token, input?.origin);
+      return { actor_id: actor.id, kind: actor.kind };
+    }
+    if (method === 'legacy.execute') {
+      const actor = server.authority.authenticate(input?.token, input?.origin);
+      const operation = await server.legacyDescribe!(input.request);
+      const id = operation.kind.endsWith('.read') ? (await server.authority.prepare(actor, operation)).operation_id : input.operation_id;
+      return server.authority.execute(actor, id, operation, async descriptor => {
+        const result = await authorityChannel.call('legacy.invoke', { request_id: input.request_id, descriptor }, 120000) as { status: number; body: unknown };
+        if (result.status >= 400) throw new AuthorityError('NOT_READY', 'legacy execution reported failure');
+        return result;
+      });
+    }
+    throw new AuthorityError('FORBIDDEN', 'private authority operation unavailable');
+  });
+  server.legacyDescribe = async input => await authorityChannel.call('legacy.describe', input) as OperationInput;
+  server.addShutdownHook(async () => authorityChannel.close());
+  process.once('disconnect', () => { server.authority.control.close(); authorityChannel.close(); });
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
   const manager = createLspManager(repoRoot, workspace, { events: server.events, logger: server.logger });
   server.addShutdownHook(() => manager.stopAll());
@@ -231,9 +327,10 @@ export async function main(): Promise<void> {
   server.addShutdownHook(() => dapManager.stopAll());
   const modelRuntime = await createModelRuntime(repoRoot, workspace, { events: server.events, logger: server.logger });
   server.addShutdownHook(() => modelRuntime.stopAll());
-  const routes = await buildRoutes(workspace, version, { events: server.events, logger: server.logger, lspManager: manager, dapManager, modelRuntime, watchIndex: true });
+  const routes = await buildRoutes(workspace, version, { authority: server.authority, events: server.events, logger: server.logger, lspManager: manager, dapManager, modelRuntime, watchIndex: true });
   for (const route of routes) server.route(route);
-  await server.listen(port);
+  const listener = await server.listen(port);
+  resolveReady(listener.address());
   server.logger.info('arch daemon listening', { port, workspace });
 
   // Closed-loop on by default (aid-closed-loop-on-by-default skill). The

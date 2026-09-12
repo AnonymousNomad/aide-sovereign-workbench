@@ -1,0 +1,1330 @@
+{
+  "date": "2026-09-11T21:37:19.180Z",
+  "node": "v26.4.0",
+  "pid": 24316,
+  "freeMemoryBytes": 8320090112,
+  "observations": [
+    {
+      "id": "skills-factory",
+      "factoryType": "object",
+      "isPromise": true,
+      "resolvedType": "function",
+      "directLoaderIncludesSentinel": true
+    },
+    {
+      "id": "browser-facade-envelope",
+      "directClientAccepted": true,
+      "facadeClientError": {
+        "code": "BAD_RESPONSE",
+        "message": "invalid response envelope"
+      }
+    },
+    {
+      "id": "production-skill-injection",
+      "path": "real buildRoutes -> ArchServer -> createFacade -> agent route -> agent-loop -> captured chatFn",
+      "injectedModel": "scripted capture only; no model inference",
+      "state": "done",
+      "modelCalls": 1,
+      "sentinelInModelContext": false,
+      "emittedSkillError": false
+    },
+    {
+      "id": "completion-without-code-tests",
+      "mode": "plan",
+      "verdict": {
+        "passed": true,
+        "status": "verified",
+        "score": 1,
+        "threshold": 0.9,
+        "evidence_level": "sufficient",
+        "failed_checks": [],
+        "failed_oaths": [],
+        "rule": "Model confidence is not evidence. A failed deterministic gate blocks final output."
+      },
+      "checks": {
+        "completion-reached": true,
+        "no-failed-tool": true
+      },
+      "results": [],
+      "limitation": "A completion-only plan receives a code-change verifier stamp; this is not evidence of code correctness."
+    },
+    {
+      "id": "act-false-verification",
+      "requestedFileExists": false,
+      "mode": "act",
+      "verdict": {
+        "passed": true,
+        "status": "verified",
+        "score": 1,
+        "threshold": 0.9,
+        "evidence_level": "sufficient",
+        "failed_checks": [],
+        "failed_oaths": [],
+        "rule": "Model confidence is not evidence. A failed deterministic gate blocks final output."
+      },
+      "results": [],
+      "modelReply": "completion only, no tools",
+      "conclusion": "Requested code absent and no tests executed, yet verifier reports verified."
+    },
+    {
+      "id": "direct-tool-approval",
+      "requestApproved": false,
+      "argumentApproved": "false",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "output": "wrote approval-probe.txt (19 bytes)",
+        "terminal": false
+      },
+      "fileWritten": true
+    }
+  ],
+  "cleanup": {
+    "facadeClosed": true,
+    "archClosed": true,
+    "backgroundChildrenStartedByProbe": false,
+    "serviceChildProbes": "RgService may run synchronous rg --version; no model start or command tool requested",
+    "fixtureRetained": "E:\\pip_temp\\aide-phase0-audit-DxPztE"
+  },
+  "routeInventory": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/tree",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/file",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/file/write",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/search",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/search/replace",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/patch/apply",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/terminal/run",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/session",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/session",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/models/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/start",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/stop",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/ingest",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/model/ready",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/register",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/profile",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/models/routes",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/route",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/fit",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/stream",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/history",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/history",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/providers",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/connect",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/disconnect",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/import",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/learner/state",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/learner/reviews",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/learner/attempt",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/hint",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/exercises/next",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/academy/exercises/attempt",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/session",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/academy/check",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/academy/complete",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/certificate",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/datasets",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/datasets",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/datasets/append",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/datasets/read",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/datasets/delete",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/presets",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/status",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/start",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/stop",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/checkpoints",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/export-eval",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/export",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/exports",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/artifacts",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/community",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/items",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/items",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/community/items",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins/presets",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/trust",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/execute",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/scaffold",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/replays",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/replays",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/commands",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/commands/invoke",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/keybindings",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/keybindings/resolve",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/settings",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rg/quick-open",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rg/files",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/rg/search",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/editor/options",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/git/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/diff",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/stage",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/unstage",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/commit",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/git/branches",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/checkout",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/push",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/log",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/file-log",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/hunks/list",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/hunks/stage",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/hunks/unstage",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/blame",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/unread",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/read",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/read-all",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/hooks",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/hooks",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/matchers",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/run",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/stop",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/cache/stats",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/cache/clear",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/modelhub/search",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/modelhub/files",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/modelhub/download",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/modelhub/downloads/cancel",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/modelhub/downloads",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/import",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/problems/parse",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/orch/context",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/memory/digests",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/memory/digest",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workbenches",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbenches/detail",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbenches/install",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbenches/trust",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbenches/uninstall",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbench/worktree/create",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/workbench/worktree/list",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbench/worktree/merge",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbench/worktree/discard",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/onboarding/state",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/onboarding/state",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/onboarding/next",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "POST",
+      "path": "/api/onboarding/complete",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-map/snapshot",
+      "raw": false,
+      "target": "legacy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resident/summary",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resident/context",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resident/push-summary",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/resident/decisions",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/desktop/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/grants",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/action",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/panic",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/pending",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/desktop/pending",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/desktop/pending/verdict",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/pending/resolve",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telegram/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telegram/connect",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telegram/authorize",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telegram/disconnect",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telegram/start",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/intent",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/diff-risk",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/classify-request",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/experts",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/train",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/infer",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/experts/stats",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/freeze",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/thaw",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/hardware/profile",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/hardware/recommend",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/events",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/session",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/bundle",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/closed-loop/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/agent/start",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/agent/decision",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/agent/sessions",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/agent/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/agent/tool",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/index/reindex",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/index/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/index/search",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/export",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/handoff/bundles",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/handoff/bundles/get",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/import",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/byok/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/byok/providers/set",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/byok/providers/delete",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/byok/key",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/byok/key/delete",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/byok/routing",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/byok/consent",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/byok/test",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/lsp/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/start",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/open",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/close",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/change",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/completion",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/hover",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/definition",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/notify",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/request",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/stop",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dap/status",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/start",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/stop",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/launch",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/breakpoints",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/configure",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/continue",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/step",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/stack",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/scopes",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/variables",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/disconnect",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/dap/state",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/request",
+      "raw": false,
+      "target": "ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/openapi.json",
+      "raw": true,
+      "target": "legacy"
+    }
+  ],
+  "routeCounts": {
+    "registered": 204,
+    "uniqueOperations": 204,
+    "facadeTs": 173,
+    "facadeLegacy": 31,
+    "prefixes": 39,
+    "exact": 5
+  },
+  "duplicateOperations": [],
+  "ports": {
+    "arch": 50534,
+    "facade": 50535,
+    "fixedProductPortsUsed": false
+  },
+  "acceptance": "Audit reproductions confirmed. Product defects remain. Not a local-model or GUI acceptance result."
+}

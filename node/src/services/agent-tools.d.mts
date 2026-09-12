@@ -1,3 +1,4 @@
+import type { ExecutionAuthority, ExecutionHandle } from './execution-authority.mjs';
 export interface ToolExecResult {
   ok: boolean;
   output: string;
@@ -10,7 +11,7 @@ export interface AgentToolDef {
   params: string[];
   required?: string[];
   readOnly: boolean;
-  execute(args: Record<string, string>): Promise<ToolExecResult>;
+  execute(args: Record<string, string>, execution?: ExecutionHandle): Promise<ToolExecResult>;
 }
 
 export declare function resolveInsideWorkspace(workspace: string, relativePath: string): string;
@@ -26,6 +27,7 @@ export declare function splitCommandLine(line: string): string[];
 
 export declare function createAgentTools(options: {
   workspace: string;
+  authority?: ExecutionAuthority | undefined;
   rg: {
     available(): boolean;
     search(options: { query: string; maxResults?: number }): Promise<{ matches: Array<{ path: string; line_number: number; line_text: string }>; truncated: boolean }>;

@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { RouteError, type Route } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import { type ErrorCode } from '../../../common/errors.ts';
 import {
   PluginExecuteRequest,
@@ -16,6 +18,17 @@ import {
   type PluginsListResponseT
 } from '../../../common/contracts/plugins.ts';
 import type { PluginManager } from '../../../plugins/manager.mjs';
+
+// Exact operation descriptors. Plugin execution is an execution-risk operation
+// bound to the plugin id and the exact payload; trust/scaffold are bounded
+// state writes. The plugin state file anchors the workspace.
+function operationFor(manager: PluginManager, kind: string, taskId: string, body: unknown): OperationInput {
+  const statePath = (manager as unknown as { statePath?: unknown }).statePath;
+  if (typeof statePath !== 'string') throw new RouteError('FORBIDDEN', 'workspace anchor unavailable');
+  const aideDir = path.dirname(statePath);
+  if (path.basename(aideDir) !== '.aide') throw new RouteError('FORBIDDEN', 'workspace anchor unavailable');
+  return { workspace: path.dirname(aideDir), taskId, kind, args: { body } };
+}
 
 function errorCodeForPlugin(message: string): ErrorCode {
   if (/trust is required before execution/.test(message)) return 'FORBIDDEN';
@@ -56,6 +69,7 @@ export function routeForPluginTrust(manager: PluginManager): Route {
     path: '/api/plugins/trust',
     body: PluginTrustRequest,
     response: PluginsListResponse,
+    describeOperation: async (ctx, taskId) => operationFor(manager, 'capability.write', taskId, ctx.body),
     handler: async ({ body }): Promise<PluginsListResponseT> => {
       const input = body as unknown as PluginTrustRequestT;
       try {
@@ -75,6 +89,10 @@ export function routeForPluginExecute(manager: PluginManager): Route {
     path: '/api/plugins/execute',
     body: PluginExecuteRequest,
     response: PluginExecuteResponse,
+    describeOperation: async (ctx, taskId) => {
+      const input = ctx.body as PluginExecuteRequestT;
+      return operationFor(manager, 'capability.execute', taskId, { id: input.id, payload: input.payload ?? {} });
+    },
     handler: async ({ body }): Promise<PluginExecuteResponseT> => {
       const input = body as unknown as PluginExecuteRequestT;
       try {
@@ -93,6 +111,10 @@ export function routeForPluginScaffold(manager: PluginManager): Route {
     path: '/api/plugins/scaffold',
     body: PluginScaffoldRequest,
     response: PluginsListResponse,
+    describeOperation: async (ctx, taskId) => {
+      const input = ctx.body as PluginScaffoldRequestT;
+      return operationFor(manager, 'capability.write', taskId, { id: input.id });
+    },
     handler: async ({ body }): Promise<PluginsListResponseT> => {
       const input = body as unknown as PluginScaffoldRequestT;
       try {

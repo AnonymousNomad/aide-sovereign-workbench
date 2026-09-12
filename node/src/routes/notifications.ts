@@ -1,4 +1,5 @@
 import { type Route, type RouteContext, RouteError } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import {
   NotificationListResponse,
   NotificationReadRequest,
@@ -6,7 +7,7 @@ import {
   HookListResponse,
   HooksPutRequest
 } from '../../../common/contracts/notifications.ts';
-import { NotificationService, HookValidationError } from '../../../node/src/services/notification-service.mjs';
+import { NotificationService, HookValidationError, normalizeHooksFile } from '../../../node/src/services/notification-service.mjs';
 
 function mapNotificationError(error: unknown): RouteError {
   if (error instanceof RouteError) return error;
@@ -31,22 +32,42 @@ function wrap(handler: (ctx: RouteContext) => Promise<unknown> | unknown): (ctx:
 }
 
 export function routesForNotifications(service: NotificationService): Route[] {
+  // Mutating notification/hook routes carry exact operation descriptors that
+  // bind the normalized target/configuration; method+path enrollment alone is
+  // never sufficient for these operations. Read-only routes are enrolled
+  // centrally in common/security/operation-policy.mjs.
+  const describeMutation = (body: unknown) => (taskId: string): OperationInput => ({
+    workspace: service.workspace,
+    taskId,
+    kind: 'capability.write',
+    args: { body }
+  });
+  const describeHooksWrite = ({ body }: RouteContext, taskId: string): OperationInput => {
+    let normalized: unknown;
+    try {
+      normalized = normalizeHooksFile(body);
+    } catch (error) {
+      throw mapNotificationError(error);
+    }
+    return { workspace: service.workspace, taskId, kind: 'capability.write', args: { body: normalized } };
+  };
   return [
     { method: 'GET', path: '/api/notifications', response: NotificationListResponse, handler: wrap(async () => service.list()) },
     { method: 'GET', path: '/api/notifications/unread', response: NotificationListResponse, handler: wrap(async () => service.list({ unreadOnly: true })) },
-    { method: 'POST', path: '/api/notifications/read', body: NotificationReadRequest, response: NotificationListResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/notifications/read', body: NotificationReadRequest, response: NotificationListResponse, describeOperation: async (ctx, taskId) => describeMutation(ctx.body)(taskId), handler: wrap(async ({ body }) => {
       const found = service.markRead((body as { id: string }).id);
       if (!found) throw new RouteError('NOT_FOUND', `notification ${(body as { id: string }).id} not found`);
       return service.list();
     }) },
-    { method: 'POST', path: '/api/notifications/read-all', body: NotificationReadAllRequest, response: NotificationListResponse, handler: wrap(async () => {
+    { method: 'POST', path: '/api/notifications/read-all', body: NotificationReadAllRequest, response: NotificationListResponse, describeOperation: async (ctx, taskId) => describeMutation(ctx.body)(taskId), handler: wrap(async () => {
       service.markAllRead();
       return service.list();
     }) },
     { method: 'GET', path: '/api/hooks', response: HookListResponse, handler: wrap(async () => service.listHooks()) },
-    { method: 'PUT', path: '/api/hooks', body: HooksPutRequest, response: HookListResponse, handler: wrap(async ({ body }) => {
-      service.setHooks(body);
-      await fsWriteHooks(service.workspace, body);
+    { method: 'PUT', path: '/api/hooks', body: HooksPutRequest, response: HookListResponse, describeOperation: async (ctx, taskId) => describeHooksWrite(ctx, taskId), handler: wrap(async ({ body }) => {
+      const normalized = normalizeHooksFile(body);
+      service.setHooks(normalized);
+      await fsWriteHooks(service.workspace, normalized);
       return service.listHooks();
     }) }
   ];

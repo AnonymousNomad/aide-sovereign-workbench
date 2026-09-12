@@ -3,10 +3,9 @@
 // human confirms via reply, executor runs, evidence lands everywhere.
 // Transport lives in telegram.mjs (this file adds the cognition seam).
 import { stripToken } from './telegram.mjs';
+import { AuthorityError } from './execution-authority.mjs';
 
-const CONFIRM_WINDOW_MS = 5 * 60 * 1000;
-
-export function createTelegramBrain({ desktop, resolveEngineChat }) {
+export function createTelegramBrain({ desktop, resolveEngineChat, authority, workspace }) {
   // desktop: desktop-control service; resolveEngineChat: async (messages) =>
   // {text} | null when no engine is READY.
   const pending = new Map(); // chatId -> { action, proposed_at }
@@ -45,7 +44,7 @@ export function createTelegramBrain({ desktop, resolveEngineChat }) {
     ].join('\n');
   }
 
-  async function handleAsk(chatId, prompt) {
+  async function handleAsk(message, prompt) {
     const block = await grantsBlock();
     const result = await resolveEngineChat([
       { role: 'system', content: `You are AIDE running locally on the user's Windows machine. ${block}\nBe brief and concrete. If the request needs no desktop action, just answer.` },
@@ -57,49 +56,50 @@ export function createTelegramBrain({ desktop, resolveEngineChat }) {
     const answerText = lines.filter(l => l !== proposalLine).join('\n').trim();
     if (!proposalLine) return answerText || 'Done.';
     const proposal = parseProposal(proposalLine);
-    pending.set(chatId, { proposal, proposed_at: Date.now(), note: answerText.slice(0, 200) });
+    const body = { ...proposal, approved: true, note: `telegram-approved: ${answerText.slice(0, 200)}` };
+    const input = { workspace, taskId: message.taskId, kind: 'desktop.action', args: { body } };
+    const operation = await authority.prepare(message.actor, input);
+    pending.set(message.actor.id, { operation, input });
     const cls = CLASS_BY_OP[proposal.op] || 'WRITE';
     return [
       answerText ? `${answerText}` : null,
       `PROPOSED ACTION [${cls}]: ${proposal.op}(target="${proposal.target}"${proposal.destination ? `, destination="${proposal.destination}"` : ''})`,
       cls === 'DESTRUCTIVE' ? '⚠️ destructive class.' : '',
-      'Reply YES to execute, NO to cancel (valid 5 minutes).'
+      `Reply YES ${operation.operation_id} to execute, NO ${operation.operation_id} to cancel (action-bound, expires with authorization).`
     ].filter(Boolean).join('\n');
   }
 
-  async function handleConfirm(chatId, yesNo) {
-    const p = pending.get(chatId);
+  async function handleConfirm(message, authorityMessage, id, yesNo) {
+    const p = pending.get(message.actor.id);
     if (!p) return 'Nothing pending — use /ask first.';
-    if (Date.now() - p.proposed_at > CONFIRM_WINDOW_MS) {
-      pending.delete(chatId);
-      return 'Proposal expired (5 min). Ask again.';
-    }
-    pending.delete(chatId);
-    if (yesNo !== true) return 'Cancelled — nothing executed.';
+    if (p.operation.operation_id !== id) throw new AuthorityError('FORBIDDEN', 'confirmation is for a different action');
+    pending.delete(message.actor.id);
     try {
-      const result = await desktop.act({
-        op: p.proposal.op,
-        target: p.proposal.target,
-        destination: p.proposal.destination,
-        approved: true,
-        note: `telegram-approved by chat ${chatId}: ${p.note}`
-      });
+      await authority.decideTelegram(authorityMessage, id, yesNo ? 'approve' : 'reject');
+      if (!yesNo) return 'Cancelled — nothing executed.';
+      const result = await authority.execute(message.actor, id, p.input,
+        (descriptor, execution) => desktop.act(descriptor.args.body, execution));
       return `✅ Executed (${result.latency_ms} ms). ${result.output || ''}`.trim();
     } catch (error) {
+      if (error instanceof AuthorityError) throw error;
       return `❌ Refused: ${error instanceof Error ? error.message : 'execution failed'}`;
     }
   }
 
   // Wired as the bridge's onCommand handler.
-  async function onCommand({ chatId, text }) {
+  async function onCommand({ authorityMessage }) {
+    if (!authority) throw new AuthorityError('FORBIDDEN', 'canonical authority required');
+    const message = authority.claimTelegramMessage(authorityMessage);
+    const { text } = message;
     const t = text.trim();
     if (/^\/ask\b/i.test(t)) {
       const prompt = t.replace(/^\/ask\b/i, '').trim();
       if (!prompt) return 'Usage: /ask what you need';
-      return handleAsk(chatId, prompt);
+      return handleAsk(message, prompt);
     }
-    if (/^\s*yes\b/i.test(t)) return handleConfirm(chatId, true);
-    if (/^\s*no\b/i.test(t)) return handleConfirm(chatId, false);
+    const confirmation = /^(YES|NO) ([0-9a-f-]{36})$/i.exec(t);
+    if (confirmation) return handleConfirm(message, authorityMessage, confirmation[2], confirmation[1].toUpperCase() === 'YES');
+    if (/^(yes|no)\b/i.test(t)) throw new AuthorityError('FORBIDDEN', 'include the exact operation ID in confirmation');
     return null; // not ours — let other commands (status/ping/help) handle
   }
 

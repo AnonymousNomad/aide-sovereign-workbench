@@ -9,6 +9,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
+import { AuthorityError } from './execution-authority.mjs';
 
 const CFG_FILE = '.aide/telegram/config.json';
 const SPOOL_FILE = '.aide/telegram/spool.jsonl';
@@ -67,7 +68,12 @@ export async function telegramFetch(base, token, method, body, timeoutMs = 35000
   }
 }
 
-export function createTelegramBridge({ workspace, onCommand }) {
+export function createTelegramBridge({ workspace, onCommand, authority }) {
+  const bindings = new Map();
+  function authorized(execution, kind, body) {
+    if (!authority) throw new AuthorityError('FORBIDDEN', 'canonical authority required');
+    return authority.assertExecution(execution, kind, body);
+  }
   const apiBase = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org';
   let running = false;
   let lastPollAt = null;
@@ -138,8 +144,9 @@ export function createTelegramBridge({ workspace, onCommand }) {
       return false;
     }
     const text = message.text.trim();
-    if (onCommand) {
-      const answer = await onCommand({ chatId, text, update });
+    if (onCommand && bindings.has(chatId)) {
+      const authorityMessage = bindings.get(chatId).receive(update);
+      const answer = await onCommand({ authorityMessage });
       if (answer) { await reply(chatId, answer); return true; }
     }
     if (text.startsWith('/help')) {
@@ -187,7 +194,9 @@ export function createTelegramBridge({ workspace, onCommand }) {
   }
 
   return {
-    async connect({ token: plainToken }) {
+    async connect(input, execution) {
+      authorized(execution, 'telegram.connect', input);
+      const { token: plainToken } = input;
       const me = await telegramFetch(apiBase, plainToken, 'getMe');
       await saveConfig({
         enabled: true,
@@ -196,38 +205,48 @@ export function createTelegramBridge({ workspace, onCommand }) {
         chat_ids: [],
         connected_at: new Date().toISOString()
       });
-      this.ensurePolling();
       return { ok: true, bot_username: me.username };
     },
 
-    authorizeChat(chatId) {
+    authorizeChat(input, execution) {
+      authorized(execution, 'authority.grant', input);
       return loadConfig().then(async cfg => {
         if (!cfg) throw new Error('telegram not connected');
-        const id = Number(chatId);
+        const id = input.chat_id;
+        const binding = input.user_id === undefined ? null : await authority.control.telegramAdapter(execution, input);
+        bindings.get(id)?.close(); bindings.delete(id);
         if (!cfg.chat_ids.includes(id)) cfg.chat_ids.push(id);
         await saveConfig(cfg);
+        // Persisted chat IDs are messaging configuration only. The opaque
+        // execution-capable binding is never restored from workspace files.
+        if (binding) bindings.set(id, binding);
         return { ok: true, chat_ids: cfg.chat_ids };
       });
     },
 
-    disconnect: async () => {
+    disconnect: async execution => {
+      authorized(execution, 'telegram.disconnect', {});
       running = false;
       abort?.abort();
+      for (const binding of bindings.values()) binding.close();
+      bindings.clear();
       await saveConfig({ ...(await loadConfig() ?? {}), enabled: false });
       return { ok: true };
     },
 
-    ensurePolling() {
+    ensurePolling(execution) {
+      authorized(execution, 'telegram.start', {});
       if (running) return;
       running = true;
       abort = new AbortController();
       void pollLoop();
     },
 
-    async startPolling() {
+    async startPolling(execution) {
+      authorized(execution, 'telegram.start', {});
       const cfg = await loadConfig();
       if (!cfg?.token_b64) throw new Error('telegram not connected');
-      this.ensurePolling();
+      this.ensurePolling(execution);
       return { ok: true, running };
     },
 

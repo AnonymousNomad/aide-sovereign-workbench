@@ -5,6 +5,9 @@ import crypto from 'node:crypto';
 import { BUILTIN_MATCHERS, resolveProblemMatcher, MatcherError } from './problem-matchers.mjs';
 import { MatcherSession, extractRawProblems, resolveRawProblems } from './problem-parser.mjs';
 import { BuildCache, computeCacheKey } from './build-cache.mjs';
+import { AuthorityError } from './execution-authority.mjs';
+
+const taskDigest = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 const CACHE_VERSION = 1;
 const MAX_CACHE_INPUT_FILES = 5000;
@@ -73,7 +76,6 @@ export async function hashGlobs(workspaceRoot, globs) {
 
 const WINDOWS_CMD_SHIMS = new Set(['npm', 'npx', 'tsc', 'yarn', 'pnpm', 'gulp', 'grunt', 'vite', 'jest', 'eslint', 'tsserver']);
 const MAX_LINE_LENGTH = 8000;
-const FORCE_KILL_DELAY_MS = 3000;
 export const MAX_BUFFER_LINES = 5000;
 export const WORKSPACE_MATCHERS_FILE = '.aide/matchers.json';
 
@@ -394,7 +396,8 @@ class Job {
       parent_job_id: this.parentJobId,
       name_path: this.namePath,
       failed_dependency: this.failedDependency,
-      restored: this.restored
+      restored: this.restored,
+      ...(this.authorityState ? { authority_state: structuredClone(this.authorityState) } : {})
     };
   }
 
@@ -409,11 +412,63 @@ class Job {
 }
 
 export class TaskService {
-  constructor({ workspace, onEvent, cacheDir } = {}) {
+  #authority;
+  #contexts = new WeakMap();
+  #children = new WeakMap();
+  constructor({ workspace, onEvent, cacheDir, authority } = {}) {
+    this.#authority = authority;
     this.workspace = workspace;
     this.onEvent = typeof onEvent === 'function' ? onEvent : () => {};
     this.jobs = new Map();
-    this.cache = new BuildCache({ workspace, ...(cacheDir ? { dir: cacheDir } : {}) });
+    this.cache = new BuildCache({ workspace, authority, ...(cacheDir ? { dir: cacheDir } : {}) });
+  }
+
+  async describeRun(label, taskId) {
+    const task = await this.findTask(label);
+    if (!task) throw Object.assign(new Error(`unknown task "${label}"`), { name: 'NOT_FOUND' });
+    const file = await this.loadTasksFile();
+    const plan = resolveDepPlan(file?.tasks ?? [task], task);
+    const body = { label, plan: JSON.parse(JSON.stringify(plan.root)), environment_digest: taskDigest(process.env) };
+    return { workspace: this.workspace, taskId, kind: 'tasks.run', args: { body } };
+  }
+
+  #context(job) {
+    const context = this.#contexts.get(job);
+    if (!context || context.cancelled) throw new AuthorityError('FORBIDDEN', 'trusted active task context required');
+    this.#authority.assertActor(context.actor);
+    return context;
+  }
+
+  #ownerMeta(job) {
+    try {
+      const context = this.#context(job);
+      return context ? { owner: context.owner } : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  #state(job, phase, state, operationId, error = null) {
+    job.authorityState = { phase, state, operation_id: operationId, error: error ? { code: String(error.code ?? 'TASK_FAILED'), message: String(error.message) } : null };
+    this.onEvent({ event: 'authority', job_id: job.job_id, label: job.label, authority_state: structuredClone(job.authorityState) });
+  }
+
+  async #authorized(job, phase, input, execute) {
+    const context = this.#context(job);
+    let operation;
+    try {
+      operation = await this.#authority.prepare(context.actor, input);
+      this.#state(job, phase, 'pending', operation.operation_id);
+      await this.#authority.waitForDecision(context.actor, operation.operation_id);
+      this.#context(job);
+      this.#state(job, phase, 'executing', operation.operation_id);
+      const result = await this.#authority.execute(context.actor, operation.operation_id, input, (_, execution) => execute(execution));
+      this.#state(job, phase, 'succeeded', operation.operation_id);
+      return result;
+    } catch (error) {
+      this.#state(job, phase, error instanceof AuthorityError ? 'denied' : 'failed', operation?.operation_id ?? null, error);
+      throw error;
+    }
   }
 
   async loadTasksFile() {
@@ -496,7 +551,13 @@ export class TaskService {
     }
   }
 
-  async run(label) {
+  async run(label, execution) {
+    if (!this.#authority) throw new AuthorityError('FORBIDDEN', 'task execution authority required');
+    // Re-resolve at consumption: a changed graph/environment invalidates approval.
+    const input = await this.describeRun(label, 'task-description');
+    const trusted = this.#authority.assertExecution(execution, 'tasks.run', input.args.body);
+    if (trusted.operation.workspace !== this.workspace) throw new AuthorityError('FORBIDDEN', 'task workspace mismatch');
+    this.#authority.claimExecution(execution, 'tasks.run', input.args.body);
     if ([...this.jobs.values()].some(job => job.label === label && job.status === 'running')) {
       const error = new Error(`task "${label}" is already running`);
       error.name = 'TASK_RUNNING';
@@ -508,26 +569,33 @@ export class TaskService {
       error.name = 'NOT_FOUND';
       throw error;
     }
-    if (task.dependsOn !== undefined) return this.runCompound(task);
-    return this.runSingle(task);
+    const actor = this.#authority.control.delegate(trusted.owner, 'service', ['tasks.command', 'cache.mutate']);
+    const context = { actor, owner: trusted.owner, taskId: trusted.operation.taskId, cancelled: false };
+    if (task.dependsOn !== undefined) return this.#runCompound(task, context);
+    return this.#runSingle(task, context);
   }
 
-  async runSingle(task) {
+  async #runSingle(task, context) {
     const id = crypto.randomUUID();
     const matchers = await this.resolveJobMatcher(task);
     const job = new Job(id, task, task.source ?? 'tasks.json', matchers);
     job.taskDef = task;
+    this.#contexts.set(job, context);
     this.jobs.set(id, job);
-    try {
+    const launch = async () => {
+      try {
       if (await this.tryRestoreFromCache(task, job)) {
         return { job_id: id };
       }
-      await this.spawnLeafJob(job);
+      await this.#spawnLeafJob(job);
     } catch (error) {
       if (job.finalized) return { job_id: id };
-      this.jobs.delete(id);
-      throw error;
+      job.finish('failed', null);
+      this.onEvent({ event: 'output', job_id: id, label: job.label, stream: 'stderr', line: `task failed: ${error.message}` });
+      this.onEvent({ event: 'exit', job_id: id, label: job.label, exitCode: null, signal: null }, this.#ownerMeta(job));
     }
+    };
+    void launch();
     return { job_id: id };
   }
 
@@ -566,7 +634,8 @@ export class TaskService {
       }
       throw error;
     }
-    const hit = await this.cache.get(key);
+    const input = this.cache.describe('get', { key }, this.#context(job).taskId);
+    const hit = await this.#authorized(job, 'cache-get', input, execution => this.cache.get(key, execution));
     if (!hit) return false;
     job.restored = true;
     for (const line of hit.logText.length > 0 ? hit.logText.split('\n') : []) {
@@ -575,7 +644,7 @@ export class TaskService {
     }
     this.onEvent({ event: 'output', job_id: job.job_id, label: job.label, stream: 'stdout', line: `[aide] restored from cache (${key.slice(0, 8)})` });
     if ((hit.problems ?? []).length > 0) {
-      this.onEvent({ event: 'problems', job_id: job.job_id, label: job.label, problems: hit.problems });
+      this.onEvent({ event: 'problems', job_id: job.job_id, label: job.label, problems: hit.problems }, this.#ownerMeta(job));
     }
     job.finish('exited', hit.manifest.exitCode);
     this.onEvent({
@@ -586,34 +655,30 @@ export class TaskService {
       signal: null,
       parent_job_id: null,
       name_path: null
-    });
+    }, this.#ownerMeta(job));
     return true;
   }
 
   async maybeRecordToCache(task, job, mergedProblems) {
-    if (job.restored || job.status !== 'exited' || job.exitCode !== 0) return;
+    if (job.restored || job.exitCode !== 0) return;
     if (!this.cacheable(task, job.matchers)) return;
     let key;
     try {
       key = await this.cacheKeyFor(task, job);
-    } catch {
-      return;
-    }
+    } catch (error) { throw error; }
     const logText = job.bufferLines.join('\n');
-    await this.cache.record(
-      {
+    const manifest = {
         key,
         label: task.label,
         createdAt: Date.now(),
         exitCode: 0,
         sizeBytes: Buffer.byteLength(logText, 'utf8')
-      },
-      logText,
-      mergedProblems
-    );
+      };
+    const input = this.cache.describe('record', { manifest, logText, problems: mergedProblems }, this.#context(job).taskId);
+    await this.#authorized(job, 'cache-record', input, execution => this.cache.record(manifest, logText, mergedProblems, execution));
   }
 
-  async runCompound(rootTask) {
+  async #runCompound(rootTask, context) {
     const file = await this.loadTasksFile();
     if (!file) {
       const error = new Error(`compound task "${rootTask.label}" requires a tasks.json file`);
@@ -629,17 +694,19 @@ export class TaskService {
     }
     const id = crypto.randomUUID();
     const coordinator = new Job(id, { ...rootTask, command: '(compound)', args: [] }, 'tasks.json', [], { isCompound: true });
+    this.#contexts.set(coordinator, context);
     this.jobs.set(id, coordinator);
-    this.onEvent({ event: 'started', job_id: id, label: coordinator.label, parent_job_id: null, name_path: rootTask.label });
-    void this.executePlan(plan, coordinator, rootTask.label).catch(() => {});
+    this.onEvent({ event: 'started', job_id: id, label: coordinator.label, parent_job_id: null, name_path: rootTask.label }, this.#ownerMeta(coordinator));
+    void this.#executePlan(plan, coordinator, rootTask.label);
     return { job_id: id };
   }
 
-  async executePlan(plan, coordinator, rootLabel) {
+  async #executePlan(plan, coordinator, rootLabel) {
     let ok = false;
     try {
-      ok = await this.executeNode(plan.root, coordinator, [rootLabel]);
-    } catch {
+      ok = await this.#executeNode(plan.root, coordinator, [rootLabel]);
+    } catch (error) {
+      this.onEvent({ event: 'output', job_id: coordinator.job_id, label: coordinator.label, stream: 'stderr', line: `task failed: ${error.message}` });
       ok = false;
     } finally {
       if (!coordinator.finalized) {
@@ -653,20 +720,21 @@ export class TaskService {
           parent_job_id: null,
           name_path: rootLabel,
           ...(coordinator.failedDependency ? { failed_dependency: coordinator.failedDependency } : {})
-        });
+        }, this.#ownerMeta(coordinator));
       }
     }
   }
 
-  async executeNode(node, coordinator, pathLabels) {
+  async #executeNode(node, coordinator, pathLabels) {
+    this.#context(coordinator);
     const order = node.task.dependsOrder === 'parallel' ? 'parallel' : 'sequence';
     if (node.deps.length > 0) {
       if (order === 'sequence') {
         for (const dep of node.deps) {
-          const ok = await this.executeNode(dep, coordinator, [...pathLabels, dep.task.label]);
+          const ok = await this.#executeNode(dep, coordinator, [...pathLabels, dep.task.label]);
           if (!ok) {
             if (coordinator.failedDependency === null) coordinator.failedDependency = dep.task.label;
-            await this.killRunningDescendants(coordinator.job_id);
+            await this.#killRunningDescendants(coordinator.job_id);
             return false;
           }
         }
@@ -674,10 +742,10 @@ export class TaskService {
         let cleanup = null;
         const results = await Promise.all(
           node.deps.map(dep =>
-            this.executeNode(dep, coordinator, [...pathLabels, dep.task.label]).then(ok => {
+            this.#executeNode(dep, coordinator, [...pathLabels, dep.task.label]).then(ok => {
               if (!ok) {
                 if (coordinator.failedDependency === null) coordinator.failedDependency = dep.task.label;
-                cleanup = this.killRunningDescendants(coordinator.job_id);
+                cleanup = this.#killRunningDescendants(coordinator.job_id);
               }
               return ok;
             })
@@ -687,16 +755,17 @@ export class TaskService {
         if (!results.every(Boolean)) return false;
       }
     }
-    return this.executeLeaf(node.task, coordinator, pathLabels.join(' > '));
+    return this.#executeLeaf(node.task, coordinator, pathLabels.join(' > '));
   }
 
-  async executeLeaf(task, coordinator, namePath) {
+  async #executeLeaf(task, coordinator, namePath) {
     const id = crypto.randomUUID();
     const matchers = await this.resolveJobMatcher(task);
     const job = new Job(id, task, task.source ?? 'tasks.json', matchers, { parentJobId: coordinator.job_id, namePath });
+    this.#contexts.set(job, this.#context(coordinator));
     this.jobs.set(id, job);
     try {
-      await this.spawnLeafJob(job);
+      await this.#spawnLeafJob(job);
     } catch (error) {
       this.jobs.delete(id);
       this.onEvent({
@@ -715,7 +784,7 @@ export class TaskService {
       const ready = await this.waitBackgroundReady(job);
       if (ready === true) return true;
       if (ready === 'timeout') {
-        await this.terminateAsStopped(job);
+        await this.#terminateAsStopped(job);
         if (coordinator.failedDependency === null) coordinator.failedDependency = task.label;
         return false;
       }
@@ -765,19 +834,22 @@ export class TaskService {
     return false;
   }
 
-  async killRunningDescendants(ancestorId) {
+  async #killRunningDescendants(ancestorId) {
+    const context = this.#contexts.get(this.jobs.get(ancestorId));
+    if (context) { context.cancelled = true; this.#authority.control.revoke(context.actor); }
     for (const job of [...this.jobs.values()]) {
       if (job.status === 'running' && this.isDescendantOf(job, ancestorId)) {
-        await this.terminateAsStopped(job);
+        await this.#terminateAsStopped(job);
       }
     }
   }
 
-  async terminateAsStopped(job) {
+  async #terminateAsStopped(job) {
     if (job.finalized || job.status !== 'running') return;
     job.stoppedByUser = true;
+    await this.#killTree(this.#children.get(job));
+    if (job.finalized) return;
     job.finish('stopped', null);
-    await this.killTree(job.child);
     this.onEvent({
       event: 'exit',
       job_id: job.job_id,
@@ -786,10 +858,21 @@ export class TaskService {
       signal: 'SIGTERM',
       parent_job_id: job.parentJobId,
       name_path: job.namePath
+    }, this.#ownerMeta(job));
+  }
+
+  async #spawnLeafJob(job) {
+    const context = this.#context(job);
+    const body = { job_id: job.job_id, command: job.command, args: [...job.args], cwd: this.workspace, environment_digest: taskDigest(process.env) };
+    const input = { workspace: this.workspace, taskId: context.taskId, kind: 'tasks.command', args: { body } };
+    return this.#authorized(job, 'command', input, execution => {
+      this.#authority.claimExecution(execution, 'tasks.command', body);
+      if (body.environment_digest !== taskDigest(process.env) || body.command !== job.command || JSON.stringify(body.args) !== JSON.stringify(job.args)) throw new AuthorityError('CONFLICT', 'task command changed after approval');
+      return this.#spawnApprovedJob(job, execution, body);
     });
   }
 
-  async spawnLeafJob(job) {
+  async #spawnApprovedJob(job, execution, body) {
     const id = job.job_id;
     let child;
     const spawnOptions = {
@@ -802,16 +885,23 @@ export class TaskService {
       if (path.sep === '\\' && /\.(cmd|bat)$/i.test(job.command)) {
         const absolute = await resolveShimPath(job.command);
         const line = [absolute, ...job.args].map(escapeCmdArg).join(' ');
+        this.#authority.assertExecution(execution, 'tasks.command', body);
+        this.#context(job);
+        if (body.environment_digest !== taskDigest(process.env)) throw new AuthorityError('CONFLICT', 'task environment changed');
         child = spawn('cmd.exe', ['/d', '/s', '/c', `"${line}"`], { ...spawnOptions, windowsVerbatimArguments: true });
       } else {
+        this.#authority.assertExecution(execution, 'tasks.command', body);
+        this.#context(job);
         child = spawn(job.command, job.args, spawnOptions);
       }
     } catch (error) {
+      if (error instanceof AuthorityError) throw error;
       error.name = 'BAD_REQUEST';
       throw error;
     }
     job.child = child;
-    this.onEvent({ event: 'started', job_id: id, label: job.label, parent_job_id: job.parentJobId, name_path: job.namePath });
+    this.#children.set(job, child);
+    this.onEvent({ event: 'started', job_id: id, label: job.label, parent_job_id: job.parentJobId, name_path: job.namePath }, this.#ownerMeta(job));
 
     const attach = (streamName, stream) => {
       let pending = '';
@@ -859,7 +949,7 @@ export class TaskService {
         signal: null,
         parent_job_id: job.parentJobId,
         name_path: job.namePath
-      });
+      }, this.#ownerMeta(job));
     });
 
     child.on('close', async (code, signal) => {
@@ -868,17 +958,18 @@ export class TaskService {
       child.stderr?.destroy();
       if (job.finalized) return;
       const status = job.stoppedByUser ? 'stopped' : code === 0 ? 'exited' : 'failed';
-      job.finish(status, code);
+      job.exitCode = code;
       const mergedProblems = this.emitProblems(job);
       if (job.taskDef && status === 'exited') {
         // record BEFORE the terminal event so any observer of `exit`
         // sees a consistent cache state (no miss-then-execute race)
         try {
           await this.maybeRecordToCache(job.taskDef, job, mergedProblems);
-        } catch {
-          // recording must never mask the run result
+        } catch (error) {
+          this.onEvent({ event: 'output', job_id: id, label: job.label, stream: 'stderr', line: `cache failed: ${error.message}` });
         }
       }
+      job.finish(status, code);
       this.onEvent({
         event: 'exit',
         job_id: id,
@@ -887,7 +978,7 @@ export class TaskService {
         signal: signal ?? null,
         parent_job_id: job.parentJobId,
         name_path: job.namePath
-      });
+      }, this.#ownerMeta(job));
     });
   }
 
@@ -918,11 +1009,15 @@ export class TaskService {
         }
       }
     });
-    this.onEvent({ event: 'problems', job_id: job.job_id, label: job.label, problems: merged });
+    this.onEvent({ event: 'problems', job_id: job.job_id, label: job.label, problems: merged }, this.#ownerMeta(job));
     return merged;
   }
 
-  async stop(jobId) {
+  async stop(jobId, execution) {
+    if (!this.#authority) throw new AuthorityError('FORBIDDEN', 'task execution authority required');
+    const body = { job_id: jobId };
+    const trusted = this.#authority.assertExecution(execution, 'tasks.stop', body);
+    this.#authority.claimExecution(execution, 'tasks.stop', body);
     const job = this.jobs.get(jobId);
     if (!job) {
       const error = new Error(`unknown job "${jobId}"`);
@@ -934,13 +1029,19 @@ export class TaskService {
       error.name = 'BAD_REQUEST';
       throw error;
     }
-    await this.terminateAsStopped(job);
-    await this.killRunningDescendants(jobId);
+    const context = this.#contexts.get(job);
+    if (!context || context.owner !== trusted.owner || trusted.operation.workspace !== this.workspace) throw new AuthorityError('FORBIDDEN', 'task belongs to another operator');
+    context.cancelled = true;
+    this.#authority.control.revoke(context.actor);
+    await this.#terminateAsStopped(job);
+    await this.#killRunningDescendants(jobId);
   }
 
-  killTree(child) {
-    return new Promise(resolve => {
+  #killTree(child) {
+    return new Promise((resolve, reject) => {
+      let timer;
       const finish = () => {
+        clearTimeout(timer);
         try { child?.stdout?.destroy(); } catch { /* already gone */ }
         try { child?.stderr?.destroy(); } catch { /* already gone */ }
         resolve();
@@ -949,27 +1050,15 @@ export class TaskService {
         finish();
         return;
       }
-      if (path.sep === '\\') {
-        execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true }, () => {});
-      } else {
-        child.kill('SIGTERM');
-      }
-      jobForceKill(child);
       child.once('close', finish);
+      try {
+        if (!child.kill('SIGTERM')) throw new Error('owned child termination refused');
+        timer = setTimeout(() => { child.removeListener('close', finish); reject(new Error('owned child exit unconfirmed')); }, 5000);
+      } catch (error) { child.removeListener('close', finish); reject(error); }
     });
   }
 
   status() {
     return { jobs: [...this.jobs.values()].map(job => job.snapshot()) };
   }
-}
-
-function jobForceKill(child) {
-  setTimeout(() => {
-    try {
-      child.kill('SIGKILL');
-    } catch {
-      // already gone
-    }
-  }, FORCE_KILL_DELAY_MS);
 }

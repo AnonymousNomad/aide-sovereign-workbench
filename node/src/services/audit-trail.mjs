@@ -47,6 +47,7 @@ import { createStateBus } from '../../../harness/cipher-state.mjs';
 // chassis ships the chassis v1 boundary surface; extending the surface
 // requires an explicit type addition here.
 const KNOWN_TYPES = new Set([
+  'authority',
   'chat',
   'agent.start',
   'agent.message',
@@ -97,6 +98,14 @@ export function createAuditTrail({ workspace }) {
   }
 
   return {
+    // Security receipts contain identities/digests, never request bodies or credentials.
+    async emitAuthority(event) {
+      const safe = { type: 'authority' };
+      for (const key of ['ts', 'workspace', 'operation_id', 'actor_id', 'owner_id', 'task_id', 'kind', 'digest', 'policy_revision', 'decision', 'approver_id', 'origin']) {
+        if (typeof event[key] === 'string' || typeof event[key] === 'number') safe[key] = event[key];
+      }
+      return emit(safe);
+    },
     // Typed event helpers. Each takes the minimum required fields plus
     // a freeform extra object for cross-cutting context (session_id,
     // bundle_id, modelId, tool, etc.). Optional fields are trimmed to

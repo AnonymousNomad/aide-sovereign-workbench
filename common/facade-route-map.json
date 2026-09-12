@@ -1,5 +1,6 @@
 {
   "prefixes": {
+    "/api/authority": "ts",
     "/api/agent": "ts",
     "/api/audit": "ts",
     "/api/closed-loop": "ts",

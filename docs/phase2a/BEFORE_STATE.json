@@ -1,0 +1,197 @@
+{
+  "branch": "covert-production",
+  "head": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58",
+  "status": "?? docs/COVERT_CODER_NORTH_STAR.md\n?? docs/audit/\n?? docs/phase0/\n?? scripts/harvest-aide-gold.mjs\n?? scripts/harvest-trajectories.mjs\n?? scripts/tokenize_unified_corpus.py\n?? scripts/unify_corpus.py",
+  "protected": [
+    {
+      "path": "docs/COVERT_CODER_NORTH_STAR.md",
+      "bytes": 15905,
+      "sha256": "54515064b9b67b0fb58ead21c9fd7d56e4790fab01d3b46973a95fb8dc3bc0d0"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/AUTHORITY_MAP.md",
+      "bytes": 4786,
+      "sha256": "a8d4027d898f8246de7a9d23fd011b3bc2218c152cc3c8d89fd0cded93ae3b77"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/BENCHMARK_PLAN.md",
+      "bytes": 7431,
+      "sha256": "6d925d185d48e614b04efe7f060c03c6d1df70ac87dfd8c76f55811594246db4"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/CAPABILITY_MULTIPLIER.md",
+      "bytes": 4069,
+      "sha256": "d8da5e49df3780d737df285132835144f8659d76a14b7cd701fbf78d0f5c58d8"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/DUPLICATION_MAP.md",
+      "bytes": 4874,
+      "sha256": "32d8e5fca7c026e2ed7564328257269b4ad0cd6d87d8c1a3fbdaf3f55932e94f"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/EVIDENCE.json",
+      "bytes": 16535,
+      "sha256": "ed867e0378b38b58f9e3196dfbb091b11662579fb2e86cbc0a0aba1b3aeec766"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/EXECUTIVE_REPORT.md",
+      "bytes": 11738,
+      "sha256": "46ddddb246ccd99dba250de4bfc10b11ac9d73c54d078a86e4c52d496ca86d5c"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/HARNESS_AUDIT.md",
+      "bytes": 4515,
+      "sha256": "d173507b52608cd6f4cd326d494d70e9ede2a2b28b7fb39d9350099c7fd90158"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/MEMORY_AUDIT.md",
+      "bytes": 5478,
+      "sha256": "099f48a9ec910a88ea3da394ac33447688e4e1995e37f18c78d62c5f16f95fd7"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/MODEL_ROUTING_AUDIT.md",
+      "bytes": 3877,
+      "sha256": "79c5e8a0afc8711bdf5589ddcc9f73e7ce93b0142af44a77fb4aa6a100f561d1"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/ORCHESTRATOR_AUDIT.md",
+      "bytes": 4362,
+      "sha256": "eb165cb8c81c318b817cd9b31860e170733084ca1d84d9ac52685deca80e87ff"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/PERMISSIONS_AUDIT.md",
+      "bytes": 5876,
+      "sha256": "b073c46dd6211dab7ddf35d0587730f88bd8ced28d02f6f62eaafda8b1925ed3"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/PROVENANCE_AUDIT.md",
+      "bytes": 4174,
+      "sha256": "39aff03201ff94eea3d57709e3cd489175e19cdbbb8ab605c8179e07495db4fc"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/REMEDIATION_ROADMAP.md",
+      "bytes": 10749,
+      "sha256": "7295b5bb60574d44e95167aa30b374d01c66973fea176bf33d6500685f07f447"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/REQUEST_FLOW.md",
+      "bytes": 7369,
+      "sha256": "6bff2d64ede97abc9c7908e63559e81e7961d6f227323fe09311958bd3190a11"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/RESIDENT_AUDIT.md",
+      "bytes": 3259,
+      "sha256": "3bb646e61f918b1789b2b5d8996b5a3001f39c8c0eb8e58b036616f340c9792c"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/SKILLS_AUDIT.md",
+      "bytes": 4119,
+      "sha256": "4b4716a1aa0b397968aac86806a8155239e8d2e892af05880c9b6de68777c9dd"
+    },
+    {
+      "path": "docs/audit/intelligence-spine/VERIFICATION_AUDIT.md",
+      "bytes": 4794,
+      "sha256": "8af6645dbeb6a898e5dfeae4e890915fe712e3ac868cfe45ad7aa35b8364cd6d"
+    },
+    {
+      "path": "docs/phase0/CAPABILITY_MATRIX.md",
+      "bytes": 7805,
+      "sha256": "65e3a08308857fb7871e9b1db34360ffbc4c7821c44783d0fc67a42ee8b3919e"
+    },
+    {
+      "path": "docs/phase0/DUPLICATION_MAP.md",
+      "bytes": 4769,
+      "sha256": "8dc494f9b4cb660fb2f7bea9720205b970efd8102777b6bfe664d38d22b37683"
+    },
+    {
+      "path": "docs/phase0/FRONTEND_ASSESSMENT.md",
+      "bytes": 11040,
+      "sha256": "28ab18f95d9522ca6d5b0c7c836d6e7f035f05f2d57b404c0544b49f282f749a"
+    },
+    {
+      "path": "docs/phase0/REPORT.md",
+      "bytes": 15313,
+      "sha256": "f97f247c9dd1fd4bd3487ce1cc2624301701c165843677cfe2a05d525b83119c"
+    },
+    {
+      "path": "docs/phase0/RISK_REGISTER.md",
+      "bytes": 8268,
+      "sha256": "cb90fd2a5b797583f630200aecd1e15212400905b527642c147f4566e82263cd"
+    },
+    {
+      "path": "docs/phase0/SYSTEM_MAP.md",
+      "bytes": 8036,
+      "sha256": "1e6a7bd0c30352ffb9c1574f0cada5b7c766771cf859ad7372000411b23e0c16"
+    },
+    {
+      "path": "docs/phase0/evidence/gates.json",
+      "bytes": 6286,
+      "sha256": "6070f2a1bb6d08632408fa13eacd192d2aeff36bf4f7925503ab3068d22792fa"
+    },
+    {
+      "path": "docs/phase0/evidence/inventory.json",
+      "bytes": 1674,
+      "sha256": "d37f20fc94a9691379e8fc6ab7894b9c28af5de891e21e9ffd2ab7a417545e1e"
+    },
+    {
+      "path": "docs/phase0/evidence/runtime-probe-extended.json",
+      "bytes": 26541,
+      "sha256": "0d9a41647db1e44dec253e3d52657a7e079c0e73494ed3921eaf90c1aba10675"
+    },
+    {
+      "path": "docs/phase0/evidence/runtime-probe-isolated.json",
+      "bytes": 25648,
+      "sha256": "6fd5810f6ea19c4fc5cdd938c59a808f2f11d615ec9386c4dbe8f104097e8eda"
+    },
+    {
+      "path": "docs/phase0/evidence/runtime-probe.json",
+      "bytes": 24589,
+      "sha256": "ce4fa8c19d75b555452521864a351e61dfd8fa94ed98e5f0c41ca620c0822859"
+    },
+    {
+      "path": "docs/phase0/evidence/verification-ledger.json",
+      "bytes": 3806,
+      "sha256": "efbfd2c45caf256c16ecc6b258c46216d88b6e72dace45e338d62e3760ddad7e"
+    },
+    {
+      "path": "docs/phase0/inventory.mjs",
+      "bytes": 2646,
+      "sha256": "5f999a921873e70679b0a1e9aa1ed3382a31b025d3806faf1d355b3e54d2879e"
+    },
+    {
+      "path": "docs/phase0/probe.mjs",
+      "bytes": 10615,
+      "sha256": "3f737fe74978484c42ef934310c885e6fc1d50981dc03ffcc6feda670b2830e4"
+    },
+    {
+      "path": "docs/phase0/run-checks.mjs",
+      "bytes": 1877,
+      "sha256": "0e08bcc81d9787a310a7fb0ad3dcac059ffe738cb6bcc00c90c0de5ca4ba1cb8"
+    },
+    {
+      "path": "docs/phase0/skills/audit-probe-discipline/SKILL.md",
+      "bytes": 2919,
+      "sha256": "e2fa31d05676627bf4b99ebe051f5660cd7fa771a6766990d8f06ef295c2f850"
+    },
+    {
+      "path": "scripts/harvest-aide-gold.mjs",
+      "bytes": 7491,
+      "sha256": "8290c70cf79f337b209e31ad952a31ebe779a830ac50daeb2ebff0748f1f6238"
+    },
+    {
+      "path": "scripts/harvest-trajectories.mjs",
+      "bytes": 5256,
+      "sha256": "44f97a714be247052add0f708c0719ec08ebdec3f379ed4648b11bd4a7cd9daa"
+    },
+    {
+      "path": "scripts/tokenize_unified_corpus.py",
+      "bytes": 3047,
+      "sha256": "700565e03c9a3850e51a9cbe04c7ce6beceddfec7cdd890fa5fbb167ae69309e"
+    },
+    {
+      "path": "scripts/unify_corpus.py",
+      "bytes": 6294,
+      "sha256": "4f162852994aad30171a91abe407e699fa8f19b802de4fd1bd935f4fee20a9a1"
+    }
+  ]
+}

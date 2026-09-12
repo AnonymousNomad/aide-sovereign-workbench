@@ -279,8 +279,14 @@ function runChild(command, args, workspace, timeoutMs) {
   });
 }
 
-export function createAgentTools({ workspace, rg, desktop = null } = {}) {
+export function createAgentTools({ workspace, rg, desktop = null, authority } = {}) {
   const rootAbs = path.resolve(workspace);
+
+  function guard(name, args, execution) {
+    if (!authority) throw new ToolError('FORBIDDEN', 'canonical tool authority required');
+    const context = authority.assertExecution(execution, 'agent.tool', { name, args });
+    if (context.operation.workspace !== rootAbs) throw new ToolError('FORBIDDEN', 'tool workspace binding mismatch');
+  }
 
   async function jailedRead(relPath) {
     const abs = resolveInsideWorkspace(rootAbs, relPath);
@@ -353,13 +359,15 @@ export function createAgentTools({ workspace, rg, desktop = null } = {}) {
       description: 'Create or overwrite a file with full content.',
       params: ['path', 'content'],
       readOnly: false,
-      async execute(args) {
+      async execute(args, execution) {
         const { real, rel } = await jailedRead(args.path);
         const invisible = findInvisibleChars(String(args.content ?? ''));
         if (invisible.length > 0) {
           throw new ToolError('DENIED', `content contains invisible characters (${invisible.join(',')}) that could hide instructions; remove them`);
         }
+        guard('write_file', args, execution);
         await fs.mkdir(path.dirname(real), { recursive: true });
+        guard('write_file', args, execution);
         await fs.writeFile(real, normalizeNewlines(String(args.content ?? '')), 'utf8');
         return { ok: true, output: `wrote ${rel} (${Buffer.byteLength(String(args.content ?? ''), 'utf8')} bytes)` };
       }
@@ -369,7 +377,7 @@ export function createAgentTools({ workspace, rg, desktop = null } = {}) {
       description: 'Apply SEARCH/REPLACE blocks to one file. SEARCH must match current content exactly; empty SEARCH is invalid here.',
       params: ['path', 'content'],
       readOnly: false,
-      async execute(args) {
+      async execute(args, execution) {
         const { real, rel } = await jailedRead(args.path);
         const invisible = findInvisibleChars(String(args.content ?? ''));
         if (invisible.length > 0) {
@@ -383,6 +391,7 @@ export function createAgentTools({ workspace, rg, desktop = null } = {}) {
         }
         const blocks = parseSearchReplaceBlocks(String(args.content ?? ''));
         const { content: after, applied } = applySearchReplace(before, blocks);
+        guard('replace_in_file', args, execution);
         await fs.writeFile(real, after, 'utf8');
         return { ok: true, output: `applied ${applied.length} block(s) to ${rel} [${applied.map(a => `#${a.block}:${a.strategy}`).join(', ')}]` };
       }
@@ -482,7 +491,15 @@ export function createAgentTools({ workspace, rg, desktop = null } = {}) {
     }
   ];
 
+  for (const tool of tools) {
+    if (tool.readOnly) continue;
+    const execute = tool.execute;
+    tool.execute = async (args, execution) => {
+      guard(tool.name, args, execution);
+      authority.claimExecution(execution, 'agent.tool', { name: tool.name, args });
+      return execute(args, execution);
+    };
+  }
   return { tools, rootAbs };
 }
-
 

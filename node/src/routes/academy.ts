@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { RouteError, type Route } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import {
   AcademyCatalogResponse,
   AcademyCertificateQuery,
@@ -21,6 +23,17 @@ import {
   type AcademySessionResponseT
 } from '../../../common/contracts/academy.ts';
 import type { TutorManager } from '../../../academy/tutor-manager.mjs';
+
+// Exact operation descriptors require the authority workspace. The tutor's
+// progress file lives at <workspace>/.aide/academy-progress.json; the anchor is
+// validated and fails closed if the production layout is not present.
+function operationFor(tutor: TutorManager, kind: string, taskId: string, body: unknown): OperationInput {
+  const progressPath = (tutor as unknown as { progressPath?: unknown }).progressPath;
+  if (typeof progressPath !== 'string') throw new RouteError('FORBIDDEN', 'workspace anchor unavailable');
+  const aideDir = path.dirname(progressPath);
+  if (path.basename(aideDir) !== '.aide') throw new RouteError('FORBIDDEN', 'workspace anchor unavailable');
+  return { workspace: path.dirname(aideDir), taskId, kind, args: { body } };
+}
 
 export function routeForAcademyCatalog(tutor: TutorManager): Route {
   return {
@@ -56,6 +69,7 @@ export function routeForAcademyCheck(tutor: TutorManager): Route {
     path: '/api/academy/check',
     body: AcademyCheckRequest,
     response: AcademyCheckResponse,
+    describeOperation: async (ctx, taskId) => operationFor(tutor, 'capability.execute', taskId, ctx.body),
     handler: async ({ body }): Promise<AcademyCheckResponseT> => {
       const input = body as unknown as AcademyCheckRequestT;
       const found = tutor.findLesson(input.courseId, input.lessonId);
@@ -75,6 +89,7 @@ export function routeForAcademyComplete(tutor: TutorManager): Route {
     path: '/api/academy/complete',
     body: AcademyCompleteRequest,
     response: AcademyCompleteResponse,
+    describeOperation: async (ctx, taskId) => operationFor(tutor, 'capability.write', taskId, ctx.body),
     handler: async ({ body }): Promise<AcademyCompleteResponseT> => {
       const input = body as unknown as AcademyCompleteRequestT;
       try {

@@ -115,6 +115,7 @@ import {
   type WorkbenchUninstallResponseT
 } from '../../../common/contracts/workbench.ts';
 import { facadeHttpUrl } from './runtime-config.ts';
+import { withAuthority, approveRequest } from './authority.ts';
 
 export const API_FORMAT_HEADER = 'X-AIDE-API-Format';
 export const API_FORMAT = 'envelope-v1';
@@ -130,10 +131,20 @@ export class ApiError extends Error {
   }
 }
 
-export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(init.headers);
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = withAuthority(init.headers);
   headers.set(API_FORMAT_HEADER, API_FORMAT);
-  return egressFetch(facadeHttpUrl(path), { ...init, headers });
+  const request = { ...init, headers };
+  const response = await egressFetch(facadeHttpUrl(path), request);
+  if (response.status !== 409) return response;
+  const raw: unknown = await response.clone().json().catch(() => null);
+  const parsed = Envelope.safeParse(raw);
+  if (!parsed.success || parsed.data.ok || parsed.data.error.code !== 'NOT_READY' ||
+      (parsed.data.error.detail as { reason?: string } | undefined)?.reason !== 'APPROVAL_REQUIRED') return response;
+  // This explicit operator decision is a new authorized attempt, not a
+  // fallback/retry after execution failure or uncertain durable outcome.
+  const approvedHeaders = await approveRequest(path, request);
+  return egressFetch(facadeHttpUrl(path), { ...request, headers: approvedHeaders });
 }
 
 async function throwResponseError(res: Response): Promise<never> {

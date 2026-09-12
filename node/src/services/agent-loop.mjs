@@ -5,6 +5,7 @@ import { parseToolCalls, AgentParseError } from './agent-parser.mjs';
 import { createAgentTools, computeRisks, resolveInsideWorkspace, relativeInside, parseSearchReplaceBlocks, applySearchReplace } from './agent-tools.mjs';
 import { evaluateExecution } from '../../../harness/veritas.mjs';
 import { composeScaffold } from '../../../harness/scaffold.mjs';
+import { AuthorityError } from './execution-authority.mjs';
 
 // Shared credo loader — single discipline source per THE QUAD Law #1.
 // Resolves relative to THIS file (node/src/services) up to the repo root
@@ -226,8 +227,8 @@ function parsePlanBlock(reply) {
     : inner;
 }
 
-export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = () => {}, maxIterations = 25, maxMistakes = 3, architectEditor = false, audit = null, residentProvider = null, skillProvider = null, onSessionEnd = null, effectiveContextTokens = null }) {
-  const { tools, rootAbs } = createAgentTools({ workspace, rg });
+export function createAgentLoop({ workspace, authority, chatFn, rg, checkpoints, onEvent = () => {}, maxIterations = 25, maxMistakes = 3, architectEditor = false, audit = null, residentProvider = null, skillProvider = null, onSessionEnd = null, effectiveContextTokens = null }) {
+  const { tools, rootAbs } = createAgentTools({ workspace, rg, authority });
   const registry = new Map(tools.map(tool => [tool.name, tool]));
   const toolSchemas = Object.fromEntries(tools.map(tool => [tool.name, tool.params]));
   const sessions = new Map();
@@ -307,6 +308,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       if (failedContext) throw new Error(failedContext.error);
 
       while (session.iterations < maxIterations && session.state === 'running') {
+        authority.assertActor(session.actor);
         session.iterations += 1;
         trimTranscript(session);
         // Architect/Editor: when architectEditor is on AND we have
@@ -389,7 +391,7 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         await finishError(session, `reached the maximum of ${maxIterations} iterations without completing`);
       }
     } catch (error) {
-      await finishError(session, error instanceof Error ? error.message : String(error));
+      await finishError(session, `${error?.code ? `[${error.code}] ` : ''}${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -423,8 +425,21 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
     auditSafe.emitToolCall({ sessionId: session.id, tool: call.name, args, iteration: session.iterations });
 
     const risks = computeRisks(rootAbs, call.name, args);
+    if (!tool.readOnly && session.checkpointHash === null && checkpoints) {
+      const message = `before ${call.name}`;
+      const input = checkpoints.describe('snapshot', message, session.id);
+      const decision = await requestApproval(session, 'checkpoint.snapshot', input.args.body, ['workspace-checkpoint'], input);
+      if (decision !== 'approve') return 'abort';
+      // Required snapshot failures terminate this workflow. Never continue
+      // into the dependent tool or silently retry after partial recovery.
+      session.checkpointHash = await authority.execute(session.actor, session.authorityOperation.operation_id, input,
+        (_, execution) => checkpoints.commit(message, execution));
+    }
+
+    const toolInput = { workspace: rootAbs, taskId: session.id, kind: 'agent.tool', args: { body: { name: call.name, args } } };
+    let toolOperation;
     if (requiresToolApproval(rootAbs, tool, args)) {
-      const decision = await requestApproval(session, call.name, args, risks);
+      const decision = await requestApproval(session, call.name, args, risks, toolInput);
       if (decision === 'abort') return 'abort';
       if (decision === 'reject') {
         session.toolLog.push({ tool: call.name, ok: false, skipped: true, output: 'user rejected action' });
@@ -432,20 +447,14 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
         return 'continue';
       }
       if (decision !== 'approve') return 'abort';
-    }
-
-    if (!tool.readOnly && session.checkpointHash === null && checkpoints) {
-      const snapshot = session;
-      void checkpoints.commit(`before ${call.name}`)
-        .then((hash) => {
-          if (snapshot.state === 'running') snapshot.checkpointHash = hash;
-        })
-        .catch(() => {});
+      toolOperation = session.authorityOperation.operation_id;
     }
 
     let result;
     try {
-      result = await tool.execute(args);
+      result = toolOperation
+        ? await authority.execute(session.actor, toolOperation, toolInput, (_, execution) => tool.execute(args, execution))
+        : await tool.execute(args);
       if (result?.ok !== true) throw new Error(String(result?.output ?? 'tool returned no successful result'));
     } catch (error) {
       const code = error?.code ? `[${error.code}] ` : '';
@@ -483,8 +492,10 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
     return 'continue';
   }
 
-  async function requestApproval(session, toolName, args, risks) {
-    const approvalId = randomUUID();
+  async function requestApproval(session, toolName, args, risks, input) {
+    const operation = await authority.prepare(session.actor, input);
+    const approvalId = operation.operation_id;
+    session.authorityOperation = operation;
     const approval = {
       approval_id: approvalId,
       session_id: session.id,
@@ -684,7 +695,16 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
 
   return {
     start(task, mode = 'act', chatFnOverride = null, options = {}) {
+      if (!authority) throw new AuthorityError('FORBIDDEN', 'agent execution authority required');
+      const request = options.request ?? { task, mode };
+      const context = authority.assertExecution(options.execution, 'agent.start', request);
+      if (request.task !== task || (request.mode ?? 'act') !== mode || context.operation.workspace !== rootAbs) {
+        throw new AuthorityError('FORBIDDEN', 'agent start binding mismatch');
+      }
+      authority.claimExecution(options.execution, 'agent.start', request);
+      const actor = authority.control.delegate(context.owner, 'agent', ['agent.tool', 'checkpoint.snapshot']);
       const session = {
+        actor, owner: context.owner,
         id: randomUUID(),
         task,
         mode: mode === 'plan' ? 'plan' : 'act',
@@ -742,12 +762,16 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       void runner.catch(() => {});
       return { session_id: session.id };
     },
-    decide(sessionId, approvalId, decision) {
+    async decide(sessionId, approvalId, decision, execution) {
+      if (!authority) throw new AuthorityError('FORBIDDEN', 'agent execution authority required');
+      const input = { session_id: sessionId, approval_id: approvalId, decision };
+      const context = authority.assertExecution(execution, 'agent.decision', input);
       if (!['approve', 'reject', 'abort'].includes(decision)) {
         throw new AgentSessionError('VALIDATION', 'invalid approval decision');
       }
       const session = sessions.get(sessionId);
       if (!session) throw new AgentSessionError('SESSION_NOT_FOUND', `no such session: ${sessionId}`);
+      if (context.actor !== session.owner) throw new AuthorityError('FORBIDDEN', 'agent decision owner mismatch');
       if (session.state !== 'awaiting_approval' || session.pendingApproval === null) {
         throw new AgentSessionError('NOT_AWAITING', 'this session is not waiting for a decision');
       }
@@ -756,6 +780,8 @@ export function createAgentLoop({ workspace, chatFn, rg, checkpoints, onEvent = 
       }
       const resolve = session.deferred;
       if (typeof resolve !== 'function') throw new AgentSessionError('NOT_AWAITING', 'approval already consumed');
+      authority.claimExecution(execution, 'agent.decision', input);
+      await authority.decide(context.actor, approvalId, decision === 'approve' ? 'approve' : 'reject');
       session.deferred = null;
       resolve(decision);
       // Loop C capture (X1.a): decisions feed the memory spine — this is the

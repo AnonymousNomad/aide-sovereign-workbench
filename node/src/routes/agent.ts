@@ -18,10 +18,13 @@ import {
   type AgentSubagentStatusT
 } from '../../../common/contracts/agent.ts';
 import { RouterError } from '../services/model-router.ts';
+import { AuthorityError } from '../services/execution-authority.mjs';
+import type { AgentLoopService as CanonicalAgentLoop } from '../services/agent-loop.mjs';
+import type { ErrorCode } from '../../../common/errors.ts';
 
 type AgentLoopService = {
-  start(task: string, mode?: 'plan' | 'act', chatFnOverride?: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | null, opts?: { architectEditor?: boolean; effectiveContextTokens?: number | null }): { session_id: string };
-  decide(sessionId: string, approvalId: string, decision: 'approve' | 'reject' | 'abort'): { ok: boolean };
+  start: CanonicalAgentLoop['start'];
+  decide: CanonicalAgentLoop['decide'];
   status(sessionId: string): unknown;
   list(): unknown[];
 };
@@ -37,6 +40,7 @@ type AgentSubagentService = {
 };
 
 function toRouteError(error: unknown): RouteError {
+  if (error instanceof AuthorityError) return new RouteError(error.code as ErrorCode, error.message, error.detail);
   if (error instanceof RouteError) return error;
   if (error instanceof RouterError) return new RouteError('NOT_READY', error.message);
   const code = (error as { code?: string })?.code;
@@ -76,7 +80,7 @@ export function routesForAgent(service: AgentLoopService, options: {
   resolveEffectiveContext?: () => Promise<number | null>;
 } = {}): Route[] {
   return [
-    { method: 'POST', path: '/api/agent/start', body: AgentStartRequest, response: AgentStartResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/agent/start', body: AgentStartRequest, response: AgentStartResponse, handler: wrap(async ({ body, execution }) => {
       const request = body as { task: string; mode?: 'plan' | 'act'; chat_source?: 'local' | 'provider'; architectEditor?: boolean; expertAdvisory?: boolean };
       let chatFnOverride: ((messages: Array<{ role: string; content: string }>) => Promise<string>) | undefined;
       if (request.chat_source === 'provider') {
@@ -138,13 +142,14 @@ export function routesForAgent(service: AgentLoopService, options: {
         };
       }
       return service.start(request.task, request.mode ?? 'act', chatFnOverride, {
+        execution, request: body,
         architectEditor: request.architectEditor === true,
         ...(options.resolveEffectiveContext ? { effectiveContextTokens: (await options.resolveEffectiveContext()) ?? null } : {})
       });
     }) },
-    { method: 'POST', path: '/api/agent/decision', body: AgentDecisionRequest, response: AgentDecisionResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/agent/decision', body: AgentDecisionRequest, response: AgentDecisionResponse, handler: wrap(async ({ body, execution }) => {
       const request = body as { session_id: string; approval_id: string; decision: 'approve' | 'reject' | 'abort' };
-      return service.decide(request.session_id, request.approval_id, request.decision);
+      return service.decide(request.session_id, request.approval_id, request.decision, execution);
     }) },
     { method: 'GET', path: '/api/agent/sessions', response: AgentSessionsListResponse, handler: wrap(async () => {
       return { sessions: service.list() };

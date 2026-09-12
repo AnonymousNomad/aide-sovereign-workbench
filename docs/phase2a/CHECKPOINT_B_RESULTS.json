@@ -1,0 +1,95 @@
+{
+  "checkpoint": "B",
+  "status": "ISOLATED_CORE_IMPLEMENTED_TRANSPORT_NOT_INTEGRATED",
+  "unit": {
+    "command": "node --test tests/arch/execution-authority.test.ts",
+    "passed": 10,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "duration_ms": 145.4564,
+    "exit_code": 0
+  },
+  "typechecks": {
+    "node": {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.node.json --noEmit",
+      "exit_code": 0
+    },
+    "browser": {
+      "command": "node node_modules/typescript/bin/tsc -p browser/tsconfig.browser.json --noEmit",
+      "exit_code": 0
+    }
+  },
+  "targeted_lint": {
+    "exit_code": 0,
+    "errors": 0,
+    "warnings": 2,
+    "warning_detail": "Both .d.mts declarations are ignored by current ESLint configuration; covered by TypeScript. No lint configuration changed."
+  },
+  "production_files_added": [
+    "common/contracts/authority.ts",
+    "common/security/operation-policy.mjs",
+    "common/security/operation-policy.d.mts",
+    "node/src/services/execution-authority.mjs",
+    "node/src/services/execution-authority.d.mts"
+  ],
+  "tests_added": [
+    "tests/arch/execution-authority.test.ts"
+  ],
+  "limitations": [
+    "Isolated core only; no live route security repaired yet.",
+    "Core resource-retention and production-audit-adapter integration review remain before transport integration.",
+    "Checkpoint A failures not rerun because their production paths are unchanged.",
+    "Full architecture battery, frontend build, contract generation and B-F composed acceptance not run."
+  ],
+  "native": {
+    "files_changed": [],
+    "compilation": "DEFERRED — RUST TOOLCHAIN UNAVAILABLE",
+    "startup": "DEFERRED — RUST TOOLCHAIN UNAVAILABLE"
+  },
+  "stop": "Existing runtime test fixtures require expansion beyond the accepted maximum test boundary.",
+  "requested_test_files": [
+    "tests/arch/agent-routes.test.ts",
+    "tests/arch/agent-subagent.test.ts",
+    "tests/arch/audit-routes.test.ts",
+    "tests/arch/bucket-c-routes.test.ts",
+    "tests/arch/byok-routes.test.ts",
+    "tests/arch/cache-routes.test.ts",
+    "tests/arch/closed-loop-mission.test.ts",
+    "tests/arch/closed-loop.test.ts",
+    "tests/arch/command-routes.test.ts",
+    "tests/arch/dap-routes.test.ts",
+    "tests/arch/dataset-routes.test.ts",
+    "tests/arch/editor-options-routes.test.ts",
+    "tests/arch/eval-export-routes.test.ts",
+    "tests/arch/events-contract.test.ts",
+    "tests/arch/exercise-routes.test.ts",
+    "tests/arch/file-routes.test.ts",
+    "tests/arch/handoff-routes.test.ts",
+    "tests/arch/hardware-routes.test.ts",
+    "tests/arch/helix-wiring-runtime.test.ts",
+    "tests/arch/hint-routes.test.ts",
+    "tests/arch/index-routes.test.ts",
+    "tests/arch/learner-routes.test.ts",
+    "tests/arch/lsp-contract.test.ts",
+    "tests/arch/model-register-profile.test.ts",
+    "tests/arch/model-routes.test.ts",
+    "tests/arch/modelhub-routes.test.ts",
+    "tests/arch/notification-routes.test.ts",
+    "tests/arch/onboarding-runtime.test.ts",
+    "tests/arch/problem-routes.test.ts",
+    "tests/arch/provider-routes.test.ts",
+    "tests/arch/resident-routes.test.ts",
+    "tests/arch/search-parity.test.ts",
+    "tests/arch/search-routes.test.ts",
+    "tests/arch/server.test.ts",
+    "tests/arch/session-routes.test.ts",
+    "tests/arch/system-map-runtime.test.ts",
+    "tests/arch/task-routes.test.ts",
+    "tests/arch/training-routes.test.ts",
+    "tests/arch/workbench-routes.test.ts",
+    "tests/arch/workspace-routes.test.ts",
+    "tests/arch/ws-events.test.ts",
+    "tests/arch/authority-fixture.ts"
+  ]
+}

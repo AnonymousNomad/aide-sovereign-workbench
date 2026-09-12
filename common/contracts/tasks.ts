@@ -111,6 +111,14 @@ export const TaskStopRequest = z.object({ job_id: z.string().min(1) }).strict();
 
 export const TaskJobStatus = z.enum(['running', 'exited', 'failed', 'stopped']);
 
+// Observation only. Neither this object nor its operation ID grants authority.
+export const TaskAuthorityState = z.object({
+  phase: z.enum(['command', 'cache-get', 'cache-record']),
+  state: z.enum(['pending', 'executing', 'succeeded', 'denied', 'failed']),
+  operation_id: z.string().uuid().nullable(),
+  error: z.object({ code: z.string(), message: z.string() }).strict().nullable()
+}).strict();
+
 export const TaskJob = z
   .object({
     job_id: z.string().min(1),
@@ -124,7 +132,8 @@ export const TaskJob = z
     parent_job_id: z.string().nullable().optional(),
     name_path: z.string().nullable().optional(),
     failed_dependency: z.string().nullable().optional(),
-    restored: z.boolean().optional()
+    restored: z.boolean().optional(),
+    authority_state: TaskAuthorityState.optional()
   })
   .strict();
 
@@ -223,7 +232,8 @@ export const TaskEvent = z.discriminatedUnion('event', [
   TaskStartedEvent,
   TaskOutputEvent,
   TaskExitEvent,
-  TaskProblemsEvent
+  TaskProblemsEvent,
+  z.object({ event: z.literal('authority'), job_id: z.string().min(1), label: z.string(), authority_state: TaskAuthorityState }).strict()
 ]);
 
 export type ProblemPatternT = z.infer<typeof ProblemPattern>;

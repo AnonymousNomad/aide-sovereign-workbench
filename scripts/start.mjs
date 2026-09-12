@@ -3,6 +3,8 @@ import { createReadStream, promises as fs, mkdirSync, openSync, closeSync, appen
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createInterface } from 'node:readline';
+import { superviseAuthority } from '../common/security/authority-channel.mjs';
 
 const modulePath = fileURLToPath(import.meta.url);
 const defaultRoot = path.resolve(path.dirname(modulePath), '..');
@@ -205,6 +207,8 @@ export async function run(argv = process.argv.slice(2), root = defaultRoot) {
   let frontendServer = null;
   let buildChild = null;
   let parentWatch = null;
+  let authoritySupervisor = null;
+  let pairingConsole = null;
   let stopping = false;
   let settle;
   const stopped = new Promise(resolve => { settle = resolve; });
@@ -214,6 +218,8 @@ export async function run(argv = process.argv.slice(2), root = defaultRoot) {
   const stop = async code => {
     if (stopping) return;
     stopping = true;
+    pairingConsole?.close();
+    authoritySupervisor?.close();
     if (parentWatch) { clearInterval(parentWatch.timer); parentWatch = null; }
     if (buildChild && buildChild.exitCode === null && buildChild.pid !== undefined) {
       await terminateTree(buildChild);
@@ -233,7 +239,7 @@ export async function run(argv = process.argv.slice(2), root = defaultRoot) {
     const child = spawn(process.execPath, args, {
       cwd: root,
       env: { ...process.env, AIDE_WORKSPACE: workspace, ...extraEnv },
-      stdio: ['ignore', out, err],
+      stdio: ['ignore', out, err, 'ipc'],
       windowsHide: true
     });
     closeSync(out);
@@ -276,7 +282,9 @@ export async function run(argv = process.argv.slice(2), root = defaultRoot) {
     if (frontend.kind === 'typed' || frontend.kind === 'legacy') frontendServer = await createFrontendServer({ frontend, host, port: ports.ui });
 
     const arch = spawnChild('arch', ['node/src/server.ts'], { AIDE_ARCH_PORT: String(ports.arch) });
+    authoritySupervisor = superviseAuthority(arch);
     const legacy = spawnChild('legacy', ['daemon/server.mjs'], { AIDE_DAEMON_PORT: String(ports.legacy), AIDE_LEGACY_PORT: String(ports.legacy) });
+    authoritySupervisor.attach('legacy', legacy);
     await Promise.all([
       waitForHttp('TypeScript backend', `http://${host}:${ports.arch}/api/health`, arch, timeoutMs),
       waitForHttp('legacy backend', `http://${host}:${ports.legacy}/health`, legacy, timeoutMs)
@@ -286,6 +294,7 @@ export async function run(argv = process.argv.slice(2), root = defaultRoot) {
       AIDE_ARCH_PORT: String(ports.arch),
       AIDE_LEGACY_PORT: String(ports.legacy)
     });
+    authoritySupervisor.attach('facade', facade);
     await waitForHttp('facade', `http://${host}:${ports.facade}/api/health`, facade, timeoutMs);
 
     if (frontend.kind === 'vite') {
@@ -301,6 +310,19 @@ export async function run(argv = process.argv.slice(2), root = defaultRoot) {
     parentWatch = watch;
 
     console.log(`Covert frontend=${frontend.kind} ui=http://${host}:${ports.ui} facade=http://${host}:${ports.facade} pid=${process.pid}`);
+    // Pairing secrets are written only to the attached interactive terminal,
+    // never child logs, workspace files, environment variables or URLs.
+    if (process.stdin.isTTY && process.stdout.isTTY) {
+      pairingConsole = createInterface({ input: process.stdin, output: process.stdout });
+      process.stdout.write('Type pair to create a one-use browser pairing code.\n');
+      pairingConsole.on('line', async line => {
+        if (line.trim() !== 'pair' || stopping) return;
+        try {
+          const result = await authoritySupervisor.pairing(`http://${host}:${ports.ui}`);
+          if (!stopping) process.stdout.write(`One-use pairing code (5 min): ${result.proof}\n`);
+        } catch { process.stdout.write('Pairing unavailable; no authority granted.\n'); }
+      });
+    }
     await stopped;
   } catch (error) {
     console.error(`[start.mjs] ${error instanceof Error ? error.message : String(error)}`);

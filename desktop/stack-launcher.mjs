@@ -1,9 +1,16 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { execFile, spawn } from 'node:child_process';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+// Staged resource root is explicit, as with the backend entrypoints below.
+const { superviseAuthority } = await import(pathToFileURL(path.join(root, 'common/security/authority-channel.mjs')).href);
+const nativeBootstrap = process.argv.includes('--native-bootstrap');
+const pairingOrigin = process.argv.find(arg => arg.startsWith('--pair-origin='))?.slice('--pair-origin='.length);
+if (!nativeBootstrap || !['http://127.0.0.1:5173', 'http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost'].includes(pairingOrigin)) {
+  throw new Error('native parent bootstrap required');
+}
 const workspace = path.resolve(process.env.AIDE_WORKSPACE || path.join(root, 'workspace'));
 const modelDir = path.resolve(process.env.AIDE_MODEL_DIR || path.join(workspace, 'models'));
 const logsDir = path.join(workspace, '.aide', 'logs');
@@ -27,6 +34,7 @@ const env = {
 
 const children = new Set();
 let stopping = false;
+let supervisor = null;
 
 async function append(file, chunk) {
   await fs.appendFile(file, chunk).catch(() => {});
@@ -38,7 +46,7 @@ function spawnChild(label, args) {
     env,
     shell: false,
     windowsHide: true,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc']
   });
   const outFile = path.join(logsDir, `desktop-${label}-out.log`);
   const errFile = path.join(logsDir, `desktop-${label}-err.log`);
@@ -71,15 +79,20 @@ function killTree(child) {
 async function stop(code) {
   if (stopping) return;
   stopping = true;
+  supervisor?.close();
   await Promise.all([...children].map(killTree));
   process.exitCode = code;
 }
 
 await fs.mkdir(logsDir, { recursive: true });
 await fs.mkdir(modelDir, { recursive: true });
-spawnChild('arch', ['--experimental-strip-types', path.join(root, 'node', 'src', 'server.ts')]);
-spawnChild('legacy', [path.join(root, 'daemon', 'server.mjs')]);
-spawnChild('facade', [path.join(root, 'scripts', 'facade.mjs')]);
+supervisor = superviseAuthority(spawnChild('arch', ['--experimental-strip-types', path.join(root, 'node', 'src', 'server.ts')]));
+supervisor.attach('legacy', spawnChild('legacy', [path.join(root, 'daemon', 'server.mjs')]));
+supervisor.attach('facade', spawnChild('facade', [path.join(root, 'scripts', 'facade.mjs')]));
+await supervisor.ready();
+const pairing = await supervisor.pairing(pairingOrigin);
+// Dedicated native-parent pipe, never the children logs or a workspace file.
+process.stdout.write(`COVERT_PAIRING_V1 ${pairing.proof}\n`);
 
 process.once('SIGINT', () => void stop(0));
 process.once('SIGTERM', () => void stop(0));

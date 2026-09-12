@@ -7,6 +7,7 @@ import { z } from 'zod';
 // incoming filter params against the strict zod schemas here.
 
 export const AuditEventType = z.enum([
+  'authority',
   'chat',
   'agent.start',
   'agent.message',

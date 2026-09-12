@@ -1,4 +1,5 @@
 import { type Route, type RouteContext, RouteError } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import {
   WorkbenchListResponse,
   WorkbenchDetailResponse,
@@ -65,7 +66,19 @@ export function routesForWorkbenches(manager: WorkbenchManager): Route[] {
     { method: 'GET', path: '/api/workbenches', response: WorkbenchListResponse, handler: wrap(async () => manager.list() as unknown as WorkbenchListResponseT) },
     { method: 'POST', path: '/api/workbenches/detail', body: WorkbenchDetailRequest, response: WorkbenchDetailResponse, handler: wrap(async ({ body }) => manager.get((body as { id: string }).id) as unknown as WorkbenchDetailResponseT) },
     { method: 'POST', path: '/api/workbenches/install', body: WorkbenchInstallRequest, response: WorkbenchDetailResponse, handler: wrap(async ({ body }) => manager.install((body as { id: string }).id) as unknown as WorkbenchDetailResponseT) },
-    { method: 'POST', path: '/api/workbenches/trust', body: WorkbenchTrustRequest, response: WorkbenchDetailResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/workbenches/trust', body: WorkbenchTrustRequest, response: WorkbenchDetailResponse, describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const request = body as { id: string; server: string; trusted: boolean };
+        const workspace = manager.workspace;
+        if (!workspace) throw new RouteError('NOT_READY', 'workbench workspace unavailable');
+        // Trust is security-sensitive persisted policy. The operation binds the
+        // exact workbench id, the exact registry-declared server name and the
+        // resulting boolean; the manager resolves both names against its own
+        // registries, so caller input never becomes a filesystem path. Trust
+        // state is descriptive policy only: it never mints authority operations
+        // or bypasses approval, and trusting an online server still requires
+        // the manager's egress-consent guard.
+        return { workspace, taskId, kind: 'capability.write', args: { body: { id: request.id, server: request.server, trusted: request.trusted } } };
+      }, handler: wrap(async ({ body }) => {
         const request = body as { id: string; server: string; trusted: boolean };
         return manager.setTrust(request.id, request.server, request.trusted) as unknown as WorkbenchDetailResponseT;
       }) },

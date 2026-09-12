@@ -20,6 +20,7 @@ export declare class WorkbenchManager {
     logger?: WorkbenchLogger | null;
     egressConsent?: (server: string) => boolean;
   });
+  readonly workspace?: string;
   list(): Promise<{ workbenches: Array<Record<string, unknown>> }>;
   get(id: string): Promise<{ workbench: Record<string, unknown> }>;
   install(id: string): Promise<{ workbench: Record<string, unknown> }>;

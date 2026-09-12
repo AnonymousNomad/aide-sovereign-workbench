@@ -1,3 +1,5 @@
+export function normalizeJobId(value: unknown): string | null;
+
 export interface EvalResult {
   passed: boolean;
   reasons: string[];
@@ -17,6 +19,8 @@ export interface ExportManifest {
 
 export declare class EvalExportGate {
   constructor(options: { workDir: string; exportsDir: string });
+  readonly workDir: string;
+  readonly exportsDir: string;
   load(): Promise<string[]>;
   listExports(): string[];
   evaluate(jobId: string, options?: { maxTrainLoss?: number }): Promise<EvalResult>;

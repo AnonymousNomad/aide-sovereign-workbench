@@ -201,6 +201,7 @@ export function createIndexService(options) {
   }
 
   return {
+    workspace,
     reindex,
     hybridSearch,
     getStatus: () => ({ ...status }),

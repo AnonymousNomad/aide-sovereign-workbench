@@ -194,7 +194,20 @@ export class ArchServer {
   }
 
   private async operationInput(route: Route, url: URL, context: RouteContext, taskId: string): Promise<OperationInput> {
-    if (route.describeOperation) return route.describeOperation(context, taskId);
+    if (route.describeOperation) {
+      try {
+        return await route.describeOperation(context, taskId);
+      } catch (error) {
+        // Route-owned descriptors throw typed domain errors (name-tagged
+        // ErrorCode) during description; keep their canonical status mapping
+        // instead of collapsing client errors into INTERNAL.
+        const name = (error as { name?: string } | null)?.name;
+        if (name === 'NOT_FOUND' || name === 'BAD_REQUEST' || name === 'CONFLICT' || name === 'NOT_READY' || name === 'FORBIDDEN') {
+          throw new RouteError(name, String((error as Error).message));
+        }
+        throw error;
+      }
+    }
     const kind = httpOperationKind(route.method, route.path);
     if (!kind) throw new RouteError('FORBIDDEN', 'capability has no authority policy');
     return { workspace: this.workspace, taskId, kind, args: JSON.parse(JSON.stringify({ method: route.method, path: url.pathname, query: context.query, body: context.body })) as unknown };

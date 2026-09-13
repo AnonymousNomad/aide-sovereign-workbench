@@ -240,6 +240,7 @@ export function createExecutionAuthority({ workspace, record, clock = Date.now, 
       // Notifications and an expiry deadline, not polling or implicit approval.
       return new Promise((resolve, reject) => {
         let timer;
+        let deadline = 0;
         const finish = (error, value) => {
           clearTimeout(timer); decisionWaiters.delete(check);
           if (error) reject(error); else resolve(value);
@@ -249,13 +250,18 @@ export function createExecutionAuthority({ workspace, record, clock = Date.now, 
             const op = operationFor(actor, id); valid(op);
             if (op.state === 'approved') return finish(null, view(op));
             if (!['pending', 'recording'].includes(op.state)) throw new AuthorityError('CONFLICT', `operation ${op.state}`);
+            // The deadline elapsed yet the operation still reads pending
+            // (clock skew or an early timer). Probe shortly instead of
+            // stranding the waiter: the next valid() must settle it.
+            if (clock() >= deadline) timer = setTimeout(check, 250);
           } catch (error) { finish(error); }
         };
         decisionWaiters.add(check);
         try {
           const op = operationFor(actor, id);
           const entry = actorFor(actor), owner = actors.get(entry.ownerId);
-          timer = setTimeout(check, Math.max(1, Math.min(op.expiresAt, entry.expiresAt, owner.expiresAt) - clock()));
+          deadline = Math.min(op.expiresAt, entry.expiresAt, owner.expiresAt);
+          timer = setTimeout(check, Math.max(1, deadline - clock()));
           check();
         } catch (error) { finish(error); }
       });

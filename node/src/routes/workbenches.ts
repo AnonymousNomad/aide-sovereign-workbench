@@ -65,7 +65,20 @@ export function routesForWorkbenches(manager: WorkbenchManager): Route[] {
   return [
     { method: 'GET', path: '/api/workbenches', response: WorkbenchListResponse, handler: wrap(async () => manager.list() as unknown as WorkbenchListResponseT) },
     { method: 'POST', path: '/api/workbenches/detail', body: WorkbenchDetailRequest, response: WorkbenchDetailResponse, handler: wrap(async ({ body }) => manager.get((body as { id: string }).id) as unknown as WorkbenchDetailResponseT) },
-    { method: 'POST', path: '/api/workbenches/install', body: WorkbenchInstallRequest, response: WorkbenchDetailResponse, handler: wrap(async ({ body }) => manager.install((body as { id: string }).id) as unknown as WorkbenchDetailResponseT) },
+    { method: 'POST', path: '/api/workbenches/install', body: WorkbenchInstallRequest, response: WorkbenchDetailResponse,
+      // Install mutates durable canonical workbench configuration only. The
+      // catalog lookup resolves the exact bundle and the state filename is
+      // server-derived; no process, egress, or caller path is involved, and the
+      // manager's containment layer independently rejects unsafe state roots
+      // and link-like state objects.
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const request = body as { id: string };
+        const workspace = manager.workspace;
+        if (!workspace) throw new RouteError('NOT_READY', 'workbench workspace unavailable');
+        return { workspace, taskId, kind: 'capability.write', args: { body: { id: request.id } } };
+      },
+      handler: wrap(async ({ body }) => manager.install((body as { id: string }).id) as unknown as WorkbenchDetailResponseT)
+    },
     { method: 'POST', path: '/api/workbenches/trust', body: WorkbenchTrustRequest, response: WorkbenchDetailResponse, describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
         const request = body as { id: string; server: string; trusted: boolean };
         const workspace = manager.workspace;
@@ -82,7 +95,17 @@ export function routesForWorkbenches(manager: WorkbenchManager): Route[] {
         const request = body as { id: string; server: string; trusted: boolean };
         return manager.setTrust(request.id, request.server, request.trusted) as unknown as WorkbenchDetailResponseT;
       }) },
-    { method: 'POST', path: '/api/workbenches/uninstall', body: WorkbenchUninstallRequest, response: WorkbenchUninstallResponse, handler: wrap(async ({ body }) => manager.uninstall((body as { id: string }).id) as unknown as WorkbenchUninstallResponseT) }
+    { method: 'POST', path: '/api/workbenches/uninstall', body: WorkbenchUninstallRequest, response: WorkbenchUninstallResponse,
+      // Uninstall removes only the state entry derived from the exact resolved
+      // catalog bundle; no caller path or arbitrary filename exists.
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const request = body as { id: string };
+        const workspace = manager.workspace;
+        if (!workspace) throw new RouteError('NOT_READY', 'workbench workspace unavailable');
+        return { workspace, taskId, kind: 'capability.write', args: { body: { id: request.id } } };
+      },
+      handler: wrap(async ({ body }) => manager.uninstall((body as { id: string }).id) as unknown as WorkbenchUninstallResponseT)
+    }
   ];
 }
 

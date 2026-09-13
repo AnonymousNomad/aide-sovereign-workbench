@@ -9,6 +9,7 @@ import { buildRoutes, createModelRuntime, createLspManager, createDapManager } f
 import { ProviderService } from '../../node/src/services/providers.ts';
 import { CredentialStore, type CryptService } from '../../node/src/services/credentials.ts';
 import { Envelope } from '../../common/errors.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const REPO_ROOT = path.resolve(fileURLToPath(import.meta.url), '..', '..', '..');
 import { fileURLToPath } from 'node:url';
@@ -31,6 +32,7 @@ let dir: string;
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-provider-routes-'));
@@ -48,6 +50,7 @@ before(async () => {
     }) as typeof fetch
   });
   const routes = await buildRoutes(dir, 'test', {
+    authority: server.authority,
     events: server.events,
     logger: server.logger,
     lspManager: lsp,
@@ -60,6 +63,7 @@ before(async () => {
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -70,7 +74,7 @@ after(async () => {
 });
 
 test('GET /api/providers lists the built-ins through the envelope without keys', async () => {
-  const response = await fetch(`${base}/api/providers`);
+  const response = await owner.request('/api/providers');
   assert.equal(response.status, 200);
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
@@ -81,48 +85,50 @@ test('GET /api/providers lists the built-ins through the envelope without keys',
   assert.ok(!JSON.stringify(payload).match(/sk-|api[_-]?key/i), 'the list must never leak key material');
 });
 
-test('POST /api/providers/connect returns invalid_key for a rejected key and never echoes it', async () => {
-  const response = await fetch(`${base}/api/providers/connect`, {
+test('POST /api/providers/connect remains migration-waived (fail closed, key never evaluated or echoed)', async () => {
+  // POST /api/providers/connect is ARCHITECTURE-DECISION in the migration
+  // waiver: it has no authority policy, so a paired actor is refused 403
+  // before any provider logic runs. The denial must not echo the key.
+  const response = await owner.request('/api/providers/connect', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ providerId: 'openai', key: 'sk-bad-key-xyz' })
   });
-  assert.equal(response.status, 200);
-  const envelope = Envelope.safeParse(await response.json());
-  assert.equal(envelope.success, true);
-  if (!envelope.success || !envelope.data.ok) return;
-  const payload = envelope.data.data as { status: string; message: string };
-  assert.equal(payload.status, 'invalid_key');
-  assert.ok(!JSON.stringify(payload).includes('sk-bad-key-xyz'), 'the key must be scrubbed from the response');
-});
-
-test('POST /api/providers/connect with an unapproved custom host is forbidden', async () => {
-  const response = await fetch(`${base}/api/providers/connect`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ providerId: 'openai', key: 'k', baseUrl: 'https://evil-relay.example/v1' })
-  });
+  assert.equal(response.status, 403, 'waived route stays fail-closed until its own wave');
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
   if (!envelope.success || envelope.data.ok) return;
   assert.equal(envelope.data.error.code, 'FORBIDDEN');
-  assert.ok(envelope.data.error.message.includes('evil-relay.example'));
+  assert.ok(!JSON.stringify(envelope.data).includes('sk-bad-key-xyz'), 'the key must be scrubbed from the denial');
 });
 
-test('POST /api/providers/connect with a valid key returns connected', async () => {
-  const response = await fetch(`${base}/api/providers/connect`, {
+test('POST /api/providers/connect with an unapproved custom host is refused fail-closed', async () => {
+  const response = await owner.request('/api/providers/connect', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ providerId: 'openai', key: 'k', baseUrl: 'https://evil-relay.example/v1' })
+  });
+  assert.equal(response.status, 403, 'waived route stays fail-closed before any host evaluation');
+  const envelope = Envelope.safeParse(await response.json());
+  assert.equal(envelope.success, true);
+  if (!envelope.success || envelope.data.ok) return;
+  assert.equal(envelope.data.error.code, 'FORBIDDEN');
+});
+
+test('POST /api/providers/connect with a valid key remains migration-waived (fail closed)', async () => {
+  const response = await owner.request('/api/providers/connect', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ providerId: 'anthropic', key: 'ant-valid' })
   });
+  assert.equal(response.status, 403, 'waived route stays fail-closed until its own wave');
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
-  if (!envelope.success || !envelope.data.ok) return;
-  const payload = envelope.data.data as { status: string };
-  assert.equal(payload.status, 'connected');
+  if (!envelope.success || envelope.data.ok) return;
+  assert.equal(envelope.data.error.code, 'FORBIDDEN');
 });
 
-test('POST /api/providers/import stores imported chats through the envelope', async () => {
+test('POST /api/providers/import remains migration-waived (fail closed) and persists nothing', async () => {
   const exportPayload = JSON.stringify({
     conversations: [
       {
@@ -140,30 +146,27 @@ test('POST /api/providers/import stores imported chats through the envelope', as
       }
     ]
   });
-  const response = await fetch(`${base}/api/providers/import`, {
+  const response = await owner.request('/api/providers/import', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ format: 'chatgpt', payload: exportPayload })
   });
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 403, 'waived route stays fail-closed until its own wave');
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
-  if (!envelope.success || !envelope.data.ok) return;
-  const payload = envelope.data.data as { imported: number; skipped: number };
-  assert.equal(payload.imported, 1);
-  assert.equal(payload.skipped, 0);
-  const history = await fetch(`${base}/api/chat/history`);
+  if (!envelope.success || envelope.data.ok) return;
+  assert.equal(envelope.data.error.code, 'FORBIDDEN');
+
+  const history = await owner.request('/api/chat/history');
   const historyEnvelope = Envelope.safeParse(await history.json());
   assert.equal(historyEnvelope.success, true);
   if (!historyEnvelope.success || !historyEnvelope.data.ok) return;
-  const conversations = (historyEnvelope.data.data as { conversations: { title: string; messages: unknown[] }[] }).conversations;
-  assert.equal(conversations.length, 1);
-  assert.equal(conversations[0]!.title, 'imported chat');
-  assert.equal(conversations[0]!.messages.length, 1);
+  const conversations = (historyEnvelope.data.data as { conversations: unknown[] }).conversations;
+  assert.equal(conversations.length, 0, 'denied import must not persist conversations');
 });
 
 test('POST /api/providers/import rejects oversized payloads', async () => {
-  const response = await fetch(`${base}/api/providers/import`, {
+  const response = await owner.request('/api/providers/import', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ format: 'chatgpt', payload: 'x'.repeat(11_000_000) })

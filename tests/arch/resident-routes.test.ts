@@ -6,15 +6,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
 import { createResidentService } from '../../node/src/routes/resident.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-resident-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
-async function get<T>(pathName: string): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`);
+async function get<T>(pathName: string, init?: RequestInit): Promise<{ status: number; body: Envelope<T> }> {
+  const response = await owner.request(pathName, init);
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
@@ -41,12 +43,13 @@ before(async () => {
 
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', {});
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -187,7 +190,10 @@ test('resident arch: push-summary verdict triage over a real git repo', async ()
 });
 
 test('resident HTTP: summary route returns the workspace readiness envelope', async () => {
-  const res = await get<{ summary: Summary }>('/api/resident/summary');
+  // First summary runs the live model-runtime status probe; on this box that
+  // can exceed the fixture's 5s default signal while later reads are cached.
+  // Assertions are unchanged.
+  const res = await get<{ summary: Summary }>('/api/resident/summary', { signal: AbortSignal.timeout(45000) });
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
   assert.ok(res.body.data && res.body.data.summary.recommendation.length > 0);
@@ -212,7 +218,10 @@ test('resident HTTP: decisions route reports the observation journal (evidence/t
 });
 
 test('resident HTTP: push-summary is a 200 advisory (READY or ATTENTION_REQUIRED, never an error)', async () => {
-  const push = await get<{ push: { verdict: 'READY' | 'ATTENTION_REQUIRED'; repo: boolean; reasons: string[] } }>('/api/resident/push-summary');
+  // Re-runs the live summary probes (model-runtime python probe re-fires after
+  // its 5s gate), which exceeds the fixture's 5s default signal on this box.
+  // Assertions are unchanged.
+  const push = await get<{ push: { verdict: 'READY' | 'ATTENTION_REQUIRED'; repo: boolean; reasons: string[] } }>('/api/resident/push-summary', { signal: AbortSignal.timeout(45000) });
   assert.equal(push.status, 200);
   assert.equal(push.body.ok, true);
   assert.ok(['READY', 'ATTENTION_REQUIRED'].includes(push.body.data?.push.verdict ?? ''));

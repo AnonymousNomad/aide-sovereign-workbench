@@ -10,6 +10,7 @@ const fsp = fsModule.promises;
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { pairFixture } from './authority-fixture.ts';
 import { routesForSystemMap } from '../../node/src/routes/system-map.ts';
 import { SystemMapSnapshot } from '../../common/contracts/system-map.ts';
 import type { SubsystemIdT } from '../../common/contracts/system-map.ts';
@@ -25,9 +26,10 @@ test("system map: snapshot route returns all 8 subsystems (PR A)", async () => {
     const address = httpServer.address();
     assert.ok(address && typeof address === "object");
     base = "http://127.0.0.1:" + address.port;
+    const owner = await pairFixture(server, base);
 
     // 1. GET snapshot returns 200 with a valid envelope.
-    const response = await fetch(base + "/api/system-map/snapshot");
+    const response = await owner.request("/api/system-map/snapshot");
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.ok, true);
@@ -51,7 +53,7 @@ test("system map: snapshot route returns all 8 subsystems (PR A)", async () => {
     assert.equal(hasStateFiles, false, "system map must not write state files");
 
     // 5. Resilience: a second snapshot call works (no caching issues).
-    const response2 = await fetch(base + "/api/system-map/snapshot");
+    const response2 = await owner.request("/api/system-map/snapshot");
     assert.equal(response2.status, 200);
   } finally {
     const toClose = httpServer;

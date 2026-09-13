@@ -7,20 +7,23 @@ import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
 import { buildRoutes } from '../../node/src/openapi.ts';
 import { Envelope } from '../../common/errors.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-training-routes-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
-  const routes = await buildRoutes(workspace, 'test', { events: server.events });
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -37,11 +40,11 @@ after(async () => {
 });
 
 async function post(pathName: string, payload: unknown) {
-  return fetch(`${base}${pathName}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  return owner.request(pathName, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
 }
 
 test('training presets are served with fp16 pinned for this hardware class', async () => {
-  const response = await fetch(`${base}/api/training/presets`);
+  const response = await owner.request('/api/training/presets');
   assert.equal(response.status, 200);
   const envelope = Envelope.safeParse(await response.json());
   if (!envelope.success || !envelope.data.ok) return assert.fail('presets envelope broken');
@@ -54,8 +57,8 @@ test('training presets are served with fp16 pinned for this hardware class', asy
   }
 });
 
-test('status starts idle and start refuses unapproved or unknown-dataset jobs with typed errors', async () => {
-  const idle = await fetch(`${base}/api/training/status`);
+test('status starts idle and start refuses unapproved or unenrolled jobs with typed errors', async () => {
+  const idle = await owner.request('/api/training/status');
   const idleEnvelope = Envelope.safeParse(await idle.json());
   if (!idleEnvelope.success || !idleEnvelope.data.ok) return assert.fail('status envelope broken');
   assert.deepEqual(idleEnvelope.data.data as Record<string, unknown>, { state: 'idle' });
@@ -63,10 +66,16 @@ test('status starts idle and start refuses unapproved or unknown-dataset jobs wi
   const unapproved = await post('/api/training/start', { dataset_id: 'whatever', approved: false });
   assert.equal(unapproved.status, 400, 'approved:false fails contract validation before the runner');
 
+  // POST /api/training/start is migration-waived (unenrolled): the authority
+  // denies the capability before any dataset lookup, so the old NOT_FOUND for
+  // an unknown dataset is now the earlier fail-closed FORBIDDEN denial.
   const unknown = await post('/api/training/start', { dataset_id: 'ghost', approved: true });
-  assert.equal(unknown.status, 404);
+  assert.equal(unknown.status, 403, 'unenrolled training start is denied at the authority boundary');
+  const unknownEnvelope = Envelope.safeParse(await unknown.json());
+  if (!unknownEnvelope.success || unknownEnvelope.data.ok) return assert.fail('denial envelope broken');
+  assert.equal(unknownEnvelope.data.error.code, 'FORBIDDEN');
 
-  const emptyCheckpoints = await fetch(`${base}/api/training/checkpoints`);
+  const emptyCheckpoints = await owner.request('/api/training/checkpoints');
   const ckEnvelope = Envelope.safeParse(await emptyCheckpoints.json());
   if (!ckEnvelope.success || !ckEnvelope.data.ok) return assert.fail('checkpoints envelope broken');
   assert.deepEqual(ckEnvelope.data.data as Record<string, unknown>, { checkpoints: [] });

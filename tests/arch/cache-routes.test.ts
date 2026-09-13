@@ -6,11 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
 import { TaskDefinition } from '../../common/contracts/tasks.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-b5-cache-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 const TASKS_JSON = JSON.stringify({
   version: '2.0.0',
@@ -33,12 +35,13 @@ before(async () => {
 
   server = new ArchServer(workspace, path.join(workspace, 'arch-b5.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', {});
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 async function writeFileSafe(filePath: string, content: string): Promise<void> {
@@ -66,23 +69,36 @@ type StatusJob = {
   status: string;
   exitCode: number | null;
   restored?: boolean;
+  authority_state?: { phase?: string; state?: string; operation_id?: string | null };
 };
 
+let mutationSequence = 0;
+
 async function post<T>(pathName: string, payload: unknown): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  const headers = await owner.approve('POST', pathName, payload, `cache-routes-${pathName}-${++mutationSequence}`);
+  const response = await owner.request(pathName, { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(payload) });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
 async function get<T>(pathName: string): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`);
+  const response = await owner.request(pathName);
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
+// The task graph executes parked authority operations (cache get/record, command)
+// that a real operator approves as they surface; the job only advances through
+// explicit decisions, never through a blanket credential.
 async function waitForTerminal(rootJobId: string): Promise<StatusJob> {
   for (let attempt = 0; attempt < 200; attempt++) {
     const { body } = await get<{ jobs: StatusJob[] }>('/api/tasks/status');
     const job = body.data?.jobs.find(candidate => candidate.job_id === rootJobId);
-    if (job && job.status !== 'running') return job as StatusJob;
+    assert.ok(job, 'root job must exist while waiting');
+    if (job.status !== 'running') return job;
+    const pending = job.authority_state;
+    if (pending?.state === 'pending' && pending.operation_id) {
+      const decision = await owner.decide(pending.operation_id, 'approve');
+      assert.equal(decision.status, 200, `pending ${pending.phase ?? 'task'} operation must be approvable`);
+    }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('job never reached terminal state');

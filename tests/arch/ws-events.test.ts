@@ -4,30 +4,58 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type http from 'node:http';
-import { WebSocket } from 'ws';
+import { WebSocket, type RawData } from 'ws';
 import { ArchServer } from '../../node/src/server.ts';
 import { buildRoutes } from '../../node/src/openapi.ts';
 import { Envelope } from '../../common/errors.ts';
 import { HealthResponse } from '../../common/contracts/health.ts';
 import { EventEnvelope } from '../../common/contracts/events.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 let dir: string;
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
 let wsUrl: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-ws-'));
   server = new ArchServer(dir, path.join(dir, '.aide', 'arch-test.log'));
-  const routes = await buildRoutes(dir, 'test');
+  const routes = await buildRoutes(dir, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
   wsUrl = `ws://127.0.0.1:${address.port}/ws`;
+  owner = await pairFixture(server, base);
 });
+
+// Actor proof is the first frame; the hub only accepts subscribe after the
+// authenticated ack, so every socket here authenticates before subscribing.
+async function openAuthenticatedSocket(): Promise<WebSocket> {
+  const socket = new WebSocket(wsUrl, { origin: owner.headers.Origin });
+  await new Promise<void>((resolve, reject) => {
+    socket.once('open', resolve);
+    socket.once('error', reject);
+  });
+  const ack = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { reject(new Error('ws auth ack timeout')); }, 5000);
+    const handler = (raw: RawData) => {
+      let message: { type?: string };
+      try { message = JSON.parse(String(raw)) as { type?: string }; } catch { return; }
+      if (message.type !== 'authenticated') return;
+      clearTimeout(timer);
+      socket.off('message', handler);
+      resolve();
+    };
+    socket.on('message', handler);
+  });
+  socket.send(JSON.stringify({ type: 'authenticate', token: owner.headers.Authorization.slice(7) }));
+  await ack;
+  return socket;
+}
 
 after(async () => {
   server.events.close();
@@ -37,7 +65,7 @@ after(async () => {
 });
 
 test('openapi.json is served raw (no envelope) with documented paths', async () => {
-  const response = await fetch(`${base}/api/openapi.json`);
+  const response = await owner.request('/api/openapi.json');
   assert.equal(response.status, 200);
   const doc = (await response.json()) as { openapi: string; paths: Record<string, unknown> };
   assert.equal(doc.openapi, '3.0.3');
@@ -46,7 +74,7 @@ test('openapi.json is served raw (no envelope) with documented paths', async () 
 });
 
 test('ws client receives log events after subscribing to the log channel', async () => {
-  const socket = new WebSocket(wsUrl);
+  const socket = await openAuthenticatedSocket();
   const received: unknown[] = [];
   const done = new Promise<void>(resolve => {
     socket.on('message', raw => {
@@ -55,10 +83,6 @@ test('ws client receives log events after subscribing to the log channel', async
       received.push(envelope.data.data);
       if (received.length >= 2) resolve();
     });
-  });
-  await new Promise<void>((resolve, reject) => {
-    socket.once('open', resolve);
-    socket.once('error', reject);
   });
   socket.send(JSON.stringify({ type: 'subscribe', channels: ['log'] }));
 
@@ -84,14 +108,10 @@ test('ws client receives log events after subscribing to the log channel', async
 });
 
 test('ws client receives nothing on unsubscribed channels', async () => {
-  const socket = new WebSocket(wsUrl);
+  const socket = await openAuthenticatedSocket();
   const received: unknown[] = [];
   socket.on('message', raw => {
     received.push(raw);
-  });
-  await new Promise<void>((resolve, reject) => {
-    socket.once('open', resolve);
-    socket.once('error', reject);
   });
   socket.send(JSON.stringify({ type: 'subscribe', channels: [] }));
 
@@ -102,14 +122,10 @@ test('ws client receives nothing on unsubscribed channels', async () => {
 });
 
 test('invalid event payload is never sent (fail closed)', async () => {
-  const socket = new WebSocket(wsUrl);
+  const socket = await openAuthenticatedSocket();
   const received: unknown[] = [];
   socket.on('message', raw => {
     received.push(raw);
-  });
-  await new Promise<void>((resolve, reject) => {
-    socket.once('open', resolve);
-    socket.once('error', reject);
   });
   socket.send(JSON.stringify({ type: 'subscribe', channels: ['log'] }));
   server.events.publish('log', { level: 'bogus' } as never);

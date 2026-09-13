@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
+import { pairServiceFixture } from './authority-fixture.ts';
 
 const require = createRequire(import.meta.url);
 
@@ -14,6 +15,8 @@ const { createAgentTools, ToolError } = require('../../node/src/services/agent-t
 
 let dir: string;
 let desktop: ReturnType<typeof createDesktopControl>;
+let fixture: Awaited<ReturnType<typeof pairServiceFixture>>;
+let actionSequence = 0;
 
 // Pure-parser unit tests — no live desktop, no service. These define the DSL
 // the agent's <desktop_action> blocks must conform to.
@@ -105,36 +108,71 @@ test('parseDesktopAction rejects empty body', () => {
   );
 });
 
-// End-to-end: agent tool calls the desktop service via the integration.
+// End-to-end: agent tool calls the desktop service via the integration. The
+// loop and the desktop service both require canonical authority now, so the
+// fixture pairs an operator and approves each exact operation as it is
+// proposed: once for the agent.tool call, once for the desktop.action it
+// performs.
+interface ToolHarness {
+  tools: Array<{ name: string; execute: (args: Record<string, string>, execution?: unknown) => Promise<{ ok: boolean; output: string }> }>;
+}
+
+function createHarness(withDesktop = true): ToolHarness {
+  const desktopAdapter = withDesktop
+    ? {
+        act: (request: Record<string, unknown>) => {
+          // The tool passes destination/note keys that may be undefined; the
+          // operation digest only binds plain JSON values, so the approved
+          // body drops undefined keys before both prepare and act.
+          const body = JSON.parse(JSON.stringify(request)) as Record<string, unknown>;
+          return fixture.approveAndExecute('desktop.action', body, `dp-action-${++actionSequence}`,
+            execution => desktop.act(body, execution));
+        }
+      }
+    : null;
+  return createAgentTools({ workspace: dir, rg: null, desktop: desktopAdapter, authority: fixture.authority });
+}
+
+async function runDesktopAction(harness: ToolHarness, args: Record<string, string>, taskId: string) {
+  const tool = harness.tools.find(entry => entry.name === 'desktop_action');
+  assert.ok(tool, 'desktop_action must be registered with the agent tool set');
+  return fixture.approveAndExecute('agent.tool', { name: 'desktop_action', args }, taskId,
+    execution => tool.execute(args, execution));
+}
+
 before(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-dp-'));
-  desktop = createDesktopControl({ workspace: dir });
-  // Grant list_windows (read-only) for the happy-path test.
-  await desktop.setGrants({
+  fixture = await pairServiceFixture(dir);
+  desktop = createDesktopControl({ workspace: dir, authority: fixture.authority });
+  // Grant list_windows (read-only) + notepad for the happy-path tests. The
+  // manifest write itself is an approved exact desktop.grants operation.
+  const grants = {
     version: 1,
     enabled: true,
     grants: { apps: ['notepad.exe'], roots: [dir], window_titles: [] },
     session_started_at: new Date().toISOString(),
     ttl_minutes: 10,
     approved_by: 'operator-wizard'
-  });
+  };
+  await fixture.approveAndExecute('desktop.grants', grants, 'dp-grants', execution => desktop.setGrants(grants, execution));
 });
 
 after(async () => {
-  if (desktop) await desktop.panic();
+  if (fixture && desktop) {
+    await fixture.approveAndExecute('desktop.panic', {}, 'dp-panic-final', execution => desktop.panic(execution));
+    fixture.authority.control.close();
+  }
   await fs.rm(dir, { recursive: true, force: true });
 });
 
 test('agent tool: list_windows with approved=true executes (granted class)', { skip: process.platform !== 'win32' ? 'list_windows spawns powershell.exe — Windows-only capability; the Windows battery is the live proof' : false }, async () => {
-  const tools = createAgentTools({ workspace: dir, rg: null, desktop });
-  const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
-  assert.ok(tool, 'desktop_action must be registered with the agent tool set');
+  const harness = createHarness();
   // The list_windows op calls tasklist + powershell — on this machine it
   // should produce SOME output (may be empty, that's fine — we just need ok).
-  const result = await tool.execute({
+  const result = await runDesktopAction(harness, {
     action: '<desktop_action>\nop: list_windows\n</desktop_action>',
     approved: 'true'
-  });
+  }, 'dp-tool-list-windows');
   // The act() call on the desktop service returns decision: 'executed'.
   // We don't assert the output content (it varies by what's running) — just
   // that the tool's adapter returned ok=true.
@@ -143,77 +181,67 @@ test('agent tool: list_windows with approved=true executes (granted class)', { s
 });
 
 test('agent tool: refuse without approved:true (NO_APPROVAL)', async () => {
-  const tools = createAgentTools({ workspace: dir, rg: null, desktop });
-  const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
+  const harness = createHarness();
   await assert.rejects(
-    () =>
-      tool.execute({
-        action: '<desktop_action>\nop: launch_app\ntarget: notepad\n</desktop_action>',
-        approved: 'false'
-      }),
+    () => runDesktopAction(harness, {
+      action: '<desktop_action>\nop: launch_app\ntarget: notepad\n</desktop_action>',
+      approved: 'false'
+    }, 'dp-tool-no-approval'),
     (err: unknown) => (err as { code: string }).code === 'NO_APPROVAL'
   );
 });
 
 test('agent tool: refuse with a target outside grants (NOT_ALLOWLISTED)', async () => {
-  const tools = createAgentTools({ workspace: dir, rg: null, desktop });
-  const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
+  const harness = createHarness();
   await assert.rejects(
-    () =>
-      tool.execute({
-        action: '<desktop_action>\nop: launch_app\ntarget: cmd.exe\n</desktop_action>',
-        approved: 'true'
-      }),
+    () => runDesktopAction(harness, {
+      action: '<desktop_action>\nop: launch_app\ntarget: cmd.exe\n</desktop_action>',
+      approved: 'true'
+    }, 'dp-tool-not-allowlisted'),
     (err: unknown) => (err as { code: string }).code === 'NOT_ALLOWLISTED'
   );
 });
 
 test('agent tool: refuse malformed XML (VALIDATION)', async () => {
-  const tools = createAgentTools({ workspace: dir, rg: null, desktop });
-  const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
+  const harness = createHarness();
   await assert.rejects(
-    () => tool.execute({ action: 'no block here', approved: 'true' }),
+    () => runDesktopAction(harness, { action: 'no block here', approved: 'true' }, 'dp-tool-missing-tag'),
     (err: unknown) => (err as { code: string }).code === 'MISSING_TAG'
   );
 });
 
 test('agent tool: refuse with NO_APPROVAL when approved is missing entirely', async () => {
-  const tools = createAgentTools({ workspace: dir, rg: null, desktop });
-  const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
+  const harness = createHarness();
   await assert.rejects(
-    () =>
-      tool.execute({
-        action: '<desktop_action>\nop: list_windows\n</desktop_action>'
-      }),
+    () => runDesktopAction(harness, {
+      action: '<desktop_action>\nop: list_windows\n</desktop_action>'
+    } as unknown as Record<string, string>, 'dp-tool-missing-approved'),
     (err: unknown) => (err as { code: string }).code === 'NO_APPROVAL'
   );
 });
 
 test('agent tool: refuse when desktop service is not wired (NOT_READY)', async () => {
-  const tools = createAgentTools({ workspace: dir, rg: null });
-  const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
+  const harness = createHarness(false);
   await assert.rejects(
-    () =>
-      tool.execute({
-        action: '<desktop_action>\nop: list_windows\n</desktop_action>',
-        approved: 'true'
-      }),
+    () => runDesktopAction(harness, {
+      action: '<desktop_action>\nop: list_windows\n</desktop_action>',
+      approved: 'true'
+    }, 'dp-tool-not-ready'),
     (err: unknown) => (err as { code: string }).code === 'NOT_READY'
   );
 });
 
 test('agent tool: trajectory is recorded even on refusal (training gold)', async () => {
-  const tools = createAgentTools({ workspace: dir, rg: null, desktop });
-  const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
+  const harness = createHarness();
   // attempt an ungranted op — act() will throw NOT_ALLOWLISTED, but the
   // trajectory file under .aide/desktop/trajectories/<session>.jsonl must
   // still be written (refusal-recovery is a trained skill per the doctrine).
   let caught: unknown = null;
   try {
-    await tool.execute({
+    await runDesktopAction(harness, {
       action: '<desktop_action>\nop: launch_app\ntarget: cmd.exe\nnote: refused for training\n</desktop_action>',
       approved: 'true'
-    });
+    }, 'dp-tool-trajectory');
   } catch (err) {
     caught = err;
   }
@@ -227,15 +255,13 @@ test('agent tool: trajectory is recorded even on refusal (training gold)', async
 });
 
 test('panic() also stops further agent-driven desktop actions', async () => {
-  await desktop.panic();
-  const tools = createAgentTools({ workspace: dir, rg: null, desktop });
-  const tool = tools.tools.find((t: { name: string }) => t.name === 'desktop_action');
+  await fixture.approveAndExecute('desktop.panic', {}, 'dp-panic-mid', execution => desktop.panic(execution));
+  const harness = createHarness();
   await assert.rejects(
-    () =>
-      tool.execute({
-        action: '<desktop_action>\nop: list_windows\n</desktop_action>',
-        approved: 'true'
-      }),
+    () => runDesktopAction(harness, {
+      action: '<desktop_action>\nop: list_windows\n</desktop_action>',
+      approved: 'true'
+    }, 'dp-tool-panic'),
     (err: unknown) => (err as { code: string }).code === 'PANIC'
   );
 });

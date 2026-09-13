@@ -11,6 +11,7 @@ import { TerminalRunResponse } from '../../common/contracts/terminal.ts';
 import { PatchApplyResponse } from '../../common/contracts/patch.ts';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { pairFixture } from './authority-fixture.ts';
 
 const runExec = promisify(execFile);
 
@@ -18,15 +19,17 @@ const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-terminal-patch-r
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
-  const routes = await buildRoutes(workspace, 'test');
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -44,10 +47,14 @@ after(async () => {
 });
 
 test('POST /api/terminal/run echo runs under approval (FORBIDDEN without)', async () => {
-  const denied = await fetch(`${base}/api/terminal/run`, {
+  // The transport approves this exact operation; the domain flag `approved:false`
+  // must still be refused by the route (defense in depth).
+  const deniedBody = { program: 'echo', args: ['ok'], approved: false };
+  const deniedHeaders = await owner.approve('POST', '/api/terminal/run', deniedBody, 'terminal-run-denied');
+  const denied = await owner.request('/api/terminal/run', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ program: 'echo', args: ['ok'], approved: false })
+    headers: { ...deniedHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify(deniedBody)
   });
   assert.equal(denied.status, 403);
   const deniedEnvelope = Envelope.safeParse(await denied.json());
@@ -57,10 +64,12 @@ test('POST /api/terminal/run echo runs under approval (FORBIDDEN without)', asyn
   if (deniedEnvelope.data.ok) return;
   assert.equal(deniedEnvelope.data.error.code, 'FORBIDDEN');
 
-  const done = await fetch(`${base}/api/terminal/run`, {
+  const doneBody = { program: 'echo', args: ['ok'], approved: true };
+  const doneHeaders = await owner.approve('POST', '/api/terminal/run', doneBody, 'terminal-run-echo');
+  const done = await owner.request('/api/terminal/run', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ program: 'echo', args: ['ok'], approved: true })
+    headers: { ...doneHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify(doneBody)
   });
   assert.equal(done.status, 200);
   const envelope = Envelope.safeParse(await done.json());
@@ -76,10 +85,12 @@ test('POST /api/terminal/run echo runs under approval (FORBIDDEN without)', asyn
 });
 
 test('POST /api/terminal/run rejects a non-allowlisted program', async () => {
-  const response = await fetch(`${base}/api/terminal/run`, {
+  const body = { program: 'powershell', args: [], approved: true };
+  const headers = await owner.approve('POST', '/api/terminal/run', body, 'terminal-run-nonallowlisted');
+  const response = await owner.request('/api/terminal/run', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ program: 'powershell', args: [], approved: true })
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body)
   });
   assert.equal(response.status, 403);
   const envelope = Envelope.safeParse(await response.json());
@@ -91,10 +102,12 @@ test('POST /api/terminal/run rejects a non-allowlisted program', async () => {
 });
 
 test('POST /api/terminal/run pwd prints the workspace root', async () => {
-  const response = await fetch(`${base}/api/terminal/run`, {
+  const body = { program: 'pwd', args: [], approved: true };
+  const headers = await owner.approve('POST', '/api/terminal/run', body, 'terminal-run-pwd');
+  const response = await owner.request('/api/terminal/run', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ program: 'pwd', args: [], approved: true })
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body)
   });
   assert.equal(response.status, 200);
   const envelope = Envelope.safeParse(await response.json());
@@ -109,10 +122,14 @@ test('POST /api/terminal/run pwd prints the workspace root', async () => {
 });
 
 test('POST /api/patch/apply requires approval (FORBIDDEN)', async () => {
-  const response = await fetch(`${base}/api/patch/apply`, {
+  // Transport-approved exact operation, but the domain flag `approved:false`
+  // must still be refused by the workspace service (defense in depth).
+  const body = { patch: 'diff --git a/x.txt b/x.txt\n', approved: false };
+  const headers = await owner.approve('POST', '/api/patch/apply', body, 'patch-apply-requires-approval');
+  const response = await owner.request('/api/patch/apply', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ patch: 'diff --git a/x.txt b/x.txt\n', approved: false })
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body)
   });
   assert.equal(response.status, 403);
   const envelope = Envelope.safeParse(await response.json());
@@ -124,10 +141,12 @@ test('POST /api/patch/apply requires approval (FORBIDDEN)', async () => {
 });
 
 test('POST /api/patch/apply rejects a non-unified-diff body', async () => {
-  const response = await fetch(`${base}/api/patch/apply`, {
+  const body = { patch: 'not a diff at all', approved: true };
+  const headers = await owner.approve('POST', '/api/patch/apply', body, 'patch-apply-nonunified');
+  const response = await owner.request('/api/patch/apply', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ patch: 'not a diff at all', approved: true })
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body)
   });
   assert.equal(response.status, 400);
   const envelope = Envelope.safeParse(await response.json());
@@ -152,10 +171,12 @@ test('POST /api/patch/apply applies a valid unified diff', async () => {
     '+line A1',
     ' line B'
   ].join('\n') + '\n';
-  const response = await fetch(`${base}/api/patch/apply`, {
+  const body = { patch, approved: true };
+  const headers = await owner.approve('POST', '/api/patch/apply', body, 'patch-apply-valid');
+  const response = await owner.request('/api/patch/apply', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ patch, approved: true })
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body)
   });
   assert.equal(response.status, 200);
   const envelope = Envelope.safeParse(await response.json());

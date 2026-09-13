@@ -5,11 +5,13 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-search-routes-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   await fs.mkdir(path.join(workspace, 'src'), { recursive: true });
@@ -17,12 +19,13 @@ before(async () => {
   await fs.writeFile(path.join(workspace, 'src', 'other.md'), '# TODO item\n');
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', { events: server.events });
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
   const { RgService } = await import('../../node/src/services/rg-service.mjs');
   rgAvailable = new RgService({ workspace }).available();
 });
@@ -43,11 +46,11 @@ after(async () => {
 });
 
 async function post(pathName: string, payload: unknown) {
-  return fetch(`${base}${pathName}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  return owner.request(pathName, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
 }
 
 test('quick-open returns envelope with fuzzy matches and rejects empty query', async () => {
-  const found = await fetch(`${base}/api/rg/quick-open?q=ndl`);
+  const found = await owner.request('/api/rg/quick-open?q=ndl');
   if (!rgAvailable) {
     assert.equal(found.status, 409, 'without ripgrep the service must degrade with NOT_READY');
     console.log('(ripgrep absent - asserting degraded mode only)');
@@ -57,12 +60,12 @@ test('quick-open returns envelope with fuzzy matches and rejects empty query', a
     assert.ok((foundBody.data?.files ?? []).some(file => file.path.includes('needle')), 'fuzzy query ndl should find needle.txt');
   }
 
-  const empty = await fetch(`${base}/api/rg/quick-open?q=`);
+  const empty = await owner.request('/api/rg/quick-open?q=');
   assert.equal(empty.status, 400);
 });
 
 test('file list endpoint serves workspace-relative paths', async () => {
-  const response = await fetch(`${base}/api/rg/files`);
+  const response = await owner.request('/api/rg/files');
   if (!rgAvailable) {
     assert.equal(response.status, 409);
     return;

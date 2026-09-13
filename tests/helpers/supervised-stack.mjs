@@ -105,7 +105,7 @@ export async function launchSupervisedStack({ workspace, env = {}, origin = 'htt
       method: 'POST',
       headers: { Origin: boundOrigin, 'Content-Type': 'application/json', 'X-AIDE-API-Format': 'envelope-v1' },
       body: JSON.stringify({ proof }),
-      signal: AbortSignal.timeout(15000)
+      signal: AbortSignal.timeout(60000)
     });
     const session = await exchange.json().catch(() => null);
     if (exchange.status !== 200 || session?.ok !== true) {

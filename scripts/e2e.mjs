@@ -11,9 +11,11 @@ try {
   // operator-reachable surface.
   for (const endpoint of ['/api/models/status', '/api/providers', '/api/community', '/api/training/status', '/api/replays', '/api/workspace/tree', '/api/academy', '/api/plugins', '/api/plugins/presets', '/api/tasks', '/api/session', '/api/artifacts']) {
     const legacyOwned = endpoint === '/api/training/status';
-    // The first models/status call may run the cached engine/python probe; on
-    // slow local disks that can exceed the default budget without failing.
-    const signal = endpoint === '/api/models/status' ? AbortSignal.timeout(120000) : undefined;
+    // The first models/status call may run the cached engine/python probe and
+    // the repository tree walk touches every directory; on slow local disks
+    // both can exceed the default budget without failing.
+    const heavy = endpoint === '/api/models/status' || endpoint === '/api/workspace/tree';
+    const signal = heavy ? AbortSignal.timeout(120000) : undefined;
     const result = await stack.json('facade', 'GET', endpoint, { envelope: !legacyOwned, signal });
     assert.equal(result.status, 200, `${endpoint} -> ${result.status} ${JSON.stringify(result.body).slice(0, 160)}`);
   }

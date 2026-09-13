@@ -4,26 +4,29 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type http from 'node:http';
-import { WebSocket } from 'ws';
+import { WebSocket, type RawData } from 'ws';
 import { ArchServer } from '../../node/src/server.ts';
 import { buildRoutes } from '../../node/src/openapi.ts';
 import { EventEnvelope } from '../../common/contracts/events.ts';
 import { eventFixtures } from '../fixtures/index.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 let dir: string;
 let server: ArchServer;
 let httpServer: http.Server;
 let wsUrl: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-events-'));
   server = new ArchServer(dir, path.join(dir, '.aide', 'arch-test.log'));
-  const routes = await buildRoutes(dir, 'test');
+  const routes = await buildRoutes(dir, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   wsUrl = `ws://127.0.0.1:${address.port}/ws`;
+  owner = await pairFixture(server, `http://127.0.0.1:${address.port}`);
 });
 
 after(async () => {
@@ -34,14 +37,30 @@ after(async () => {
 });
 
 async function subscribe(channel: string): Promise<{ socket: WebSocket; received: unknown[] }> {
-  const socket = new WebSocket(wsUrl);
-  const received: unknown[] = [];
-  socket.on('message', raw => {
-    received.push(JSON.parse(String(raw)));
-  });
+  const socket = new WebSocket(wsUrl, { origin: owner.headers.Origin });
   await new Promise<void>((resolve, reject) => {
     socket.once('open', resolve);
     socket.once('error', reject);
+  });
+  // The hub requires actor proof (first frame) plus the authenticated ack
+  // before any subscribe is honored; only then may events be collected.
+  const ack = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { reject(new Error('ws auth ack timeout')); }, 5000);
+    const handler = (raw: RawData) => {
+      let message: { type?: string };
+      try { message = JSON.parse(String(raw)) as { type?: string }; } catch { return; }
+      if (message.type !== 'authenticated') return;
+      clearTimeout(timer);
+      socket.off('message', handler);
+      resolve();
+    };
+    socket.on('message', handler);
+  });
+  socket.send(JSON.stringify({ type: 'authenticate', token: owner.headers.Authorization.slice(7) }));
+  await ack;
+  const received: unknown[] = [];
+  socket.on('message', raw => {
+    received.push(JSON.parse(String(raw)));
   });
   socket.send(JSON.stringify({ type: 'subscribe', channels: [channel] }));
   await new Promise(resolve => setTimeout(resolve, 150));

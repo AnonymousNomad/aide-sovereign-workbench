@@ -7,11 +7,13 @@ import path from 'node:path';
 import { ArchServer, type RouteContext } from '../../node/src/server.ts';
 import { DapManager } from '../../node/src/services/dap.ts';
 import { routeForDapRawRequest } from '../../node/src/routes/dap.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-dap-routes-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   const manager = new DapManager({
@@ -20,12 +22,13 @@ before(async () => {
   });
   server = new ArchServer(workspace, path.join(os.tmpdir(), 'aide-dap-routes.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', { dapManager: manager, events: server.events });
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, dapManager: manager, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -44,12 +47,12 @@ after(async () => {
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
 async function post<T>(pathName: string, payload: unknown): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  const response = await owner.request(pathName, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
 async function get<T>(pathName: string): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`);
+  const response = await owner.request(pathName);
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
@@ -73,11 +76,15 @@ test('dap state rejects a missing id query param', async () => {
   assert.equal(body.ok, false);
 });
 
-test('dap request on a non-running adapter returns CHILD_FAILED (504), not a raw 500', async () => {
+test('dap request remains migration-waived (fail closed before any manager launch)', async () => {
+  // POST /api/dap/request is ARCHITECTURE-DECISION in the migration waiver:
+  // it has no authority policy, so a paired actor is refused 403 before the
+  // manager is ever reached. Re-enable the CHILD_FAILED assertions when it
+  // enrolls (see route-authority-coverage.test.ts MIGRATION_WAIVER).
   const { status, body } = await post<{ result: unknown }>('/api/dap/request', { id: 'nonexistent', command: 'evaluate', args: { expression: '1+1' } });
-  assert.equal(status, 504);
+  assert.equal(status, 403, 'waived route stays fail-closed until its own wave');
   assert.equal(body.ok, false);
-  assert.equal(body.error?.code, 'CHILD_FAILED');
+  assert.equal(body.error?.code, 'FORBIDDEN');
 });
 
 test('dap start rejects the legacy id key as strict BAD_REQUEST', async () => {
@@ -87,11 +94,11 @@ test('dap start rejects the legacy id key as strict BAD_REQUEST', async () => {
   assert.equal(body.error?.code, 'BAD_REQUEST');
 });
 
-test('dap start with the canonical adapterId key routes and fails as CHILD_FAILED (504)', async () => {
+test('dap start with the canonical adapterId key remains migration-waived (fail closed)', async () => {
   const { status, body } = await post<{ adapterId: string; status: string }>('/api/dap/start', { adapterId: 'nonexistent' });
-  assert.equal(status, 504);
+  assert.equal(status, 403, 'waived route stays fail-closed until its own wave');
   assert.equal(body.ok, false);
-  assert.equal(body.error?.code, 'CHILD_FAILED');
+  assert.equal(body.error?.code, 'FORBIDDEN');
 });
 
 test('dap raw request passthrough maps the legacy call to the manager request and wraps the result', async () => {

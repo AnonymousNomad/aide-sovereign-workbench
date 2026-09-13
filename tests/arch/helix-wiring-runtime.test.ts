@@ -85,11 +85,14 @@ test("helix cascade: memory digests drives X1+X2+X3, system map reports live", a
     assert.ok(Array.isArray(digestEnvelope.data.digests));
     assert.ok(digestEnvelope.data.digests.some(d => d.date === '2026-06-15'));
 
-    // 2. The cascade is async (fire-and-forget). Give it room to land.
+    // 2. The cascade is async (fire-and-forget). Poll until the pattern store
+    // has durable content: a successful read may still catch the join's write
+    // in flight (or an earlier empty publication), so an empty read must keep
+    // polling instead of ending the wait.
     let patternsTxt = '';
-    for (let i = 0; i < 10; i++) {
-      try { patternsTxt = await fsp.readFile(path.join(workspace, '.aide', 'memory', 'patterns.jsonl'), 'utf8'); break; }
-      catch { await new Promise(r => setTimeout(r, 250)); }
+    for (let i = 0; i < 12 && patternsTxt.trim().length === 0; i++) {
+      patternsTxt = await fsp.readFile(path.join(workspace, '.aide', 'memory', 'patterns.jsonl'), 'utf8').catch(() => '');
+      if (patternsTxt.trim().length === 0) await new Promise(r => setTimeout(r, 250));
     }
     assert.ok(patternsTxt.trim().length > 0, "patterns.jsonl must be written by X2 join after digest read");
     assert.ok(patternsTxt.includes('write_file'), "P1 tool-affinity pattern for write_file expected");

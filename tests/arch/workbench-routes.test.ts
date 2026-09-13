@@ -170,3 +170,55 @@ test('POST /api/workbenches/uninstall stays frozen for its own architecture-deci
   const { status } = await read('/api/workbenches/uninstall', { method: 'POST', body: JSON.stringify({ id: 'sovereign-coder' }) });
   assert.equal(status, 403, 'uninstall remains fail-closed until enrolled');
 });
+
+test('containment: linked state objects cannot expose or mutate outside content through trust/detail', async () => {
+  const statePath = trustStateFile();
+  const original = await fs.readFile(statePath, 'utf8');
+  const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wb-route-outside-'));
+  const outsideSentinel = path.join(outsideDir, 'sentinel.json');
+  const sentinel = JSON.stringify({ id: 'sentinel', enabled: true, mcp_trusted: { filesystem: true } }, null, 2);
+  await fs.writeFile(outsideSentinel, sentinel);
+  try {
+    // (a) state-file symlink to the outside sentinel: detail read and approved
+    //     trust write both fail closed; the sentinel is never exposed.
+    await fs.rm(statePath, { force: true });
+    await fs.symlink(outsideSentinel, statePath, 'file');
+    const detailLinked = await read('/api/workbenches/detail', { method: 'POST', body: JSON.stringify({ id: 'sovereign-coder' }) });
+    assert.equal(detailLinked.status, 400, 'detail rejects link-like state object');
+    assert.equal(await fs.readFile(outsideSentinel, 'utf8'), sentinel, 'sentinel not exposed or modified');
+    const trustLinked = await mutate('/api/workbenches/trust', { id: 'sovereign-coder', server: 'filesystem', trusted: false }, 'task:wb-contained-link');
+    assert.equal(trustLinked.status, 400, 'approved trust fails closed on link-like state object');
+    assert.equal(await fs.readFile(outsideSentinel, 'utf8'), sentinel);
+
+    // (b) hardlink to the outside sentinel: same uniform policy.
+    await fs.rm(statePath, { force: true });
+    await fs.link(outsideSentinel, statePath);
+    const detailHard = await read('/api/workbenches/detail', { method: 'POST', body: JSON.stringify({ id: 'sovereign-coder' }) });
+    assert.equal(detailHard.status, 400, 'detail rejects hard-linked state object');
+    assert.equal(await fs.readFile(outsideSentinel, 'utf8'), sentinel);
+    const trustHard = await mutate('/api/workbenches/trust', { id: 'sovereign-coder', server: 'filesystem', trusted: false }, 'task:wb-contained-hard');
+    assert.equal(trustHard.status, 400, 'approved trust fails closed on hard-linked state object');
+    assert.equal(await fs.readFile(outsideSentinel, 'utf8'), sentinel);
+    await fs.rm(statePath, { force: true });
+
+    // (c) root junction to an outside directory: list/detail/trust all fail
+    //     closed and write nothing outside.
+    const rootDir = path.dirname(statePath);
+    await fs.rm(rootDir, { recursive: true, force: true });
+    await fs.symlink(outsideDir, rootDir, 'junction');
+    const listJunction = await read('/api/workbenches');
+    assert.equal(listJunction.status, 400, 'list fails closed on junctioned root');
+    const detailJunction = await read('/api/workbenches/detail', { method: 'POST', body: JSON.stringify({ id: 'sovereign-coder' }) });
+    assert.equal(detailJunction.status, 400, 'detail fails closed on junctioned root');
+    const trustJunction = await mutate('/api/workbenches/trust', { id: 'sovereign-coder', server: 'filesystem', trusted: true }, 'task:wb-contained-root');
+    assert.equal(trustJunction.status, 400, 'approved trust fails closed on junctioned root');
+    assert.deepEqual(await fs.readdir(outsideDir), ['sentinel.json'], 'nothing written outside; sentinel intact');
+    assert.equal(await fs.readFile(outsideSentinel, 'utf8'), sentinel);
+  } finally {
+    const rootDir = path.dirname(statePath);
+    await fs.rm(rootDir, { recursive: true, force: true });
+    await fs.mkdir(rootDir, { recursive: true });
+    await fs.writeFile(statePath, original, 'utf8');
+    await fs.rm(outsideDir, { recursive: true, force: true });
+  }
+});

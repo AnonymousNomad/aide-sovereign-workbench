@@ -600,13 +600,24 @@ function validateBudget(budget: ResourceBudgetBinding, identity: { workspaceId: 
   if (budget.workspaceId !== identity.workspaceId || budget.taskId !== identity.taskId || budget.taskRevision !== identity.taskRevision || budget.transactionId !== identity.transactionId) return fail('SCOPE_MISMATCH');
 }
 
-function validateRetry(retry: RetryLineage | undefined, identity: HarnessTransactionIdentity): void {
+function validateRetry(
+  retry: RetryLineage | undefined,
+  identity: HarnessTransactionIdentity,
+  operation: TrustedOperationBinding,
+  checkpoint: CheckpointRequestBinding
+): void {
   if (!retry) return;
   const parent = retry.parent;
   if (parent.parentRequestId === identity.requestId || parent.workspaceId !== identity.workspaceId || parent.taskId !== identity.taskId || parent.parentAttemptId === identity.attemptId || parent.parentTransactionId === identity.transactionId) return fail('SCOPE_MISMATCH');
   if (retry.kind === 'same-task-revision-retry' && parent.parentTaskRevision !== identity.taskRevision) return fail('STALE_REVISION');
   if (retry.kind === 'reconsidered-task-retry' && parent.parentTaskRevision >= identity.taskRevision) return fail('STALE_REVISION');
-  if (parent.parentEffectCertainty !== 'none' && parent.parentTerminalState !== 'rolled_back') return fail('UNKNOWN_EFFECT');
+  if (operation.operation.effectClass === 'mutation' && checkpoint.effectiveRequirement === 'not_applicable') return fail('CHECKPOINT_MISSING');
+  const requiresFreshCheckpoint = checkpoint.effectiveRequirement === 'required';
+  if (retry.freshCheckpointRequired !== requiresFreshCheckpoint) return fail('POLICY_CONFLICT');
+  // Any non-none parent effect remains unsafe for blind retry.  A terminal
+  // label (including rolled_back) is not reconciliation evidence and cannot
+  // upgrade uncertainty or erase an observed effect.
+  if (parent.parentEffectCertainty !== 'none') return fail('UNKNOWN_EFFECT');
   if (parent.parentEffectCertainty !== 'none' && !parent.parentResultRef) return fail('RESULT_SCOPE_MISMATCH');
   if (parent.parentResultRef && (parent.parentResultRef.workspaceId !== identity.workspaceId || parent.parentResultRef.taskId !== identity.taskId || parent.parentResultRef.taskRevision !== parent.parentTaskRevision || parent.parentResultRef.attemptId !== parent.parentAttemptId || parent.parentResultRef.transactionId !== parent.parentTransactionId)) return fail('RESULT_SCOPE_MISMATCH');
   if (parent.parentResultRef && parent.parentResultRef.effectCertainty !== parent.parentEffectCertainty) return fail('RESULT_SCOPE_MISMATCH');
@@ -649,7 +660,7 @@ function parseRequest(value: unknown, withDigest: boolean): HarnessExecutionRequ
   for (const ref of [...methodology.workflowRefs, ...methodology.skillRefs]) {
     if (ref.workspaceId !== workspaceId || ref.taskId !== taskId || ref.taskRevision !== taskRevision) return fail('SCOPE_MISMATCH');
   }
-  validateRetry(retry, { workspaceId, taskId, taskRevision, attemptId, transactionId, requestId });
+  validateRetry(retry, { workspaceId, taskId, taskRevision, attemptId, transactionId, requestId }, operation, checkpoint);
   if (retry && authority.decision && retry.parent.parentAuthorityDecisionId === authority.decision.id) return fail('AUTHORITY_REPLAY');
   const base: Omit<HarnessExecutionRequest, 'requestDigest'> = {
     schemaVersion: HARNESS_EXECUTION_SCHEMA_VERSION,
@@ -892,14 +903,39 @@ function validateEvidenceRef(ref: ScopedEvidenceRef, identity: HarnessTransactio
   if (!sameScope(ref, identity)) return fail('SCOPE_MISMATCH');
 }
 
+function evidenceTypeForRequirement(requirement: EvidenceRequirement): EvidenceType {
+  switch (requirement) {
+    case 'authority_consumption': return 'authority-consumption';
+    case 'before_after': return 'before-after';
+    case 'process':
+    case 'filesystem':
+    case 'git':
+    case 'checkpoint':
+    case 'quiescence':
+    case 'resource':
+    case 'error':
+    case 'result':
+      return requirement;
+  }
+}
+
 function validateResultRef(ref: ExecutionResultRef, identity: HarnessTransactionIdentity): void {
   if (!sameScope(ref, identity) || ref.transactionId !== identity.transactionId || ref.attemptId !== identity.attemptId) return fail('RESULT_SCOPE_MISMATCH');
 }
 
-function validateEvidenceSnapshot(evidence: EvidenceRequirementsSnapshot, identity: HarnessTransactionIdentity): void {
+function validateEvidenceSnapshot(evidence: EvidenceRequirementsSnapshot, identity: HarnessTransactionIdentity, request: HarnessExecutionRequest): void {
   validateEvidenceRef(evidence.manifestRef, identity);
   if (evidence.manifestRef.evidenceType !== 'evidence-manifest') return fail('EVIDENCE_INCOMPLETE');
   for (const ref of evidence.evidenceRefs) validateEvidenceRef(ref, identity);
+  const requestMinimum = new Set(request.evidence.effectiveMinimum);
+  const snapshotMinimum = new Set(evidence.effectiveMinimum);
+  for (const requirement of requestMinimum) {
+    if (!snapshotMinimum.has(requirement)) return fail('POLICY_CONFLICT');
+  }
+  for (const requirement of snapshotMinimum) {
+    const expectedType = evidenceTypeForRequirement(requirement);
+    if (!evidence.evidenceRefs.some(ref => ref.evidenceType === expectedType)) return fail('EVIDENCE_INCOMPLETE');
+  }
 }
 
 function transitionRecord(current: HarnessTransactionSnapshot, request: HarnessTransactionTransitionRequest): Readonly<TransitionRecord<ExecutionTransactionState>> {
@@ -1213,7 +1249,7 @@ function parseData(state: ExecutionTransactionState, data: Plain, request: Harne
       const resultRef = parseResultRef(data.resultRef);
       const evidence = parseEvidenceSnapshot(data.evidence);
       const quiescence = parseQuiescence(data.quiescence);
-      validateResultRef(resultRef, identity); validateEvidenceSnapshot(evidence, identity);
+      validateResultRef(resultRef, identity); validateEvidenceSnapshot(evidence, identity, request);
       if (!sameScope(authorityConsumption, identity) || !sameScope(quiescence, identity) || (quiescence.retainedResultRef && !sameScope(quiescence.retainedResultRef, identity)) || resultRef.effectCertainty !== quiescence.effectCertainty) return fail('RESULT_SCOPE_MISMATCH');
       return { authorityConsumption, resultRef, evidence, quiescence };
     }
@@ -1221,7 +1257,7 @@ function parseData(state: ExecutionTransactionState, data: Plain, request: Harne
       const resultRef = parseResultRef(data.resultRef);
       const evidence = parseEvidenceSnapshot(data.evidence);
       const durableResultRef = parseEvidenceRef(data.durableResultRef, 'DURABLE_RESULT');
-      validateResultRef(resultRef, identity); validateEvidenceSnapshot(evidence, identity); validateEvidenceRef(durableResultRef, identity);
+      validateResultRef(resultRef, identity); validateEvidenceSnapshot(evidence, identity, request); validateEvidenceRef(durableResultRef, identity);
       if (resultRef.effectCertainty === 'unknown') return fail('EVIDENCE_INCOMPLETE');
       return { resultRef, evidence, durableResultRef };
     }
@@ -1233,6 +1269,7 @@ function parseData(state: ExecutionTransactionState, data: Plain, request: Harne
       const recoveryDisposition = oneOf(data.recoveryDisposition, ['retain_for_review', 'rollback_required', 'repair_attempt_allowed'], 'INVALID_RECOVERY_DISPOSITION');
       validateResultRef(resultRef, identity); validateResultRef(retainedResult, identity); validateEvidenceRef(rejectionEvidence, identity);
       if (retainedResult.effectCertainty !== effectCertainty || resultRef.effectCertainty !== effectCertainty) return fail('RESULT_SCOPE_MISMATCH');
+      if (retainedResult.id !== resultRef.id || retainedResult.resultDigest === undefined || resultRef.resultDigest === undefined || retainedResult.resultDigest !== resultRef.resultDigest) return fail('RESULT_SCOPE_MISMATCH');
       // A mutation may be rejected before it starts (for example by the
       // authority owner), in which case a not-started/none result is truthful.
       // Once an effect exists, the exact retained result and certainty are
@@ -1358,10 +1395,26 @@ export async function createHarnessExecutionRequest(input: unknown): Promise<Rea
   return immutable({ ...unsigned, requestDigest });
 }
 
-export function isHarnessExecutionRequest(value: unknown): value is HarnessExecutionRequest {
+export function isHarnessExecutionRequestShape(value: unknown): value is HarnessExecutionRequest {
   try {
     parseRequest(value, true);
     return true;
+  } catch (error) {
+    if (error instanceof HarnessExecutionError) return false;
+    throw error;
+  }
+}
+
+/**
+ * Validate both the inert request shape and its canonical integrity digest.
+ * Digest verification is asynchronous because it uses the platform Web Crypto
+ * implementation shared by Node and browser environments.
+ */
+export async function isHarnessExecutionRequest(value: unknown): Promise<boolean> {
+  try {
+    const request = parseRequest(value, true);
+    const expected = await sha256(canonicalContextJson(withoutRequestDigest(request)));
+    return request.requestDigest === expected;
   } catch (error) {
     if (error instanceof HarnessExecutionError) return false;
     throw error;

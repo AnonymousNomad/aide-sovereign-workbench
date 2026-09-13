@@ -314,6 +314,7 @@ export interface RetryLineage {
   readonly kind: RetryKind;
   readonly parent: RetryParentTransactionRef;
   readonly freshAuthorityRequired: true;
+  /** Computed from the trusted operation/checkpoint policy; callers may not weaken it. */
   readonly freshCheckpointRequired: boolean;
   readonly freshEvidenceRequired: true;
 }
@@ -433,6 +434,7 @@ export interface FailureRef {
 }
 
 export interface EvidenceRequirementsSnapshot {
+  /** Must include every request.evidence.effectiveMinimum item; it may only strengthen. */
   readonly effectiveMinimum: readonly EvidenceRequirement[];
   readonly evidenceRefs: readonly ScopedEvidenceRef[];
   readonly manifestRef: ScopedEvidenceRef;

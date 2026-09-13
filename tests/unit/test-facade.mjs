@@ -8,9 +8,49 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
-import { createFacade, loadRouteMap } from '../../scripts/facade.mjs';
+import { createFacade as createRawFacade, loadRouteMap } from '../../scripts/facade.mjs';
+import { createExecutionAuthority } from '../../node/src/services/execution-authority.mjs';
 
 const HOST = '127.0.0.1';
+const facadeAuth = new Map();
+
+async function pairOrigin(authority, origin) {
+  const proof = authority.control.createPairing(origin);
+  const paired = await authority.pair(proof, origin);
+  return paired.token;
+}
+
+async function createFacade(options) {
+  const defaultOrigin = 'http://fixture.local';
+  const authority = createExecutionAuthority({
+    workspace: path.join(tmpdir(), `aide-facade-authority-${crypto.randomUUID()}`),
+    record: async () => ({ persisted: true })
+  });
+  const tokens = new Map([[defaultOrigin, await pairOrigin(authority, defaultOrigin)]]);
+  const tokenFor = async origin => {
+    if (!tokens.has(origin)) tokens.set(origin, await pairOrigin(authority, origin));
+    return tokens.get(origin);
+  };
+  const facade = await createRawFacade({
+    ...options,
+    authenticate: (token, origin) => authority.authenticate(token, origin)
+  });
+  const port = facade.server.address().port;
+  facadeAuth.set(port, { defaultOrigin, tokenFor });
+  const close = facade.close.bind(facade);
+  facade.close = async () => {
+    try { await close(); } finally { facadeAuth.delete(port); authority.control.close(); }
+  };
+  return facade;
+}
+
+async function authHeadersFor(port, headers = {}) {
+  const fixture = facadeAuth.get(port);
+  if (!fixture) return { ...headers };
+  const originEntry = Object.entries(headers).find(([key]) => key.toLowerCase() === 'origin');
+  const origin = typeof originEntry?.[1] === 'string' ? originEntry[1] : fixture.defaultOrigin;
+  return { Authorization: `Bearer ${await fixture.tokenFor(origin)}`, Origin: origin, ...headers };
+}
 
 function listen(server) {
   return new Promise(resolve => server.listen(0, HOST, () => resolve(server.address().port)));
@@ -36,9 +76,10 @@ function fakeBackend(label, { wsEcho = false } = {}) {
   return { server, seen };
 }
 
-function get(port, requestPath) {
+async function get(port, requestPath) {
+  const headers = await authHeadersFor(port);
   return new Promise((resolve, reject) => {
-    const req = http.get({ host: HOST, port, path: requestPath, agent: false }, res => {
+    const req = http.get({ host: HOST, port, path: requestPath, headers, agent: false }, res => {
       let body = '';
       res.on('data', chunk => { body += chunk; });
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
@@ -47,9 +88,10 @@ function get(port, requestPath) {
   });
 }
 
-function request(port, requestPath, { method = 'GET', headers = {} } = {}) {
+async function request(port, requestPath, { method = 'GET', headers = {} } = {}) {
+  const requestHeaders = await authHeadersFor(port, headers);
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: HOST, port, path: requestPath, method, headers, agent: false }, res => {
+    const req = http.request({ host: HOST, port, path: requestPath, method, headers: requestHeaders, agent: false }, res => {
       let body = '';
       res.on('data', chunk => { body += chunk; });
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
@@ -179,9 +221,10 @@ test('sse streams are not buffered by the facade', async () => {
     targets: { ts: { host: HOST, port: backendPort }, legacy: { host: HOST, port: 1 } }
   });
   const port = facade.server.address().port;
+  const headers = await authHeadersFor(port);
   const firstByteAt = await new Promise((resolve, reject) => {
     const started = Date.now();
-    http.get({ host: HOST, port, path: '/events/feed', agent: false }, res => {
+    http.get({ host: HOST, port, path: '/events/feed', headers, agent: false }, res => {
       res.once('data', () => resolve(Date.now() - started));
       res.resume();
     }).on('error', reject);
@@ -291,8 +334,9 @@ test('close is complete and idempotent - no orphaned listeners', async () => {
     targets: { ts: { host: HOST, port: 1 }, legacy: { host: HOST, port: legacyPort } }
   });
   const port = facade.server.address().port;
+  const headers = await authHeadersFor(port);
   await new Promise((resolve, reject) => {
-    const req = http.get({ host: HOST, port, path: '/anything', agent: false }, res => {
+    const req = http.get({ host: HOST, port, path: '/anything', headers, agent: false }, res => {
       res.resume();
       res.on('end', resolve);
     });

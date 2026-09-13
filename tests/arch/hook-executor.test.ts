@@ -192,12 +192,18 @@ test('deferred hook execution: task event produces pending operation, approval e
       const content = await waitForFile(marker);
       assert.equal(content, 'fired');
 
+      // Contract ordering: the marker is written by the hook process while the
+      // operation is still `executing`. ExecutionAuthority.execute resolves the
+      // terminal transition before its promise settles, and HookExecutor
+      // records the succeeded lifecycle notification only after that await, so
+      // the notification is the deterministic terminal-state synchronization
+      // point. Inspect state only after it arrives.
+      const succeeded = await succeededPromise;
+      assert.ok(succeeded.body?.includes(opId));
+
       const inspect2Res = await owner.request(`/api/authority/operation?id=${opId}`);
       const inspect2 = await inspect2Res.json() as { ok: boolean; data: { state: string } };
       assert.equal(inspect2.data.state, 'succeeded');
-
-      const succeeded = await succeededPromise;
-      assert.ok(succeeded.body?.includes(opId));
     } finally {
       notifications.close();
       tasks.close();

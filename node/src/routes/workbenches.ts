@@ -88,11 +88,18 @@ export function routesForWorkbenches(manager: WorkbenchManager): Route[] {
 
 // PR A of aide-worktree-isolation: 3 shadow-worktree routes. Service is pure
 // (no I/O outside workspace/.aide/worktrees); merge/discard are user-triggered,
-// agent sees the result (pitfall 4 — never auto-merge).
+// agent sees the result (pitfall 4 — never auto-merge). Every route carries an
+// exact capability.execute descriptor binding the effective caller inputs; the
+// git side effects are the approved operation itself.
 export function routesForWorktree(workspace: string): Route[] {
   const svc = createWorktreeService({ workspace });
   return [
-    { method: 'POST', path: '/api/workbench/worktree/create', body: WorktreeCreateRequest, response: WorktreeCreateResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/workbench/worktree/create', body: WorktreeCreateRequest, response: WorktreeCreateResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const r = body as { id: string; base_ref?: string };
+        return { workspace, taskId, kind: 'capability.execute', args: { body: { id: r.id, base_ref: r.base_ref ? r.base_ref : 'HEAD' } } };
+      },
+      handler: wrap(async ({ body }) => {
         const r = body as { id: string; base_ref?: string };
         const wt = await svc.create({ id: r.id, ...(r.base_ref ? { baseRef: r.base_ref } : {}) });
         return { worktree: { id: wt.id, branch: wt.branch, base_ref: wt.base_ref, path: wt.path, created_at: wt.created_at, diff_stats: undefined } } as unknown as WorktreeCreateResponseT;
@@ -103,13 +110,23 @@ export function routesForWorktree(workspace: string): Route[] {
         return { worktrees: wts.map((w) => ({ id: w.id, branch: w.branch, base_ref: w.base_ref, path: w.path, created_at: w.created_at, diff_stats: w.diff_stats })) } as unknown as WorktreeListResponseT;
       })
     },
-    { method: 'POST', path: '/api/workbench/worktree/merge', body: WorktreeMergeRequest, response: WorktreeMergeResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/workbench/worktree/merge', body: WorktreeMergeRequest, response: WorktreeMergeResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const r = body as { id: string; strategy?: 'merge' | 'squash' | 'rebase'; commit_message?: string };
+        return { workspace, taskId, kind: 'capability.execute', args: { body: { id: r.id, strategy: r.strategy ?? 'squash', commit_message: r.commit_message ?? '' } } };
+      },
+      handler: wrap(async ({ body }) => {
         const r = body as { id: string; strategy?: 'merge' | 'squash' | 'rebase'; commit_message?: string };
         const m = await svc.merge({ id: r.id, strategy: r.strategy ?? 'squash', commit_message: r.commit_message ?? '' });
         return { id: m.id, strategy: m.strategy, commit_sha: m.commit_sha, message: m.message } as unknown as WorktreeMergeResponseT;
       })
     },
-    { method: 'POST', path: '/api/workbench/worktree/discard', body: WorktreeDiscardRequest, response: WorktreeDiscardResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/workbench/worktree/discard', body: WorktreeDiscardRequest, response: WorktreeDiscardResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const r = body as { id: string };
+        return { workspace, taskId, kind: 'capability.execute', args: { body: { id: r.id } } };
+      },
+      handler: wrap(async ({ body }) => {
         const r = body as { id: string };
         const d = await svc.discard({ id: r.id });
         return { id: d.id, state: 'discarded' as const } as unknown as WorktreeDiscardResponseT;

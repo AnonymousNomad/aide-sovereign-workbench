@@ -16,10 +16,32 @@ export class ContextEnvelopeError extends Error {
 const fail = (code: string): never => { throw new ContextEnvelopeError(code); };
 const compare = (a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0;
 
-/** Covert JSON v1 (not JCS): UTF-16 key order, array order preserved,
- * JSON.stringify primitive spelling (-0 becomes 0), explicit null retained.
- * No values are silently omitted: undefined, holes, symbols, accessors,
- * custom prototypes and non-JSON values are rejected. UTF-8 is used for hashing.
+/** Covert JSON v1 (not JCS or another named canonical-JSON standard).
+ *
+ * Object member names are compared lexically by JavaScript UTF-16 code units
+ * (the values compared by '<'), never by Unicode code points, locale, Unicode
+ * normalization, or UTF-8 bytes. No Unicode normalization is performed.
+ * Arrays preserve their input order exactly; elements are never sorted or
+ * normalized. Strings use JSON.stringify-equivalent JSON escaping: quotation
+ * marks and reverse solidus are escaped, U+0000..U+001F use JSON short escapes
+ * where defined ('\b', '\t', '\n', '\f', '\r') or '\u00XX', ordinary Unicode
+ * is retained where JSON.stringify retains it, and lone or paired surrogate
+ * code units follow JSON.stringify's well-formed escaping behavior.
+ *
+ * Numbers use the current JavaScript JSON.stringify spelling for finite values:
+ * integers and decimals use its shortest round-trippable decimal form,
+ * exponent notation is used where that implementation selects it, and -0 is
+ * serialized as 0. NaN, positive/negative Infinity and every other non-JSON
+ * value are rejected. Explicit null is serialized. Undefined, sparse array
+ * elements, accessors, symbols, functions and unsupported objects are rejected;
+ * optional properties absent from the canonical object remain absent.
+ *
+ * The resulting text is encoded as UTF-8 before SHA-256. This algorithm is
+ * reproducible outside JavaScript by implementing UTF-16 code-unit comparison
+ * plus the stated JSON.stringify-compatible string/number grammar. The digest
+ * detects content differences only: it authenticates no producer and grants no
+ * execution authority or credential status.
+ *
  * Inputs must be inert data, not hostile in-process Proxies with executable traps.
  */
 export function canonicalContextJson(input: unknown): string {

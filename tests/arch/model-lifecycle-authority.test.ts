@@ -42,7 +42,7 @@ test('model start/stop require approved exact operations over retained child han
   await fs.mkdir(path.join(dir, 'models'), { recursive: true });
   await fs.mkdir(path.join(dir, 'runtime'), { recursive: true });
   await fs.mkdir(path.join(dir, '.aide'), { recursive: true });
-  await fs.writeFile(path.join(dir, 'runtime', 'llama-server.exe'), 'fixture binary placeholder\n');
+  await fs.writeFile(path.join(dir, 'runtime', process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'), 'fixture binary placeholder\n');
   const goodFile = path.join(dir, 'models', 'fixture-1b.gguf');
   const failFile = path.join(dir, 'models', 'fixture-fail.gguf');
   await fs.writeFile(goodFile, 'GGUF fixture\n');

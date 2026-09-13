@@ -38,7 +38,7 @@ function fakeBackend(label, { wsEcho = false } = {}) {
 
 function get(port, requestPath) {
   return new Promise((resolve, reject) => {
-    const req = http.get({ host: HOST, port, path: requestPath, agent: false }, res => {
+    const req = http.get({ host: HOST, port, path: requestPath, agent: false, headers: AUTH }, res => {
       let body = '';
       res.on('data', chunk => { body += chunk; });
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
@@ -49,7 +49,7 @@ function get(port, requestPath) {
 
 function request(port, requestPath, { method = 'GET', headers = {} } = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: HOST, port, path: requestPath, method, headers, agent: false }, res => {
+    const req = http.request({ host: HOST, port, path: requestPath, method, headers: { ...AUTH, ...headers }, agent: false }, res => {
       let body = '';
       res.on('data', chunk => { body += chunk; });
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
@@ -61,12 +61,22 @@ function request(port, requestPath, { method = 'GET', headers = {} } = {}) {
 
 const ENVELOPE_HEADER = { 'X-AIDE-API-Format': 'envelope-v1' };
 
+// The facade gates every route except GET /api/health and POST
+// /api/authority/pair behind the transport actor. Unit tests of the proxy
+// layers inject the facade's own authenticate seam and present a bearer
+// token; the fail-closed behavior itself is asserted separately below.
+const AUTH = { Authorization: 'Bearer facade-fixture-token' };
+const AUTHENTICATE = async () => ({ actor_id: 'facade-fixture' });
+function createTestFacade(options) {
+  return createFacade({ ...options, authenticate: AUTHENTICATE });
+}
+
 test('prefix routes hit the mapped backend on both sides', async () => {
   const ts = fakeBackend('ts');
   const legacy = fakeBackend('legacy');
   const tsPort = await listen(ts.server);
   const legacyPort = await listen(legacy.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/ts-fam': 'ts', '/legacy-fam': 'legacy' }, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: legacyPort } }
@@ -88,7 +98,7 @@ test('longest prefix wins and unknown paths fall to legacy', async () => {
   const legacy = fakeBackend('legacy');
   const tsPort = await listen(ts.server);
   const legacyPort = await listen(legacy.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/api': 'ts', '/api/nested': 'legacy' }, exact: { '/api/exact-hit': 'legacy' }, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: legacyPort } }
@@ -106,7 +116,7 @@ test('longest prefix wins and unknown paths fall to legacy', async () => {
 test('OPTIONS preflight for a ts route is answered by the facade (204 + CORS) without hitting the backend', async () => {
   const ts = fakeBackend('ts');
   const tsPort = await listen(ts.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/ts-fam': 'ts' }, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
@@ -130,7 +140,7 @@ test('OPTIONS preflight for a ts route is answered by the facade (204 + CORS) wi
 test('production and Vite-development reads are decorated for their allow-listed origins', async () => {
   const ts = fakeBackend('ts');
   const tsPort = await listen(ts.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/ts-fam': 'ts' }, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
@@ -149,7 +159,7 @@ test('production and Vite-development reads are decorated for their allow-listed
 test('disallowed origins get no Access-Control-Allow-Origin (fail-closed)', async () => {
   const ts = fakeBackend('ts');
   const tsPort = await listen(ts.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/ts-fam': 'ts' }, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
@@ -173,7 +183,7 @@ test('sse streams are not buffered by the facade', async () => {
     setTimeout(() => { res.write('event: second\n\n'); res.end(); }, 400);
   });
   const backendPort = await listen(backend);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/events': 'ts' }, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: backendPort }, legacy: { host: HOST, port: 1 } }
@@ -194,7 +204,7 @@ test('sse streams are not buffered by the facade', async () => {
 test('websocket upgrades are proxied to the mapped target', async () => {
   const ts = fakeBackend('ts', { wsEcho: true });
   const tsPort = await listen(ts.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: {}, exact: {}, upgrades: { '/ws': 'ts' } },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
@@ -216,7 +226,7 @@ test('unreachable backend yields a typed 502 instead of hanging', async () => {
   const dead = net.createServer();
   const deadPort = await listen(dead);
   dead.close();
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/dead': 'ts' }, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: deadPort }, legacy: { host: HOST, port: 1 } }
@@ -267,7 +277,7 @@ test('facade rewrites upstream structured errors into the legacy-compatible enve
     res.end(JSON.stringify({ error: { code: 'NOT_FOUND', message: 'file not found: missing.txt' } }));
   });
   const tsPort = await listen(ts);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: {}, exact: { '/anything': 'ts' }, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
@@ -285,7 +295,7 @@ test('facade rewrites upstream structured errors into the legacy-compatible enve
 test('close is complete and idempotent - no orphaned listeners', async () => {
   const legacy = fakeBackend('legacy');
   const legacyPort = await listen(legacy.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: {}, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: 1 }, legacy: { host: HOST, port: legacyPort } }
@@ -318,7 +328,7 @@ test('facade unwraps ts success envelopes to bare payloads for legacy consumers'
   const legacy = fakeBackend('legacy');
   const tsPort = await listen(ts.server);
   const legacyPort = await listen(legacy.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: {}, exact: { '/x': 'ts' }, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: legacyPort } }
@@ -339,7 +349,7 @@ test('facade passes non-envelope ts bodies and oversized data through untouched'
     res.end(JSON.stringify({ ok: true, data: { big } }));
   });
   const tsPort = await listen(ts.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/x': 'ts' }, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
@@ -359,7 +369,7 @@ test('facade rewrites wrapped ts error envelopes into the legacy shape', async (
     res.end(JSON.stringify({ ok: false, error: { code: 'CONFLICT', message: 'download already running' } }));
   });
   const tsPort = await listen(ts.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: {}, exact: { '/x': 'ts' }, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
@@ -377,7 +387,7 @@ test('facade never rewrites legacy-target JSON bodies', async () => {
     res.end(JSON.stringify({ ok: true, data: { a: 1 } }));
   });
   const legacyPort = await listen(legacy);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: {}, exact: { '/x': 'legacy' }, upgrades: {} },
     targets: { ts: { host: HOST, port: 1 }, legacy: { host: HOST, port: legacyPort } }
@@ -398,7 +408,7 @@ test('explicit envelope-v1 preserves TS success and error envelopes while absenc
       : JSON.stringify({ ok: true, data: { value: 7 } }));
   });
   const tsPort = await listen(ts);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/x': 'ts' }, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
@@ -415,7 +425,7 @@ test('explicit envelope-v1 preserves TS success and error envelopes while absenc
 test('unsupported formats and envelope requests for legacy-owned routes fail deterministically', async () => {
   const legacy = fakeBackend('legacy');
   const legacyPort = await listen(legacy.server);
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: {}, exact: { '/legacy': 'legacy' }, upgrades: {} },
     targets: { ts: { host: HOST, port: 1 }, legacy: { host: HOST, port: legacyPort } }
@@ -436,7 +446,7 @@ test('typed facade errors use envelope-v1 without changing legacy error compatib
   const dead = net.createServer();
   const deadPort = await listen(dead);
   dead.close();
-  const facade = await createFacade({
+  const facade = await createTestFacade({
     port: 0,
     routeMap: { prefixes: { '/dead': 'ts' }, exact: {}, upgrades: {} },
     targets: { ts: { host: HOST, port: deadPort }, legacy: { host: HOST, port: 1 } }
@@ -449,6 +459,29 @@ test('typed facade errors use envelope-v1 without changing legacy error compatib
   assert.equal(bare.status, 502);
   assert.equal(JSON.parse(bare.body).error.code, 'backend_unavailable');
   await facade.close();
+});
+
+test('transport gate: non-exempt routes require a bearer actor while health stays open', async () => {
+  const ts = fakeBackend('ts');
+  const tsPort = await listen(ts.server);
+  const facade = await createTestFacade({
+    port: 0,
+    routeMap: { prefixes: { '/ts-fam': 'ts' }, exact: { '/api/health': 'ts' }, upgrades: {} },
+    targets: { ts: { host: HOST, port: tsPort }, legacy: { host: HOST, port: 1 } }
+  });
+  const port = facade.server.address().port;
+  const base = `http://${HOST}:${port}`;
+  const anonymous = await fetch(`${base}/ts-fam/ping`, { headers: ENVELOPE_HEADER });
+  assert.equal(anonymous.status, 403, 'unpaired route access fails closed');
+  assert.deepEqual(await anonymous.json(), { ok: false, error: { code: 'FORBIDDEN', message: 'authenticated actor required' } });
+  assert.equal(ts.seen.length, 0, 'denied callers never reach a backend');
+  const health = await fetch(`${base}/api/health`);
+  assert.equal(health.status, 200, 'health is exempt from the transport gate');
+  const paired = await request(port, '/ts-fam/ping');
+  assert.equal(paired.status, 200);
+  assert.equal(paired.headers['x-backend'], 'ts');
+  await facade.close();
+  ts.server.closeAllConnections?.(); ts.server.close();
 });
 
 after(() => {

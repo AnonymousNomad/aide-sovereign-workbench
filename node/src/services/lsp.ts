@@ -39,12 +39,19 @@ const LANGUAGES = [
 ];
 
 function toFileUri(workspace: string): string {
-  return `file:///${workspace.replace(/\\/g, '/').replace(/ /g, '%20')}`;
+  const normalized = workspace.replace(/\\/g, '/').replace(/ /g, '%20');
+  // POSIX absolute paths must become file:///tmp/... (three slashes); the
+  // Windows form keeps file:///C:/.... A bare 'file://' + '/tmp' would emit
+  // four slashes and the language server rejects that as an authority-less
+  // URI whose path begins with '//'.
+  return normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`;
 }
 
 function toAbsoluteUri(workspace: string, uri: string): string {
-  if (/^file:\/\/\/[a-zA-Z]:/.test(uri)) return uri;
-  const rel = decodeURIComponent(uri.replace(/^file:\/\//, '').replace(/^\//, ''));
+  const stripped = uri.replace(/^file:\/\//, '');
+  if (/^\/[a-zA-Z]:/.test(stripped)) return uri;
+  if (stripped.startsWith('/')) return `file://${stripped}`;
+  const rel = decodeURIComponent(stripped.replace(/^\//, ''));
   return toFileUri(path.resolve(workspace, rel));
 }
 

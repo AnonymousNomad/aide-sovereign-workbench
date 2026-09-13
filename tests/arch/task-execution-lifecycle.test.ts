@@ -151,13 +151,17 @@ function quiescence(
   aggregateId: string,
   scope: { taskId: string; workspaceId: string } = SCOPE,
   effectCertainty: 'none' | 'known_partial' | 'known_complete' = 'known_complete',
-  retainedResult: RetainedExecutionResultRef | null = retained('transaction-1', 'attempt-1', scope, 'snapshot-2', effectCertainty)
+  retainedResult: RetainedExecutionResultRef | null = retained('transaction-1', 'attempt-1', scope, 'snapshot-2', effectCertainty),
+  attemptId: string | null = 'attempt-1',
+  transactionId: string | null = 'transaction-1'
 ) {
   return {
     id: `${aggregateId}-quiescence`,
     ...scope,
     aggregateType,
     aggregateId,
+    attemptId,
+    transactionId,
     admissionStopped: true as const,
     activeWork: 'none' as const,
     effectCertainty,
@@ -433,6 +437,40 @@ test('a cleared authority resolution cannot be reintroduced after a fresh task r
   assert.equal(scheduled.state, 'scheduled');
 });
 
+test('reconsideration invalidates every active execution-evidence field', () => {
+  const staleData: LifecycleData = {
+    authorityResolution: authority(OPERATION_MUTATION, 0),
+    reconciliation: reconciliation('task', 'task-1'),
+    acceptanceEvidence: evidence(),
+    transactionEvidence: evidence(),
+    retainedResult: retained(),
+    output: { id: 'output-1', ...SCOPE, attemptId: 'attempt-1' },
+    failureRef: { id: 'failure-1', ...SCOPE },
+    rollbackResult: rollback(),
+    checkpoint: checkpoint(),
+    quiescence: quiescence('task', 'task-1'),
+    effectCertainty: 'known_partial',
+    recoveryDisposition: 'retain_for_review'
+  };
+  const source = makeTask('resumable', 0);
+  const staleSource = { ...source, data: staleData };
+  const contextualizing = reduceTask(staleSource, request('task-1', 'resumable', 'contextualizing', {}, { kind: 'reconsideration', id: 'reconsideration-1' }) as TaskTransitionRequest).aggregate;
+  assert.deepEqual(contextualizing.data, {});
+  assert.equal(Object.isFrozen(contextualizing.data), true);
+  for (const field of ['reconciliation', 'acceptanceEvidence', 'transactionEvidence', 'retainedResult', 'output', 'failureRef', 'checkpoint', 'quiescence', 'rollbackResult', 'effectCertainty', 'recoveryDisposition'] as const) {
+    expectCode(() => reduceTask(staleSource, request('task-1', 'resumable', 'contextualizing', { [field]: staleData[field] } as unknown as LifecycleData, { kind: 'reconsideration', id: 'reconsideration-1' }) as TaskTransitionRequest), 'STALE_EPOCH_DATA_FORBIDDEN');
+  }
+  expectCode(() => reduceTask(staleSource, request('task-1', 'resumable', 'contextualizing', { authorityResolution: staleData.authorityResolution } as unknown as LifecycleData, { kind: 'reconsideration', id: 'reconsideration-1' }) as TaskTransitionRequest), 'STALE_AUTHORITY_FORBIDDEN');
+
+  const planning = reduceTask(contextualizing, request('task-1', 'contextualizing', 'planning', {}, CAUSE, contextualizing.revision) as TaskTransitionRequest).aggregate;
+  const awaiting = reduceTask(planning, request('task-1', 'planning', 'awaiting_authority', {}, CAUSE, planning.revision) as TaskTransitionRequest).aggregate;
+  const fresh = authority(OPERATION_MUTATION, awaiting.revision);
+  const scheduled = reduceTask(awaiting, request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: fresh }, { kind: 'continuation', id: fresh.continuation.id }, awaiting.revision) as TaskTransitionRequest).aggregate;
+  const running = reduceTask(scheduled, request('task-1', 'scheduled', 'running', {}, CAUSE, scheduled.revision) as TaskTransitionRequest).aggregate;
+  const verifying = reduceTask(running, request('task-1', 'running', 'verifying', {}, { kind: 'worker', id: 'worker-1' }, running.revision) as TaskTransitionRequest).aggregate;
+  expectCode(() => reduceTask(verifying, request('task-1', 'verifying', 'accepted', {}, { kind: 'verification', id: 'verifier-1' }, verifying.revision) as TaskTransitionRequest), 'ACCEPTANCE_EVIDENCE_REQUIRED');
+});
+
 test('operation classification is immutable and read-only checkpoint exemption is explicit', () => {
   const input = copy(OPERATION_MUTATION);
   const descriptor = createOperationDescriptor(input);
@@ -473,11 +511,31 @@ test('cancellation requires trusted quiescence and non-unknown effects', () => {
   expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: { ...quiescence('task', 'task-1'), activeWork: 'running' } } as unknown as LifecycleData) as TaskTransitionRequest), 'QUIESCENCE_NOT_SAFE');
   expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: { ...quiescence('task', 'task-1'), effectCertainty: 'unknown' } as never }) as TaskTransitionRequest), 'QUIESCENCE_EFFECT_UNKNOWN');
   expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-2') }) as TaskTransitionRequest), 'CLEAN_QUIESCENCE_REQUIRED');
-  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', SCOPE, 'known_complete', retained('transaction-1', 'attempt-2')) }) as TaskTransitionRequest), 'CLEAN_QUIESCENCE_REQUIRED');
+  expectOneOf(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', SCOPE, 'known_complete', retained('transaction-1', 'attempt-2')) }) as TaskTransitionRequest), ['QUIESCENCE_SCOPE_MISMATCH', 'CLEAN_QUIESCENCE_REQUIRED']);
   expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', SCOPE, 'known_partial', retained('transaction-1', 'attempt-1', SCOPE, 'snapshot-2', 'known_complete')) }) as TaskTransitionRequest), 'QUIESCENCE_EFFECT_MISMATCH');
   const cancelled = reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', SCOPE, 'known_partial') }) as TaskTransitionRequest).aggregate;
   assert.equal(cancelled.state, 'cancelled');
   expectCode(() => reduceWorkerAttempt(makeWorker('cancelling'), request('attempt-1', 'cancelling', 'cancelled', { quiescence: quiescence('worker_attempt', 'attempt-1', SCOPE, 'known_partial', null) }) as WorkerAttemptTransitionRequest), 'QUIESCENCE_RESULT_REQUIRED');
+});
+
+test('quiescence binds attempt and transaction scope, including explicit no-transaction state', () => {
+  const source = makeTask('running');
+  const foreignResult = retained('transaction-other', 'attempt-1');
+  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', {
+    quiescence: quiescence('task', 'task-1', SCOPE, 'known_complete', foreignResult)
+  }) as TaskTransitionRequest), 'QUIESCENCE_SCOPE_MISMATCH');
+  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', {
+    quiescence: quiescence('task', 'task-1', SCOPE, 'known_complete', retained('transaction-1', 'attempt-1'), 'attempt-1', 'transaction-other')
+  }) as TaskTransitionRequest), 'QUIESCENCE_SCOPE_MISMATCH');
+  const activeTransaction = { ...source, data: { retainedResult: retained('transaction-1') } };
+  expectCode(() => reduceTask(activeTransaction, request('task-1', 'running', 'cancelled', {
+    quiescence: quiescence('task', 'task-1', SCOPE, 'known_complete', retained('transaction-other', 'attempt-1'), 'attempt-1', 'transaction-other')
+  }) as TaskTransitionRequest), 'CLEAN_QUIESCENCE_REQUIRED');
+  const noTransaction = reduceTask(source, request('task-1', 'running', 'cancelled', {
+    quiescence: quiescence('task', 'task-1', SCOPE, 'none', null, 'attempt-1', null)
+  }) as TaskTransitionRequest).aggregate;
+  assert.equal(noTransaction.state, 'cancelled');
+  assert.equal(noTransaction.data.quiescence?.transactionId, null);
 });
 
 test('interruption preserves explicit uncertainty and requires reconciliation before resumable', () => {
@@ -506,6 +564,10 @@ test('mutation rejection retains resulting state and does not imply rollback', (
   delete (noAuthority.data as { authorityResolution?: AuthorityResolutionRef }).authorityResolution;
   expectCode(() => createExecutionTransactionAggregate(noAuthority), 'REJECTED_RESULT_REQUIRED');
   expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'verifying', 'rejected', { retainedResult: retained(), transactionEvidence: { ...evidence(), resultSnapshot: retained('transaction-1', 'attempt-1', SCOPE, 'snapshot-2', 'unknown') }, recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest), 'TRANSACTION_EVIDENCE_INCOMPLETE');
+  expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'verifying', 'rejected', { retainedResult: retained('transaction-1', 'attempt-1', SCOPE, 'snapshot-2', 'known_partial'), transactionEvidence: evidence(), recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest), 'REJECTED_EFFECT_MISMATCH');
+  expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'verifying', 'rejected', { retainedResult: retained('transaction-1', 'attempt-1', SCOPE, 'snapshot-2', 'none'), transactionEvidence: { ...evidence(), resultSnapshot: retained('transaction-1', 'attempt-1', SCOPE, 'snapshot-2', 'known_partial') }, recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest), 'REJECTED_EFFECT_MISMATCH');
+  const differentResult = { ...evidence(), resultSnapshot: { ...retained(), id: 'different-result' } };
+  expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'verifying', 'rejected', { retainedResult: retained(), transactionEvidence: differentResult, recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest), 'REJECTED_RESULT_MISMATCH');
 });
 
 test('acceptance requires complete scope-bound evidence and rejects boolean claims', () => {
@@ -589,6 +651,90 @@ test('unknown authority fields and non-plain aliases are rejected at every bound
   const symbolField = { [Symbol('authority')]: true };
   expectCode(() => reduceTask(makeTask('created'), request('task-1', 'created', 'contextualizing', symbolField as LifecycleData) as TaskTransitionRequest), 'UNKNOWN_DATA_FIELD');
   expectCode(() => createOperationDescriptor(Object.create({ id: 'inherited' }) as OperationDescriptor), 'INVALID_OPERATION');
+});
+
+test('strict validation rejects accessors before invoking them', () => {
+  let getterReads = 0;
+  const getterObject = <T extends object>(base: T, field: string): T => {
+    const output = { ...base } as T;
+    Object.defineProperty(output, field, { enumerable: true, get: () => { getterReads++; return (base as Record<string, unknown>)[field]; } });
+    return output;
+  };
+  const expectNoGetter = (fn: () => unknown): void => {
+    const before = getterReads;
+    assert.throws(fn, TaskLifecycleError);
+    assert.equal(getterReads, before);
+  };
+
+  const checkpointGetter = getterObject(checkpoint(), 'kind');
+  expectNoGetter(() => reduceExecutionTransaction(makeTransaction('authorized'), request('transaction-1', 'authorized', 'checkpointed', { checkpoint: checkpointGetter }) as ExecutionTransactionTransitionRequest));
+
+  const authorityGetter = { ...authority(), operation: getterObject(OPERATION_MUTATION, 'id') };
+  expectNoGetter(() => reduceTask(makeTask('awaiting_authority'), request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: authorityGetter }, { kind: 'continuation', id: authorityGetter.continuation.id }) as TaskTransitionRequest));
+
+  const acceptanceGetter = { ...evidence(), resultSnapshot: getterObject(retained(), 'id') };
+  expectNoGetter(() => reduceTask(makeTask('verifying'), request('task-1', 'verifying', 'accepted', { acceptanceEvidence: acceptanceGetter }) as TaskTransitionRequest));
+
+  const quiescenceGetter = { ...quiescence('task', 'task-1'), retainedResult: getterObject(retained(), 'id') };
+  expectNoGetter(() => reduceTask(makeTask('running'), request('task-1', 'running', 'cancelled', { quiescence: quiescenceGetter }) as TaskTransitionRequest));
+
+  const rollbackGetter = getterObject(rollback(), 'restoreSnapshotRef');
+  expectNoGetter(() => reduceExecutionTransaction(makeTransaction('rolling_back'), request('transaction-1', 'rolling_back', 'rolled_back', { rollbackResult: rollbackGetter }) as ExecutionTransactionTransitionRequest));
+
+  const retainedGetter = getterObject(retained(), 'snapshotRef');
+  expectNoGetter(() => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'rejected', { retainedResult: retainedGetter, transactionEvidence: evidence(), recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest));
+  assert.equal(getterReads, 0);
+});
+
+test('cross-scope substitutions are rejected across every lifecycle evidence boundary', () => {
+  const attacks: Array<[string, () => unknown]> = [];
+  const resolution = authority(OPERATION_MUTATION, 0);
+  const addAuthority = (label: string, value: AuthorityResolutionRef): void => {
+    attacks.push([`authority:${label}`, () => reduceTask(makeTask('awaiting_authority'), request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: value }, { kind: 'continuation', id: resolution.continuation.id }) as TaskTransitionRequest)]);
+  };
+  addAuthority('task', { ...resolution, taskId: 'task-2' });
+  addAuthority('workspace', { ...resolution, workspaceId: 'workspace-2' });
+  addAuthority('operation', { ...resolution, operation: { ...OPERATION_MUTATION, id: 'operation-2' } });
+  addAuthority('task-revision', { ...resolution, taskRevision: 1 });
+  addAuthority('continuation', { ...resolution, continuation: { ...resolution.continuation, id: 'continuation-2' } });
+  addAuthority('decision', { ...resolution, decision: { ...resolution.decision, id: 'decision-2' } });
+
+  for (const [label, value] of [
+    ['task', checkpoint('transaction-1', { taskId: 'task-2', workspaceId: 'workspace-1' })],
+    ['workspace', checkpoint('transaction-1', { taskId: 'task-1', workspaceId: 'workspace-2' })],
+    ['transaction', checkpoint('transaction-2')],
+    ['snapshot', checkpoint('transaction-1', SCOPE, 'snapshot-other')]
+  ] as const) attacks.push([`checkpoint:${label}`, () => reduceExecutionTransaction(makeTransaction('checkpointed'), request('transaction-1', 'checkpointed', 'executing', { checkpoint: value }) as ExecutionTransactionTransitionRequest)]);
+
+  attacks.push(['quiescence:task', () => reduceTask(makeTask('running'), request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-2') }) as TaskTransitionRequest)]);
+  attacks.push(['quiescence:workspace', () => reduceTask(makeTask('running'), request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', { taskId: 'task-1', workspaceId: 'workspace-2' }) }) as TaskTransitionRequest)]);
+  attacks.push(['quiescence:attempt', () => reduceTask(makeTask('running'), request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', SCOPE, 'known_complete', retained('transaction-1', 'attempt-2')) }) as TaskTransitionRequest)]);
+  attacks.push(['quiescence:transaction', () => reduceTask(makeTask('running'), request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', SCOPE, 'known_complete', retained('transaction-other', 'attempt-1')) }) as TaskTransitionRequest)]);
+
+  attacks.push(['acceptance:task', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'committed', { transactionEvidence: { ...evidence(), taskId: 'task-2' } }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['acceptance:workspace', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'committed', { transactionEvidence: { ...evidence(), workspaceId: 'workspace-2' } }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['acceptance:transaction', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'committed', { transactionEvidence: evidence('transaction-2') }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['acceptance:attempt', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'committed', { transactionEvidence: evidence('transaction-1', 'attempt-2') }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['acceptance:snapshot', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'committed', { transactionEvidence: { ...evidence(), resultSnapshot: retained('transaction-2', 'attempt-1', SCOPE, 'snapshot-foreign') } }) as ExecutionTransactionTransitionRequest)]);
+
+  attacks.push(['rollback:task', () => reduceExecutionTransaction(makeTransaction('rolling_back'), request('transaction-1', 'rolling_back', 'rolled_back', { rollbackResult: rollback('transaction-1', { taskId: 'task-2', workspaceId: 'workspace-1' }) }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['rollback:workspace', () => reduceExecutionTransaction(makeTransaction('rolling_back'), request('transaction-1', 'rolling_back', 'rolled_back', { rollbackResult: rollback('transaction-1', { taskId: 'task-1', workspaceId: 'workspace-2' }) }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['rollback:transaction', () => reduceExecutionTransaction(makeTransaction('rolling_back'), request('transaction-1', 'rolling_back', 'rolled_back', { rollbackResult: rollback('transaction-2') }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['rollback:snapshot', () => reduceExecutionTransaction(makeTransaction('rolling_back'), request('transaction-1', 'rolling_back', 'rolled_back', { rollbackResult: rollback('transaction-1', SCOPE, 'snapshot-other') }) as ExecutionTransactionTransitionRequest)]);
+
+  attacks.push(['retained:task', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'rejected', { retainedResult: retained('transaction-1', 'attempt-1', OTHER_SCOPE), transactionEvidence: evidence(), recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['retained:workspace', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'rejected', { retainedResult: retained('transaction-1', 'attempt-1', { taskId: 'task-1', workspaceId: 'workspace-2' }), transactionEvidence: evidence(), recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['retained:transaction', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'rejected', { retainedResult: retained('transaction-2'), transactionEvidence: evidence(), recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['retained:attempt', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'rejected', { retainedResult: retained('transaction-1', 'attempt-2'), transactionEvidence: evidence(), recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest)]);
+  attacks.push(['retained:snapshot', () => reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'rejected', { retainedResult: retained('transaction-1', 'attempt-1', SCOPE, 'snapshot-foreign'), transactionEvidence: evidence(), recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest)]);
+
+  let rejected = 0;
+  for (const [label, attack] of attacks) {
+    assert.throws(attack, TaskLifecycleError, label);
+    rejected++;
+  }
+  assert.equal(attacks.length, 28);
+  assert.equal(rejected, 28);
 });
 
 test('reduced aggregates, nested references and transition records resist caller alias mutation', () => {

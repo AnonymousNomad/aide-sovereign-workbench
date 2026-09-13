@@ -235,6 +235,12 @@ function notApplicableCheckpoint(value: unknown): NotApplicableCheckpoint {
   return { kind: 'not_applicable' };
 }
 
+function ownDataFieldEquals(value: unknown, field: string, expected: unknown): boolean {
+  if (!isPlain(value)) return false;
+  const descriptor = Object.getOwnPropertyDescriptor(value, field);
+  return Boolean(descriptor && 'value' in descriptor && descriptor.enumerable && descriptor.value === expected);
+}
+
 function output(value: unknown): LifecycleData['output'] {
   const input = record(value, ['id', 'taskId', 'workspaceId', 'attemptId'], 'OUTPUT');
   return {
@@ -254,17 +260,21 @@ function rollback(value: unknown): RollbackResultRef {
 }
 
 function quiescence(value: unknown): NonNullable<LifecycleData['quiescence']> {
-  const input = record(value, ['id', 'taskId', 'workspaceId', 'aggregateType', 'aggregateId', 'admissionStopped', 'activeWork', 'effectCertainty', 'retainedResult'], 'QUIESCENCE');
+  const input = record(value, ['id', 'taskId', 'workspaceId', 'aggregateType', 'aggregateId', 'attemptId', 'transactionId', 'admissionStopped', 'activeWork', 'effectCertainty', 'retainedResult'], 'QUIESCENCE');
   const effect = oneOf(input.effectCertainty, EFFECT_CERTAINTIES, 'INVALID_QUIESCENCE_EFFECT');
+  const attemptId = nullableText(input.attemptId, 'INVALID_QUIESCENCE_ATTEMPT_ID');
+  const transactionId = nullableText(input.transactionId, 'INVALID_QUIESCENCE_TRANSACTION_ID');
   if (effect === 'unknown') return fail('QUIESCENCE_EFFECT_UNKNOWN');
   const result = input.retainedResult === null ? null : retainedResult(input.retainedResult);
   if (effect !== 'none' && result === null) return fail('QUIESCENCE_RESULT_REQUIRED');
+  if (transactionId !== null && attemptId === null) return fail('QUIESCENCE_SCOPE_MISMATCH');
+  if (result !== null && (attemptId === null || transactionId === null || result.attemptId !== attemptId || result.transactionId !== transactionId)) return fail('QUIESCENCE_SCOPE_MISMATCH');
   if (result !== null && result.effectCertainty !== effect) return fail('QUIESCENCE_EFFECT_MISMATCH');
   if (input.admissionStopped !== true || input.activeWork !== 'none') return fail('QUIESCENCE_NOT_SAFE');
   return {
     id: text(input.id, 'INVALID_QUIESCENCE_ID'), taskId: text(input.taskId, 'INVALID_QUIESCENCE_TASK_ID'), workspaceId: text(input.workspaceId, 'INVALID_QUIESCENCE_WORKSPACE_ID'),
     aggregateType: oneOf(input.aggregateType, ['task', 'worker_attempt'], 'INVALID_QUIESCENCE_TYPE'), aggregateId: text(input.aggregateId, 'INVALID_QUIESCENCE_AGGREGATE_ID'),
-    admissionStopped: true, activeWork: 'none', effectCertainty: effect, retainedResult: result
+    attemptId, transactionId, admissionStopped: true, activeWork: 'none', effectCertainty: effect, retainedResult: result
   };
 }
 
@@ -295,7 +305,7 @@ function data(value: unknown): LifecycleData {
   if (Object.prototype.hasOwnProperty.call(input, 'failureRef')) result.failureRef = scoped(input.failureRef, 'FAILURE');
   if (Object.prototype.hasOwnProperty.call(input, 'rollbackResult')) result.rollbackResult = rollback(input.rollbackResult);
   if (Object.prototype.hasOwnProperty.call(input, 'checkpoint')) {
-    result.checkpoint = isPlain(input.checkpoint) && input.checkpoint.kind === 'not_applicable' ? notApplicableCheckpoint(input.checkpoint) : checkpoint(input.checkpoint);
+    result.checkpoint = ownDataFieldEquals(input.checkpoint, 'kind', 'not_applicable') ? notApplicableCheckpoint(input.checkpoint) : checkpoint(input.checkpoint);
   }
   if (Object.prototype.hasOwnProperty.call(input, 'quiescence')) result.quiescence = quiescence(input.quiescence);
   if (Object.prototype.hasOwnProperty.call(input, 'effectCertainty')) result.effectCertainty = oneOf(input.effectCertainty, EFFECT_CERTAINTY, 'INVALID_EFFECT_CERTAINTY');
@@ -317,6 +327,29 @@ function immutable<T>(value: T): Readonly<T> {
 
 function scopeMatches(ref: ScopedReference, taskId: string, workspaceId: string): boolean {
   return ref.taskId === taskId && ref.workspaceId === workspaceId;
+}
+
+function activeTransactionIds(value: LifecycleData): readonly string[] {
+  const ids: string[] = [];
+  if (value.retainedResult) ids.push(value.retainedResult.transactionId);
+  if (value.transactionEvidence) ids.push(value.transactionEvidence.transactionId);
+  if (value.checkpoint && 'transactionId' in value.checkpoint) ids.push(value.checkpoint.transactionId);
+  return ids;
+}
+
+function validateQuiescenceScope(
+  value: NonNullable<LifecycleData['quiescence']>,
+  aggregateType: 'task' | 'worker_attempt',
+  aggregateId: string,
+  taskId: string,
+  workspaceId: string,
+  attemptId: string | null,
+  currentData: LifecycleData
+): void {
+  if (value.aggregateType !== aggregateType || value.aggregateId !== aggregateId || !scopeMatches(value, taskId, workspaceId) || value.attemptId !== attemptId) return fail('CLEAN_QUIESCENCE_REQUIRED');
+  const activeIds = activeTransactionIds(currentData);
+  if (activeIds.some(id => value.transactionId !== id)) return fail('CLEAN_QUIESCENCE_REQUIRED');
+  if (value.retainedResult !== null && (value.retainedResult.taskId !== taskId || value.retainedResult.workspaceId !== workspaceId || value.retainedResult.attemptId !== attemptId || value.retainedResult.transactionId !== value.transactionId)) return fail('CLEAN_QUIESCENCE_REQUIRED');
 }
 
 function validateTask(value: unknown): TaskAggregate {
@@ -382,9 +415,9 @@ function validateTaskStateData(state: TaskState, value: LifecycleData, taskId: s
   if (state === 'rolled_back' && (!value.rollbackResult || value.rollbackResult.outcome !== 'restored' || value.rollbackResult.effectCertainty === 'unknown' || value.rollbackResult.divergence === 'present' || !scopeMatches(value.rollbackResult, taskId, workspaceId))) return fail('ROLLBACK_RESULT_REQUIRED');
   if (state === 'cancelled') {
     const q = value.quiescence;
-    if (!q || q.aggregateType !== 'task' || q.aggregateId !== taskId || !scopeMatches(q, taskId, workspaceId) ||
-      (value.effectCertainty !== undefined && value.effectCertainty !== q.effectCertainty) ||
-      (q.retainedResult !== null && (q.retainedResult.taskId !== taskId || (attemptId !== null && q.retainedResult.attemptId !== attemptId)))) return fail('CLEAN_QUIESCENCE_REQUIRED');
+    if (!q) return fail('CLEAN_QUIESCENCE_REQUIRED');
+    validateQuiescenceScope(q, 'task', taskId, taskId, workspaceId, attemptId, value);
+    if (value.effectCertainty !== undefined && value.effectCertainty !== q.effectCertainty) return fail('CLEAN_QUIESCENCE_REQUIRED');
   }
 }
 
@@ -394,9 +427,9 @@ function validateWorkerStateData(state: WorkerAttemptState, taskId: string, work
   if (state === 'interrupted' && (value.effectCertainty === undefined || !value.reconciliation || value.reconciliation.aggregateType !== 'worker_attempt' || value.reconciliation.aggregateId !== attemptId || !scopeMatches(value.reconciliation, taskId, workspaceId) || value.reconciliation.effectCertainty !== value.effectCertainty || (value.reconciliation.outcome === 'reconciled' && value.effectCertainty === 'unknown'))) return fail('INTERRUPTION_EFFECT_REQUIRED');
   if (state === 'cancelled') {
     const q = value.quiescence;
-    if (!q || q.aggregateType !== 'worker_attempt' || q.aggregateId !== attemptId || !scopeMatches(q, taskId, workspaceId) ||
-      (value.effectCertainty !== undefined && value.effectCertainty !== q.effectCertainty) ||
-      (q.retainedResult !== null && (q.retainedResult.taskId !== taskId || q.retainedResult.attemptId !== attemptId))) return fail('CLEAN_QUIESCENCE_REQUIRED');
+    if (!q) return fail('CLEAN_QUIESCENCE_REQUIRED');
+    validateQuiescenceScope(q, 'worker_attempt', attemptId, taskId, workspaceId, attemptId, value);
+    if (value.effectCertainty !== undefined && value.effectCertainty !== q.effectCertainty) return fail('CLEAN_QUIESCENCE_REQUIRED');
   }
 }
 
@@ -422,7 +455,8 @@ function validateTransactionStateData(state: ExecutionTransactionState, operatio
   if (state === 'committed' && !value.transactionEvidence) return fail('TRANSACTION_EVIDENCE_REQUIRED');
   if (state === 'rejected' && effectClass === 'mutation') {
     if (!value.authorityResolution || !value.retainedResult || value.retainedResult.effectCertainty === 'unknown' || !value.transactionEvidence || !value.recoveryDisposition) return fail('REJECTED_RESULT_REQUIRED');
-    if (value.transactionEvidence.resultSnapshot.snapshotRef !== value.retainedResult.snapshotRef) return fail('REJECTED_RESULT_MISMATCH');
+    if (value.transactionEvidence.resultSnapshot.id !== value.retainedResult.id || value.transactionEvidence.resultSnapshot.snapshotRef !== value.retainedResult.snapshotRef) return fail('REJECTED_RESULT_MISMATCH');
+    if (value.transactionEvidence.resultSnapshot.effectCertainty !== value.retainedResult.effectCertainty) return fail('REJECTED_EFFECT_MISMATCH');
   }
   if (state === 'rolled_back' && (!value.rollbackResult || value.rollbackResult.outcome !== 'restored' || value.rollbackResult.effectCertainty === 'unknown' || value.rollbackResult.divergence === 'present' || value.rollbackResult.restoreSnapshotRef !== snapshotRef)) return fail('ROLLBACK_RESULT_REQUIRED');
   if (state === 'failed' && value.effectCertainty === undefined) return fail('EFFECT_CERTAINTY_REQUIRED');
@@ -475,10 +509,16 @@ function taskGuards(current: TaskAggregate, request: TaskTransitionRequest, next
   if (current.state === 'interrupted' && request.nextState === 'resumable' && nextData.reconciliation?.outcome !== 'reconciled') return fail('RECONCILIATION_REQUIRED');
   if (current.state === 'resumable' && request.nextState === 'contextualizing') {
     if (request.causeRef.kind !== 'reconsideration') return fail('FRESH_RECONSIDERATION_REQUIRED');
+    const activeEpochFields: readonly (keyof LifecycleData)[] = [
+      'authorityResolution', 'reconciliation', 'acceptanceEvidence', 'transactionEvidence',
+      'retainedResult', 'output', 'failureRef', 'rollbackResult', 'checkpoint', 'quiescence',
+      'effectCertainty', 'recoveryDisposition'
+    ];
     if (request.data && Object.prototype.hasOwnProperty.call(request.data, 'authorityResolution')) return fail('STALE_AUTHORITY_FORBIDDEN');
-    const { authorityResolution, ...freshData } = nextData;
-    void authorityResolution;
-    return data(freshData);
+    if (request.data && activeEpochFields.some(field => field !== 'authorityResolution' && Object.prototype.hasOwnProperty.call(request.data, field))) return fail('STALE_EPOCH_DATA_FORBIDDEN');
+    // The prior aggregate and its transition records remain the historical trail;
+    // no prior execution evidence remains active in the fresh epoch.
+    return data({});
   }
   if (request.nextState === 'accepted') {
     if (current.state !== 'verifying' || !nextData.acceptanceEvidence) return fail('ACCEPTANCE_EVIDENCE_REQUIRED');
@@ -512,7 +552,9 @@ function transactionGuards(current: ExecutionTransactionAggregate, request: Exec
   if (request.nextState === 'rejected' && current.operation.effectClass === 'mutation') {
     if (!nextData.retainedResult || !nextData.transactionEvidence || !nextData.recoveryDisposition) return fail('REJECTED_RESULT_REQUIRED');
     validateEvidenceScope(nextData.transactionEvidence, current.taskId, current.workspaceId, current.transactionId, current.attemptId);
-    if (nextData.transactionEvidence.resultSnapshot.snapshotRef !== nextData.retainedResult.snapshotRef) return fail('REJECTED_RESULT_MISMATCH');
+    if (nextData.transactionEvidence.resultSnapshot.effectCertainty === 'unknown') return fail('TRANSACTION_EVIDENCE_INCOMPLETE');
+    if (nextData.transactionEvidence.resultSnapshot.id !== nextData.retainedResult.id || nextData.transactionEvidence.resultSnapshot.snapshotRef !== nextData.retainedResult.snapshotRef) return fail('REJECTED_RESULT_MISMATCH');
+    if (nextData.transactionEvidence.resultSnapshot.effectCertainty !== nextData.retainedResult.effectCertainty) return fail('REJECTED_EFFECT_MISMATCH');
   }
   if (request.nextState === 'rolled_back' && (!nextData.rollbackResult || nextData.rollbackResult.outcome !== 'restored' || nextData.rollbackResult.effectCertainty === 'unknown' || nextData.rollbackResult.divergence === 'present')) return fail('ROLLBACK_RESULT_REQUIRED');
   if (request.nextState === 'failed' && nextData.effectCertainty === undefined) return fail('EFFECT_CERTAINTY_REQUIRED');

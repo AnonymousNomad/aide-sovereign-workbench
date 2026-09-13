@@ -110,6 +110,10 @@ export interface NotApplicableCheckpoint {
 export interface QuiescenceEvidence extends ScopedReference {
   readonly aggregateType: 'task' | 'worker_attempt';
   readonly aggregateId: string;
+  /** Attempt scope is explicit even when no execution transaction exists. */
+  readonly attemptId: string | null;
+  /** Null explicitly represents quiescence with no execution transaction. */
+  readonly transactionId: string | null;
   readonly admissionStopped: true;
   readonly activeWork: 'none';
   readonly effectCertainty: Exclude<EffectCertainty, 'unknown'>;

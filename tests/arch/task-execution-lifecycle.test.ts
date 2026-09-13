@@ -7,11 +7,16 @@ import {
   EXECUTION_TRANSACTION_STATES,
   TASK_STATES,
   WORKER_ATTEMPT_STATES,
+  type AcceptanceEvidenceRef,
+  type AuthorityResolutionRef,
   type CauseRef,
   type ExecutionTransactionAggregate,
   type ExecutionTransactionState,
   type ExecutionTransactionTransitionRequest,
   type LifecycleData,
+  type OperationDescriptor,
+  type ReconciliationRef,
+  type RetainedExecutionResultRef,
   type TaskAggregate,
   type TaskState,
   type TaskTransitionRequest,
@@ -23,7 +28,9 @@ import {
   EXECUTION_TRANSACTION_TRANSITIONS,
   TASK_TRANSITIONS,
   WORKER_ATTEMPT_TRANSITIONS,
+  TaskLifecycleError,
   createExecutionTransactionAggregate,
+  createOperationDescriptor,
   createTaskAggregate,
   isExecutionTransactionActive,
   isExecutionTransactionTerminal,
@@ -39,229 +46,599 @@ import {
   requiresReconciliation
 } from '../../common/execution/task-lifecycle.ts';
 
-const cause = { kind: 'operator' as const, id: 'cause-1' };
-const refs = {
-  validationPlanRef: 'plan-1', veritasVerdictRef: 'veritas-1',
-  resultSnapshotRef: 'snapshot-1', evidenceManifestRef: 'evidence-1'
-};
+const SCOPE = { taskId: 'task-1', workspaceId: 'workspace-1' } as const;
+const OTHER_SCOPE = { taskId: 'task-2', workspaceId: 'workspace-2' } as const;
+const OPERATION_MUTATION: OperationDescriptor = { id: 'operation-1', ...SCOPE, revision: 7, effectClass: 'mutation' };
+const OPERATION_READ_ONLY: OperationDescriptor = { id: 'operation-read-1', ...SCOPE, revision: 3, effectClass: 'read_only' };
+const CAUSE: CauseRef = { kind: 'operator', id: 'cause-1' };
+const TIMESTAMP = '2026-09-12T01:02:03.000Z';
 
-function taskData(state: TaskState): LifecycleData {
-  if (state === 'accepted') return { acceptanceEvidence: refs, resultSnapshotRef: refs.resultSnapshotRef };
-  if (state === 'resumable') return { reconciliation: { ref: 'reconciliation-1', outcome: 'reconciled' } };
-  if (state === 'rolled_back') return { rollbackResult: { ref: 'rollback-1', outcome: 'restored', effectCertainty: 'known_complete' } };
-  if (state === 'cancelled') return { quiescenceRef: 'quiescence-1', effectCertainty: 'known_complete' };
-  return {};
+function copy<T>(value: T): T {
+  return structuredClone(value);
+}
+
+function expectCode(fn: () => unknown, code: string): void {
+  assert.throws(fn, (error: unknown) => error instanceof TaskLifecycleError && error.code === code, code);
+}
+
+function expectOneOf(fn: () => unknown, codes: readonly string[]): void {
+  assert.throws(fn, (error: unknown) => error instanceof TaskLifecycleError && codes.includes(error.code), codes.join('|'));
+}
+
+function authority(operation: OperationDescriptor = OPERATION_MUTATION, taskRevision?: number): AuthorityResolutionRef {
+  const decisionId = `${operation.id}-decision`;
+  const result = {
+    id: `${operation.id}-resolution`,
+    taskId: operation.taskId,
+    workspaceId: operation.workspaceId,
+    operation: copy(operation),
+    decision: {
+      id: decisionId,
+      taskId: operation.taskId,
+      workspaceId: operation.workspaceId,
+      operationId: operation.id,
+      proposalRevision: operation.revision
+    },
+    continuation: {
+      id: `${operation.id}-continuation`,
+      taskId: operation.taskId,
+      workspaceId: operation.workspaceId,
+      operationId: operation.id,
+      authorityDecisionId: decisionId,
+      proposalRevision: operation.revision
+    }
+  } as AuthorityResolutionRef;
+  return taskRevision === undefined ? result : { ...result, taskRevision };
+}
+
+function retained(
+  transactionId = 'transaction-1',
+  attemptId = 'attempt-1',
+  scope: { taskId: string; workspaceId: string } = SCOPE,
+  snapshotRef = 'snapshot-2',
+  effectCertainty: RetainedExecutionResultRef['effectCertainty'] = 'known_complete'
+): RetainedExecutionResultRef {
+  return { id: `${transactionId}-${attemptId}-result`, ...scope, transactionId, attemptId, snapshotRef, effectCertainty };
+}
+
+function evidence(
+  transactionId = 'transaction-1',
+  attemptId = 'attempt-1',
+  scope: { taskId: string; workspaceId: string } = SCOPE,
+  snapshotRef = 'snapshot-2'
+): AcceptanceEvidenceRef {
+  return {
+    id: `${transactionId}-${attemptId}-evidence`,
+    ...scope,
+    transactionId,
+    attemptId,
+    validationPlan: { id: 'plan-1', ...scope },
+    veritasVerdict: { id: 'verdict-1', ...scope },
+    resultSnapshot: retained(transactionId, attemptId, scope, snapshotRef),
+    evidenceManifest: { id: 'manifest-1', ...scope }
+  };
+}
+
+function checkpoint(
+  transactionId = 'transaction-1',
+  scope: { taskId: string; workspaceId: string } = SCOPE,
+  snapshotRef = 'snapshot-1'
+) {
+  return { id: `${transactionId}-checkpoint`, ...scope, transactionId, snapshotRef };
+}
+
+function rollback(
+  transactionId = 'transaction-1',
+  scope: { taskId: string; workspaceId: string } = SCOPE,
+  restoreSnapshotRef = 'snapshot-1',
+  effectCertainty: 'none' | 'known_partial' | 'known_complete' | 'unknown' = 'known_complete',
+  outcome: 'restored' | 'partial' | 'failed' = 'restored',
+  divergence: 'none' | 'resolved' | 'present' = 'none'
+) {
+  return {
+    id: `${transactionId}-rollback`,
+    ...scope,
+    transactionId,
+    restoreSnapshotRef,
+    outcome,
+    effectCertainty,
+    divergence
+  } as const;
+}
+
+function quiescence(
+  aggregateType: 'task' | 'worker_attempt',
+  aggregateId: string,
+  scope: { taskId: string; workspaceId: string } = SCOPE,
+  effectCertainty: 'none' | 'known_partial' | 'known_complete' = 'known_complete',
+  retainedResult: RetainedExecutionResultRef | null = retained('transaction-1', 'attempt-1', scope, 'snapshot-2', effectCertainty)
+) {
+  return {
+    id: `${aggregateId}-quiescence`,
+    ...scope,
+    aggregateType,
+    aggregateId,
+    admissionStopped: true as const,
+    activeWork: 'none' as const,
+    effectCertainty,
+    retainedResult: effectCertainty === 'none' ? null : retainedResult
+  };
+}
+
+function reconciliation(
+  aggregateType: 'task' | 'worker_attempt',
+  aggregateId: string,
+  scope: { taskId: string; workspaceId: string } = SCOPE,
+  outcome: 'reconciled' | 'unresolved' = 'reconciled',
+  effectCertainty: 'none' | 'known_partial' | 'known_complete' | 'unknown' = 'known_complete'
+): ReconciliationRef {
+  return { id: `${aggregateId}-reconciliation`, ...scope, aggregateType, aggregateId, outcome, effectCertainty };
+}
+
+function taskData(state: TaskState, includeAuthority = false): LifecycleData {
+  const data: Record<string, unknown> = {};
+  if (includeAuthority) data.authorityResolution = authority(OPERATION_MUTATION, 0);
+  if (state === 'accepted') data.acceptanceEvidence = evidence();
+  if (state === 'resumable') data.reconciliation = reconciliation('task', 'task-1');
+  if (state === 'interrupted') data.effectCertainty = 'unknown';
+  if (state === 'rolled_back') data.rollbackResult = rollback();
+  if (state === 'cancelled') data.quiescence = quiescence('task', 'task-1');
+  return data as LifecycleData;
 }
 
 function workerData(state: WorkerAttemptState): LifecycleData {
-  if (state === 'output_ready') return { outputRef: 'output-1' };
-  if (state === 'interrupted') return { reconciliation: { ref: 'reconciliation-1', outcome: 'unresolved' } };
-  if (state === 'cancelled') return { quiescenceRef: 'quiescence-1', effectCertainty: 'known_complete' };
+  if (state === 'output_ready') return { output: { id: 'output-1', ...SCOPE, attemptId: 'attempt-1' } };
+  if (state === 'interrupted') return { effectCertainty: 'unknown', reconciliation: reconciliation('worker_attempt', 'attempt-1', SCOPE, 'unresolved', 'unknown') };
+  if (state === 'cancelled') return { quiescence: quiescence('worker_attempt', 'attempt-1') };
   return {};
 }
 
-function transactionData(state: ExecutionTransactionState, mutation: 'read_only' | 'mutation'): LifecycleData {
-  if (state === 'authorized') return { authorityDecisionRef: 'authority-decision-1' };
-  if (state === 'checkpointed') return { authorityDecisionRef: 'authority-decision-1', checkpoint: { kind: 'required', ref: 'checkpoint-1' } };
-  if (state === 'executing') return mutation === 'mutation'
-    ? { authorityDecisionRef: 'authority-decision-1', checkpoint: { kind: 'required', ref: 'checkpoint-1' } }
-    : { authorityDecisionRef: 'authority-decision-1', checkpoint: { kind: 'not_applicable', ref: null } };
-  if (state === 'committed') return { transactionEvidence: refs, resultSnapshotRef: refs.resultSnapshotRef };
-  if (state === 'rolled_back') return { rollbackResult: { ref: 'rollback-1', outcome: 'restored', effectCertainty: 'known_complete' } };
-  if (state === 'failed') return { effectCertainty: 'none', failureRef: 'failure-1' };
-  return {};
+function transactionData(state: ExecutionTransactionState, operation: OperationDescriptor): LifecycleData {
+  const auth = authority(operation);
+  const data: Record<string, unknown> = {};
+  if (state === 'authorized') data.authorityResolution = auth;
+  if (state === 'checkpointed' || state === 'evidence_pending' || state === 'verifying' || state === 'rolling_back') {
+    data.authorityResolution = auth;
+    data.checkpoint = operation.effectClass === 'read_only' ? { kind: 'not_applicable' } : checkpoint();
+  }
+  if (state === 'executing') {
+    data.authorityResolution = auth;
+    data.checkpoint = operation.effectClass === 'read_only' ? { kind: 'not_applicable' } : checkpoint();
+  }
+  if (state === 'committed') {
+    data.authorityResolution = auth;
+    data.checkpoint = operation.effectClass === 'read_only' ? { kind: 'not_applicable' } : checkpoint();
+    data.transactionEvidence = evidence();
+  }
+  if (state === 'rejected') {
+    data.authorityResolution = auth;
+    if (operation.effectClass === 'mutation') {
+      data.checkpoint = checkpoint();
+      data.retainedResult = retained();
+      data.transactionEvidence = evidence();
+      data.recoveryDisposition = 'retain_for_review';
+    } else {
+      data.checkpoint = { kind: 'not_applicable' };
+      data.transactionEvidence = evidence();
+    }
+  }
+  if (state === 'rolled_back') {
+    data.authorityResolution = auth;
+    data.checkpoint = operation.effectClass === 'read_only' ? { kind: 'not_applicable' } : checkpoint();
+    data.rollbackResult = rollback();
+  }
+  if (state === 'failed') data.effectCertainty = 'none';
+  return data as LifecycleData;
 }
 
-function makeTask(state: TaskState, revision = 0): TaskAggregate {
-  return { schemaVersion: '1', aggregateType: 'task', aggregateId: 'task-1', taskId: 'task-1', parentTaskId: null,
-    attemptId: null, revision, state, correlationId: 'correlation-1', causationId: null, data: taskData(state) };
+function makeTask(state: TaskState, revision = 0, includeAuthority = false): TaskAggregate {
+  return {
+    schemaVersion: '1', aggregateType: 'task', aggregateId: 'task-1', taskId: 'task-1', workspaceId: 'workspace-1',
+    parentTaskId: null, attemptId: 'attempt-1', revision, state, correlationId: 'correlation-1', causationId: null,
+    data: taskData(state, includeAuthority)
+  };
 }
 
 function makeWorker(state: WorkerAttemptState, revision = 0): WorkerAttemptAggregate {
-  return { schemaVersion: '1', aggregateType: 'worker_attempt', aggregateId: 'attempt-1', attemptId: 'attempt-1', taskId: 'task-1',
-    parentAttemptId: null, revision, state, correlationId: 'correlation-1', causationId: null, data: workerData(state) };
+  return {
+    schemaVersion: '1', aggregateType: 'worker_attempt', aggregateId: 'attempt-1', attemptId: 'attempt-1', taskId: 'task-1', workspaceId: 'workspace-1',
+    parentAttemptId: null, revision, state, correlationId: 'correlation-1', causationId: null, data: workerData(state)
+  };
 }
 
-function makeTransaction(state: ExecutionTransactionState, mutation: 'read_only' | 'mutation' = 'mutation', revision = 0): ExecutionTransactionAggregate {
-  return { schemaVersion: '1', aggregateType: 'execution_transaction', aggregateId: 'transaction-1', transactionId: 'transaction-1',
-    taskId: 'task-1', attemptId: 'attempt-1', workspaceId: 'workspace-1', mutation, revision, state,
-    correlationId: 'correlation-1', causationId: null, data: transactionData(state, mutation) };
+function makeTransaction(state: ExecutionTransactionState, operation: OperationDescriptor = OPERATION_MUTATION, revision = 0): ExecutionTransactionAggregate {
+  return {
+    schemaVersion: '1', aggregateType: 'execution_transaction', aggregateId: 'transaction-1', transactionId: 'transaction-1',
+    taskId: 'task-1', attemptId: 'attempt-1', workspaceId: 'workspace-1', operation: copy(operation), preExecutionSnapshotRef: 'snapshot-1',
+    revision, state, correlationId: 'correlation-1', causationId: null, data: transactionData(state, operation)
+  };
 }
 
-function payload(type: 'task' | 'worker' | 'transaction', current: string, next: string, mutation: 'read_only' | 'mutation' = 'mutation'): LifecycleData {
-  if (type === 'task') {
-    if (current === 'awaiting_authority' && next === 'scheduled') return { continuationRef: 'continuation-1' };
-    if (current === 'interrupted' && next === 'resumable') return { reconciliation: { ref: 'reconciliation-1', outcome: 'reconciled' } };
-    if (current === 'resumable' && next === 'contextualizing') return {};
-    if (next === 'accepted') return { acceptanceEvidence: refs, resultSnapshotRef: refs.resultSnapshotRef };
-    if (next === 'cancelled') return { quiescenceRef: 'quiescence-1', effectCertainty: 'known_complete' };
-    if (next === 'rolled_back') return { rollbackResult: { ref: 'rollback-1', outcome: 'restored', effectCertainty: 'known_complete' } };
-    return {};
-  }
-  if (type === 'worker') {
-    if (next === 'output_ready') return { outputRef: 'output-1' };
-    if (next === 'interrupted') return { reconciliation: { ref: 'reconciliation-1', outcome: 'unresolved' } };
-    if (next === 'cancelled') return { quiescenceRef: 'quiescence-1', effectCertainty: 'known_complete' };
-    return {};
-  }
-  if (next === 'authorized') return { authorityDecisionRef: 'authority-decision-1' };
-  if (next === 'checkpointed') return { checkpoint: { kind: 'required', ref: 'checkpoint-1' } };
-  if (next === 'executing') return mutation === 'mutation'
-    ? { checkpoint: { kind: 'required', ref: 'checkpoint-1' } }
-    : { checkpoint: { kind: 'not_applicable', ref: null } };
-  if (next === 'committed') return { transactionEvidence: refs, resultSnapshotRef: refs.resultSnapshotRef };
-  if (next === 'rolled_back') return { rollbackResult: { ref: 'rollback-1', outcome: 'restored', effectCertainty: 'known_complete' } };
-  if (next === 'failed') return current === 'rolling_back'
-    ? { rollbackResult: { ref: 'rollback-1', outcome: 'partial', effectCertainty: 'known_partial' }, effectCertainty: 'known_partial' }
-    : { effectCertainty: 'none', failureRef: 'failure-1' };
+function request<S extends string>(
+  aggregateId: string,
+  currentState: S,
+  nextState: S,
+  data: LifecycleData = {},
+  causeRef: CauseRef = CAUSE,
+  expectedRevision = 0
+) {
+  return {
+    aggregateId, expectedRevision, currentState, nextState, reason: 'test transition', causeRef,
+    correlationId: 'correlation-1', causationId: 'cause-event-1', timestamp: TIMESTAMP, data
+  };
+}
+
+function taskPayload(current: TaskState, next: TaskState): LifecycleData {
+  if (current === 'awaiting_authority' && next === 'scheduled') return { authorityResolution: authority(OPERATION_MUTATION, 0) };
+  if (current === 'interrupted' && next === 'resumable') return { reconciliation: reconciliation('task', 'task-1') };
+  if (next === 'interrupted') return { effectCertainty: 'unknown' };
+  if (next === 'accepted') return { acceptanceEvidence: evidence() };
+  if (next === 'cancelled') return { quiescence: quiescence('task', 'task-1') };
+  if (next === 'rolled_back') return { rollbackResult: rollback() };
   return {};
 }
 
-function request<S extends string>(aggregateId: string, currentState: S, nextState: S, data: LifecycleData = {}, causeRef: CauseRef = cause): { aggregateId: string; expectedRevision: number; currentState: S; nextState: S; reason: string; causeRef: CauseRef; correlationId: string; causationId: string | null; timestamp: string; data: LifecycleData } {
-  return { aggregateId, expectedRevision: 0, currentState, nextState, reason: 'test transition', causeRef,
-    correlationId: 'correlation-1', causationId: 'cause-event-1', timestamp: '2026-09-12T01:02:03.000Z', data };
+function taskCause(current: TaskState, next: TaskState): CauseRef {
+  if (current === 'awaiting_authority' && next === 'scheduled') return { kind: 'continuation', id: authority(OPERATION_MUTATION, 0).continuation.id };
+  if (current === 'resumable' && next === 'contextualizing') return { kind: 'reconsideration', id: 'reconsideration-1' };
+  return CAUSE;
 }
 
-test('task transition table is exhaustive and terminal states are immutable', () => {
+function workerPayload(next: WorkerAttemptState): LifecycleData {
+  if (next === 'output_ready') return { output: { id: 'output-1', ...SCOPE, attemptId: 'attempt-1' } };
+  if (next === 'interrupted') return { effectCertainty: 'unknown', reconciliation: reconciliation('worker_attempt', 'attempt-1', SCOPE, 'unresolved', 'unknown') };
+  if (next === 'cancelled') return { quiescence: quiescence('worker_attempt', 'attempt-1') };
+  return {};
+}
+
+function transactionPayload(current: ExecutionTransactionState, next: ExecutionTransactionState, operation: OperationDescriptor): LifecycleData {
+  if (next === 'authorized') return { authorityResolution: authority(operation) };
+  if (next === 'checkpointed') return {
+    authorityResolution: authority(operation),
+    checkpoint: operation.effectClass === 'read_only' ? { kind: 'not_applicable' } : checkpoint()
+  };
+  if (next === 'executing') {
+    if (operation.effectClass === 'read_only') return { authorityResolution: authority(operation), checkpoint: { kind: 'not_applicable' } };
+    if (current === 'checkpointed') return { authorityResolution: authority(operation), checkpoint: checkpoint() };
+    return { authorityResolution: authority(operation) };
+  }
+  if (next === 'committed') return { transactionEvidence: evidence() };
+  if (next === 'rejected') {
+    if (operation.effectClass === 'mutation') return { authorityResolution: authority(operation), retainedResult: retained(), transactionEvidence: evidence(), recoveryDisposition: 'retain_for_review' };
+    return { authorityResolution: authority(operation), transactionEvidence: evidence() };
+  }
+  if (next === 'rolled_back') return { rollbackResult: rollback() };
+  if (next === 'failed') return { effectCertainty: 'none' };
+  return {};
+}
+
+test('task transition matrix accounts for all 16 x 16 pairs', () => {
+  let legal = 0;
+  let accepted = 0;
+  let rejected = 0;
   for (const current of TASK_STATES) for (const next of TASK_STATES) {
-    const aggregate = makeTask(current); const input = request(aggregate.aggregateId, current, next, payload('task', current, next),
-      current === 'awaiting_authority' && next === 'scheduled' ? { kind: 'continuation', id: 'continuation-cause' } :
-        current === 'resumable' && next === 'contextualizing' ? { kind: 'reconsideration', id: 'reconsideration-cause' } : cause);
-    const legal = TASK_TRANSITIONS[current].includes(next);
-    if (legal) assert.doesNotThrow(() => reduceTask(aggregate, input as TaskTransitionRequest), `${current} -> ${next}`);
-    else assert.throws(() => reduceTask(aggregate, input as TaskTransitionRequest), { code: 'ILLEGAL_TRANSITION' }, `${current} -> ${next}`);
+    const isLegal = TASK_TRANSITIONS[current].includes(next);
+    const source = makeTask(current);
+    const input = request(source.aggregateId, current, next, taskPayload(current, next), taskCause(current, next));
+    if (isLegal) {
+      legal++;
+      assert.doesNotThrow(() => reduceTask(source, input as TaskTransitionRequest), `${current} -> ${next}`);
+      accepted++;
+    } else {
+      rejected++;
+      expectCode(() => reduceTask(source, input as TaskTransitionRequest), 'ILLEGAL_TRANSITION');
+    }
   }
-  for (const state of ['accepted', 'rejected', 'failed', 'cancelled', 'rolled_back'] as const) assert.equal(isTaskTerminal(state), true);
-  assert.equal(isTaskActive('running'), true); assert.equal(isTaskActive('accepted'), false);
+  assert.equal(legal, 55);
+  assert.equal(accepted, 55);
+  assert.equal(rejected, 201);
+  assert.equal(accepted + rejected, 256);
+  assert.equal(isTaskTerminal('accepted'), true);
+  assert.equal(isTaskActive('running'), true);
+  assert.equal(isTaskActive('accepted'), false);
 });
 
-test('worker-attempt transition table is exhaustive and output is not acceptance', () => {
+test('worker-attempt transition matrix accounts for all 11 x 11 pairs', () => {
+  let legal = 0;
+  let accepted = 0;
+  let rejected = 0;
   for (const current of WORKER_ATTEMPT_STATES) for (const next of WORKER_ATTEMPT_STATES) {
-    const aggregate = makeWorker(current); const input = request(aggregate.aggregateId, current, next, payload('worker', current, next));
-    const legal = WORKER_ATTEMPT_TRANSITIONS[current].includes(next);
-    if (legal) assert.doesNotThrow(() => reduceWorkerAttempt(aggregate, input as WorkerAttemptTransitionRequest), `${current} -> ${next}`);
-    else assert.throws(() => reduceWorkerAttempt(aggregate, input as WorkerAttemptTransitionRequest), { code: 'ILLEGAL_TRANSITION' }, `${current} -> ${next}`);
+    const isLegal = WORKER_ATTEMPT_TRANSITIONS[current].includes(next);
+    const source = makeWorker(current);
+    const input = request(source.aggregateId, current, next, workerPayload(next));
+    if (isLegal) {
+      legal++;
+      assert.doesNotThrow(() => reduceWorkerAttempt(source, input as WorkerAttemptTransitionRequest), `${current} -> ${next}`);
+      accepted++;
+    } else {
+      rejected++;
+      expectCode(() => reduceWorkerAttempt(source, input as WorkerAttemptTransitionRequest), 'ILLEGAL_TRANSITION');
+    }
   }
-  const output = reduceWorkerAttempt(makeWorker('running'), request('attempt-1', 'running', 'output_ready', { outputRef: 'output-1' }) as WorkerAttemptTransitionRequest).aggregate;
-  assert.equal(output.state, 'output_ready'); assert.equal(output.data.outputRef, 'output-1');
-  assert.equal(isWorkerAttemptTerminal('output_ready'), true); assert.equal(isWorkerAttemptActive('running'), true);
+  assert.equal(legal, 32);
+  assert.equal(accepted, 32);
+  assert.equal(rejected, 89);
+  assert.equal(accepted + rejected, 121);
+  assert.equal(isWorkerAttemptTerminal('output_ready'), true);
+  assert.equal(isWorkerAttemptActive('running'), true);
 });
 
-test('execution-transaction transition table is exhaustive for mutation transactions', () => {
+test('execution-transaction matrix accounts for all 11 x 11 pairs and blocks mutation checkpoint bypass', () => {
+  let tableLegal = 0;
+  let accepted = 0;
+  let rejected = 0;
+  let checkpointGuard = 0;
   for (const current of EXECUTION_TRANSACTION_STATES) for (const next of EXECUTION_TRANSACTION_STATES) {
-    const aggregate = makeTransaction(current); const input = request(aggregate.aggregateId, current, next, payload('transaction', current, next));
-    const legal = EXECUTION_TRANSACTION_TRANSITIONS[current].includes(next) && !(current === 'authorized' && next === 'executing');
-    if (legal) assert.doesNotThrow(() => reduceExecutionTransaction(aggregate, input as ExecutionTransactionTransitionRequest), `${current} -> ${next}`);
-    else assert.throws(() => reduceExecutionTransaction(aggregate, input as ExecutionTransactionTransitionRequest), error => error instanceof Error && ['ILLEGAL_TRANSITION', 'CHECKPOINT_REQUIRED'].includes((error as { code?: string }).code ?? ''), `${current} -> ${next}`);
+    const isLegal = EXECUTION_TRANSACTION_TRANSITIONS[current].includes(next);
+    const source = makeTransaction(current);
+    const input = request(source.aggregateId, current, next, transactionPayload(current, next, OPERATION_MUTATION));
+    if (isLegal) {
+      tableLegal++;
+      if (current === 'authorized' && next === 'executing') {
+        expectCode(() => reduceExecutionTransaction(source, input as ExecutionTransactionTransitionRequest), 'CHECKPOINT_REQUIRED');
+        checkpointGuard++;
+      } else {
+        assert.doesNotThrow(() => reduceExecutionTransaction(source, input as ExecutionTransactionTransitionRequest), `${current} -> ${next}`);
+        accepted++;
+      }
+    } else {
+      rejected++;
+      expectCode(() => reduceExecutionTransaction(source, input as ExecutionTransactionTransitionRequest), 'ILLEGAL_TRANSITION');
+    }
   }
-  assert.equal(isExecutionTransactionTerminal('committed'), true); assert.equal(isExecutionTransactionActive('executing'), true);
+  assert.equal(tableLegal, 22);
+  assert.equal(checkpointGuard, 1);
+  assert.equal(accepted, 21);
+  assert.equal(rejected, 99);
+  assert.equal(accepted + checkpointGuard + rejected, 121);
+  assert.equal(isExecutionTransactionTerminal('committed'), true);
+  assert.equal(isExecutionTransactionActive('executing'), true);
 });
 
-test('read-only transactions may skip a checkpoint only explicitly', () => {
-  const source = makeTransaction('authorized', 'read_only');
-  const result = reduceExecutionTransaction(source, request('transaction-1', 'authorized', 'executing', { checkpoint: { kind: 'not_applicable', ref: null } }) as ExecutionTransactionTransitionRequest);
-  assert.equal(result.aggregate.state, 'executing');
-  assert.throws(() => reduceExecutionTransaction(source, request('transaction-1', 'authorized', 'executing') as ExecutionTransactionTransitionRequest), { code: 'READ_ONLY_CHECKPOINT_REQUIRED' });
+test('authority resolution is structurally bound to task, workspace, operation, proposal and continuation', () => {
+  const source = makeTask('awaiting_authority');
+  const valid = authority(OPERATION_MUTATION, 0);
+  const validRequest = request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: valid }, { kind: 'continuation', id: valid.continuation.id });
+  assert.equal(reduceTask(source, validRequest as TaskTransitionRequest).aggregate.state, 'scheduled');
+  expectCode(() => reduceTask(source, { ...validRequest, causeRef: { kind: 'continuation', id: 'different' } } as TaskTransitionRequest), 'AUTHORITY_RESOLUTION_REQUIRED');
+  expectCode(() => reduceTask(source, request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: { ...valid, taskId: 'task-2' } }, { kind: 'continuation', id: valid.continuation.id }) as TaskTransitionRequest), 'AUTHORITY_SCOPE_MISMATCH');
+  expectCode(() => reduceTask(source, request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: { ...valid, workspaceId: 'workspace-2' } }, { kind: 'continuation', id: valid.continuation.id }) as TaskTransitionRequest), 'AUTHORITY_SCOPE_MISMATCH');
+  const wrongOperation = copy(valid) as unknown as { decision: { operationId: string }; continuation: { proposalRevision: number } } & AuthorityResolutionRef;
+  wrongOperation.decision.operationId = 'other-operation';
+  expectCode(() => reduceTask(source, request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: wrongOperation }, { kind: 'continuation', id: valid.continuation.id }) as TaskTransitionRequest), 'AUTHORITY_BINDING_MISMATCH');
+  const wrongProposal = copy(valid) as unknown as { continuation: { proposalRevision: number } } & AuthorityResolutionRef;
+  wrongProposal.continuation.proposalRevision++;
+  expectCode(() => reduceTask(source, request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: wrongProposal }, { kind: 'continuation', id: valid.continuation.id }) as TaskTransitionRequest), 'AUTHORITY_BINDING_MISMATCH');
+  expectCode(() => reduceTask(source, request('task-1', 'awaiting_authority', 'scheduled') as TaskTransitionRequest), 'AUTHORITY_RESOLUTION_REQUIRED');
+  expectCode(() => reduceTask(source, request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: { ...valid, id: '' } }, { kind: 'continuation', id: valid.continuation.id }) as TaskTransitionRequest), 'INVALID_AUTHORITY_RESOLUTION_ID');
 });
 
-test('acceptance requires verification evidence and cannot be inferred from execution', () => {
-  assert.throws(() => reduceTask(makeTask('running'), request('task-1', 'running', 'accepted') as TaskTransitionRequest), { code: 'ILLEGAL_TRANSITION' });
-  const noEvidence = makeTask('verifying');
-  assert.throws(() => reduceTask(noEvidence, request('task-1', 'verifying', 'accepted') as TaskTransitionRequest), { code: 'ACCEPTANCE_EVIDENCE_REQUIRED' });
-  assert.throws(() => reduceTask(makeTask('verifying'), request('task-1', 'verifying', 'accepted', { verified: true } as unknown as LifecycleData) as TaskTransitionRequest), { code: 'UNKNOWN_DATA_FIELD' });
-  assert.throws(() => reduceTask(makeTask('verifying'), request('task-1', 'verifying', 'accepted', { acceptanceEvidence: { ...refs, resultSnapshotRef: 'different' }, resultSnapshotRef: refs.resultSnapshotRef }) as TaskTransitionRequest), { code: 'EVIDENCE_SNAPSHOT_MISMATCH' });
-  const committed = reduceExecutionTransaction(makeTransaction('verifying'), request('transaction-1', 'verifying', 'committed', { transactionEvidence: refs, resultSnapshotRef: refs.resultSnapshotRef }) as ExecutionTransactionTransitionRequest);
-  assert.equal(committed.aggregate.state, 'committed');
+test('reconsideration clears stale authority and rejects caller-carried authority', () => {
+  const source = makeTask('resumable', 0, true);
+  const resumed = reduceTask(source, request('task-1', 'resumable', 'contextualizing', {}, { kind: 'reconsideration', id: 'reconsideration-1' }) as TaskTransitionRequest).aggregate;
+  assert.equal(resumed.state, 'contextualizing');
+  assert.equal(Object.prototype.hasOwnProperty.call(resumed.data, 'authorityResolution'), false);
+  expectCode(() => reduceTask(source, request('task-1', 'resumable', 'contextualizing', { authorityResolution: authority(OPERATION_MUTATION, 0) }, { kind: 'reconsideration', id: 'reconsideration-1' }) as TaskTransitionRequest), 'STALE_AUTHORITY_FORBIDDEN');
 });
 
-test('awaiting authority and recovery transitions require explicit records', () => {
-  assert.throws(() => reduceTask(makeTask('awaiting_authority'), request('task-1', 'awaiting_authority', 'scheduled') as TaskTransitionRequest), { code: 'RECORDED_CONTINUATION_REQUIRED' });
-  const continued = reduceTask(makeTask('awaiting_authority'), request('task-1', 'awaiting_authority', 'scheduled', { continuationRef: 'continuation-1' }, { kind: 'continuation', id: 'continuation-cause' }) as TaskTransitionRequest);
-  assert.equal(continued.aggregate.state, 'scheduled');
-  assert.throws(() => reduceTask(makeTask('interrupted'), request('task-1', 'interrupted', 'resumable') as TaskTransitionRequest), { code: 'RECONCILIATION_REQUIRED' });
-  const resumed = reduceTask(makeTask('interrupted'), request('task-1', 'interrupted', 'resumable', { reconciliation: { ref: 'r', outcome: 'reconciled' } }) as TaskTransitionRequest);
-  assert.equal(resumed.aggregate.state, 'resumable');
-  assert.throws(() => reduceTask(makeTask('resumable'), request('task-1', 'resumable', 'contextualizing') as TaskTransitionRequest), { code: 'FRESH_RECONSIDERATION_REQUIRED' });
-  assert.throws(() => reduceExecutionTransaction(makeTransaction('rolling_back'), request('transaction-1', 'rolling_back', 'rolled_back') as ExecutionTransactionTransitionRequest), { code: 'ROLLBACK_RESULT_REQUIRED' });
-  assert.throws(() => reduceExecutionTransaction(makeTransaction('rolling_back'), request('transaction-1', 'rolling_back', 'failed', { effectCertainty: 'unknown' }) as ExecutionTransactionTransitionRequest), { code: 'ROLLBACK_FAILURE_OUTCOME_REQUIRED' });
-  const rollback = reduceExecutionTransaction(makeTransaction('rolling_back'), request('transaction-1', 'rolling_back', 'failed', { rollbackResult: { ref: 'r', outcome: 'partial', effectCertainty: 'known_partial' }, effectCertainty: 'known_partial' }) as ExecutionTransactionTransitionRequest);
-  assert.equal(rollback.aggregate.state, 'failed'); assert.equal(rollback.aggregate.data.effectCertainty, 'known_partial');
+test('a cleared authority resolution cannot be reintroduced after a fresh task revision', () => {
+  const source = makeTask('resumable', 0, true);
+  const contextualizing = reduceTask(source, request('task-1', 'resumable', 'contextualizing', {}, { kind: 'reconsideration', id: 'reconsideration-1' }) as TaskTransitionRequest).aggregate;
+  const planning = reduceTask(contextualizing, request('task-1', 'contextualizing', 'planning', {}, CAUSE, contextualizing.revision) as TaskTransitionRequest).aggregate;
+  const awaiting = reduceTask(planning, request('task-1', 'planning', 'awaiting_authority', {}, CAUSE, planning.revision) as TaskTransitionRequest).aggregate;
+  const old = source.data.authorityResolution as AuthorityResolutionRef;
+  expectCode(() => reduceTask(awaiting, request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: old }, { kind: 'continuation', id: old.continuation.id }, awaiting.revision) as TaskTransitionRequest), 'AUTHORITY_RESOLUTION_REQUIRED');
+  const fresh = authority(OPERATION_MUTATION, awaiting.revision);
+  const scheduled = reduceTask(awaiting, request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: fresh }, { kind: 'continuation', id: fresh.continuation.id }, awaiting.revision) as TaskTransitionRequest).aggregate;
+  assert.equal(scheduled.state, 'scheduled');
 });
 
-test('revision checks reject stale, skipped and replayed transitions', () => {
-  const source = makeTask('created'); const firstRequest = request('task-1', 'created', 'contextualizing');
+test('operation classification is immutable and read-only checkpoint exemption is explicit', () => {
+  const input = copy(OPERATION_MUTATION);
+  const descriptor = createOperationDescriptor(input);
+  (input as { effectClass: OperationDescriptor['effectClass'] }).effectClass = 'read_only';
+  assert.equal(descriptor.effectClass, 'mutation');
+  assert.equal(Object.isFrozen(descriptor), true);
+  const source = makeTransaction('authorized', OPERATION_READ_ONLY);
+  const readCheckpointed = reduceExecutionTransaction(source, request('transaction-1', 'authorized', 'checkpointed', { authorityResolution: authority(OPERATION_READ_ONLY), checkpoint: { kind: 'not_applicable' } }) as ExecutionTransactionTransitionRequest);
+  assert.equal(readCheckpointed.aggregate.state, 'checkpointed');
+  const readOnly = reduceExecutionTransaction(source, request('transaction-1', 'authorized', 'executing', { authorityResolution: authority(OPERATION_READ_ONLY), checkpoint: { kind: 'not_applicable' } }) as ExecutionTransactionTransitionRequest);
+  assert.equal(readOnly.aggregate.state, 'executing');
+  expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'authorized', 'executing', { authorityResolution: authority(OPERATION_READ_ONLY), checkpoint: checkpoint() }) as ExecutionTransactionTransitionRequest), 'READ_ONLY_CHECKPOINT_REQUIRED');
+  const forged = copy(makeTransaction('authorized', OPERATION_READ_ONLY));
+  (forged.operation as { effectClass: OperationDescriptor['effectClass'] }).effectClass = 'mutation';
+  expectCode(() => createExecutionTransactionAggregate(forged), 'AUTHORITY_SCOPE_MISMATCH');
+  const wrongOperation = { ...OPERATION_MUTATION, id: 'operation-other' };
+  expectCode(() => createExecutionTransactionAggregate({ ...makeTransaction('authorized'), data: { authorityResolution: authority(wrongOperation) } } as never), 'AUTHORITY_OPERATION_MISMATCH');
+});
+
+test('checkpoint identity binds transaction, task, workspace and pre-execution snapshot', () => {
+  const source = makeTransaction('checkpointed');
+  const valid = { authorityResolution: authority(), checkpoint: checkpoint() };
+  assert.equal(reduceExecutionTransaction(source, request('transaction-1', 'checkpointed', 'executing', valid) as ExecutionTransactionTransitionRequest).aggregate.state, 'executing');
+  const attempts = [
+    checkpoint('transaction-2'),
+    checkpoint('transaction-1', OTHER_SCOPE),
+    checkpoint('transaction-1', SCOPE, 'snapshot-other')
+  ];
+  for (const bad of attempts) expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'checkpointed', 'executing', { checkpoint: bad }) as ExecutionTransactionTransitionRequest), 'CHECKPOINT_SCOPE_MISMATCH');
+  expectCode(() => reduceExecutionTransaction(makeTransaction('authorized'), request('transaction-1', 'authorized', 'executing', { checkpoint: checkpoint() }) as ExecutionTransactionTransitionRequest), 'CHECKPOINT_REQUIRED');
+  expectCode(() => createExecutionTransactionAggregate({ ...makeTransaction('executing'), data: { authorityResolution: authority(), checkpoint: { id: 'belongs-to-other', taskId: 'task-1', workspaceId: 'workspace-1', transactionId: 'transaction-1', snapshotRef: 'snapshot-2' } } } as never), 'CHECKPOINT_SCOPE_MISMATCH');
+});
+
+test('cancellation requires trusted quiescence and non-unknown effects', () => {
+  const source = makeTask('running');
+  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled') as TaskTransitionRequest), 'CLEAN_QUIESCENCE_REQUIRED');
+  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: { ...quiescence('task', 'task-1'), admissionStopped: false } } as unknown as LifecycleData) as TaskTransitionRequest), 'QUIESCENCE_NOT_SAFE');
+  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: { ...quiescence('task', 'task-1'), activeWork: 'running' } } as unknown as LifecycleData) as TaskTransitionRequest), 'QUIESCENCE_NOT_SAFE');
+  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: { ...quiescence('task', 'task-1'), effectCertainty: 'unknown' } as never }) as TaskTransitionRequest), 'QUIESCENCE_EFFECT_UNKNOWN');
+  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-2') }) as TaskTransitionRequest), 'CLEAN_QUIESCENCE_REQUIRED');
+  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', SCOPE, 'known_complete', retained('transaction-1', 'attempt-2')) }) as TaskTransitionRequest), 'CLEAN_QUIESCENCE_REQUIRED');
+  expectCode(() => reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', SCOPE, 'known_partial', retained('transaction-1', 'attempt-1', SCOPE, 'snapshot-2', 'known_complete')) }) as TaskTransitionRequest), 'QUIESCENCE_EFFECT_MISMATCH');
+  const cancelled = reduceTask(source, request('task-1', 'running', 'cancelled', { quiescence: quiescence('task', 'task-1', SCOPE, 'known_partial') }) as TaskTransitionRequest).aggregate;
+  assert.equal(cancelled.state, 'cancelled');
+  expectCode(() => reduceWorkerAttempt(makeWorker('cancelling'), request('attempt-1', 'cancelling', 'cancelled', { quiescence: quiescence('worker_attempt', 'attempt-1', SCOPE, 'known_partial', null) }) as WorkerAttemptTransitionRequest), 'QUIESCENCE_RESULT_REQUIRED');
+});
+
+test('interruption preserves explicit uncertainty and requires reconciliation before resumable', () => {
+  expectCode(() => createTaskAggregate({ ...makeTask('interrupted'), data: {} } as never), 'INTERRUPTION_EFFECT_REQUIRED');
+  const interrupted = reduceTask(makeTask('running'), request('task-1', 'running', 'interrupted', { effectCertainty: 'unknown' }) as TaskTransitionRequest).aggregate;
+  assert.equal(interrupted.data.effectCertainty, 'unknown');
+  for (const next of ['running', 'scheduled', 'accepted'] as const) expectCode(() => reduceTask(interrupted, request('task-1', 'interrupted', next, taskPayload('interrupted', next), CAUSE, interrupted.revision) as TaskTransitionRequest), 'ILLEGAL_TRANSITION');
+  expectCode(() => reduceTask(interrupted, request('task-1', 'interrupted', 'resumable', {}, CAUSE, interrupted.revision) as TaskTransitionRequest), 'RECONCILIATION_REQUIRED');
+  const resumable = reduceTask(interrupted, request('task-1', 'interrupted', 'resumable', { reconciliation: reconciliation('task', 'task-1') }, CAUSE, interrupted.revision) as TaskTransitionRequest).aggregate;
+  assert.equal(resumable.state, 'resumable');
+  expectCode(() => reduceWorkerAttempt(makeWorker('running'), request('attempt-1', 'running', 'interrupted', { effectCertainty: 'known_complete', reconciliation: reconciliation('worker_attempt', 'attempt-1', SCOPE, 'unresolved', 'unknown') }) as WorkerAttemptTransitionRequest), 'INTERRUPTION_EFFECT_REQUIRED');
+});
+
+test('mutation rejection retains resulting state and does not imply rollback', () => {
+  const source = makeTransaction('verifying');
+  const deniedReadOnly = reduceExecutionTransaction(makeTransaction('proposed', OPERATION_READ_ONLY), request('transaction-1', 'proposed', 'rejected') as ExecutionTransactionTransitionRequest).aggregate;
+  assert.equal(deniedReadOnly.state, 'rejected');
+  expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'verifying', 'rejected') as ExecutionTransactionTransitionRequest), 'REJECTED_RESULT_REQUIRED');
+  const acceptedRejection = reduceExecutionTransaction(source, request('transaction-1', 'verifying', 'rejected', { retainedResult: retained(), transactionEvidence: evidence(), recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest).aggregate;
+  assert.equal(acceptedRejection.state, 'rejected');
+  assert.equal(acceptedRejection.data.recoveryDisposition, 'retain_for_review');
+  assert.equal(acceptedRejection.data.retainedResult?.snapshotRef, 'snapshot-2');
+  expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'verifying', 'rejected', { retainedResult: retained(), transactionEvidence: evidence('transaction-1', 'attempt-1', SCOPE, 'other-snapshot'), recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest), 'REJECTED_RESULT_MISMATCH');
+  expectCode(() => createExecutionTransactionAggregate({ ...makeTransaction('rejected'), data: { ...makeTransaction('rejected').data, retainedResult: retained('transaction-1', 'attempt-1', SCOPE, 'snapshot-2', 'unknown') } } as never), 'REJECTED_RESULT_REQUIRED');
+  const noAuthority = copy(makeTransaction('rejected'));
+  delete (noAuthority.data as { authorityResolution?: AuthorityResolutionRef }).authorityResolution;
+  expectCode(() => createExecutionTransactionAggregate(noAuthority), 'REJECTED_RESULT_REQUIRED');
+  expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'verifying', 'rejected', { retainedResult: retained(), transactionEvidence: { ...evidence(), resultSnapshot: retained('transaction-1', 'attempt-1', SCOPE, 'snapshot-2', 'unknown') }, recoveryDisposition: 'retain_for_review' }) as ExecutionTransactionTransitionRequest), 'TRANSACTION_EVIDENCE_INCOMPLETE');
+});
+
+test('acceptance requires complete scope-bound evidence and rejects boolean claims', () => {
+  const source = makeTask('verifying');
+  expectCode(() => reduceTask(source, request('task-1', 'verifying', 'accepted') as TaskTransitionRequest), 'ACCEPTANCE_EVIDENCE_REQUIRED');
+  expectCode(() => reduceTask(source, request('task-1', 'verifying', 'accepted', { verified: true } as never) as TaskTransitionRequest), 'UNKNOWN_DATA_FIELD');
+  expectCode(() => reduceTask(source, request('task-1', 'verifying', 'accepted', { acceptanceEvidence: evidence('transaction-1', 'attempt-2') }) as TaskTransitionRequest), 'ACCEPTANCE_SCOPE_MISMATCH');
+  const mixed = evidence();
+  (mixed as unknown as { resultSnapshot: RetainedExecutionResultRef }).resultSnapshot = retained('transaction-other', 'attempt-1');
+  expectCode(() => reduceTask(source, request('task-1', 'verifying', 'accepted', { acceptanceEvidence: mixed }) as TaskTransitionRequest), 'EVIDENCE_SCOPE_MISMATCH');
+  const accepted = reduceTask(source, request('task-1', 'verifying', 'accepted', { acceptanceEvidence: evidence() }) as TaskTransitionRequest).aggregate;
+  assert.equal(accepted.state, 'accepted');
+  expectCode(() => createTaskAggregate({ ...makeTask('accepted'), data: { acceptanceEvidence: { ...evidence(), validationPlan: { id: 'plan', ...OTHER_SCOPE } } } } as never), 'EVIDENCE_SCOPE_MISMATCH');
+});
+
+test('rollback requires restored, bound and certain evidence', () => {
+  const source = makeTransaction('rolling_back');
+  const valid = reduceExecutionTransaction(source, request('transaction-1', 'rolling_back', 'rolled_back', { rollbackResult: rollback() }) as ExecutionTransactionTransitionRequest).aggregate;
+  assert.equal(valid.state, 'rolled_back');
+  const variants = [
+    rollback('transaction-other'),
+    rollback('transaction-1', OTHER_SCOPE),
+    rollback('transaction-1', SCOPE, 'snapshot-other'),
+    rollback('transaction-1', SCOPE, 'snapshot-1', 'unknown'),
+    rollback('transaction-1', SCOPE, 'snapshot-1', 'known_complete', 'partial'),
+    rollback('transaction-1', SCOPE, 'snapshot-1', 'known_complete', 'restored', 'present')
+  ];
+  for (const bad of variants) expectOneOf(() => reduceExecutionTransaction(source, request('transaction-1', 'rolling_back', 'rolled_back', { rollbackResult: bad }) as ExecutionTransactionTransitionRequest), ['ROLLBACK_RESULT_REQUIRED', 'ROLLBACK_SCOPE_MISMATCH']);
+  expectCode(() => reduceExecutionTransaction(source, request('transaction-1', 'rolling_back', 'rolled_back', { rollbackResult: rollback('transaction-1', SCOPE, 'snapshot-1', 'unknown') }) as ExecutionTransactionTransitionRequest), 'ROLLBACK_RESULT_REQUIRED');
+});
+
+test('revision, aggregate identity and transition replay protections are deterministic', () => {
+  const source = makeTask('created');
+  const firstRequest = request('task-1', 'created', 'contextualizing');
   const first = reduceTask(source, firstRequest as TaskTransitionRequest);
   assert.equal(first.aggregate.revision, 1);
   assert.throws(() => reduceTask(first.aggregate, firstRequest as TaskTransitionRequest), { code: 'STALE_REVISION' });
-  assert.throws(() => reduceTask({ ...source, revision: 2 }, request('task-1', 'created', 'contextualizing') as TaskTransitionRequest), { code: 'STALE_REVISION' });
-  assert.throws(() => reduceTask({ ...source, revision: 0 }, { ...firstRequest, currentState: 'planning' } as TaskTransitionRequest), { code: 'STATE_MISMATCH' });
+  expectCode(() => reduceTask({ ...source, revision: 2 }, firstRequest as TaskTransitionRequest), 'STALE_REVISION');
+  expectCode(() => reduceTask(source, { ...firstRequest, currentState: 'planning' } as TaskTransitionRequest), 'STATE_MISMATCH');
+  expectCode(() => reduceTask(source, { ...firstRequest, aggregateId: 'task-other' } as TaskTransitionRequest), 'AGGREGATE_ID_MISMATCH');
+  expectCode(() => reduceTask(source, { ...firstRequest, correlationId: 'other-correlation' } as TaskTransitionRequest), 'CORRELATION_MISMATCH');
+  const a = reduceTask(source, firstRequest as TaskTransitionRequest);
+  const b = reduceTask(source, firstRequest as TaskTransitionRequest);
+  assert.deepEqual(a, b);
+  assert.equal(a.transition.timestamp, TIMESTAMP);
+  expectCode(() => reduceTask(source, { ...firstRequest, timestamp: 'not-a-time' } as TaskTransitionRequest), 'INVALID_TIMESTAMP');
 });
 
-test('transition records are deterministic and timestamps are caller supplied', () => {
-  const source = makeTask('created'); const input = request('task-1', 'created', 'contextualizing');
-  const a = reduceTask(source, input as TaskTransitionRequest); const b = reduceTask(source, input as TaskTransitionRequest);
-  assert.deepEqual(a, b); assert.equal(a.transition.timestamp, input.timestamp); assert.equal(a.transition.nextRevision, 1);
-  assert.throws(() => reduceTask(source, { ...input, timestamp: 'not-a-time' } as TaskTransitionRequest), { code: 'INVALID_TIMESTAMP' });
+test('terminal aggregates reject every outgoing transition', () => {
+  let taskAttempts = 0;
+  for (const state of ['accepted', 'rejected', 'failed', 'cancelled', 'rolled_back'] as const) for (const next of TASK_STATES) {
+    taskAttempts++;
+    expectCode(() => reduceTask(makeTask(state), request('task-1', state, next, taskPayload(state, next), taskCause(state, next)) as TaskTransitionRequest), 'ILLEGAL_TRANSITION');
+  }
+  let workerAttempts = 0;
+  for (const state of ['output_ready', 'failed', 'cancelled', 'interrupted'] as const) for (const next of WORKER_ATTEMPT_STATES) {
+    workerAttempts++;
+    expectCode(() => reduceWorkerAttempt(makeWorker(state), request('attempt-1', state, next, workerPayload(next)) as WorkerAttemptTransitionRequest), 'ILLEGAL_TRANSITION');
+  }
+  let transactionAttempts = 0;
+  for (const state of ['committed', 'rejected', 'rolled_back', 'failed'] as const) for (const next of EXECUTION_TRANSACTION_STATES) {
+    transactionAttempts++;
+    expectCode(() => reduceExecutionTransaction(makeTransaction(state), request('transaction-1', state, next, transactionPayload(state, next, OPERATION_MUTATION)) as ExecutionTransactionTransitionRequest), 'ILLEGAL_TRANSITION');
+  }
+  assert.equal(taskAttempts, 80);
+  assert.equal(workerAttempts, 44);
+  assert.equal(transactionAttempts, 44);
 });
 
-test('unknown authority-shaped fields are rejected at every lifecycle boundary', () => {
+test('unknown authority fields and non-plain aliases are rejected at every boundary', () => {
   const fields = ['approved', 'permission', 'capability', 'executionHandle', 'actorToken', 'authority', 'approvalToken', 'credential'];
   for (const field of fields) {
-    assert.throws(() => createTaskAggregate({ ...makeTask('created'), [field]: true } as never), { code: 'UNKNOWN_AGGREGATE_FIELD' }, field);
-    assert.throws(() => reduceTask(makeTask('created'), { ...request('task-1', 'created', 'contextualizing'), [field]: true } as never), { code: 'UNKNOWN_TRANSITION_FIELD' }, field);
-    assert.throws(() => reduceTask(makeTask('created'), request('task-1', 'created', 'contextualizing', { [field]: true }) as TaskTransitionRequest), { code: 'UNKNOWN_DATA_FIELD' }, field);
-    assert.throws(() => reduceTask(makeTask('created'), request('task-1', 'created', 'contextualizing', {}, { kind: 'operator', id: 'cause', [field]: true } as never) as TaskTransitionRequest), { code: 'UNKNOWN_CAUSE_FIELD' }, field);
+    expectCode(() => createTaskAggregate({ ...makeTask('created'), [field]: true } as never), 'UNKNOWN_AGGREGATE_FIELD');
+    expectCode(() => reduceTask(makeTask('created'), { ...request('task-1', 'created', 'contextualizing'), [field]: true } as never), 'UNKNOWN_TRANSITION_FIELD');
+    expectCode(() => reduceTask(makeTask('created'), request('task-1', 'created', 'contextualizing', { [field]: true } as never) as TaskTransitionRequest), 'UNKNOWN_DATA_FIELD');
+    expectCode(() => reduceTask(makeTask('created'), request('task-1', 'created', 'contextualizing', {}, { ...CAUSE, [field]: true } as never) as TaskTransitionRequest), 'UNKNOWN_CAUSE_FIELD');
   }
-  assert.throws(() => reduceExecutionTransaction(makeTransaction('proposed'), request('transaction-1', 'proposed', 'authorized', { authorityDecisionRef: 'decision', approved: true } as unknown as LifecycleData) as ExecutionTransactionTransitionRequest), { code: 'UNKNOWN_DATA_FIELD' });
   const hidden: Record<string, unknown> = {};
   Object.defineProperty(hidden, 'approved', { enumerable: false, value: true });
-  assert.throws(() => reduceTask(makeTask('created'), request('task-1', 'created', 'contextualizing', hidden) as TaskTransitionRequest), { code: 'UNKNOWN_DATA_FIELD' });
+  expectCode(() => reduceTask(makeTask('created'), request('task-1', 'created', 'contextualizing', hidden as LifecycleData) as TaskTransitionRequest), 'UNKNOWN_DATA_FIELD');
   const symbolField = { [Symbol('authority')]: true };
-  assert.throws(() => reduceTask(makeTask('created'), request('task-1', 'created', 'contextualizing', symbolField as unknown as LifecycleData) as TaskTransitionRequest), { code: 'UNKNOWN_DATA_FIELD' });
+  expectCode(() => reduceTask(makeTask('created'), request('task-1', 'created', 'contextualizing', symbolField as LifecycleData) as TaskTransitionRequest), 'UNKNOWN_DATA_FIELD');
+  expectCode(() => createOperationDescriptor(Object.create({ id: 'inherited' }) as OperationDescriptor), 'INVALID_OPERATION');
 });
 
-test('authority decision references remain descriptive and cannot be used as credentials', () => {
-  const authorized = reduceExecutionTransaction(makeTransaction('proposed'), request('transaction-1', 'proposed', 'authorized', { authorityDecisionRef: 'decision-1' }) as ExecutionTransactionTransitionRequest);
-  assert.equal(authorized.aggregate.data.authorityDecisionRef, 'decision-1');
-  assert.equal('executionHandle' in authorized.aggregate.data, false);
-  assert.throws(() => createExecutionTransactionAggregate({ ...makeTransaction('authorized'), data: { authorityDecisionRef: 'decision-1', capability: 'grant' } } as never), { code: 'UNKNOWN_DATA_FIELD' });
-});
-
-test('cancellation cannot claim clean quiescence when effects are unknown', () => {
-  assert.throws(() => reduceTask(makeTask('running'), request('task-1', 'running', 'cancelled', { quiescenceRef: 'q', effectCertainty: 'unknown' }) as TaskTransitionRequest), { code: 'CLEAN_QUIESCENCE_REQUIRED' });
-  assert.throws(() => reduceWorkerAttempt(makeWorker('cancelling'), request('attempt-1', 'cancelling', 'cancelled', { quiescenceRef: 'q', effectCertainty: 'unknown' }) as WorkerAttemptTransitionRequest), { code: 'CLEAN_QUIESCENCE_REQUIRED' });
-  const cancelled = reduceTask(makeTask('running'), request('task-1', 'running', 'cancelled', { quiescenceRef: 'q', effectCertainty: 'known_partial' }) as TaskTransitionRequest);
-  assert.equal(cancelled.aggregate.state, 'cancelled'); assert.equal(cancelled.aggregate.data.effectCertainty, 'known_partial');
-});
-
-test('caller aliases cannot mutate reduced aggregates or transition records', () => {
-  const mutable = makeTask('created'); const input = request('task-1', 'created', 'contextualizing');
-  const output = reduceTask(mutable, input as TaskTransitionRequest);
-  (mutable as unknown as { state: TaskState }).state = 'failed';
-  (input as unknown as { reason: string }).reason = 'changed';
-  (input.causeRef as unknown as { id: string }).id = 'changed';
-  assert.equal(output.aggregate.state, 'contextualizing'); assert.equal(output.transition.reason, 'test transition');
-  assert.equal(output.transition.causeRef.id, 'cause-1');
+test('reduced aggregates, nested references and transition records resist caller alias mutation', () => {
+  const source = makeTask('awaiting_authority');
+  const resolution = authority(OPERATION_MUTATION, 0);
+  const input = request('task-1', 'awaiting_authority', 'scheduled', { authorityResolution: resolution }, { kind: 'continuation', id: resolution.continuation.id });
+  const output = reduceTask(source, input as TaskTransitionRequest);
+  (resolution.continuation as { id: string }).id = 'changed';
+  (input.causeRef as { id: string }).id = 'changed';
+  (source as { state: TaskState }).state = 'failed';
+  assert.equal(output.aggregate.state, 'scheduled');
+  assert.equal(output.aggregate.data.authorityResolution?.continuation.id, 'operation-1-continuation');
+  assert.equal(output.transition.causeRef.id, 'operation-1-continuation');
+  assert.equal(Object.isFrozen(output.aggregate), true);
+  assert.equal(Object.isFrozen(output.aggregate.data.authorityResolution), true);
   assert.throws(() => { (output.aggregate as { state: string }).state = 'failed'; }, TypeError);
-  assert.throws(() => { (output.transition as { reason: string }).reason = 'changed'; }, TypeError);
+  assert.throws(() => { (output.aggregate.data.authorityResolution as { id: string }).id = 'changed'; }, TypeError);
 });
 
-test('projection helpers are deterministic consequences of state only', () => {
-  assert.equal(requiresOperatorDecision('awaiting_authority'), true); assert.equal(requiresOperatorDecision('running'), false);
-  assert.equal(requiresReconciliation('interrupted'), true); assert.equal(requiresReconciliation('rolling_back'), true); assert.equal(requiresReconciliation('running'), false);
-  assert.equal(mayAccept('verifying'), true); assert.equal(mayAccept('running'), false);
+test('projection helpers are deterministic consequences of lifecycle state', () => {
+  assert.equal(requiresOperatorDecision('awaiting_authority'), true);
+  assert.equal(requiresOperatorDecision('running'), false);
+  assert.equal(requiresReconciliation('interrupted'), true);
+  assert.equal(requiresReconciliation('rolling_back'), true);
+  assert.equal(requiresReconciliation('running'), false);
+  assert.equal(mayAccept('verifying'), true);
+  assert.equal(mayAccept('running'), false);
 });
 
 test('lifecycle module bundles and executes with browser globals only', async () => {
   let code = '';
-  await build({ configFile: false, envFile: false, publicDir: false, logLevel: 'silent', build: { write: false, minify: false, lib: {
-    entry: fileURLToPath(new URL('../../common/execution/task-lifecycle.ts', import.meta.url)), name: 'CovertLifecycle', formats: ['iife']
-  } }, plugins: [{ name: 'lifecycle-browser-assertion', generateBundle(_options, bundle) {
-    for (const id of this.getModuleIds()) assert.doesNotMatch(id, /node:|browser-external|execution-authority/);
-    for (const chunk of Object.values(bundle)) if (chunk.type === 'chunk') code += chunk.code;
-  } }] });
+  await build({
+    configFile: false,
+    envFile: false,
+    publicDir: false,
+    logLevel: 'silent',
+    build: {
+      write: false,
+      minify: false,
+      lib: { entry: fileURLToPath(new URL('../../common/execution/task-lifecycle.ts', import.meta.url)), name: 'CovertLifecycle', formats: ['iife'] }
+    },
+    plugins: [{
+      name: 'lifecycle-browser-assertion',
+      generateBundle(_options, bundle) {
+        for (const id of this.getModuleIds()) assert.doesNotMatch(id, /node:|browser-external|execution-authority/);
+        for (const chunk of Object.values(bundle)) if (chunk.type === 'chunk') code += chunk.code;
+      }
+    }]
+  });
   assert.ok(code.length > 0);
-  const realm = { text: JSON.stringify(makeTask('created')) };
-  const result = runInNewContext(code + '\nCovertLifecycle.isTaskTerminal("accepted");', realm) as unknown;
+  const result = runInNewContext(code + '\nCovertLifecycle.isTaskTerminal("accepted");', {}) as unknown;
   assert.equal(result, true);
 });

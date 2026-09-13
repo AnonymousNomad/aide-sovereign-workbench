@@ -43,59 +43,119 @@ export type CauseKind =
   | 'recovery'
   | 'reconsideration';
 
-/** Opaque references are identifiers only; they have no executable meaning. */
+/** A scope-bearing identifier. It is descriptive, never executable authority. */
+export interface ScopedReference {
+  readonly id: string;
+  readonly taskId: string;
+  readonly workspaceId: string;
+}
+
+export type OperationEffectClass = 'read_only' | 'mutation';
+
+/** Immutable classification supplied by the trusted operation-admission owner. */
+export interface OperationDescriptor extends ScopedReference {
+  readonly revision: number;
+  readonly effectClass: OperationEffectClass;
+}
+
+export type ProposedOperationRef = OperationDescriptor;
+
+export interface AuthorityDecisionRef extends ScopedReference {
+  readonly operationId: string;
+  readonly proposalRevision: number;
+}
+
+export interface ContinuationRef extends ScopedReference {
+  readonly operationId: string;
+  readonly authorityDecisionId: string;
+  readonly proposalRevision: number;
+}
+
+export interface AuthorityResolutionRef extends ScopedReference {
+  /** Task aggregate revision at which this resolution was issued, when task-bound. */
+  readonly taskRevision?: number;
+  readonly operation: ProposedOperationRef;
+  readonly decision: AuthorityDecisionRef;
+  readonly continuation: ContinuationRef;
+}
+
 export interface CauseRef {
   readonly kind: CauseKind;
   readonly id: string;
 }
 
-export interface AcceptanceEvidenceRef {
-  readonly validationPlanRef: string;
-  readonly veritasVerdictRef: string;
-  readonly resultSnapshotRef: string;
-  readonly evidenceManifestRef: string;
-}
-
-export interface TransactionEvidenceRef {
-  readonly validationPlanRef: string;
-  readonly veritasVerdictRef: string;
-  readonly resultSnapshotRef: string;
-  readonly evidenceManifestRef: string;
-}
-
-export type RollbackOutcome = 'restored' | 'partial' | 'failed';
-export interface RollbackResultRef {
-  readonly ref: string;
-  readonly outcome: RollbackOutcome;
+export interface ReconciliationRef extends ScopedReference {
+  readonly aggregateType: AggregateType;
+  readonly aggregateId: string;
+  readonly outcome: 'reconciled' | 'unresolved';
   readonly effectCertainty: EffectCertainty;
 }
 
-export interface ReconciliationRef {
-  readonly ref: string;
-  readonly outcome: 'reconciled' | 'unresolved';
+export interface RetainedExecutionResultRef extends ScopedReference {
+  readonly transactionId: string;
+  readonly attemptId: string;
+  readonly snapshotRef: string;
+  readonly effectCertainty: EffectCertainty;
 }
 
-export interface CheckpointRef {
-  readonly kind: 'required' | 'not_applicable';
-  readonly ref: string | null;
+export interface CheckpointRef extends ScopedReference {
+  readonly transactionId: string;
+  readonly snapshotRef: string;
+}
+
+export interface NotApplicableCheckpoint {
+  readonly kind: 'not_applicable';
+}
+
+export interface QuiescenceEvidence extends ScopedReference {
+  readonly aggregateType: 'task' | 'worker_attempt';
+  readonly aggregateId: string;
+  readonly admissionStopped: true;
+  readonly activeWork: 'none';
+  readonly effectCertainty: Exclude<EffectCertainty, 'unknown'>;
+  readonly retainedResult: RetainedExecutionResultRef | null;
+}
+
+export interface AcceptanceEvidenceRef extends ScopedReference {
+  readonly transactionId: string;
+  readonly attemptId: string;
+  readonly validationPlan: ScopedReference;
+  readonly veritasVerdict: ScopedReference;
+  readonly resultSnapshot: RetainedExecutionResultRef;
+  readonly evidenceManifest: ScopedReference;
+}
+
+export type TransactionEvidenceRef = AcceptanceEvidenceRef;
+
+export type RollbackOutcome = 'restored' | 'partial' | 'failed';
+export interface RollbackResultRef extends ScopedReference {
+  readonly transactionId: string;
+  readonly restoreSnapshotRef: string;
+  readonly outcome: RollbackOutcome;
+  readonly effectCertainty: EffectCertainty;
+  readonly divergence: 'none' | 'resolved' | 'present';
+}
+
+export type RecoveryDisposition = 'retain_for_review' | 'rollback_required' | 'repair_attempt_allowed';
+
+export interface OutputRef extends ScopedReference {
+  readonly attemptId: string;
 }
 
 /** State metadata is descriptive and cannot be used as execution authority. */
 export interface LifecycleData {
-  readonly continuationRef?: string;
-  readonly proposedOperationRef?: string;
-  readonly authorityRequestRef?: string;
-  readonly authorityDecisionRef?: string;
+  readonly authorityResolution?: AuthorityResolutionRef;
   readonly reconciliation?: ReconciliationRef;
   readonly acceptanceEvidence?: AcceptanceEvidenceRef;
   readonly transactionEvidence?: TransactionEvidenceRef;
-  readonly resultSnapshotRef?: string;
-  readonly outputRef?: string;
-  readonly failureRef?: string;
+  readonly retainedResult?: RetainedExecutionResultRef;
+  readonly output?: OutputRef;
+  readonly failureRef?: ScopedReference;
   readonly rollbackResult?: RollbackResultRef;
-  readonly checkpoint?: CheckpointRef;
+  readonly checkpoint?: CheckpointRef | NotApplicableCheckpoint;
+  readonly quiescence?: QuiescenceEvidence;
   readonly effectCertainty?: EffectCertainty;
-  readonly quiescenceRef?: string;
+  readonly recoveryDisposition?: RecoveryDisposition;
 }
 
 export interface TaskAggregate {
@@ -103,6 +163,7 @@ export interface TaskAggregate {
   readonly aggregateType: 'task';
   readonly aggregateId: string;
   readonly taskId: string;
+  readonly workspaceId: string;
   readonly parentTaskId: string | null;
   readonly attemptId: string | null;
   readonly revision: number;
@@ -118,6 +179,7 @@ export interface WorkerAttemptAggregate {
   readonly aggregateId: string;
   readonly attemptId: string;
   readonly taskId: string;
+  readonly workspaceId: string;
   readonly parentAttemptId: string | null;
   readonly revision: number;
   readonly state: WorkerAttemptState;
@@ -134,7 +196,8 @@ export interface ExecutionTransactionAggregate {
   readonly taskId: string;
   readonly attemptId: string;
   readonly workspaceId: string;
-  readonly mutation: 'read_only' | 'mutation';
+  readonly operation: OperationDescriptor;
+  readonly preExecutionSnapshotRef: string;
   readonly revision: number;
   readonly state: ExecutionTransactionState;
   readonly correlationId: string;

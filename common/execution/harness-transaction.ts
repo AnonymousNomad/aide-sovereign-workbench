@@ -542,13 +542,14 @@ function parseCancellation(value: unknown): CancellationRequestIntent {
 
 function parseRetryParent(value: unknown): RetryParentTransactionRef {
   const input = record(value, [
-    'kind', 'workspaceId', 'taskId', 'parentTaskRevision', 'parentAttemptId', 'parentTransactionId',
+    'kind', 'parentRequestId', 'workspaceId', 'taskId', 'parentTaskRevision', 'parentAttemptId', 'parentTransactionId',
     'parentAuthorityDecisionId', 'parentTerminalState', 'parentEffectCertainty', 'parentResultRef'
   ], 'RETRY_PARENT');
   if (input.kind !== 'retry-parent') return fail('INVALID_RETRY_PARENT_KIND');
   const parentResultRef = has(input, 'parentResultRef') ? parseResultRef(input.parentResultRef, 'PARENT_RESULT') : undefined;
   return {
     kind: 'retry-parent',
+    parentRequestId: text(input.parentRequestId, 'INVALID_RETRY_PARENT_REQUEST') as HarnessExecutionRequest['requestId'],
     workspaceId: text(input.workspaceId, 'INVALID_RETRY_PARENT_WORKSPACE') as WorkspaceId,
     taskId: text(input.taskId, 'INVALID_RETRY_PARENT_TASK') as TaskId,
     parentTaskRevision: revision(input.parentTaskRevision, 'INVALID_RETRY_PARENT_REVISION'),
@@ -602,7 +603,7 @@ function validateBudget(budget: ResourceBudgetBinding, identity: { workspaceId: 
 function validateRetry(retry: RetryLineage | undefined, identity: HarnessTransactionIdentity): void {
   if (!retry) return;
   const parent = retry.parent;
-  if (parent.workspaceId !== identity.workspaceId || parent.taskId !== identity.taskId || parent.parentAttemptId === identity.attemptId || parent.parentTransactionId === identity.transactionId) return fail('SCOPE_MISMATCH');
+  if (parent.parentRequestId === identity.requestId || parent.workspaceId !== identity.workspaceId || parent.taskId !== identity.taskId || parent.parentAttemptId === identity.attemptId || parent.parentTransactionId === identity.transactionId) return fail('SCOPE_MISMATCH');
   if (retry.kind === 'same-task-revision-retry' && parent.parentTaskRevision !== identity.taskRevision) return fail('STALE_REVISION');
   if (retry.kind === 'reconsidered-task-retry' && parent.parentTaskRevision >= identity.taskRevision) return fail('STALE_REVISION');
   if (parent.parentEffectCertainty !== 'none' && parent.parentTerminalState !== 'rolled_back') return fail('UNKNOWN_EFFECT');
@@ -721,8 +722,16 @@ function parseResultRef(value: unknown, label = 'RESULT_REFERENCE'): ExecutionRe
 function parseCheckpointObservation(value: unknown): CheckpointObservation {
   const input = record(value, ['kind', 'checkpoint', 'preparation'], 'CHECKPOINT_OBSERVATION');
   const kind = oneOf(input.kind, ['not_applicable', 'bound', 'compensation_only'], 'INVALID_CHECKPOINT_OBSERVATION_KIND');
-  if (kind === 'not_applicable') return { kind };
-  if (kind === 'bound') return { kind, checkpoint: parseTransactionCheckpoint(input.checkpoint) };
+  const keys = Object.keys(input);
+  if (kind === 'not_applicable') {
+    if (keys.some(key => key !== 'kind')) return fail('INVALID_CHECKPOINT_OBSERVATION_FIELDS');
+    return { kind };
+  }
+  if (kind === 'bound') {
+    if (keys.some(key => key !== 'kind' && key !== 'checkpoint') || !has(input, 'checkpoint')) return fail('INVALID_CHECKPOINT_OBSERVATION_FIELDS');
+    return { kind, checkpoint: parseTransactionCheckpoint(input.checkpoint) };
+  }
+  if (keys.some(key => key !== 'kind' && key !== 'preparation') || !has(input, 'preparation')) return fail('INVALID_CHECKPOINT_OBSERVATION_FIELDS');
   return { kind, preparation: parseCompensationPreparation(input.preparation) };
 }
 
@@ -1205,7 +1214,7 @@ function parseData(state: ExecutionTransactionState, data: Plain, request: Harne
       const evidence = parseEvidenceSnapshot(data.evidence);
       const quiescence = parseQuiescence(data.quiescence);
       validateResultRef(resultRef, identity); validateEvidenceSnapshot(evidence, identity);
-      if (!sameScope(authorityConsumption, identity) || resultRef.effectCertainty !== quiescence.effectCertainty) return fail('RESULT_SCOPE_MISMATCH');
+      if (!sameScope(authorityConsumption, identity) || !sameScope(quiescence, identity) || (quiescence.retainedResultRef && !sameScope(quiescence.retainedResultRef, identity)) || resultRef.effectCertainty !== quiescence.effectCertainty) return fail('RESULT_SCOPE_MISMATCH');
       return { authorityConsumption, resultRef, evidence, quiescence };
     }
     case 'committed': {

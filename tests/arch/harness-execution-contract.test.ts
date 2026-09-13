@@ -463,6 +463,13 @@ test('rollback cannot claim restored state with unknown effects, divergence, or 
     retainedResult: resultRef(rolling.identity, 'known_partial'), restoreResult: evidence('restore-1', 'before-after', { ...rolling.identity, workspaceId: 'workspace-2' }),
     restoredSnapshotRef: 'snapshot-restored', effectCertainty: 'known_partial', divergence: 'none'
   })), 'SCOPE_MISMATCH');
+  await expectCode(transitionHarnessTransaction(rolling, transitionInput(rolling, 'rolled_back', {
+    retainedResult: resultRef(rolling.identity, 'known_partial'), restoredSnapshotRef: 'snapshot-restored', effectCertainty: 'known_partial', divergence: 'none'
+  })), 'INVALID_RESTORE_RESULT');
+  await expectCode(transitionHarnessTransaction(rolling, transitionInput(rolling, 'rolled_back', {
+    retainedResult: resultRef(rolling.identity, 'known_partial'), restoreResult: evidence('restore-1', 'process', rolling.identity),
+    restoredSnapshotRef: 'snapshot-restored', effectCertainty: 'known_partial', divergence: 'none'
+  })), 'ROLLBACK_REQUIRED');
 });
 
 test('retry lineage requires a fresh identity and rejects uncertain parent effects', async () => {
@@ -471,7 +478,7 @@ test('retry lineage requires a fresh identity and rejects uncertain parent effec
   sameRevision.context.requestId = 'request-2'; sameRevision.workerSelection.attemptId = 'attempt-2'; sameRevision.resourceBudget.transactionId = 'transaction-2';
   sameRevision.retry = {
     kind: 'same-task-revision-retry',
-    parent: { kind: 'retry-parent', workspaceId: SCOPE.workspaceId, taskId: SCOPE.taskId, parentTaskRevision: 0, parentAttemptId: 'attempt-1', parentTransactionId: 'transaction-1', parentAuthorityDecisionId: 'decision-0', parentTerminalState: 'failed', parentEffectCertainty: 'none' },
+    parent: { kind: 'retry-parent', parentRequestId: 'request-1', workspaceId: SCOPE.workspaceId, taskId: SCOPE.taskId, parentTaskRevision: 0, parentAttemptId: 'attempt-1', parentTransactionId: 'transaction-1', parentAuthorityDecisionId: 'decision-0', parentTerminalState: 'failed', parentEffectCertainty: 'none' },
     freshAuthorityRequired: true, freshCheckpointRequired: true, freshEvidenceRequired: true
   };
   const retry = await createHarnessExecutionRequest(sameRevision);
@@ -487,6 +494,12 @@ test('retry lineage requires a fresh identity and rejects uncertain parent effec
   } }), 'UNKNOWN_EFFECT');
   await expectCode(createHarnessExecutionRequest({ ...sameRevision, retry: {
     ...sameRevision.retry, parent: { ...sameRevision.retry.parent, parentAttemptId: 'attempt-2' }
+  } }), 'SCOPE_MISMATCH');
+  await expectCode(createHarnessExecutionRequest({ ...sameRevision, retry: {
+    ...sameRevision.retry, parent: { ...sameRevision.retry.parent, parentRequestId: 'request-2' }
+  } }), 'SCOPE_MISMATCH');
+  await expectCode(createHarnessExecutionRequest({ ...sameRevision, retry: {
+    ...sameRevision.retry, parent: { ...sameRevision.retry.parent, parentTransactionId: 'transaction-2' }
   } }), 'SCOPE_MISMATCH');
   await expectCode(createHarnessExecutionRequest({ ...sameRevision, retry: {
     ...sameRevision.retry, parent: { ...sameRevision.retry.parent, parentResultRef: resultRef({ requestId: 'request-1', ...SCOPE, attemptId: 'attempt-1', transactionId: 'transaction-other' }, 'none') }
@@ -552,4 +565,249 @@ test('H1 modules bundle with browser globals and have no capability-owning impor
   assert.ok(code.length > 0);
   const result = runInNewContext(code + '\nCovertHarness.canonicalHarnessJson({ approved: "descriptive text" });', {}) as unknown;
   assert.equal(typeof result, 'string');
+});
+
+test('verifying binds quiescence and retained results to the full execution scope', async () => {
+  const proposed = await createProposedHarnessTransaction(await makeRequest());
+  const authorized = await toAuthorized(proposed);
+  const checkpointed = await toCheckpointed(authorized);
+  const executing = await toExecuting(checkpointed);
+  const pending = await transitionHarnessTransaction(executing, transitionInput(executing, 'evidence_pending', {
+    authorityConsumption: consumption(executing.identity),
+    quiescence: quiescence(executing.identity, 'known_partial'),
+    effectCertainty: 'known_partial', evidenceRefs: []
+  }));
+  const identity = pending.identity;
+  const mismatches = [
+    ['workspace', { workspaceId: 'workspace-2' }],
+    ['task', { taskId: 'task-2' }],
+    ['revision', { taskRevision: 1 }],
+    ['attempt', { attemptId: 'attempt-2' }],
+    ['transaction', { transactionId: 'transaction-2' }]
+  ] as const;
+  for (const [, change] of mismatches) {
+    const foreign = { ...identity, ...change };
+    await expectCode(transitionHarnessTransaction(pending, transitionInput(pending, 'verifying', {
+      authorityConsumption: consumption(identity), resultRef: resultRef(identity, 'known_partial'),
+      evidence: evidenceSnapshot(identity), quiescence: quiescence(foreign, 'known_partial')
+    })), 'RESULT_SCOPE_MISMATCH');
+  }
+  const retainedForeign = resultRef({ ...identity, transactionId: 'transaction-foreign' }, 'known_partial');
+  await expectCode(transitionHarnessTransaction(pending, transitionInput(pending, 'verifying', {
+    authorityConsumption: consumption(identity), resultRef: resultRef(identity, 'known_partial'),
+    evidence: evidenceSnapshot(identity), quiescence: quiescence(identity, 'known_partial', { retainedResultRef: retainedForeign })
+  })), 'RESULT_SCOPE_MISMATCH');
+});
+
+test('checkpoint observations reject variant-inapplicable fields instead of dropping them', async () => {
+  const proposed = await createProposedHarnessTransaction(await makeRequest());
+  const authorized = await toAuthorized(proposed);
+  const identity = authorized.identity;
+  const bound = checkpoint(identity);
+  const preparation = {
+    kind: 'compensation-preparation', id: 'preparation-1', workspaceId: identity.workspaceId,
+    taskId: identity.taskId, taskRevision: identity.taskRevision, transactionId: identity.transactionId,
+    mutationScopeDigest: DIGESTS.effect, preparationDigest: DIGESTS.checkpoint
+  };
+  const invalid = [
+    { kind: 'not_applicable', checkpoint: bound.checkpoint },
+    { kind: 'not_applicable', preparation },
+    { kind: 'bound', preparation },
+    { kind: 'bound' },
+    { kind: 'compensation_only', checkpoint: bound.checkpoint, preparation },
+    { kind: 'compensation_only' },
+    { kind: 'required_missing', checkpoint: bound.checkpoint },
+    { kind: 'attempted', checkpoint: bound.checkpoint },
+    { kind: 'failed', checkpoint: bound.checkpoint }
+  ];
+  for (const observation of invalid) {
+    await assert.rejects(
+      transitionHarnessTransaction(authorized, transitionInput(authorized, 'checkpointed', {
+        authorityResolution: resolution(), authorityConsumption: consumption(identity), checkpoint: observation
+      })),
+      (error: unknown) => error instanceof HarnessExecutionError
+    );
+  }
+});
+
+test('effective checkpoint, evidence, and resource policies cannot be weakened by caller claims', async () => {
+  const weakEvidence = requestInput();
+  weakEvidence.evidence = { requested: ['process'], effectiveMinimum: ['result'], policyRevision: 1, policyDigest: DIGESTS.policy };
+  await expectCode(createHarnessExecutionRequest(weakEvidence), 'POLICY_CONFLICT');
+  const weakCheckpoint = requestInput();
+  weakCheckpoint.checkpoint = { ...weakCheckpoint.checkpoint, effectiveRequirement: 'not_applicable' };
+  await expectCode(createHarnessExecutionRequest(weakCheckpoint), 'CHECKPOINT_MISSING');
+  const invalidBudget = requestInput();
+  invalidBudget.resourceBudget.limits.wallTimeMs = 0;
+  await expectCode(createHarnessExecutionRequest(invalidBudget), 'INVALID_BUDGET_WALL_TIME');
+  const foreignBudget = requestInput();
+  foreignBudget.resourceBudget.transactionId = 'transaction-foreign';
+  await expectCode(createHarnessExecutionRequest(foreignBudget), 'SCOPE_MISMATCH');
+  const runtimeCancellation = requestInput();
+  runtimeCancellation.cancellation.effectCertainty = 'none';
+  await expectCode(createHarnessExecutionRequest(runtimeCancellation), 'UNKNOWN_CANCELLATION_FIELD');
+});
+
+test('known-complete mutation cannot be blindly reapplied as a retry', async () => {
+  const retry = requestInput();
+  retry.requestId = 'request-2'; retry.attemptId = 'attempt-2'; retry.transactionId = 'transaction-2';
+  retry.context.requestId = 'request-2'; retry.workerSelection.attemptId = 'attempt-2'; retry.resourceBudget.transactionId = 'transaction-2';
+  const parentIdentity = { requestId: 'request-1', transactionId: 'transaction-1', ...SCOPE, attemptId: 'attempt-1' };
+  retry.retry = {
+    kind: 'same-task-revision-retry',
+    parent: {
+      kind: 'retry-parent', parentRequestId: 'request-1', workspaceId: SCOPE.workspaceId, taskId: SCOPE.taskId,
+      parentTaskRevision: 0, parentAttemptId: 'attempt-1', parentTransactionId: 'transaction-1',
+      parentAuthorityDecisionId: 'decision-0', parentTerminalState: 'rejected', parentEffectCertainty: 'known_complete',
+      parentResultRef: resultRef(parentIdentity, 'known_complete')
+    },
+    freshAuthorityRequired: true, freshCheckpointRequired: true, freshEvidenceRequired: true
+  };
+  await expectCode(createHarnessExecutionRequest(retry), 'UNKNOWN_EFFECT');
+});
+
+test('retry rejects stale runtime artifacts and preserves fresh request identity', async () => {
+  const base = requestInput();
+  base.requestId = 'request-2'; base.attemptId = 'attempt-2'; base.transactionId = 'transaction-2';
+  base.context.requestId = 'request-2'; base.workerSelection.attemptId = 'attempt-2'; base.resourceBudget.transactionId = 'transaction-2';
+  base.retry = {
+    kind: 'same-task-revision-retry',
+    parent: { kind: 'retry-parent', parentRequestId: 'request-1', workspaceId: SCOPE.workspaceId, taskId: SCOPE.taskId,
+      parentTaskRevision: 0, parentAttemptId: 'attempt-1', parentTransactionId: 'transaction-1', parentAuthorityDecisionId: 'decision-0',
+      parentTerminalState: 'failed', parentEffectCertainty: 'none' },
+    freshAuthorityRequired: true, freshCheckpointRequired: true, freshEvidenceRequired: true
+  };
+  const staleArtifacts = ['cancellationEvidence', 'executionEvidence', 'processOwnership', 'checkpoint', 'result', 'authorityConsumption'];
+  for (const field of staleArtifacts) {
+    const input = clone(base);
+    (input.retry.parent as Data)[field] = { stale: true };
+    await expectCode(createHarnessExecutionRequest(input), 'UNKNOWN_RETRY_PARENT_FIELD');
+  }
+  const reusedRequest = clone(base);
+  (reusedRequest as Data).requestId = 'request-1';
+  (reusedRequest.context as Data).requestId = 'request-1';
+  await expectCode(createHarnessExecutionRequest(reusedRequest), 'SCOPE_MISMATCH');
+});
+
+test('actor, decision revision, snapshot, and evidence references are independently scoped', async () => {
+  const proposed = await createProposedHarnessTransaction(await makeRequest());
+  const authorized = await toAuthorized(proposed);
+  const identity = authorized.identity;
+  await expectCode(transitionHarnessTransaction(authorized, transitionInput(authorized, 'checkpointed', {
+    authorityResolution: resolution(), authorityConsumption: consumption(identity, { actorRef: 'actor-foreign' }), checkpoint: checkpoint(identity)
+  })), 'AUTHORITY_MISMATCH');
+  const invalidDecisionRevision = requestInput();
+  invalidDecisionRevision.authority.decision.decisionRevision = 0;
+  await expectCode(createHarnessExecutionRequest(invalidDecisionRevision), 'INVALID_AUTHORITY_DECISION_REVISION');
+  await expectCode(transitionHarnessTransaction(authorized, transitionInput(authorized, 'checkpointed', {
+    authorityResolution: resolution(), authorityConsumption: consumption(identity), checkpoint: checkpoint(identity, {
+      checkpoint: { ...checkpoint(identity).checkpoint, snapshotRef: '' }
+    })
+  })), 'INVALID_TRANSACTION_CHECKPOINT_SNAPSHOT');
+  const checkpointed = await toCheckpointed(authorized);
+  const executing = await toExecuting(checkpointed);
+  const pending = await transitionHarnessTransaction(executing, transitionInput(executing, 'evidence_pending', {
+    authorityConsumption: consumption(identity), quiescence: quiescence(identity, 'known_partial'), effectCertainty: 'known_partial', evidenceRefs: []
+  }));
+  const badEvidence = evidenceSnapshot(identity);
+  badEvidence.manifestRef = evidence('manifest-1', 'result', identity, identity.transactionId, identity.attemptId, DIGESTS.evidence);
+  await expectCode(transitionHarnessTransaction(pending, transitionInput(pending, 'verifying', {
+    authorityConsumption: consumption(identity), resultRef: resultRef(identity, 'known_partial'), evidence: badEvidence, quiescence: quiescence(identity, 'known_partial')
+  })), 'EVIDENCE_INCOMPLETE');
+});
+
+test('canonical vectors retain frozen Context Envelope semantics', async () => {
+  const astral = String.fromCodePoint(0x10000);
+  const bmp = '\uE000';
+  assert.equal(canonicalHarnessJson({ [bmp]: 2, [astral]: 1 }), `{"${astral}":1,"${bmp}":2}`);
+  const text = `quote" slash\\ controls\u0000\b\t\n\f\r\u0001 lone\uD800 astral${astral}`;
+  assert.equal(canonicalHarnessJson({ text }), JSON.stringify({ text }));
+  assert.equal(canonicalHarnessJson({ decimal: 1.25, exponent: 1e-7, large: 1e21, negativeZero: -0, nullValue: null }), '{"decimal":1.25,"exponent":1e-7,"large":1e+21,"negativeZero":0,"nullValue":null}');
+  assert.equal(canonicalHarnessJson({ present: null }), '{"present":null}');
+  assert.equal(canonicalHarnessJson({}), '{}');
+  assert.throws(() => canonicalHarnessJson({ absent: undefined }));
+  assert.throws(() => canonicalHarnessJson(new Array(1)));
+  assert.throws(() => canonicalHarnessJson({ bigint: 1n }));
+  assert.throws(() => canonicalHarnessJson({ nonFinite: Number.POSITIVE_INFINITY }));
+  const identity = { requestId: 'request-1', transactionId: 'transaction-1', ...SCOPE, attemptId: 'attempt-1' };
+  const effectEvidence = evidence('effect-1', 'result', identity);
+  const result = await createHarnessExecutionResult({
+    kind: 'harness-execution-result', schemaVersion: HARNESS_EXECUTION_SCHEMA_VERSION, serialization: HARNESS_EXECUTION_SERIALIZATION,
+    identity, completion: 'completed', effectCertainty: 'known_complete', resultRef: resultRef(identity, 'known_complete'),
+    evidenceRefs: [effectEvidence], effectEvidence, quiescence: quiescence(identity, 'known_complete')
+  });
+  const unsigned = { ...result } as Data;
+  delete unsigned.resultDigest;
+  const rebuilt = await createHarnessExecutionResult(unsigned);
+  assert.equal(rebuilt.resultDigest, result.resultDigest);
+});
+
+test('nested structured validation is accessor-safe across request, snapshot, and result inputs', async () => {
+  let getterCount = 0;
+  const withGetter = (base: Data, field: string): Data => {
+    const copy = { ...base };
+    Object.defineProperty(copy, field, { enumerable: true, configurable: true, get() { getterCount++; return base[field]; } });
+    return copy;
+  };
+  const requestCases: Array<() => Promise<unknown>> = [
+    () => { const input = requestInput(); input.context = withGetter(input.context, 'envelopeDigest'); return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.methodology = withGetter(input.methodology, 'selectionDigest'); return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.workerSelection = withGetter(input.workerSelection, 'modelIdentity'); return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.operation = withGetter(input.operation, 'operationDigest'); return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.target = withGetter(input.target, 'targetIdentityDigest'); return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.authority = { ...input.authority, decision: withGetter(input.authority.decision, 'actorRef') }; return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.resourceBudget = { ...input.resourceBudget, limits: withGetter(input.resourceBudget.limits, 'wallTimeMs') }; return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.evidence = withGetter(input.evidence, 'policyDigest'); return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.retry = { kind: 'same-task-revision-retry', parent: { kind: 'retry-parent', parentRequestId: 'request-1', workspaceId: SCOPE.workspaceId, taskId: SCOPE.taskId, parentTaskRevision: 0, parentAttemptId: 'attempt-1', parentTransactionId: 'transaction-1', parentAuthorityDecisionId: 'decision-0', parentTerminalState: 'failed', parentEffectCertainty: 'none' }, freshAuthorityRequired: true, freshCheckpointRequired: true, freshEvidenceRequired: true }; input.requestId = 'request-2'; input.attemptId = 'attempt-2'; input.transactionId = 'transaction-2'; input.context.requestId = 'request-2'; input.workerSelection.attemptId = 'attempt-2'; input.resourceBudget.transactionId = 'transaction-2'; input.retry.parent = withGetter(input.retry.parent, 'parentTaskRevision'); return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.cancellation = withGetter(input.cancellation, 'stopScheduling'); return createHarnessExecutionRequest(input); },
+    () => { const input = requestInput(); input.checkpoint = withGetter(input.checkpoint, 'effectiveRequirement'); return createHarnessExecutionRequest(input); }
+  ];
+  for (const action of requestCases) {
+    await assert.rejects(action(), (error: unknown) => error instanceof HarnessExecutionError);
+  }
+  const proposed = await createProposedHarnessTransaction(await makeRequest());
+  const snapshot = clone(proposed);
+  (snapshot as Data).identity = withGetter(snapshot.identity, 'taskId');
+  await assert.rejects(transitionHarnessTransaction(snapshot, {}), (error: unknown) => error instanceof HarnessExecutionError);
+  const identity = { requestId: 'request-1', transactionId: 'transaction-1', ...SCOPE, attemptId: 'attempt-1' };
+  const effectEvidence = evidence('effect-1', 'result', identity);
+  const resultInput: Data = {
+    kind: 'harness-execution-result', schemaVersion: HARNESS_EXECUTION_SCHEMA_VERSION, serialization: HARNESS_EXECUTION_SERIALIZATION,
+    identity, completion: 'completed', effectCertainty: 'known_complete', resultRef: withGetter(resultRef(identity, 'known_complete'), 'id'),
+    evidenceRefs: [effectEvidence], effectEvidence, quiescence: quiescence(identity, 'known_complete')
+  };
+  await assert.rejects(createHarnessExecutionResult(resultInput), (error: unknown) => error instanceof HarnessExecutionError);
+  assert.equal(getterCount, 0);
+});
+
+test('result contradiction guards reject unsafe cancellation, unknown, and retained-effect combinations', async () => {
+  const identity = { requestId: 'request-1', transactionId: 'transaction-1', ...SCOPE, attemptId: 'attempt-1' };
+  const effectEvidence = evidence('effect-1', 'result', identity);
+  await expectCode(createHarnessExecutionResult({
+    kind: 'harness-execution-result', schemaVersion: HARNESS_EXECUTION_SCHEMA_VERSION, serialization: HARNESS_EXECUTION_SERIALIZATION,
+    identity, completion: 'cancelled', effectCertainty: 'none', resultRef: resultRef(identity, 'none'), evidenceRefs: []
+  }), 'QUIESCENCE_MISSING');
+  await expectCode(createHarnessExecutionResult({
+    kind: 'harness-execution-result', schemaVersion: HARNESS_EXECUTION_SCHEMA_VERSION, serialization: HARNESS_EXECUTION_SERIALIZATION,
+    identity, completion: 'timed_out', effectCertainty: 'unknown', resultRef: resultRef(identity, 'unknown'), evidenceRefs: [],
+    uncertaintyEvidence: evidence('uncertainty-1', 'error', identity), reconciliationRequired: false
+  }), 'UNKNOWN_EFFECT');
+  await expectCode(createHarnessExecutionResult({
+    kind: 'harness-execution-result', schemaVersion: HARNESS_EXECUTION_SCHEMA_VERSION, serialization: HARNESS_EXECUTION_SERIALIZATION,
+    identity, completion: 'completed', effectCertainty: 'known_complete', resultRef: resultRef(identity, 'known_complete'), evidenceRefs: [effectEvidence],
+    quiescence: quiescence(identity, 'known_complete')
+  }), 'EVIDENCE_INCOMPLETE');
+  const proposed = await createProposedHarnessTransaction(await makeRequest());
+  const authorized = await toAuthorized(proposed);
+  const checkpointed = await toCheckpointed(authorized);
+  const executing = await toExecuting(checkpointed);
+  const pending = await transitionHarnessTransaction(executing, transitionInput(executing, 'evidence_pending', {
+    authorityConsumption: consumption(executing.identity), quiescence: quiescence(executing.identity, 'known_partial'), effectCertainty: 'known_partial', evidenceRefs: []
+  }));
+  const verifying = await transitionHarnessTransaction(pending, transitionInput(pending, 'verifying', {
+    authorityConsumption: consumption(pending.identity), resultRef: resultRef(pending.identity, 'known_partial'), evidence: evidenceSnapshot(pending.identity), quiescence: quiescence(pending.identity, 'known_partial')
+  }));
+  await expectCode(transitionHarnessTransaction(verifying, transitionInput(verifying, 'rejected', {
+    resultRef: resultRef(verifying.identity, 'known_partial'), effectCertainty: 'known_partial', rejectionEvidence: evidence('rejection-2', 'error', verifying.identity), recoveryDisposition: 'retain_for_review'
+  })), 'INVALID_RETAINED_RESULT');
 });

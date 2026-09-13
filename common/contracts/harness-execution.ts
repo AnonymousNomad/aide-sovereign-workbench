@@ -295,6 +295,7 @@ export interface ExecutionResultRef {
 
 export interface RetryParentTransactionRef {
   readonly kind: 'retry-parent';
+  readonly parentRequestId: HarnessExecutionRequestId;
   readonly workspaceId: WorkspaceId;
   readonly taskId: TaskId;
   readonly parentTaskRevision: TaskRevision;

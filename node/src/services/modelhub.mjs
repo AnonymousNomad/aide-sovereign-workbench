@@ -465,5 +465,5 @@ export function createHubService({ workspace, modelsDir, fetchImpl = globalThis.
     }
   }
 
-  return { search, listRepoFiles, startDownload, beginDownload, cancel, listDownloads, listEvents, importFromPath, close };
+  return { workspace, search, listRepoFiles, startDownload, beginDownload, cancel, listDownloads, listEvents, importFromPath, close };
 }

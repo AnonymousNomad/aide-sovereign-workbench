@@ -43,9 +43,14 @@ async function jobById(hub, id) {
 
 async function runDownload(hub, filename) {
   const { job_id } = hub.beginDownload({ repo_id: 'org/repo', filename, quant_label: null });
+  // The status flips to its terminal value before post-status work (manifest
+  // publication / event emission) finishes; wait for the matching terminal
+  // event, which is the authoritative completion signal.
   await waitFor(async () => {
     const job = await jobById(hub, job_id);
-    return job && job.status !== 'running';
+    if (!job || job.status === 'running') return false;
+    const eventName = job.status === 'done' ? 'done' : job.status === 'error' ? 'error' : 'cancelled';
+    return hub.listEvents().some(event => event.event === eventName && event.job_id === job_id);
   }, 8000, `job ${filename}`);
   return jobById(hub, job_id);
 }

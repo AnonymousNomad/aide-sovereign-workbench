@@ -38,7 +38,9 @@ export declare function createHubService(options: {
   fetchImpl?: typeof fetch;
   onEvent?: (event: HubEvent) => void;
 }): {
+  workspace: string;
   search(q: string, sort?: string, limit?: number): Promise<HubSearchResult>;
+  listRepoFiles(repoId: string): Promise<{ repo_id: string; files: Array<{ filename: string; size: number | null }> }>;
   startDownload(args: StartDownloadArgs): Promise<void>;
   beginDownload(args: StartDownloadArgs): { job_id: string };
   cancel(jobId: string): Promise<{ cancelled: boolean }>;

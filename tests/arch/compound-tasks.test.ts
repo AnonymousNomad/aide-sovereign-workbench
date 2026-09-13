@@ -7,11 +7,13 @@ import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
 import type { TaskEventT, TaskJobT } from '../../common/contracts/tasks.ts';
 import { TaskDefinition } from '../../common/contracts/tasks.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-b3-compound-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 const TASKS_JSON = JSON.stringify({
   version: '2.0.0',
@@ -29,6 +31,30 @@ const TASKS_JSON = JSON.stringify({
 });
 
 const events: Array<{ channel: string; data: TaskEventT }> = [];
+const pendingDecisions = new Set<Promise<void>>();
+const decisionErrors: unknown[] = [];
+
+// The task service prepares each child command as its own exact operation and
+// waits for the paired operator's decision. The fixture answers those pending
+// operations as the operator; no operation is approved before it is proposed.
+function approvePendingOperation(event: TaskEventT): void {
+  if (event.event !== 'authority' || event.authority_state.state !== 'pending') return;
+  const id = event.authority_state.operation_id;
+  if (!id || !owner) return;
+  const decision = (async () => {
+    const response = await owner.decide(id, 'approve');
+    assert.equal(response.status, 200);
+    const envelope = (await response.json()) as { ok: boolean };
+    assert.equal(envelope.ok, true);
+  })();
+  pendingDecisions.add(decision);
+  void decision.catch(error => decisionErrors.push(error)).finally(() => pendingDecisions.delete(decision));
+}
+
+async function drainDecisions(): Promise<void> {
+  for (const decision of [...pendingDecisions]) await decision.catch(() => {});
+  if (decisionErrors.length > 0) throw new AggregateError(decisionErrors, 'pending operator decisions failed');
+}
 
 before(async () => {
   await fs.mkdir(path.join(workspace, '.vscode'), { recursive: true });
@@ -37,9 +63,13 @@ before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-b3.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
   const routes = await buildRoutes(workspace, 'test', {
+    authority: server.authority,
     events: {
       publish: (channel: string, data: unknown) => {
-        if (channel === 'tasks') events.push({ channel, data: data as TaskEventT });
+        if (channel !== 'tasks') return;
+        const event = data as TaskEventT;
+        events.push({ channel, data: event });
+        approvePendingOperation(event);
       },
       attach: () => {},
       close: () => {},
@@ -51,9 +81,11 @@ before(async () => {
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
+  await drainDecisions();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
@@ -68,13 +100,18 @@ after(async () => {
 
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
-async function post<T>(pathName: string, payload: unknown): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+async function post<T>(pathName: string, payload: unknown, headers: Record<string, string> = {}): Promise<{ status: number; body: Envelope<T> }> {
+  const response = await owner.request(pathName, {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30000)
+  });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
 async function get<T>(pathName: string): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`);
+  const response = await owner.request(pathName, { signal: AbortSignal.timeout(30000) });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
@@ -90,7 +127,8 @@ async function waitForTerminal(rootJobId: string): Promise<TaskJobT[]> {
 
 test('b3 arch: compound sequential run groups child jobs under parent and emits single root exit notification feed', async () => {
   const startedBefore = events.length;
-  const run = await post<{ job_id: string }>('/api/tasks/run', { label: 'b3 seq root' });
+  const runHeaders = await owner.approve('POST', '/api/tasks/run', { label: 'b3 seq root' }, 'task:compound-b3-seq-root');
+  const run = await post<{ job_id: string }>('/api/tasks/run', { label: 'b3 seq root' }, runHeaders);
   assert.equal(run.status, 200);
   assert.ok(run.body.data?.job_id);
   const rootJobId = run.body.data!.job_id;

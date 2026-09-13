@@ -14,6 +14,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { pairFixture } from './authority-fixture.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-closed-loop-'));
@@ -101,27 +102,39 @@ test('closed-loop: status route reports the env gate and runner-observable state
   const { ArchServer } = await import('../../node/src/server.ts');
   const { buildRoutes } = await import('../../node/src/openapi.ts');
   const server = new ArchServer(workspace, path.join(workspace, 'closed-loop-status.log'));
-  const routes = await buildRoutes(workspace, 'test', {});
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   const httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   const base = `http://127.0.0.1:${address.port}`;
   try {
-    const r = await fetch(`${base}/api/closed-loop/status`);
+    const owner = await pairFixture(server, base);
+    const busRowsBefore = await countBusRows();
+    const r = await owner.request('/api/closed-loop/status', { signal: AbortSignal.timeout(30000) });
     assert.equal(r.status, 200);
     const body = (await r.json()) as { ok: boolean; data?: { enabled: boolean; signal_file_count: number; bus_event_count: number } };
     assert.equal(body.ok, true);
     assert.ok(body.data);
     // daemon gate default = enabled (AIDE_CLOSED_LOOP unset in this process)
     assert.equal(body.data.enabled, true);
-    // the previous test injected 1 bus event + emitted 1 signal file
-    assert.equal(body.data.bus_event_count, 1);
+    // The previous test injected 1 bus event and emitted 1 signal file. The
+    // authority durably records each exact operation on the same bus before
+    // the read handler runs ('proposed' + 'consumed'), so the reported count
+    // is the live baseline plus those two canonical rows.
+    assert.equal(body.data.bus_event_count, busRowsBefore + 2);
     assert.equal(body.data.signal_file_count, 1);
   } finally {
     await new Promise<void>(resolve => httpServer.close(() => resolve()));
   }
 });
+
+async function countBusRows(): Promise<number> {
+  const busPath = path.join(workspace, '.aide', 'cipher-state.jsonl');
+  if (!existsSync(busPath)) return 0;
+  const text = await fs.readFile(busPath, 'utf8');
+  return text.split(/\r?\n/).filter(line => line.trim().length > 0).length;
+}
 
 function countSignalFiles(): number {
   const dir = path.join(workspace, '.aide', 'training');

@@ -10,6 +10,7 @@ import { promises as fsp } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ArchServer } from "../../node/src/server.ts";
+import { pairFixture } from "./authority-fixture.ts";
 import {
   AgentSubagentRole,
   AgentSubagentToolPolicy,
@@ -21,13 +22,15 @@ import { routesForAgentSubagent } from "../../node/src/routes/agent.ts";
 
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
-async function post<T>(base: string, pathName: string, payload: unknown): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(base + pathName, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+let owner: Awaited<ReturnType<typeof pairFixture>>;
+
+async function post<T>(_base: string, pathName: string, payload: unknown): Promise<{ status: number; body: Envelope<T> }> {
+  const response = await owner.request(pathName, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
-async function get<T>(base: string, pathName: string): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(base + pathName);
+async function get<T>(_base: string, pathName: string): Promise<{ status: number; body: Envelope<T> }> {
+  const response = await owner.request(pathName);
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
@@ -85,47 +88,49 @@ test("subagent dispatch: contracts + routes + integration shape (PR A)", async (
     const address = httpServer.address();
     assert.ok(address && typeof address === "object");
     base = "http://127.0.0.1:" + (address as { port: number }).port;
+    owner = await pairFixture(server, base);
   
-    // 6. Route: POST spawn with valid body returns NOT_READY (PR A).
+    // 6. Route: POST spawn is fail-closed at the authority edge — the route
+    // has no authority policy, so no caller can authorize a spawn today.
     const spawnResult = await post<AgentSubagentSpawnResponseT>(base, "/api/agent/subagent", {
       parent_session_id: "parent-abc",
       task: "investigate the bug in parser.mjs",
       role: "researcher"
     });
-    assert.equal(spawnResult.status, 409);
+    assert.equal(spawnResult.status, 403);
     assert.equal(spawnResult.body.ok, false);
-    assert.equal(spawnResult.body.error?.code, "NOT_READY");
+    assert.equal(spawnResult.body.error?.code, "FORBIDDEN");
   
-    // 7. Route: GET list returns empty array.
+    // 7. Route: GET list is fail-closed too — the subagent family has no
+    // authority policy yet, so even reads deny before the handler.
     const listResult = await get<AgentSubagentListResponseT>(base, "/api/agent/subagent?parent_session_id=parent-abc");
-    assert.equal(listResult.status, 200);
-    assert.equal(listResult.body.ok, true);
-    assert.deepEqual(listResult.body.data, { subagents: [] });
-  
-    // 8. Route: GET status with no child_id returns 400.
+    assert.equal(listResult.status, 403);
+    assert.equal(listResult.body.ok, false);
+    assert.equal(listResult.body.error?.code, "FORBIDDEN");
+
+    // 8. Route: GET status is likewise denied before request validation.
     const statusNoChild = await get(base, "/api/agent/subagent/status");
     assert.equal(statusNoChild.status, 400);
     assert.equal(statusNoChild.body.ok, false);
-  
-    // 9. Route: GET status with null service returns 503 NOT_READY.
+
+    // 9. Route: GET status with a child id denies identically.
     const statusNotReady = await get(base, "/api/agent/subagent/status?child_session_id=c-abc");
-    assert.equal(statusNotReady.status, 409);
+    assert.equal(statusNotReady.status, 403);
     assert.equal(statusNotReady.body.ok, false);
-    assert.equal(statusNotReady.body.error?.code, "NOT_READY");
-  
-    // 10. Integration: spawn + list + status (PR A: NOT_READY at every step).
+    assert.equal(statusNotReady.body.error?.code, "FORBIDDEN");
+
+    // 10. Integration: the whole not-ready surface stays fail-closed.
     const spawnInt = await post(base, "/api/agent/subagent", {
       parent_session_id: "p-int",
       task: "find all uses of foo() in src/",
       role: "researcher",
       policy: { allow_write: false, allow_edit: false, max_iterations: 4 }
     });
-    assert.equal(spawnInt.status, 409);
+    assert.equal(spawnInt.status, 403);
     const listInt = await get<{ subagents: unknown[] }>(base, "/api/agent/subagent?parent_session_id=p-int");
-    assert.equal(listInt.status, 200);
-    assert.deepEqual(listInt.body.data, { subagents: [] });
+    assert.equal(listInt.status, 403);
     const statusInt = await get(base, "/api/agent/subagent/status?child_session_id=c-int");
-    assert.equal(statusInt.status, 409);
+    assert.equal(statusInt.status, 403);
   } finally {
     // Rely on the http-close-shim (loaded via --import in CI and local runs):
     // patched close() calls closeAllConnections() first. An explicit

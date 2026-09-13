@@ -22,6 +22,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { pairFixture, pairServiceFixture } from './authority-fixture.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const runExec = promisify(execFile);
@@ -65,21 +66,31 @@ function localDate(d = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
-function request(port: number, pathPart: string, payload?: unknown, method = 'GET'): Promise<Response> {
-  const init: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
-  if (payload !== undefined) init.body = JSON.stringify(payload);
-  return fetch(`http://127.0.0.1:${port}${pathPart}`, init);
-}
+// Canonical transport seam: the paired operator (Bearer) is required for every
+// route; mutations additionally carry the approved exact operation headers.
+type Fixture = Awaited<ReturnType<typeof pairFixture>>;
+type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
 function unwrap(body: { ok?: boolean; data?: unknown } | null): unknown {
   if (body && body.ok === true && body.data !== undefined) return body.data;
   return body;
 }
 
-async function requestOk<T = unknown>(port: number, pathPart: string, payload?: unknown, method = 'GET'): Promise<T> {
-  const res = await request(port, pathPart, payload, method);
+async function requestOk<T = unknown>(owner: Fixture, pathPart: string, payload?: unknown, method = 'GET'): Promise<T> {
+  const res = await owner.request(pathPart, {
+    method,
+    signal: AbortSignal.timeout(30000),
+    ...(payload === undefined ? {} : { body: JSON.stringify(payload) })
+  });
   assert.equal(res.status, 200, `${method} ${pathPart}`);
   return unwrap(await res.json()) as T;
+}
+
+async function postApproved(owner: Fixture, pathPart: string, payload: unknown, taskId: string): Promise<{ status: number; data: unknown }> {
+  const headers = await owner.approve('POST', pathPart, payload, taskId);
+  const res = await owner.request(pathPart, { method: 'POST', headers, signal: AbortSignal.timeout(30000), body: JSON.stringify(payload) });
+  const body = (await res.json()) as Envelope<unknown>;
+  return { status: res.status, data: unwrap(body) };
 }
 
 before(async () => {
@@ -120,28 +131,34 @@ after(async () => {
 
 type ChatFn = (messages: Array<{ role: string; content: string }>) => Promise<string>;
 
-async function withServer(chatFn: ChatFn, fn: (ctx: { httpServer: import('node:http').Server; port: number; base: string }) => Promise<void>): Promise<void> {
+async function withServer(chatFn: ChatFn, fn: (ctx: { httpServer: import('node:http').Server; port: number; base: string; owner: Fixture }) => Promise<void>): Promise<void> {
   const { ArchServer } = await import('../../node/src/server.ts');
   const { buildRoutes } = await import('../../node/src/openapi.ts');
   const port = await freePort();
+  const base = `http://127.0.0.1:${port}`;
+  const server = new ArchServer(workspace, path.join(workspace, 'server.log'));
   const routes = await buildRoutes(workspace, 'test', {
+    authority: server.authority,
+    events: server.events,
     agentChatFn: chatFn,
     skillsRoot: workspace
   });
-  const server = new ArchServer(workspace, path.join(workspace, 'server.log'));
   for (const route of routes) server.route(route);
   const httpServer = await server.listen(port);
   try {
-    return await fn({ httpServer, port, base: `http://127.0.0.1:${port}` });
+    const owner = await pairFixture(server, base);
+    return await fn({ httpServer, port, base, owner });
   } finally {
     try { httpServer.close(); } catch {}
     try { httpServer.closeAllConnections(); } catch {}
   }
 }
 
-async function startAgent(port: number, task = 'improve the note file', mode = 'act'): Promise<string> {
-  const body = await requestOk<{ session_id: string }>(port, '/api/agent/start', { task, mode }, 'POST');
-  return body.session_id;
+let startSequence = 0;
+async function startAgent(owner: Fixture, task = 'improve the note file', mode = 'act'): Promise<string> {
+  const result = await postApproved(owner, '/api/agent/start', { task, mode }, `mission-start-${++startSequence}`);
+  assert.equal(result.status, 200, 'POST /api/agent/start');
+  return (result.data as { session_id: string }).session_id;
 }
 
 type AgentStatus = {
@@ -149,27 +166,42 @@ type AgentStatus = {
   pending_approval?: { approval_id: string } | null;
 };
 
-async function decide(port: number, sessionId: string, decision: 'approve' | 'reject' | 'abort'): Promise<Response> {
+async function decide(owner: Fixture, sessionId: string, decision: 'approve' | 'reject' | 'abort'): Promise<{ status: number; data: unknown }> {
   let pending: AgentStatus | null = null;
   for (let i = 0; i < 80; i += 1) {
-    const body = await requestOk<AgentStatus>(port, `/api/agent/status?id=${sessionId}`);
-    pending = body;
+    pending = await requestOk<AgentStatus>(owner, `/api/agent/status?id=${sessionId}`);
     if (pending.state === 'awaiting_approval') break;
     if (['done', 'error', 'aborted'].includes(pending.state)) break;
     await sleep(100);
   }
   assert.equal(pending?.state, 'awaiting_approval', `should await approval (got ${JSON.stringify(pending)?.slice(0, 200)})`);
-  const approvalId = pending?.pending_approval?.approval_id;
-  assert.ok(approvalId, 'approval id present');
-  const dec = await request(port, '/api/agent/decision', { session_id: sessionId, approval_id: approvalId, decision }, 'POST');
-  assert.equal(dec.status, 200, 'agent decision');
+  assert.ok(pending?.pending_approval?.approval_id, 'approval id present');
+  // Canonical sequence: the loop requests each exact operation as its own
+  // human approval (checkpoint snapshot before a mutating tool). Decide every
+  // distinct approval until the session reaches a terminal state.
+  let lastDecided: string | null = null;
+  let dec: { status: number; data: unknown } = { status: 0, data: undefined };
+  let status: AgentStatus | null = pending;
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    const approvalId = status?.pending_approval?.approval_id;
+    if (status?.state === 'awaiting_approval' && approvalId && approvalId !== lastDecided) {
+      lastDecided = approvalId;
+      dec = await postApproved(owner, '/api/agent/decision', { session_id: sessionId, approval_id: approvalId, decision }, `mission-decision-${sessionId.slice(0, 8)}-${lastDecided.slice(0, 8)}`);
+      assert.equal(dec.status, 200, 'agent decision');
+    } else if (status && ['done', 'error', 'aborted'].includes(status.state)) {
+      return dec;
+    }
+    await sleep(50);
+    status = await requestOk<AgentStatus>(owner, `/api/agent/status?id=${sessionId}`);
+  }
   return dec;
 }
 
-async function waitForState(port: number, sessionId: string, states: string[], max = 120): Promise<{ state: string } & Record<string, unknown> | null> {
+async function waitForState(owner: Fixture, sessionId: string, states: string[], max = 120): Promise<{ state: string } & Record<string, unknown> | null> {
   let finalState: ({ state: string } & Record<string, unknown>) | null = null;
   for (let i = 0; i < max; i += 1) {
-    const body = await requestOk<AgentStatus & Record<string, unknown>>(port, `/api/agent/status?id=${sessionId}`);
+    const body = await requestOk<AgentStatus & Record<string, unknown>>(owner, `/api/agent/status?id=${sessionId}`);
     if (states.includes(body.state)) { finalState = body; break; }
     await sleep(100);
   }
@@ -189,12 +221,12 @@ test('mission 1: approved agent action writes verification + evidence + bus rows
       return '<replace_in_file>\n<path>note.md</path>\n<content><<<<<<< SEARCH\nbeta\n=======\nbeta-improved\nimproved by p0 mission\n>>>>>>> REPLACE</content>\n</replace_in_file>';
     }
     return '<attempt_completion>\n<result>note.md improved</result>\n</attempt_completion>';
-  }, async ({ port }) => {
+  }, async ({ owner }) => {
 
-  const sessionId = await startAgent(port);
+  const sessionId = await startAgent(owner);
   // approve the pending tool call
-  await decide(port, sessionId, 'approve');
-  const final = await waitForState(port, sessionId, ['done', 'error', 'aborted'], 120);
+  await decide(owner, sessionId, 'approve');
+  const final = await waitForState(owner, sessionId, ['done', 'error', 'aborted'], 120);
   assert.equal(final?.state, 'done', `agent should finish done (got ${JSON.stringify(final)?.slice(0, 200)})`);
 
   // --- evidence file ---
@@ -232,9 +264,7 @@ test('mission 1: approved agent action writes verification + evidence + bus rows
   assert.equal(vRow.execution_state, 'succeeded', 'execution success remains observable separately');
 
   // --- /api/audit/session ---
-  const sessRes = await request(port, `/api/audit/session?id=${sessionId}`);
-  assert.equal(sessRes.status, 200, 'audit session 200');
-  const sessBody = unwrap(await sessRes.json()) as { session_id?: string; by_type?: unknown };
+  const sessBody = await requestOk<{ session_id?: string; by_type?: unknown }>(owner, `/api/audit/session?id=${sessionId}`);
   assert.ok(sessBody.session_id === sessionId && sessBody.by_type, 'audit session returns trajectory for this session');
 
   // --- memory day digest file (local calendar date, per memory-spine) ---
@@ -261,9 +291,7 @@ test('mission 1: approved agent action writes verification + evidence + bus rows
   assert.ok(residentRow2, 'resident observation row exists (Mission 1 item 7)');
 
   // --- /api/resident/summary works ---
-  const residentRes = await request(port, '/api/resident/summary');
-  assert.equal(residentRes.status, 200, 'resident summary 200');
-  const residentBody = unwrap(await residentRes.json()) as { summary?: Record<string, unknown> };
+  const residentBody = await requestOk<{ summary?: Record<string, unknown> }>(owner, '/api/resident/summary');
   assert.ok(residentBody.summary, 'resident summary has data');
   });
 });
@@ -276,12 +304,12 @@ test('mission 1: rejected action produces a type rejection bus row and a selfimp
       return '<replace_in_file>\n<path>note.md</path>\n<content>bad\n</content>\n</replace_in_file>';
     }
     return '<attempt_completion>\n<result>skipped</result>\n</attempt_completion>';
-  }, async ({ port }) => {
+  }, async ({ owner }) => {
 
-  const sessionId = await startAgent(port);
+  const sessionId = await startAgent(owner);
   // reject the pending tool call
-  await decide(port, sessionId, 'reject');
-  const final = await waitForState(port, sessionId, ['done', 'error', 'aborted'], 120);
+  await decide(owner, sessionId, 'reject');
+  const final = await waitForState(owner, sessionId, ['done', 'error', 'aborted'], 120);
   assert.ok(final, 'agent reached terminal state');
 
   // --- bus has type rejection row ---
@@ -300,9 +328,11 @@ test('mission 1: rejected action produces a type rejection bus row and a selfimp
 
 test('mission 1: createAgentLoop injects [WORKSPACE CONTEXT] and [SKILL CONTEXT] into the model prompt', async () => {
   const { createAgentLoop } = await import('../../node/src/services/agent-loop.mjs');
+  const fixture = await pairServiceFixture(workspace);
   const messages: Array<{ role: string; content: string }> = [];
   const loop = createAgentLoop({
     workspace,
+    authority: fixture.authority,
     chatFn: async (msgs) => { messages.push(...msgs); return '<attempt_completion>\n<result>probe</result>\n</attempt_completion>'; },
     rg: null,
     checkpoints: null,
@@ -310,7 +340,7 @@ test('mission 1: createAgentLoop injects [WORKSPACE CONTEXT] and [SKILL CONTEXT]
     skillProvider: async () => '# P0 Note Editing\n\nAlways verify the note content after editing.',
     audit: null
   });
-  loop.start('probe the prompt injection', 'act');
+  await fixture.startAgent(loop, 'probe the prompt injection', 'act');
   // the loop needs approval for replace_in_file; fast-fail by not deciding
   // instead just inspect the messages captured in the chatFn before
   // the loop times out. The system prompt is pushed on the FIRST

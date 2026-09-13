@@ -297,5 +297,5 @@ export function createHandoffService(options) {
     };
   }
 
-  return { exportBundle, listBundles, getBundle, importBundle };
+  return { workspace, exportBundle, listBundles, getBundle, importBundle };
 }

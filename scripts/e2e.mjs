@@ -1,31 +1,33 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
-const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: process.cwd(), env: { ...process.env, AIDE_WORKSPACE: process.cwd(), AIDE_DAEMON_PORT: '4879' }, stdio: ['ignore', 'ignore', 'pipe'] });
-let daemonExit = null;
-let daemonError = null;
-let daemonStderr = '';
-daemon.stderr.on('data', chunk => { daemonStderr = `${daemonStderr}${chunk}`.slice(-4000); });
-daemon.once('error', error => { daemonError = `daemon spawn error: ${error.message}`; });
-daemon.once('exit', (code, signal) => { daemonExit = `daemon exited before readiness (code=${code}, signal=${signal || 'none'})`; });
+import { launchSupervisedStack } from '../tests/helpers/supervised-stack.mjs';
+
+// End-to-end surface check of the canonical stack: the facade is the only
+// operator entry point, every transport caller is paired, and terminal
+// executions run as explicitly approved exact operations.
+const stack = await launchSupervisedStack({ workspace: process.cwd() });
 try {
-  let response;
-  let daemonReady = false;
-  for (let i = 0; i < 150; i += 1) {
-    try { response = await fetch('http://127.0.0.1:4879/health'); if (response.ok) { daemonReady = true; break; } } catch {}
-    if (daemonError || daemonExit) break;
-    await delay(100);
+  // /api/blueprint was dropped from the canonical surface (no TS route, no
+  // legacy operation policy, no UI consumer); the remaining list is the
+  // operator-reachable surface.
+  for (const endpoint of ['/api/models/status', '/api/providers', '/api/community', '/api/training/status', '/api/replays', '/api/workspace/tree', '/api/academy', '/api/plugins', '/api/plugins/presets', '/api/tasks', '/api/session', '/api/artifacts']) {
+    const legacyOwned = endpoint === '/api/training/status';
+    // The first models/status call may run the cached engine/python probe; on
+    // slow local disks that can exceed the default budget without failing.
+    const signal = endpoint === '/api/models/status' ? AbortSignal.timeout(120000) : undefined;
+    const result = await stack.json('facade', 'GET', endpoint, { envelope: !legacyOwned, signal });
+    assert.equal(result.status, 200, `${endpoint} -> ${result.status} ${JSON.stringify(result.body).slice(0, 160)}`);
   }
-  assert.equal(daemonReady, true, daemonError || daemonExit || `daemon did not become ready within 15 seconds${daemonStderr ? `: ${daemonStderr.trim()}` : ''}`);
-  assert.equal(response?.status, 200);
-  for (const endpoint of ['/api/models/status', '/api/providers', '/api/community', '/api/training/status', '/api/replays', '/api/workspace/tree', '/api/blueprint', '/api/academy', '/api/plugins', '/api/plugins/presets', '/api/tasks', '/api/session', '/api/artifacts']) { const result = await fetch(`http://127.0.0.1:4879${endpoint}`); assert.equal(result.status, 200, endpoint); }
-  const ready = await fetch('http://127.0.0.1:4879/api/model/ready?id=qwen-coder-1.5b-q4');
+
+  const ready = await stack.json('facade', 'GET', '/api/model/ready?id=qwen-coder-1.5b-q4');
   assert.equal(ready.status, 200);
-  assert.equal(typeof (await ready.json()).ready, 'boolean');
-  const terminal = await fetch('http://127.0.0.1:4879/api/terminal/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ program: 'node', args: ['--version'], approved: true }) });
-  assert.equal(terminal.status, 200);
-  const echo = await fetch('http://127.0.0.1:4879/api/terminal/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ program: 'echo', args: ['terminal-ok'], approved: true }) });
-  assert.equal(echo.status, 200);
-  assert.match((await echo.json()).stdout, /terminal-ok/);
+  assert.equal(typeof ready.body.data.ready, 'boolean');
+
+  const version = await stack.approveJson({ adapter: 'ts', method: 'POST', path: '/api/terminal/run', body: { program: 'node', args: ['--version'], approved: true } });
+  assert.equal(version.status, 200, JSON.stringify(version.body).slice(0, 200));
+  const echo = await stack.approveJson({ adapter: 'ts', method: 'POST', path: '/api/terminal/run', body: { program: 'echo', args: ['terminal-ok'], approved: true } });
+  assert.equal(echo.status, 200, JSON.stringify(echo.body).slice(0, 200));
+  assert.match(echo.body.data.stdout, /terminal-ok/);
   console.log('AIDE daemon end-to-end smoke passed');
-} finally { daemon.kill('SIGTERM'); }
+} finally {
+  await stack.close();
+}

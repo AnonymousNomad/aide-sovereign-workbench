@@ -79,6 +79,14 @@ export function routeForModelStart(manager: ModelRuntime): Route {
     path: '/api/models/start',
     body: ModelIdRequest,
     response: ModelStartResponse,
+    // The approved operation binds the exact model identity. Every material
+    // process input — executable, model file, arguments, backend/ngl, port and
+    // environment — is derived server-side from the allowlisted model registry
+    // and profile sidecar; none of it is caller-controlled.
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+      const { id } = body as { id: string };
+      return { workspace: manager.workspace, taskId, kind: 'capability.execute', args: { body: { id } } };
+    },
     handler: async ({ body }) => {
       const request = body as { id: string };
       try {
@@ -97,6 +105,13 @@ export function routeForModelStop(manager: ModelRuntime): Route {
     path: '/api/models/stop',
     body: ModelIdRequest,
     response: ModelStopResponse,
+    // The approved operation binds the exact model identity; the target process
+    // is resolved through the runtime's retained child handle for that model id
+    // (never a caller-supplied PID) and fails closed when no handle is owned.
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+      const { id } = body as { id: string };
+      return { workspace: manager.workspace, taskId, kind: 'capability.execute', args: { body: { id } } };
+    },
     handler: async ({ body }) => {
       const request = body as { id: string };
       const result = await manager.stop(request.id);

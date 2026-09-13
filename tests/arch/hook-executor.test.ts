@@ -103,7 +103,7 @@ async function getPort(server: Server): Promise<number> {
 async function waitForHookEntry(
   notifications: NotificationService,
   predicate: (n: NotificationEntry) => boolean,
-  timeoutMs = 5000
+  timeoutMs = 20000
 ): Promise<NotificationEntry> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {

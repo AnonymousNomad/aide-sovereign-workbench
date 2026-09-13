@@ -184,3 +184,34 @@ generic capability classification is insufficient because the effective
 privilege depends on the method. Future review must classify or allowlist
 method families (method-aware operation classification) or otherwise constrain
 the surface before either route is enrolled.
+
+## HANDOFF-BRIEF-SECRET-SCAN-GAP
+
+- **Recorded:** 2026-09-13, from the pre-Wave-3J Handoff audit.
+- **Status:** open — accepted observation, not part of the storage-containment repair.
+
+Brief-tier exports are not scanned for secret-looking content (only paths are
+scrubbed); secret patterns can enter a brief bundle via the distilled `task`
+and `decisions` fields. Transcript/full tiers are unconditionally scanned.
+Artifacts are local-only with no egress. Do not repair opportunistically;
+handle in a dedicated secret-handling slice.
+
+## HANDOFF-UNKNOWN-SESSION-SILENT-EMPTY
+
+- **Recorded:** 2026-09-13, from the pre-Wave-3J Handoff audit.
+- **Status:** open — accepted observation.
+
+An unknown/stale/foreign `session_id` is swallowed by `captureConversation`
+and produces a successful export with an empty bundle instead of an explicit
+error. No data leaks (sessions are workspace-scoped and server-generated), but
+silence is misleading; decide reporting semantics separately.
+
+## HANDOFF-INCLUDE-CODE-NOOP
+
+- **Recorded:** 2026-09-13, from the pre-Wave-3J Handoff audit.
+- **Status:** open — accepted observation.
+
+`include_code` is accepted by the export contract (and requires tier `full`)
+but currently does not populate `code_refs`/`workspace_digest`; the service
+never collects them. Either implement the collection or remove the field in a
+dedicated decision.

@@ -60,6 +60,112 @@ export function createHandoffService(options) {
   const handoffDir = path.join(workspace, '.aide', 'handoff');
   const importedDir = path.join(handoffDir, 'imported');
 
+  // ---- Effective-filesystem containment (mirrors the accepted eval-export /
+  // modelhub / experts / workbench doctrine). Lexical joins are not
+  // sufficient: every read, write, and enumeration must prove the effective
+  // target stays inside the canonical handoff root, and link-like or
+  // hard-linked bundle objects fail closed.
+  function containmentFailure(message) {
+    return Object.assign(new Error(`handoff storage: ${message}`), { code: 'VALIDATION' });
+  }
+
+  function isContained(candidateReal, rootReal) {
+    return candidateReal === rootReal || candidateReal.startsWith(`${rootReal}${path.sep}`);
+  }
+
+  // Deepest-existing-ancestor real resolution: non-existent leaf segments
+  // cannot contain a reparse object and are appended lexically after resolving.
+  function realResolveSync(target) {
+    const absolute = path.resolve(target);
+    const missing = [];
+    let current = absolute;
+    for (;;) {
+      try {
+        const real = fs.realpathSync(current);
+        return path.join(real, ...missing.reverse());
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+        const parent = path.dirname(current);
+        if (parent === current) throw error;
+        missing.push(path.basename(current));
+        current = parent;
+      }
+    }
+  }
+
+  function canonicalHandoffRootSync() {
+    const workspaceReal = realResolveSync(workspace);
+    const rootReal = realResolveSync(handoffDir);
+    if (!isContained(rootReal, workspaceReal)) {
+      throw containmentFailure('root resolves outside the canonical workspace');
+    }
+    const info = fs.lstatSync(handoffDir, { throwIfNoEntry: false });
+    if (info && !info.isDirectory()) throw containmentFailure('root is not a directory');
+    return { root: handoffDir, rootReal };
+  }
+
+  function canonicalImportedRootSync() {
+    const parent = canonicalHandoffRootSync();
+    const rootReal = realResolveSync(importedDir);
+    if (!isContained(rootReal, parent.rootReal)) {
+      throw containmentFailure('imported root resolves outside the handoff root');
+    }
+    const info = fs.lstatSync(importedDir, { throwIfNoEntry: false });
+    if (info && !info.isDirectory()) throw containmentFailure('imported root is not a directory');
+    return { root: importedDir, rootReal };
+  }
+
+  function assertContainedRealSync(rootReal, target, what) {
+    const real = realResolveSync(target);
+    if (!isContained(real, rootReal)) throw containmentFailure(`${what} resolves outside the storage root`);
+  }
+
+  // Existing bundle objects must be plain single-link regular files. Missing
+  // leaves are proven via their deepest existing ancestor so a junctioned
+  // parent can never redirect a read or write target.
+  function assertSafeBundleObjectSync(file, rootReal, what) {
+    const info = fs.lstatSync(file, { throwIfNoEntry: false });
+    if (!info) {
+      assertContainedRealSync(rootReal, file, `${what} target`);
+      return false;
+    }
+    if (info.isSymbolicLink()) throw containmentFailure(`refusing link-like ${what}`);
+    if (!info.isFile()) throw containmentFailure(`refusing non-file ${what}`);
+    if (typeof info.nlink === 'number' && info.nlink > 1) throw containmentFailure(`refusing hard-linked ${what}`);
+    const real = fs.realpathSync(file);
+    if (!isContained(real, rootReal)) throw containmentFailure(`${what} resolves outside the storage root`);
+    return true;
+  }
+
+  function assertGeneratedBundleName(filename, what) {
+    if (typeof filename !== 'string' || !/^(import-)?[0-9a-f-]{36}\.json$/.test(filename)) {
+      throw containmentFailure(`refusing non-canonical ${what} name`);
+    }
+  }
+
+  // Publication doctrine: fresh exclusive temp file in the verified parent,
+  // full content, parent recheck, destination-object check, atomic rename. A
+  // pre-existing link-like or hard-linked destination is never written
+  // through, and failed temps are cleaned only at their proven-contained path.
+  function publishBundleSync(rootReal, dir, filename, data, what) {
+    assertGeneratedBundleName(filename, what);
+    fs.mkdirSync(dir, { recursive: true });
+    assertContainedRealSync(rootReal, dir, `${what} parent`);
+    const finalPath = path.join(dir, filename);
+    assertSafeBundleObjectSync(finalPath, rootReal, `${what} destination`);
+    const tempPath = path.join(dir, `.handoff-${process.pid}-${crypto.randomBytes(8).toString('hex')}.tmp`);
+    assertSafeBundleObjectSync(tempPath, rootReal, `${what} temp`);
+    try {
+      fs.writeFileSync(tempPath, JSON.stringify(data, null, 1), { encoding: 'utf8', flag: 'wx' });
+      assertContainedRealSync(rootReal, dir, `${what} parent`);
+      assertSafeBundleObjectSync(finalPath, rootReal, `${what} destination`);
+      fs.renameSync(tempPath, finalPath);
+    } catch (error) {
+      try { fs.rmSync(tempPath, { force: true }); } catch { /* contained cleanup best effort */ }
+      throw error;
+    }
+  }
+
   function readBundleFile(filePath) {
     try {
       return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -122,9 +228,8 @@ export function createHandoffService(options) {
       }));
     }
 
-    fs.mkdirSync(handoffDir, { recursive: true });
-    const filePath = path.join(handoffDir, `${id}.json`);
-    fs.writeFileSync(filePath, JSON.stringify(bundle, null, 1), 'utf8');
+    const { root: bundleRoot, rootReal: bundleRootReal } = canonicalHandoffRootSync();
+    publishBundleSync(bundleRootReal, bundleRoot, `${id}.json`, bundle, 'handoff bundle');
     return {
       bundle_id: id,
       tier,
@@ -136,23 +241,31 @@ export function createHandoffService(options) {
 
   function listBundles() {
     const out = [];
-    for (const dir of [{ base: handoffDir, imported: false }, { base: importedDir, imported: true }]) {
+    for (const spec of [{ imported: false }, { imported: true }]) {
+      const { root, rootReal } = spec.imported ? canonicalImportedRootSync() : canonicalHandoffRootSync();
       let entries = [];
       try {
-        entries = fs.readdirSync(dir.base);
+        entries = fs.readdirSync(root);
       } catch {
         continue;
       }
       for (const name of entries) {
         if (!name.endsWith('.json')) continue;
-        const bundle = readBundleFile(path.join(dir.base, name));
+        const file = path.join(root, name);
+        try {
+          if (!assertSafeBundleObjectSync(file, rootReal, 'bundle')) continue;
+        } catch {
+          // Never surface entries that cannot prove containment.
+          continue;
+        }
+        const bundle = readBundleFile(file);
         if (!bundle || bundle.version !== 1) continue;
         out.push({
           id: bundle.id,
           created_at: bundle.created_at,
           tier: bundle.tier,
           message_count: bundle.transcript?.length ?? 0,
-          imported: dir.imported
+          imported: spec.imported
         });
       }
     }
@@ -162,8 +275,10 @@ export function createHandoffService(options) {
 
   function getBundle(id) {
     if (!/^[0-9a-f-]{36}$/.test(id)) throw Object.assign(new Error('invalid bundle id'), { code: 'VALIDATION' });
-    for (const base of [handoffDir, importedDir]) {
-      const candidate = readBundleFile(path.join(base, `${id}.json`));
+    for (const { root, rootReal } of [canonicalHandoffRootSync(), canonicalImportedRootSync()]) {
+      const file = path.join(root, `${id}.json`);
+      if (!assertSafeBundleObjectSync(file, rootReal, 'bundle')) continue;
+      const candidate = readBundleFile(file);
       if (candidate) return candidate;
     }
     throw Object.assign(new Error(`no such bundle: ${id}`), { code: 'NOT_FOUND' });
@@ -173,8 +288,8 @@ export function createHandoffService(options) {
     const receivedAt = new Date().toISOString();
     const contextId = `import-${crypto.randomUUID()}`;
     const bundle = { ...rawBundle, imported_at: receivedAt, context_id: contextId };
-    fs.mkdirSync(importedDir, { recursive: true });
-    fs.writeFileSync(path.join(importedDir, `${contextId}.json`), JSON.stringify(bundle, null, 1), 'utf8');
+    const { root, rootReal } = canonicalImportedRootSync();
+    publishBundleSync(rootReal, root, `${contextId}.json`, bundle, 'imported bundle');
     return {
       context_id: contextId,
       message_count: Array.isArray(rawBundle?.transcript) ? rawBundle.transcript.length : 0,

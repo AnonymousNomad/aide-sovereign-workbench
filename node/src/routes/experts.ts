@@ -176,7 +176,9 @@ const ClassifyResponse = z.object({
 }).strict();
 
 // ADVISORY layer: results inform orchestration surfaces; they never gate or
-// block anything on their own (approval hierarchy unchanged).
+// block anything on their own (approval hierarchy unchanged). Each advisory
+// route carries a read-only authority descriptor binding the exact caller
+// input; there is no durable effect, process, or egress.
 export function routesForExperts(service: ExpertsService): Route[] {
   return [
     {
@@ -184,6 +186,9 @@ export function routesForExperts(service: ExpertsService): Route[] {
       path: '/api/experts/intent',
       body: IntentBody,
       response: IntentResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => ({
+        workspace: service.workspace, taskId, kind: 'capability.read', args: { body: { message: (body as { message: string }).message } }
+      }),
       handler: async ({ body }) => service.intent((body as { message: string }).message)
     },
     {
@@ -192,6 +197,9 @@ export function routesForExperts(service: ExpertsService): Route[] {
       path: '/api/experts/diff-risk',
       body: DiffRiskBody,
       response: DiffRiskResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => ({
+        workspace: service.workspace, taskId, kind: 'capability.read', args: { body: { diff: (body as { diff: string }).diff } }
+      }),
       handler: async ({ body }) => service.diffRisk((body as { diff: string }).diff)
     },
     {
@@ -200,6 +208,9 @@ export function routesForExperts(service: ExpertsService): Route[] {
       path: '/api/experts/classify-request',
       body: ClassifyBody,
       response: ClassifyResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => ({
+        workspace: service.workspace, taskId, kind: 'capability.read', args: { body: { message: (body as { message: string }).message } }
+      }),
       handler: async ({ body }) => service.classifyRequest((body as { message: string }).message)
     },
     {
@@ -228,6 +239,10 @@ export function routesForExperts(service: ExpertsService): Route[] {
       path: '/api/experts/infer',
       body: InferBody,
       response: InferResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const { name, features } = body as { name: string; features: Record<string, number> };
+        return { workspace: service.workspace, taskId, kind: 'capability.read', args: { body: { name, features } } };
+      },
       handler: async ({ body }) => service.infer(
         (body as { name: string }).name,
         (body as { features: Record<string, number> }).features

@@ -17,7 +17,7 @@ import { pairFixture } from './authority-fixture.ts';
 
 const require = createRequire(import.meta.url);
 const { createExpertRegistry } = require('../../harness/micro-experts.mjs');
-const { diffRiskFeatures, requestIntentFeatures } = require('../../harness/expert-featurizers.mjs');
+const { taskRouterFeatures, diffRiskFeatures, requestIntentFeatures } = require('../../harness/expert-featurizers.mjs');
 
 const DIFF_TEXTS: Array<[string, string]> = [
   ['+  eval(userInput);', 'block'],
@@ -34,6 +34,16 @@ const MSG_TEXTS: Array<[string, string]> = [
   ['update the budget roadmap', 'business'],
   ['fix the parser bug', 'code'],
   ['build the export endpoint', 'code']
+];
+const INTENT_TEXTS: Array<[string, string]> = [
+  ['why does the parser crash on this input', 'debug'],
+  ['what does this error trace mean', 'debug'],
+  ['which module returns the token', 'question'],
+  ['how does the facade route this request', 'question'],
+  ['plan the migration steps for the new module', 'plan'],
+  ['outline the rollout order for this change', 'plan'],
+  ['implement the export endpoint and add tests', 'code'],
+  ['build the parser fix and run the battery', 'code']
 ];
 
 function makeRng(seed: number) {
@@ -59,7 +69,8 @@ test('expert serve wire-in: diff-risk + classify-request advisory routes', async
   const registry = createExpertRegistry({ workspace: dir });
   for (const [name, domain, role, featurizer, corpus] of [
     ['diff-risk-gate', 'agent.proposal.diff', 'gate', diffRiskFeatures, DIFF_TEXTS],
-    ['request-intent-classifier', 'telegram.message', 'classify', requestIntentFeatures, MSG_TEXTS]
+    ['request-intent-classifier', 'telegram.message', 'classify', requestIntentFeatures, MSG_TEXTS],
+    ['task-intent-router', 'orchestrator.intent', 'router', taskRouterFeatures, INTENT_TEXTS]
   ] as Array<[string, string, string, (t: string) => Record<string, number>, Array<[string, string]>]>) {
     const rows: Array<{ features: Record<string, number>; label: string; role: string; domain: string }> = [];
     for (let i = 0; i < 120; i++) {
@@ -90,6 +101,13 @@ test('expert serve wire-in: diff-risk + classify-request advisory routes', async
     const r = await service.classifyRequest(text);
     assert.equal(r.expert, 'request-intent-classifier');
     assert.equal(r.intent, expected, `msg: ${JSON.stringify(text)}`);
+    assert.ok(r.confidence >= 0 && r.confidence <= 1);
+  }
+  // 2b. intent: correct advisory phase per probe (read-only advisory surface)
+  for (const [text, expected] of INTENT_TEXTS) {
+    const r = await service.intent(text);
+    assert.equal(r.expert, 'task-intent-router');
+    assert.equal(r.phase, expected, `intent: ${JSON.stringify(text)}`);
     assert.ok(r.confidence >= 0 && r.confidence <= 1);
   }
   // 3. Uncovered domain -> NOT_FOUND (upstream callers fail silent/advisory)
@@ -149,6 +167,24 @@ test('expert serve wire-in: diff-risk + classify-request advisory routes', async
 
     const replay = await owner.request('/api/experts/train', { method: 'POST', headers, body: JSON.stringify(trainBody) });
     assert.equal(replay.status, 409, 'consumed training approval cannot replay');
+
+    // 6. Advisory reads are enrolled authority routes: paired actors reach the
+    //    exact bound operation without an approval header (capability.read),
+    //    anonymous callers are rejected before any service code runs.
+    const advisoryCases: Array<[string, unknown]> = [
+      ['/api/experts/diff-risk', { diff: '+  eval(userInput);' }],
+      ['/api/experts/classify-request', { message: 'stop the daemon' }],
+      ['/api/experts/intent', { message: 'plan the migration steps for the new module' }],
+      ['/api/experts/infer', { name: 'diff-risk-gate', features: diffRiskFeatures('+  eval(userInput);') }]
+    ];
+    for (const [pathname, payload] of advisoryCases) {
+      const anon = await fetch(`${base}${pathname}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(5000)
+      });
+      assert.equal(anon.status, 403, `${pathname} anonymous rejected`);
+      const paired = await owner.request(pathname, { method: 'POST', body: JSON.stringify(payload) });
+      assert.equal(paired.status, 200, `${pathname} paired read accepted without approval`);
+    }
 
     httpServer.closeAllConnections();
     await new Promise<void>(resolve => httpServer.close(() => resolve()));

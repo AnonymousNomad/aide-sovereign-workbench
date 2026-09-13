@@ -24,7 +24,7 @@ import type { Route } from '../../node/src/server.ts';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const PHASE2A_ACCEPTANCE_REQUESTED = false;
-const EXPECTED_WAIVER_COUNT = 56;
+const EXPECTED_WAIVER_COUNT = 52;
 
 type WaiverClassification = 'READY-DESCRIPTOR' | 'ARCHITECTURE-DECISION';
 interface MigrationWaiverEntry { method: string; path: string; classification: WaiverClassification }
@@ -49,11 +49,7 @@ const MIGRATION_WAIVER: MigrationWaiverEntry[] = [
   { method: 'POST', path: '/api/dap/step', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/dap/stop', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/dap/variables', classification: 'ARCHITECTURE-DECISION' },
-  { method: 'POST', path: '/api/experts/classify-request', classification: 'READY-DESCRIPTOR' },
-  { method: 'POST', path: '/api/experts/diff-risk', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/experts/freeze', classification: 'ARCHITECTURE-DECISION' },
-  { method: 'POST', path: '/api/experts/infer', classification: 'READY-DESCRIPTOR' },
-  { method: 'POST', path: '/api/experts/intent', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/experts/thaw', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/handoff/export', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/handoff/import', classification: 'ARCHITECTURE-DECISION' },

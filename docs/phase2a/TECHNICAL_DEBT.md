@@ -61,3 +61,38 @@ wall-clock `<5000` assertion and a 5s HTTP fixture budget — environmental
 process-stall symptoms, not the state ordering); related suites
 (capability-authority, route-authority coverage, b4 notifications) 14/14;
 node typecheck, targeted eslint, and `git diff --check` clean.
+
+## MODEL-RUNTIME-DETACHED-OWNERSHIP-GAP
+
+- **Recorded:** 2026-09-12, from Wave 3E (`42ce759`).
+- **Status:** open — accepted debt, not a Phase 2A blocker.
+- **Owner direction:** hand to the future Harness/process-orchestration work.
+
+`ModelRuntime` cannot use the canonical `createOwnedProcesses` primitive
+(`node/src/services/owned-process.mjs`) because the primitive explicitly rejects
+`detached` spawns, while model engines require `detached: true` (console-teardown
+survival doctrine). ModelRuntime therefore retains its own `ChildProcess` handle
+map keyed by model id. That map satisfies the same security invariants — no PID
+adoption, no image/command-line scanning, no termination of an unowned process —
+but it is a second ownership map.
+
+**Direction (agreed):** extend the canonical primitive with an explicit
+`detached` profile (handle-retained, no PID adoption) and converge ModelRuntime
+onto it. Do NOT build a separate Harness ownership system around this exception.
+
+## MODEL-RUNTIME-PID-FALLBACK-RISK
+
+- **Recorded:** 2026-09-12, from Wave 3E (`42ce759`).
+- **Status:** open — accepted debt, not a Phase 2A blocker.
+
+The Windows `taskkill /T /F` fallback in `ModelRuntime.stop` ultimately targets
+the numeric PID stored on the retained `ChildProcess`. The caller never controls
+that PID and handle-based termination is the primary path, but PID reuse between
+actual exit and observed exit is theoretically possible in the narrow window
+where the fallback runs (only after a 5s SIGTERM wait with exit unobserved).
+
+**Track it; do not claim it is mathematically eliminated.** Candidate
+mitigations for a future slice: prefer handle-based kill alone; verify process
+identity (creation time) before `taskkill`; or use job objects. This item is the
+authority-visible half of the same convergence as
+MODEL-RUNTIME-DETACHED-OWNERSHIP-GAP.

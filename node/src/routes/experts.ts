@@ -9,6 +9,16 @@ const require = createRequire(import.meta.url);
 const { createExpertRegistry } = require('../../../harness/micro-experts.mjs');
 const { taskRouterFeatures, diffRiskFeatures, requestIntentFeatures } = require('../../../harness/expert-featurizers.mjs');
 
+// Registry validation failures (e.g. an invalid expert identity) are client
+// errors: authority approval never overrides domain validation or containment.
+function domainRouteError(error: unknown, fallback: string): RouteError {
+  if (error instanceof RouteError) return error;
+  const code = (error as { code?: string } | null)?.code;
+  const message = error instanceof Error ? error.message : fallback;
+  if (code === 'VALIDATION') return new RouteError('BAD_REQUEST', message);
+  return new RouteError('CHILD_FAILED', message);
+}
+
 export type ExpertsService = {
   workspace: string;
   intent(message: string): Promise<{ expert: string; phase: string; confidence: number }>;
@@ -107,7 +117,7 @@ export function createExpertsService(workspace: string): ExpertsService {
         const result = await registry.infer(name, features);
         return { class: result.class, confidence: Number(result.confidence.toFixed(3)) };
       } catch (error) {
-        throw new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'infer failed');
+        throw domainRouteError(error, 'infer failed');
       }
     },
     async stats(name) {
@@ -118,11 +128,11 @@ export function createExpertsService(workspace: string): ExpertsService {
     },
     async freeze(name) {
       try { const r = await registry.freeze(name); return { name, state: r.state }; }
-      catch (error) { throw new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'freeze failed'); }
+      catch (error) { throw domainRouteError(error, 'freeze failed'); }
     },
     async thaw(name) {
       try { const r = await registry.thaw(name); return { name, state: r.state }; }
-      catch (error) { throw new RouteError('CHILD_FAILED', error instanceof Error ? error.message : 'thaw failed'); }
+      catch (error) { throw domainRouteError(error, 'thaw failed'); }
     }
   };
 }

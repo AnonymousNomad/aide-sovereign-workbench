@@ -128,10 +128,11 @@ test('expert serve wire-in: diff-risk + classify-request advisory routes', async
   // 5. HTTP authority: micro-expert training requires an approved exact
   //    capability.execute operation bound to the full training rows.
   const server = new ArchServer(dir, path.join(dir, 'serve-wirein.log'));
+  let httpServer: import('node:http').Server | undefined;
   try {
     for (const route of routesForAuthority()) server.route(route);
     for (const route of routesForExperts(service)) server.route(route);
-    const httpServer = await server.listen(0);
+    httpServer = await server.listen(0);
     const address = httpServer.address();
     assert.ok(address && typeof address === 'object');
     const base = `http://127.0.0.1:${address.port}`;
@@ -186,10 +187,46 @@ test('expert serve wire-in: diff-risk + classify-request advisory routes', async
       assert.equal(paired.status, 200, `${pathname} paired read accepted without approval`);
     }
 
-    httpServer.closeAllConnections();
-    await new Promise<void>(resolve => httpServer.close(() => resolve()));
+    // 7. Domain validation is never overridable by authority: the authority
+    //    layer prepares/approves the exact operation, yet a filesystem-unsafe
+    //    identity still fails closed at execution with no outside effect.
+    const outsideSentinel = path.join(dir, 'outside-sentinel.json');
+    const sentinelText = JSON.stringify({ marker: 'EXPERT-SENTINEL' });
+    await fs.writeFile(outsideSentinel, sentinelText);
+    const unsafeBodies = ['../outside-sentinel', '/abs', 'a\\b', '..'].map(name => ({ name, features: { a: 1 } }));
+    for (const [index, badBody] of unsafeBodies.entries()) {
+      const prepared = await owner.propose('POST', '/api/experts/infer', badBody, `task:expert-unsafe-${index}`);
+      assert.equal(prepared.state, 'approved', 'read-class authority preparation approves the exact request');
+      const rejected = await owner.request('/api/experts/infer', { method: 'POST', body: JSON.stringify(badBody) });
+      assert.equal(rejected.status, 400, `unsafe name rejected at execution (${JSON.stringify(badBody.name)})`);
+    }
+    const linkName = 'linked-infer';
+    await fs.symlink(outsideSentinel, path.join(dir, '.aide', 'experts', `${linkName}.json`), 'file');
+    const linkBody = { name: linkName, features: { a: 1 } };
+    const linkPrepared = await owner.propose('POST', '/api/experts/infer', linkBody, 'task:expert-link');
+    assert.equal(linkPrepared.state, 'approved');
+    const linkRejected = await owner.request('/api/experts/infer', { method: 'POST', body: JSON.stringify(linkBody) });
+    assert.equal(linkRejected.status, 400, 'link-like expert file rejected even under prepared authority');
+    assert.equal(await fs.readFile(outsideSentinel, 'utf8'), sentinelText, 'sentinel untouched');
+
+    // 8. The tier routes stay fail-closed until their own decision.
+    for (const routePath of ['/api/experts/freeze', '/api/experts/thaw']) {
+      const blocked = await owner.request(routePath, { method: 'POST', body: JSON.stringify({ name: 'diff-risk-gate' }) });
+      assert.equal(blocked.status, 403, `${routePath} remains fail-closed`);
+    }
   } finally {
     server.authority.control.close();
     server.events.close();
+    if (httpServer) {
+      httpServer.closeAllConnections();
+      await new Promise<void>(resolve => httpServer!.close(() => resolve()));
+    }
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try { await fs.rm(dir, { recursive: true, force: true }); break; }
+      catch (error) {
+        if (!['EBUSY', 'ENOTEMPTY', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+    }
   }
 });

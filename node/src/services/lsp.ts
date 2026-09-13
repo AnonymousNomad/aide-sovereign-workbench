@@ -55,7 +55,7 @@ function normalizeServerUri(uri: string): string {
 export class LspManager {
   private readonly command: string;
   private readonly args: string[];
-  private readonly workspace: string;
+  readonly workspace: string;
   private readonly requestTimeoutMs: number;
   private readonly logger: LspManagerOptions['logger'];
   private readonly spawnChild: typeof spawn;

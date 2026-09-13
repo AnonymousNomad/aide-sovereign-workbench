@@ -149,3 +149,38 @@ template. Remove it or bind it to authority before it can ever be exposed.
 `encodeURIComponent(filename)` encodes `/` as `%2F`, which likely makes nested
 Hugging Face artifact paths unusable upstream even though the local service
 supports safe nested subpaths.
+
+## LSP-OWNED-PROCESS-CONVERGENCE
+
+- **Recorded:** 2026-09-12, from the Wave 3H LSP taxonomy audit.
+- **Status:** open — future Harness/process-governance convergence.
+
+`LspManager` retains canonical `ChildProcess` handles directly rather than
+using the generic owned-process primitive. Unlike ModelRuntime, LSP spawns are
+not detached and are structurally compatible with a future migration onto the
+canonical owned-process abstraction. Do not migrate during Phase 2A enrollment.
+
+## LSP-URI-CONTAINMENT-DECISION
+
+- **Recorded:** 2026-09-12, from the Wave 3H LSP taxonomy audit.
+- **Status:** open — must be resolved before arbitrary `/api/lsp/request` enrollment.
+
+LSP relative URI normalization can lexically escape the workspace because
+`path.resolve(workspace, rel)` has no containment check (`..`, and absolute
+`file:///X:/` URIs, pass through). Today the typed `open/change/close` path
+creates no filesystem writes and no server-side source reads from that URI
+because caller text is supplied directly, so impact is bounded. The finding
+becomes security-significant for arbitrary LSP request methods capable of
+server-side URI reads and must be resolved before `/api/lsp/request` can be
+enrolled.
+
+## LSP-RAW-METHOD-AUTHORITY-GAP
+
+- **Recorded:** 2026-09-12, from the Wave 3H LSP taxonomy audit.
+- **Status:** open — blocks `/api/lsp/notify` and `/api/lsp/request` enrollment.
+
+Both routes accept caller-selected LSP methods (`message.method`). A single
+generic capability classification is insufficient because the effective
+privilege depends on the method. Future review must classify or allowlist
+method families (method-aware operation classification) or otherwise constrain
+the surface before either route is enrolled.

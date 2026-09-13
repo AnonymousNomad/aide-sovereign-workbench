@@ -1,5 +1,6 @@
 import type { Route } from '../server.ts';
 import { RouteError } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import type { LspManager, LspDiagnostic } from '../services/lsp.ts';
 import type { MarkerT } from '../../../common/contracts/events.ts';
 import {
@@ -56,6 +57,12 @@ export function routeForLspStart(manager: LspManager): Route {
     path: '/api/lsp/start',
     body: LspStartRequest,
     response: LspStartResponse,
+    // The approved operation binds the exact allowlisted language identity.
+    // Executable (process.execPath + repo-local cli.mjs), args, cwd, stdio and
+    // environment are server-derived and never caller-controlled.
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => ({
+      workspace: manager.workspace, taskId, kind: 'capability.execute', args: { body: { languageId: (body as { languageId: string }).languageId } }
+    }),
     handler: async ({ body }) => {
       const request = body as { languageId: string };
       let status: string;
@@ -243,6 +250,12 @@ export function routeForLspStop(manager: LspManager): Route {
     path: '/api/lsp/stop',
     body: LspRawStopRequest,
     response: LspRawStopResponse,
+    // The approved operation binds the exact server identity; the target is
+    // resolved only through the manager's retained ChildProcess handle map for
+    // that language id (no caller PID, no scan, no adoption).
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => ({
+      workspace: manager.workspace, taskId, kind: 'capability.execute', args: { body: { id: (body as { id: string }).id } }
+    }),
     handler: async ({ body }) => {
       const request = body as { id: string };
       try {

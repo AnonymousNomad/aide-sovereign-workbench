@@ -96,3 +96,56 @@ mitigations for a future slice: prefer handle-based kill alone; verify process
 identity (creation time) before `taskkill`; or use job objects. This item is the
 authority-visible half of the same convergence as
 MODEL-RUNTIME-DETACHED-OWNERSHIP-GAP.
+
+## MODELHUB-RESUME-INTEGRITY-GAP
+
+- **Recorded:** 2026-09-12, alongside the pre-Wave-3G containment repair.
+- **Status:** open — accepted debt, deferred by instruction.
+
+Download resume uses `Range` without strong ETag/`If-Range` identity validation.
+A changed upstream artifact could theoretically produce an invalid resumed
+artifact. The containment repair preserved resume semantics where the retained
+partial is safe; upstream identity validation is a separate concern.
+
+## MODELHUB-CONTENT-INTEGRITY-GAP
+
+- **Recorded:** 2026-09-12, alongside the pre-Wave-3G containment repair.
+- **Status:** open — accepted debt, deferred by instruction.
+
+No authoritative checksum verification currently gates final publication
+(`sha256` in the persisted manifest is always null). Publication is gated only
+by stream semantics.
+
+## MODELHUB-SIZE-VALIDATION-GAP
+
+- **Recorded:** 2026-09-12, alongside the pre-Wave-3G containment repair.
+- **Status:** open — accepted debt, deferred by instruction.
+
+No independent final expected-size verification beyond stream semantics
+(`content-length` is used for progress, not enforced at publication).
+
+## MODELHUB-DUPLICATE-CANCEL-EVENT
+
+- **Recorded:** 2026-09-12, alongside the pre-Wave-3G containment repair.
+- **Status:** open — accepted debt, cosmetic.
+
+Cancellation may emit duplicate `cancelled` events (the immediate cancel path
+plus the stream catch path).
+
+## MODELHUB-TEST-ONLY-URLTEMPLATE-SURFACE
+
+- **Recorded:** 2026-09-12, alongside the pre-Wave-3G containment repair.
+- **Status:** open — latent surface, not production-reachable per tracing.
+
+`service.startDownload(args.urlTemplate)` accepts an arbitrary URL template.
+Only tests call it today; no production route passes a caller-influenced
+template. Remove it or bind it to authority before it can ever be exposed.
+
+## MODELHUB-NESTED-UPSTREAM-PATH-ENCODING
+
+- **Recorded:** 2026-09-12, alongside the pre-Wave-3G containment repair.
+- **Status:** open — functional observation.
+
+`encodeURIComponent(filename)` encodes `/` as `%2F`, which likely makes nested
+Hugging Face artifact paths unusable upstream even though the local service
+supports safe nested subpaths.

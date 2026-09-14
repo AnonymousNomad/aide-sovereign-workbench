@@ -24,6 +24,7 @@ import {
 import type { CommandRegistry } from '../../../node/src/services/command-registry.mjs';
 import type { KeybindingService } from '../../../node/src/services/keybinding-service.mjs';
 import type { SettingsService } from '../../../node/src/services/settings-service.mjs';
+import { describeCommandInvoke, type BuiltinCommand } from '../services/command-invoke-authority.ts';
 
 // Settings writes bind the complete normalized value set before approval; the
 // machine-scope rejection mirrors writeUserValues so approval cannot be
@@ -55,12 +56,20 @@ export function routeForCommandList(registry: CommandRegistry): Route {
   };
 }
 
-export function routeForCommandInvoke(registry: CommandRegistry): Route {
+export function routeForCommandInvoke(registry: CommandRegistry, builtinCommands: ReadonlyArray<BuiltinCommand>, workspace: string): Route {
+  // Pinned ten-command allowlist derived from the frozen builtin array; no
+  // wildcard ever admits a command id.
+  const allowedIds = new Set(builtinCommands.map(command => command.id));
   return {
     method: 'POST',
     path: '/api/commands/invoke',
     body: CommandInvokeRequest,
     response: CommandInvokeResponse,
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+      const input = body as unknown as CommandInvokeRequestT;
+      const { id, args_digest, registry_digest, handler_digest } = describeCommandInvoke(registry, allowedIds, workspace, taskId, input.id, input.args);
+      return { workspace, taskId, kind: 'capability.execute', args: { body: { id, args_digest, registry_digest, handler_digest } } };
+    },
     handler: async ({ body }): Promise<CommandInvokeResponseT> => {
       const input = body as unknown as CommandInvokeRequestT;
       const result = await registry.invoke(input.id, input.args, {});

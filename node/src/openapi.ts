@@ -375,7 +375,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
   });
   await pluginManager.load().catch(() => {});
   const commandRegistry = new CommandRegistry({ onEvent: (_event: string, body: Record<string, unknown>) => options.events?.publish('command', body) });
-  const BUILTIN_COMMANDS: Array<{ id: string; title: string; category: string }> = [
+  const BUILTIN_COMMANDS: ReadonlyArray<{ id: string; title: string; category: string }> = [
     { id: 'aide.commandPalette.show', title: 'Show All Commands', category: 'View' },
     { id: 'aide.quickOpen.show', title: 'Go to File...', category: 'File' },
     { id: 'aide.file.save', title: 'Save File', category: 'File' },
@@ -387,6 +387,8 @@ export async function buildRoutes(workspace: string, version: string, options: B
     { id: 'aide.training.status', title: 'Training: Show Status', category: 'AIDE Training' },
     { id: 'aide.academy.nextReview', title: 'Academy: Start Next Review', category: 'AIDE Academy' }
   ];
+  for (const command of BUILTIN_COMMANDS) Object.freeze(command);
+  Object.freeze(BUILTIN_COMMANDS);
   for (const command of BUILTIN_COMMANDS) {
     commandRegistry.registerCommand({
       ...command,
@@ -559,7 +561,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     ...routesForPlugins(pluginManager),
     ...routesForReplays(replayStore),
     routeForCommandList(commandRegistry),
-    routeForCommandInvoke(commandRegistry),
+    routeForCommandInvoke(commandRegistry, BUILTIN_COMMANDS, workspace),
     routeForKeybindingList(keybindingService),
     routeForKeybindingResolve(keybindingService),
     routeForSettingsGet(settingsService),

@@ -1,0 +1,177 @@
+{
+  "baseline": {
+    "branch": "covert-production",
+    "head": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58"
+  },
+  "status": "PARTIAL — BOUNDARY EXPANSION REQUIRED",
+  "assessment": "NOT ACCEPTANCE-READY",
+  "approvals": {
+    "http_ws_fixture_set": "APPROVED",
+    "five_direct_service_fixtures": "APPROVED",
+    "telegram_route": "REQUESTED, NOT MODIFIED",
+    "commit": false,
+    "push": false
+  },
+  "implemented": [
+    "Single workspace authority core with opaque actor handles, exact normalized operation binding, one-use decisions/consumption and required audit receipts.",
+    "Private supervisor IPC wired between arch, legacy and facade; no public pairing-proof mint endpoint.",
+    "Facade bearer admission plus independent TS/legacy execution approval; unknown capabilities fail closed.",
+    "Legacy execution held on private IPC until core consumption, with descriptor revalidation before invocation and outcome receipt before HTTP success.",
+    "First-frame WebSocket authentication, actor checks at subscription/publication, meaningful real event through facade.",
+    "Typed browser and legacy transport adapters: memory-only session credential and explicit per-operation confirmation; adapters need browser runtime acceptance.",
+    "Terminal pairing bootstrap and native-parent private-pipe source changes; native runtime unverified."
+  ],
+  "capability_coverage": "Initial explicit policy enrollment only. Git/file/WS selected paths proven; complete route inventory and resolved task/agent/desktop/Telegram integration remain incomplete.",
+  "gates": {
+    "static": {
+      "exit_code": 0,
+      "output": ""
+    },
+    "node_typecheck": {
+      "exit_code": 1,
+      "output": "node/src/routes/authority.ts(21,37): error TS2379: Argument of type '{ method: \"GET\" | \"POST\" | \"PUT\" | \"DELETE\"; path: string; task_id: string; adapter?: \"ts\" | \"legacy\" | undefined; body?: unknown; }' is not assignable to parameter of type '{ adapter?: \"ts\" | \"legacy\"; method: string; path: string; task_id: string; body?: unknown; }' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.\r\n  Types of property 'adapter' are incompatible.\r\n    Type '\"ts\" | \"legacy\" | undefined' is not assignable to type '\"ts\" | \"legacy\"'.\r\n      Type 'undefined' is not assignable to type '\"ts\" | \"legacy\"'.\r\nnode/src/server.ts(293,29): error TS2550: Property 'withResolvers' does not exist on type 'PromiseConstructor'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2024' or later.\r\n"
+    },
+    "browser_typecheck": {
+      "exit_code": 0,
+      "output": ""
+    },
+    "focused": {
+      "exit_code": 0,
+      "output": "{\"pid\":5960,\"workspace\":\"E:\\\\pip_temp\\\\opencode\\\\phase2a-authority-f3G1Gd\",\"observations\":[{\"port\":57461,\"status\":403,\"body\":{\"ok\":false,\"error\":{\"code\":\"FORBIDDEN\",\"message\":\"authenticated actor required\"}}},{\"port\":57462,\"status\":403,\"body\":{\"error\":\"authenticated actor required\",\"code\":\"FORBIDDEN\"}}],\"capturedExecutions\":0,\"realGitMutation\":false}\n{\"cleanup\":\"closed\",\"archListening\":false,\"facadeListening\":false}\n✔ unpaired capability callers cannot stage through direct TS or facade (67.1216ms)\n✔ privileged WebSocket subscription requires paired actor; revocation stops delivery (32.9251ms)\n{\"pid\":5960,\"workspace\":\"E:\\\\pip_temp\\\\phase2a-http-XcMagn\",\"closed\":true,\"capturedExecutions\":1,\"realGitMutation\":false}\n✔ real HTTP pairing and action-bound approval preserve Git reads and deny forgery/replay (198.9515ms)\n✔ pairing requires a single-use supervisor proof; claims and origins cannot mint actors (5.3104ms)\n✔ authentication is not mutation approval; forged approved fields confer nothing (2.0851ms)\n✔ read-only policy needs no mutation approval and execution is still single-use (0.5166ms)\n✔ approved immutable descriptor binds content, task, operation, actor and workspace (1.1402ms)\n✔ agent cannot self-approve or acquire permission-administration scope (0.914ms)\n✔ expiry and revocation prevent execution with zero side effects (0.9999ms)\n✔ concurrent replay cannot cross a pending audit write (0.5897ms)\n✔ revocation during audit persistence stops the reserved operation (0.4793ms)\n✔ required decision/consumption receipts fail closed; completion failure never permits replay (0.9469ms)\n✔ unknown operations and malformed non-JSON descriptors are rejected (0.5368ms)\nℹ tests 13\nℹ suites 0\nℹ pass 13\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 990.9457\n"
+    },
+    "targeted_lint": {
+      "exit_code": 1,
+      "output": "\nE:\\aide-sovereign-workbench\\app.js\n    12:25  error    'Headers' is not defined                                                no-undef\n    35:21  error    'URL' is not defined                                                    no-undef\n    46:18  error    'crypto' is not defined                                                 no-undef\n    76:16  warning  'jput' is defined but never used                                        no-unused-vars\n   663:54  warning  'path' is defined but never used. Allowed unused args must match /^_/u  no-unused-vars\n   919:5   warning  'lspChangeTimer' is assigned a value but never used                     no-unused-vars\n  1051:35  warning  'i' is defined but never used. Allowed unused args must match /^_/u     no-unused-vars\n  1065:9   warning  'kinds' is assigned a value but never used                              no-unused-vars\n  1587:10  warning  'pluginTrusted' is defined but never used                               no-unused-vars\n\nE:\\aide-sovereign-workbench\\desktop\\stack-launcher.mjs\n  0:0  warning  File ignored because of a matching ignore pattern. Use \"--no-ignore\" to disable file ignore settings or use \"--no-warn-ignored\" to suppress this warning\n\n✖ 10 problems (3 errors, 7 warnings)\n\n"
+    }
+  },
+  "runtime_composed": {
+    "command": "node --test tests/integration/test-authority-launch.mjs",
+    "exit_code": 0,
+    "passed": 1,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "duration_ms": 1761.9731,
+    "classification": "REAL CHILD SERVICE RUNTIME / COMPOSED INTEGRATION; not browser, full product, model or native acceptance",
+    "negative_http_cases": 9,
+    "approved_workspace_writes": 2,
+    "workspace": "E:\\pip_temp\\phase2a-stack-Vh6Ngj",
+    "fixture_pids": [
+      9520,
+      20792
+    ],
+    "ports": [
+      63809,
+      63807,
+      63810
+    ],
+    "both_child_exits_observed": true,
+    "secret_in_captured_child_logs": false,
+    "secret_in_fixture_audit_journal": false
+  },
+  "focused": {
+    "passed": 13,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "duration_ms": 990.9457,
+    "unit_cases": 10,
+    "integration_cases": 3
+  },
+  "regression_before_repair": {
+    "passed": 0,
+    "failed": 1,
+    "cancelled": 0,
+    "skipped": 0,
+    "duration_ms": 1037.9559,
+    "reason": "Bare facade error omitted APPROVAL_REQUIRED detail; expected security-compatibility regression.",
+    "child_pids": [
+      17916,
+      18556
+    ],
+    "both_child_exits_observed": true
+  },
+  "lint": {
+    "errors": 3,
+    "warnings": 7,
+    "details": "Three app.js no-undef errors for browser Headers/URL/crypto; six existing unused warnings; one ignored desktop launcher warning. No production cleanup performed after boundary stop."
+  },
+  "required_in_boundary_repairs": [
+    "Use the schema-inferred prepare input type or explicit undefined-compatible optional adapter type; retain exactOptionalPropertyTypes and strict schema.",
+    "Replace TS Promise.withResolvers usage with a supported explicit resolver construction; do not change tsconfig, dependencies or toolchain.",
+    "Qualify browser globals through window in app.js; do not weaken lint configuration."
+  ],
+  "audit_provenance": "Core decision/consumption/outcome receipts tested; ordinary child logs and fixture cipher-state journal checked for bootstrap/session secret absence. Complete denial/agent/Telegram provenance remains unverified.",
+  "native": {
+    "files_changed": [
+      "desktop/src/main.rs",
+      "desktop/stack-launcher.mjs"
+    ],
+    "source_status": "IMPLEMENTED — NATIVE RUNTIME UNVERIFIED",
+    "static": "Launcher node --check passed; Rust source inspected only; no compilation proof.",
+    "compilation": "DEFERRED — RUST TOOLCHAIN UNAVAILABLE",
+    "startup": "DEFERRED — RUST TOOLCHAIN UNAVAILABLE",
+    "limitations": [
+      "Cross-platform native origin handling and IPC permissions remain unverified.",
+      "Desktop staging/packaging bootstrap has not been run against these changes."
+    ]
+  },
+  "not_run": [
+    "Full lint (targeted lint failed).",
+    "Frontend build.",
+    "Contract generation/idempotence (generated common/openapi.json remains baseline).",
+    "Architecture battery and approved HTTP/WS/direct-service fixture migrations.",
+    "Real browser pairing, authenticated reads/writes, cancellation/reconnect acceptance.",
+    "Normal npm start interactive bootstrap acceptance.",
+    "Non-Rust desktop staging/preparation acceptance.",
+    "Full resolved task/agent/desktop/Telegram canonical authority integration.",
+    "Ownership-aware panic repair and disposable owned/unrelated process acceptance.",
+    "Full composed adversarial matrix including Telegram identities and replay.",
+    "Real local-model acceptance — not required for Phase 2A."
+  ],
+  "stop_reason": "node/src/routes/telegram.ts owns the factory, strict identity schema, handler authority propagation and denial translation; outside approved production boundary.",
+  "production_modified": [
+    "app.js",
+    "browser/src/main.ts",
+    "browser/src/services/api.ts",
+    "browser/src/services/ws.ts",
+    "common/contracts/audit.ts",
+    "common/facade-route-map.json",
+    "daemon/server.mjs",
+    "desktop/src/main.rs",
+    "desktop/stack-launcher.mjs",
+    "node/src/events.ts",
+    "node/src/openapi.ts",
+    "node/src/server.ts",
+    "node/src/services/audit-trail.d.mts",
+    "node/src/services/audit-trail.mjs",
+    "scripts/facade.mjs",
+    "scripts/start.mjs"
+  ],
+  "production_added": [
+    "browser/src/services/authority.ts",
+    "common/contracts/authority.ts",
+    "common/security/authority-channel.d.mts",
+    "common/security/authority-channel.mjs",
+    "common/security/operation-policy.d.mts",
+    "common/security/operation-policy.mjs",
+    "node/src/routes/authority.ts",
+    "node/src/services/execution-authority.d.mts",
+    "node/src/services/execution-authority.mjs"
+  ],
+  "tests_added": [
+    "tests/arch/authority-fixture.ts",
+    "tests/arch/capability-authority.test.ts",
+    "tests/arch/execution-authority.test.ts",
+    "tests/integration/test-authority-launch.mjs",
+    "tests/unit/test-owned-process.mjs"
+  ],
+  "protected_count": 38,
+  "protected_mismatches": [],
+  "remaining_checked_fixture_pids": [],
+  "remaining_checked_fixture_listeners": [],
+  "no_installs": true,
+  "operator_workloads_terminated": 0,
+  "committed": false,
+  "pushed": false
+}

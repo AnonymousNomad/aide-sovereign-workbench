@@ -4,8 +4,9 @@ import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { TaskService, hashGlobs, globToMatcher } from '../../node/src/services/task-service.mjs';
+import { hashGlobs, globToMatcher } from '../../node/src/services/task-service.mjs';
 import { BuildCache } from '../../node/src/services/build-cache.mjs';
+import { pairServiceFixture, taskServiceFixture } from '../arch/authority-fixture.ts';
 
 const NODE = process.execPath;
 
@@ -52,15 +53,16 @@ test('b5: miss then hit restores without executing (marker written once)', async
   process.env.B5_MARKER = '';
   const ws = await makeWorkspace([appendTask('cached build')]);
   process.env.B5_MARKER = path.join(ws, 'markers.txt');
-  const svc = new TaskService({ workspace: ws, onEvent: () => {} });
+  const fx = await taskServiceFixture(ws);
+  const svc = fx.service;
   try {
-    const first = await svc.run('cached build');
+    const first = await fx.run('cached build', ['get', 'record']);
     const f = await waitForTerminal(svc, first.job_id);
     assert.equal(f.status, 'exited');
     assert.equal(f.restored, false);
     assert.equal(await markerCount(ws), 1);
 
-    const second = await svc.run('cached build');
+    const second = await fx.run('cached build', ['get', 'record']);
     const s = await waitForTerminal(svc, second.job_id);
     assert.equal(s.status, 'exited');
     assert.equal(s.exitCode, 0);
@@ -68,11 +70,14 @@ test('b5: miss then hit restores without executing (marker written once)', async
     assert.equal(await markerCount(ws), 1, 'restore must NOT execute the command');
 
     const outputs = [];
-    const svc3 = new TaskService({ workspace: ws, onEvent: e => { if (e.event === 'output') outputs.push(e.line); } });
-    const third = await svc3.run('cached build');
+    const fx3 = await taskServiceFixture(ws, e => { if (e.event === 'output') outputs.push(e.line); });
+    const svc3 = fx3.service;
+    const third = await fx3.run('cached build', ['get']);
     await waitForTerminal(svc3, third.job_id);
     assert.ok(outputs.some(line => line.includes('[aide] restored from cache')), 'honesty banner required');
+    await fx3.close();
   } finally {
+    await fx.close();
     delete process.env.B5_MARKER;
     await rm(ws, { recursive: true, force: true });
   }
@@ -84,21 +89,23 @@ test('b5: changing declared input forces real run; undeclared change still hits'
     { label: 'writer', type: 'process', command: NODE, args: ['-e', 'require("node:fs").writeFileSync(process.argv[1], "v" + Date.now())'], cache: undefined }
   ]);
   process.env.B5_MARKER = path.join(ws, 'markers.txt');
-  const svc = new TaskService({ workspace: ws, onEvent: () => {} });
+  const fx = await taskServiceFixture(ws);
+  const svc = fx.service;
   try {
-    await waitForTerminal(svc, (await svc.run('b')).job_id);
-    await waitForTerminal(svc, (await svc.run('b')).job_id);
+    await waitForTerminal(svc, (await fx.run('b', ['get', 'record'])).job_id);
+    await waitForTerminal(svc, (await fx.run('b', ['get', 'record'])).job_id);
     assert.equal(await markerCount(ws), 1);
 
     await mkdir(path.join(ws, 'docs'), { recursive: true });
     await writeFile(path.join(ws, 'docs', 'notes.md'), 'untracked', 'utf8'); // outside cache.inputs
-    await waitForTerminal(svc, (await svc.run('b')).job_id);
+    await waitForTerminal(svc, (await fx.run('b', ['get', 'record'])).job_id);
     assert.equal(await markerCount(ws), 1, 'undeclared file change must NOT invalidate');
 
     await writeFile(path.join(ws, 'src', 'main.txt'), 'v2-changed', 'utf8'); // declared
-    await waitForTerminal(svc, (await svc.run('b')).job_id);
+    await waitForTerminal(svc, (await fx.run('b', ['get', 'record'])).job_id);
     assert.equal(await markerCount(ws), 2, 'declared input content change must invalidate');
   } finally {
+    await fx.close();
     delete process.env.B5_MARKER;
     await rm(ws, { recursive: true, force: true });
   }
@@ -107,22 +114,24 @@ test('b5: changing declared input forces real run; undeclared change still hits'
 test('b5: declared env var participates in key; undeclared does not', async () => {
   const ws = await makeWorkspace([appendTask('envy')]);
   process.env.B5_MARKER = path.join(ws, 'markers.txt');
-  const svc = new TaskService({ workspace: ws, onEvent: () => {} });
+  const fx = await taskServiceFixture(ws);
+  const svc = fx.service;
   try {
     process.env.B5_MODE = 'prod';
     process.env.B5_IGNORED = 'a';
-    await waitForTerminal(svc, (await svc.run('envy')).job_id);
-    await waitForTerminal(svc, (await svc.run('envy')).job_id);
+    await waitForTerminal(svc, (await fx.run('envy', ['get', 'record'])).job_id);
+    await waitForTerminal(svc, (await fx.run('envy', ['get', 'record'])).job_id);
     assert.equal(await markerCount(ws), 1);
 
     process.env.B5_IGNORED = 'changed-but-undeclared';
-    await waitForTerminal(svc, (await svc.run('envy')).job_id);
+    await waitForTerminal(svc, (await fx.run('envy', ['get', 'record'])).job_id);
     assert.equal(await markerCount(ws), 1, 'undeclared env must not invalidate');
 
     process.env.B5_MODE = 'dev';
-    await waitForTerminal(svc, (await svc.run('envy')).job_id);
+    await waitForTerminal(svc, (await fx.run('envy', ['get', 'record'])).job_id);
     assert.equal(await markerCount(ws), 2, 'declared env change must invalidate');
   } finally {
+    await fx.close();
     delete process.env.B5_MARKER;
     delete process.env.B5_MODE;
     delete process.env.B5_IGNORED;
@@ -134,36 +143,52 @@ test('b5: failing runs are never cached or restored', async () => {
   const ws = await makeWorkspace([
     { label: 'flaky fail', type: 'process', command: NODE, args: ['-e', 'process.exit(9)'], cache: { inputs: ['src/**'] } }
   ]);
-  const svc = new TaskService({ workspace: ws, onEvent: () => {} });
+  const fx = await taskServiceFixture(ws);
+  const svc = fx.service;
   try {
-    const a = await waitForTerminal(svc, (await svc.run('flaky fail')).job_id);
+    const a = await waitForTerminal(svc, (await fx.run('flaky fail', ['get', 'record'])).job_id);
     assert.equal(a.restored, false);
-    const b = await waitForTerminal(svc, (await svc.run('flaky fail')).job_id);
+    const b = await waitForTerminal(svc, (await fx.run('flaky fail', ['get', 'record'])).job_id);
     assert.equal(b.restored, false, 'failure must not be restorable');
     assert.equal(b.exitCode, 9);
     const stats = svc.cache.stats();
     assert.equal(stats.entries.filter(e => e.exitCode === 9).length, 0);
   } finally {
+    await fx.close();
     await rm(ws, { recursive: true, force: true });
   }
 });
 
 test('b5: LRU eviction enforces entry cap', async () => {
   const ws = await mkdtemp(path.join(tmpdir(), 'aide-b5-evict-'));
+  const fixture = await pairServiceFixture(ws);
   try {
-    const cache = new BuildCache({ workspace: ws, maxEntries: 2 });
+    const cache = new BuildCache({ workspace: ws, maxEntries: 2, authority: fixture.authority });
+    const record = async manifest => {
+      const payload = { manifest, logText: 'log', problems: [] };
+      const input = cache.describe('record', payload, 'b5-lru-record');
+      return fixture.approveAndExecute(input.kind, input.args.body, input.taskId,
+        execution => cache.record(manifest, payload.logText, payload.problems, execution));
+    };
+    const unauthorized = { key: 'denied', label: 'denied', createdAt: 1, exitCode: 0, sizeBytes: 10 };
+    await assert.rejects(cache.record(unauthorized, 'log', []), { code: 'FORBIDDEN' });
+    await assert.rejects(cache.record(unauthorized, 'log', [], { approved: true }), { code: 'FORBIDDEN' });
+    assert.deepEqual(cache.stats().entries, [], 'denial must not add an entry');
+    await assert.rejects(readFile(path.join(cache.dir, 'denied.log')), { code: 'ENOENT' });
     for (const key of ['k1', 'k2']) {
-      await cache.record({ key, label: key, createdAt: Date.now(), exitCode: 0, sizeBytes: 10 }, 'log', []);
+      await record({ key, label: key, createdAt: Date.now(), exitCode: 0, sizeBytes: 10 });
     }
-    await cache.get('k1'); // k1 now most-recent
-    await cache.record({ key: 'k3', label: 'k3', createdAt: Date.now(), exitCode: 0, sizeBytes: 10 }, 'log', []);
+    const hit = cache.describe('get', { key: 'k1' }, 'b5-lru-hit');
+    await fixture.approveAndExecute(hit.kind, hit.args.body, hit.taskId, execution => cache.get('k1', execution)); // k1 now most-recent
+    await record({ key: 'k3', label: 'k3', createdAt: Date.now(), exitCode: 0, sizeBytes: 10 });
     let stats = cache.stats();
     assert.deepEqual(stats.entries.map(e => e.key).sort(), ['k1', 'k3'], 'oldest (k2) evicted');
-    await cache.record({ key: 'k4', label: 'k4', createdAt: Date.now(), exitCode: 0, sizeBytes: 10 }, 'log', []);
-    await cache.record({ key: 'k5', label: 'k5', createdAt: Date.now(), exitCode: 0, sizeBytes: 10 }, 'log', []);
+    await record({ key: 'k4', label: 'k4', createdAt: Date.now(), exitCode: 0, sizeBytes: 10 });
+    await record({ key: 'k5', label: 'k5', createdAt: Date.now(), exitCode: 0, sizeBytes: 10 });
     stats = cache.stats();
     assert.ok(stats.entries.length <= 2, `cap respected: ${stats.entries.length}`);
   } finally {
+    fixture.authority.control.close();
     await rm(ws, { recursive: true, force: true });
   }
 });
@@ -223,14 +248,16 @@ test('b5: background-matcher tasks are never cached', async () => {
       }
     }
   ]);
-  const svc = new TaskService({ workspace: ws, onEvent: () => {} });
+  const fx = await taskServiceFixture(ws);
+  const svc = fx.service;
   try {
-    const { job_id } = await svc.run('watcher nocache');
-    await new Promise(r => setTimeout(r, 400));
-    await svc.stop(job_id);
+    const { job_id } = await fx.run('watcher nocache');
+    await fx.waitStarted(job_id);
+    await fx.stop(job_id);
     const stats = svc.cache.stats();
     assert.equal(stats.entries.length, 0, 'watcher output must never be recorded');
   } finally {
+    await fx.close();
     await rm(ws, { recursive: true, force: true });
   }
 });

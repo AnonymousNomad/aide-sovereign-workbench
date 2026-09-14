@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { buildToastScript } from './os-toast.mjs';
+import { AuthorityError } from './execution-authority.mjs';
 
 const HOOK_EVENTS = new Set(['task.started', 'task.completed', 'task.failed', 'diagnostics.new']);
 const NETWORK_TOKENS = ['http://', 'https://', 'curl', 'wget', 'invoke-webrequest', 'iwr ', 'nc ', 'telnet'];
@@ -89,14 +90,38 @@ function isNetworkSuspicious(command) {
 }
 
 export class NotificationService {
-  constructor({ workspace, onEvent, clock } = {}) {
+  constructor({ workspace, onEvent, clock, authority } = {}) {
     this.workspace = workspace;
     this.onEvent = typeof onEvent === 'function' ? onEvent : () => {};
     this.clock = clock ?? (() => Date.now());
+    this.authority = authority;
     this.notifications = [];
     this.nextId = 1;
     this.hooks = [];
     this.osEnabled = false;
+  }
+
+  #hookExecutionBody(eventName, context, hooks) {
+    return {
+      event: eventName,
+      context,
+      hooks: hooks.map(hook => ({
+        command: hook.command,
+        ...(hook.show === undefined ? {} : { show: hook.show }),
+        ...(hook.timeout_ms === undefined ? {} : { timeout_ms: hook.timeout_ms }),
+        ...(hook.network_consent === undefined ? {} : { network_consent: hook.network_consent })
+      }))
+    };
+  }
+
+  describeHookExecution(eventName, context = {}, taskId) {
+    const matching = this.hooks.filter(hook => hook.event === eventName);
+    return {
+      workspace: this.workspace,
+      taskId,
+      kind: 'capability.execute',
+      args: { body: this.#hookExecutionBody(eventName, context, matching) }
+    };
   }
 
   list({ unreadOnly = false } = {}) {
@@ -181,12 +206,12 @@ export class NotificationService {
     return { hooks: this.hooks };
   }
 
-  ingestTaskEvent(evt) {
+  ingestTaskEvent(evt, { execution } = {}) {
     if (!evt || typeof evt !== 'object') return;
     if (evt.parent_job_id !== undefined && evt.parent_job_id !== null) return;
     const label = evt.label ?? evt.job_id ?? 'task';
     if (evt.event === 'started') {
-      void this.runHooks('task.started', { label, job_id: evt.job_id });
+      if (execution) void this.runHooks('task.started', { label, job_id: evt.job_id }, execution).catch(() => {});
       return;
     }
     if (evt.event === 'exit') {
@@ -199,7 +224,7 @@ export class NotificationService {
           body: exitInfo,
           job_id: evt.job_id
         });
-        void this.runHooks('task.completed', { label, job_id: evt.job_id, exit_code: evt.exitCode });
+        if (execution) void this.runHooks('task.completed', { label, job_id: evt.job_id, exit_code: evt.exitCode }, execution).catch(() => {});
       } else if (evt.exitCode === null && evt.signal) {
         this.record({
           severity: 'warn',
@@ -216,20 +241,25 @@ export class NotificationService {
           body: exitInfo,
           job_id: evt.job_id
         });
-        void this.runHooks('task.failed', { label, job_id: evt.job_id, exit_code: evt.exitCode });
+        if (execution) void this.runHooks('task.failed', { label, job_id: evt.job_id, exit_code: evt.exitCode }, execution).catch(() => {});
       }
       return;
     }
     if (evt.event === 'problems') {
       const count = Array.isArray(evt.problems) ? evt.problems.length : 0;
-      if (count > 0) {
-        void this.runHooks('diagnostics.new', { label, job_id: evt.job_id, count });
+      if (count > 0 && execution) {
+        void this.runHooks('diagnostics.new', { label, job_id: evt.job_id, count }, execution).catch(() => {});
       }
     }
   }
 
-  async runHooks(eventName, context = {}) {
+  async runHooks(eventName, context = {}, execution) {
+    if (!this.authority) throw new AuthorityError('FORBIDDEN', 'notification execution authority required');
+    if (!execution || typeof execution !== 'object') throw new AuthorityError('FORBIDDEN', 'trusted hook execution handle required');
     const matching = this.hooks.filter(hook => hook.event === eventName);
+    const body = this.#hookExecutionBody(eventName, context, matching);
+    this.authority.assertExecution(execution, 'capability.execute', body);
+    this.authority.claimExecution(execution, 'capability.execute', body);
     const results = [];
     for (let index = 0; index < matching.length; index += 1) {
       const hook = matching[index];

@@ -7,11 +7,13 @@ import path from 'node:path';
 import { WebSocket } from 'ws';
 import { ArchServer } from '../../node/src/server.ts';
 import { IndexStreamEvent } from '../../common/contracts/index.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-a2-arch-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 function fakeEmbed(texts: string[]): Promise<number[][]> {
   const dim = 8;
@@ -37,10 +39,14 @@ before(async () => {
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
+  httpServer.closeAllConnections();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
+  server.authority.control.close();
+  server.events.close();
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
       await fs.rm(workspace, { recursive: true, force: true });
@@ -54,13 +60,13 @@ after(async () => {
 
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
-async function post<T>(pathName: string, payload: unknown): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+async function post<T>(pathName: string, payload: unknown, headers?: Record<string, string>): Promise<{ status: number; body: Envelope<T> }> {
+  const response = await owner.request(pathName, { method: 'POST', ...(headers ? { headers } : {}), body: JSON.stringify(payload), signal: AbortSignal.timeout(15000) });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
 async function get<T>(pathName: string): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`);
+  const response = await owner.request(pathName, { signal: AbortSignal.timeout(15000) });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
@@ -74,14 +80,29 @@ async function waitForReady(): Promise<void> {
 }
 
 test('reindex over HTTP reaches ready and status contract holds', async () => {
+  const anonymous = await fetch(`${base}/api/index/reindex`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}), signal: AbortSignal.timeout(5000)
+  });
+  assert.equal(anonymous.status, 403, 'anonymous actor rejected');
+
+  const unapproved = await post('/api/index/reindex', {});
+  assert.equal(unapproved.status, 409, 'unapproved reindex denied');
+
   const badBody = await post('/api/index/reindex', { force: 'yes' });
   assert.equal(badBody.status, 400);
   assert.equal(badBody.body.ok, false);
 
-  const start = await post<{ session_id: string }>('/api/index/reindex', {});
+  const headers = await owner.approve('POST', '/api/index/reindex', {}, 'task:index-reindex');
+  const changed = await post('/api/index/reindex', { force: true }, headers);
+  assert.equal(changed.status, 409, 'changed force cannot reuse approval');
+
+  const start = await post<{ session_id: string }>('/api/index/reindex', {}, headers);
   assert.equal(start.status, 200);
   assert.ok(start.body.ok);
   assert.ok(start.body.data && typeof start.body.data.session_id === 'string');
+
+  const replay = await post('/api/index/reindex', {}, headers);
+  assert.equal(replay.status, 409, 'consumed reindex approval cannot replay');
 
   await waitForReady();
 
@@ -115,19 +136,31 @@ test('hybrid search returns provenance-ranked results with degraded=false', asyn
 });
 
 test('ws index channel delivers progress/ready events', async () => {
+  const token = owner.headers.Authorization.slice(7);
   const socket = await new Promise<WebSocket>((resolve, reject) => {
     const wsUrl = base.replace('http://', 'ws://') + '/ws';
-    const sock = new WebSocket(wsUrl);
+    const sock = new WebSocket(wsUrl, { headers: { Origin: 'http://fixture.local' } });
     sock.on('open', () => {
-      sock.send(JSON.stringify({ type: 'subscribe', channels: ['index'] }));
+      sock.send(JSON.stringify({ type: 'authenticate', token }));
       resolve(sock);
     });
     sock.on('error', reject);
   });
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('ws auth timeout')), 5000);
+    socket.on('message', raw => {
+      const msg = JSON.parse(String(raw)) as { type?: string };
+      if (msg.type === 'authenticated') { clearTimeout(timer); resolve(); }
+    });
+  });
+  socket.send(JSON.stringify({ type: 'subscribe', channels: ['index'] }));
+  await new Promise(resolve => setTimeout(resolve, 150));
   const collected: Record<string, unknown>[] = [];
   socket.on('message', raw => collected.push(JSON.parse(String(raw)) as Record<string, unknown>));
 
-  await post('/api/index/reindex', { force: true });
+  const headers = await owner.approve('POST', '/api/index/reindex', { force: true }, 'task:index-ws');
+  const start = await post('/api/index/reindex', { force: true }, headers);
+  assert.equal(start.status, 200);
   for (let i = 0; i < 200; i++) {
     const { body } = await get<{ state: string }>('/api/index/status');
     if (body.data?.state === 'ready') break;

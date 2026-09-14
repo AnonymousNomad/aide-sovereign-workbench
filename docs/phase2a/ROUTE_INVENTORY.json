@@ -1,0 +1,1621 @@
+{
+  "baseline": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58",
+  "ts_routes": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/tree",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/file",
+      "prefix": true,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/file/write",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/search",
+      "prefix": true,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/search/replace",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/patch/apply",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/terminal/run",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/session",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/models/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/start",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/stop",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/ingest",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/model/ready",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/register",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/profile",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/models/routes",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/route",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/fit",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/stream",
+      "prefix": false,
+      "stream": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/chat/history",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat/history",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/providers",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/connect",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/disconnect",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/import",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/learner/state",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/learner/reviews",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/learner/attempt",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/hint",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/exercises/next",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/academy/exercises/attempt",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/session",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/academy/check",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/academy/complete",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/certificate",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/datasets",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/datasets",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/datasets/append",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/datasets/read",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/datasets/delete",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/presets",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/start",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/stop",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/checkpoints",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/export-eval",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/export",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/exports",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/artifacts",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/community",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/items",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/items",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/community/items",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins/presets",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/trust",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/execute",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/scaffold",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/replays",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/replays",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/commands",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/commands/invoke",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/keybindings",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/keybindings/resolve",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/settings",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/rg/quick-open",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/rg/files",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/rg/search",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/editor/options",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/git/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/diff",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/stage",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/unstage",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/commit",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/git/branches",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/checkout",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/push",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/log",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/file-log",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/hunks/list",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/hunks/stage",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/hunks/unstage",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/blame",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/notifications/unread",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/read",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/read-all",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/hooks",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/hooks",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/matchers",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/run",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/stop",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/cache/stats",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/cache/clear",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/modelhub/search",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/modelhub/files",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/modelhub/download",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/modelhub/downloads/cancel",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/modelhub/downloads",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/import",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/problems/parse",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/orch/context",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/memory/digests",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/memory/digest",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/workbenches",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbenches/detail",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbenches/install",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbenches/trust",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbenches/uninstall",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbench/worktree/create",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/workbench/worktree/list",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbench/worktree/merge",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/workbench/worktree/discard",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/onboarding/state",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/onboarding/state",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/onboarding/next",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/onboarding/complete",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/system-map/snapshot",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/resident/summary",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/resident/context",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/resident/push-summary",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/resident/decisions",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/desktop/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/grants",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/action",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/panic",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/pending",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/desktop/pending",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/desktop/pending/verdict",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/pending/resolve",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/telegram/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/telegram/connect",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/telegram/authorize",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/telegram/disconnect",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/telegram/start",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/intent",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/diff-risk",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/classify-request",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/experts",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/train",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/infer",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/experts/stats",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/freeze",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/experts/thaw",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/hardware/profile",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/hardware/recommend",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/events",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/session",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit/bundle",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/closed-loop/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/agent/start",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/agent/decision",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/agent/sessions",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/agent/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/agent/tool",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/index/reindex",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/index/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/index/search",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/export",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/handoff/bundles",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/handoff/bundles/get",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/import",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/byok/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/byok/providers/set",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/byok/providers/delete",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/byok/key",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/byok/key/delete",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/byok/routing",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/byok/consent",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/byok/test",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/lsp/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/start",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/open",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/close",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/change",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/completion",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/hover",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/definition",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/notify",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/request",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/stop",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/dap/status",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/start",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/stop",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/launch",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/breakpoints",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/configure",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/continue",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/step",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/stack",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/scopes",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/variables",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/disconnect",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/dap/state",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/request",
+      "prefix": false,
+      "stream": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/openapi.json",
+      "prefix": false,
+      "stream": false
+    }
+  ],
+  "legacy_source_branches": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspace/tree",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/blueprint",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/models",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/model/start",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/model/stop",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/model/status",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/model/ready?",
+      "prefix": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/plugins/presets",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/trust",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/execute",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/plugins/scaffold",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/session",
+      "prefix": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/academy/complete",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/academy/check",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/academy/certificate?",
+      "prefix": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/file?",
+      "prefix": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/file/write",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/search?",
+      "prefix": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/search/replace",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/terminal/run",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/patch/apply",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/git/status",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/git/diff",
+      "prefix": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/git/log",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/stage",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/commit",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/git/branches",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/checkout",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/git/log",
+      "prefix": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/git/push",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/run",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks/stop",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks/status",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session",
+      "prefix": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/session",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/artifacts",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/models/status",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/providers",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/providers/chat",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/chat",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/profile",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/operator",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/plan",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/apply",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/propose",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/handoff/continue",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/community",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/lsp/status",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics?clear=",
+      "prefix": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/dap/status",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/dap/state?",
+      "prefix": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/training/status",
+      "prefix": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/replays",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/replays",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/arena/run",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/start",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/training/stop",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/start",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/request",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/dap/stop",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/start",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/request",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/notify",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/lsp/stop",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/community/items",
+      "prefix": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/community/items",
+      "prefix": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/community/items",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/register",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/import",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/start",
+      "prefix": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/models/stop",
+      "prefix": false
+    }
+  ],
+  "scope": "TS list comes from actual buildRoutes in a disposable workspace. Legacy list is literal equality/startsWith source enumeration, not proof of complete dynamic dispatch coverage.",
+  "ts_count": 204,
+  "legacy_literal_branch_count": 77,
+  "fixture": "E:/pip_temp/opencode/phase2a-inventory-1j6bza",
+  "authority_enforcement": "NOT IMPLEMENTED"
+}

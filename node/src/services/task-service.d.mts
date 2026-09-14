@@ -1,4 +1,10 @@
 import type { TaskEventT } from '../../../common/contracts/tasks.ts';
+import type { ActorHandle, ExecutionAuthority, ExecutionHandle } from './execution-authority.mjs';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
+
+export interface TaskEventMeta {
+  owner?: ActorHandle;
+}
 
 export declare const TASK_FILE_CANDIDATES: string[];
 export declare const MAX_BUFFER_LINES: number;
@@ -57,15 +63,16 @@ export interface TaskListResult {
 export type TaskEventBody = TaskEventT;
 
 export declare class TaskService {
-  constructor(options: { workspace: string; onEvent?: (body: TaskEventBody) => void; cacheDir?: string });
+  constructor(options: { workspace: string; onEvent?: (body: TaskEventBody, meta?: TaskEventMeta) => void; cacheDir?: string; authority?: ExecutionAuthority | undefined });
   readonly cache: import('./build-cache.mjs').BuildCache;
   list(): Promise<TaskListResult>;
   loadWorkspaceMatchers(): Promise<Record<string, unknown>>;
   listMatchers(): Promise<{ matchers: Array<{ name: string; owner: string }> }>;
   findTask(label: string): Promise<Record<string, unknown> | null>;
   resolveJobMatcher(task: Record<string, unknown>): Promise<unknown[]>;
-  run(label: string): Promise<{ job_id: string }>;
+  describeRun(label: string, taskId: string): Promise<OperationInput & { args: { body: Record<string, unknown> } }>;
+  run(label: string, execution?: ExecutionHandle): Promise<{ job_id: string }>;
   emitProblems(job: unknown): void;
-  stop(jobId: string): Promise<void>;
+  stop(jobId: string, execution?: ExecutionHandle): Promise<void>;
   status(): { jobs: TaskSnapshot[] };
 }

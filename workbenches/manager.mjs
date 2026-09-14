@@ -8,6 +8,7 @@
 
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -41,18 +42,143 @@ async function readJson(file, fallback) {
   }
 }
 
-function stateFile(workspace, id) {
-  return path.join(workspace, '.aide', 'workbenches', `${id}.json`);
+// ---- Effective-filesystem containment (mirrors the accepted eval-export /
+// modelhub / experts doctrine). Lexical joins are not sufficient: every read,
+// write, and remove must prove the effective target stays inside the canonical
+// workbench state root, and link-like or hard-linked state objects fail closed.
+
+function isContained(candidateReal, rootReal) {
+  return candidateReal === rootReal || candidateReal.startsWith(`${rootReal}${path.sep}`);
+}
+
+// Deepest-existing-ancestor real resolution: non-existent leaf segments cannot
+// contain a reparse object and are appended lexically after resolving.
+async function realResolve(target) {
+  const absolute = path.resolve(target);
+  const missing = [];
+  let current = absolute;
+  for (;;) {
+    try {
+      const real = await fs.realpath(current);
+      return path.join(real, ...missing.reverse());
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+      const parent = path.dirname(current);
+      if (parent === current) throw error;
+      missing.push(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+// Catalog bundle identity is trusted, but it is still validated defensively
+// before being used as a filename: it must be a single safe path segment.
+const BUNDLE_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+function assertBundleId(id) {
+  if (typeof id !== 'string' || !BUNDLE_ID_RE.test(id)) {
+    throw new WorkbenchValidationError(`invalid workbench id: ${typeof id === 'string' ? JSON.stringify(id.slice(0, 64)) : typeof id}`);
+  }
+  return id;
+}
+
+// Canonical state root: <workspace>/.aide/workbenches must resolve inside the
+// real workspace. A pre-existing root junction to an outside directory fails
+// closed before any read, write, or remove.
+async function canonicalStateRoot(workspace) {
+  const workspaceReal = await realResolve(workspace);
+  const root = path.join(workspace, '.aide', 'workbenches');
+  const rootReal = await realResolve(root);
+  if (!isContained(rootReal, workspaceReal)) {
+    throw new WorkbenchValidationError('workbench state root resolves outside the canonical workspace');
+  }
+  return { root, rootReal };
+}
+
+// Single state-file resolver. Consumers receive a path only after lexical
+// containment under the canonical root has been proven; the filename suffix is
+// always server-derived from the validated catalog identity.
+async function resolveStateFile(workspace, bundleId) {
+  const id = assertBundleId(bundleId);
+  const { root } = await canonicalStateRoot(workspace);
+  const file = path.join(root, `${id}.json`);
+  const rel = path.relative(root, file);
+  if (rel === '' || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+    throw new WorkbenchValidationError('workbench state path escapes the state root');
+  }
+  return file;
+}
+
+// Existing state objects must be plain single-link regular files. Symlinks,
+// junctions/reparse redirects, directories, special objects, and hard-linked
+// aliases fail closed (uniform policy for read, write destination, and
+// remove target). Missing leaves are proven via their deepest existing
+// ancestor so a junctioned parent cannot redirect any operation.
+async function assertSafeStateObject(workspace, file, what) {
+  const { rootReal } = await canonicalStateRoot(workspace);
+  const info = await fs.lstat(file).catch(() => null);
+  if (info === null) {
+    const pendingReal = await realResolve(file);
+    if (!isContained(pendingReal, rootReal)) {
+      throw new WorkbenchValidationError(`workbench state target resolves outside the state root (${what})`);
+    }
+    return false;
+  }
+  if (info.isSymbolicLink()) throw new WorkbenchValidationError(`refusing link-like workbench state object (${what})`);
+  if (!info.isFile()) throw new WorkbenchValidationError(`refusing non-file workbench state object (${what})`);
+  if (typeof info.nlink === 'number' && info.nlink > 1) {
+    throw new WorkbenchValidationError(`refusing hard-linked workbench state object (${what})`);
+  }
+  const real = await fs.realpath(file);
+  if (!isContained(real, rootReal)) {
+    throw new WorkbenchValidationError(`workbench state object resolves outside the state root (${what})`);
+  }
+  return true;
+}
+
+async function assertContainedReal(workspace, target, what) {
+  const { rootReal } = await canonicalStateRoot(workspace);
+  const targetReal = await realResolve(target);
+  if (!isContained(targetReal, rootReal)) {
+    throw new WorkbenchValidationError(`${what} resolves outside the workbench state root`);
+  }
+  return targetReal;
 }
 
 async function loadState(workspace, id) {
-  return readJson(stateFile(workspace, id), null);
+  const file = await resolveStateFile(workspace, id);
+  await assertSafeStateObject(workspace, file, 'load');
+  return readJson(file, null);
 }
 
+// Publication doctrine: fresh exclusive temp file in the verified parent, full
+// content, parent recheck, destination-object check, atomic rename. A
+// pre-existing hardlink or symlink destination is never written through.
 async function saveState(workspace, id, state) {
-  const file = stateFile(workspace, id);
+  const file = await resolveStateFile(workspace, id);
   await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, JSON.stringify(state, null, 2), 'utf8');
+  await assertSafeStateObject(workspace, file, 'save destination');
+  const tempPath = path.join(path.dirname(file), `.wb-state-${process.pid}-${randomBytes(8).toString('hex')}.tmp`);
+  await assertSafeStateObject(workspace, tempPath, 'state temp file');
+  let handle = null;
+  try {
+    handle = await fs.open(tempPath, 'wx');
+    await handle.writeFile(JSON.stringify(state, null, 2), 'utf8');
+    await handle.close();
+    handle = null;
+    await assertContainedReal(workspace, path.dirname(file), 'state parent');
+    await assertSafeStateObject(workspace, file, 'save destination');
+    await fs.rename(tempPath, file);
+  } catch (error) {
+    if (handle !== null) await handle.close().catch(() => {});
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+async function removeState(workspace, id) {
+  const file = await resolveStateFile(workspace, id);
+  const existed = await assertSafeStateObject(workspace, file, 'remove target');
+  if (existed) await fs.rm(file, { force: true });
 }
 
 // Locate a bundle by its declared id (files are named after the id, but the
@@ -255,7 +381,7 @@ export class WorkbenchManager {
   async uninstall(id) {
     const bundle = await findBundle(String(id));
     if (!bundle) throw new WorkbenchValidationError(`workbench not found: ${id}`, [`workbench not found: ${id}`]);
-    await fs.rm(stateFile(this.workspace, bundle.id), { force: true });
+    await removeState(this.workspace, bundle.id);
     return { removed: bundle.id };
   }
 }

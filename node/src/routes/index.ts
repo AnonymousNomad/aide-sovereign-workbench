@@ -1,4 +1,5 @@
 import { type Route, type RouteContext, RouteError } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import {
   IndexReindexRequest,
   IndexReindexResponse,
@@ -8,6 +9,7 @@ import {
 } from '../../../common/contracts/index.ts';
 
 type IndexService = {
+  workspace: string;
   reindex(force?: boolean): Promise<{ session_id: string }>;
   getStatus(): unknown;
   hybridSearch(query: string, limit?: number): Promise<unknown>;
@@ -34,10 +36,21 @@ function wrap(handler: (ctx: RouteContext) => Promise<unknown> | unknown): (ctx:
 
 export function routesForIndex(service: IndexService): Route[] {
   return [
-    { method: 'POST', path: '/api/index/reindex', body: IndexReindexRequest, response: IndexReindexResponse, handler: wrap(async ({ body }) => {
-      const request = body as { force?: boolean };
-      return service.reindex(request.force === true);
-    }) },
+    { method: 'POST', path: '/api/index/reindex', body: IndexReindexRequest, response: IndexReindexResponse,
+      // The approved operation binds the only caller-controlled value (force).
+      // The scan set, chunking, embedding target and index location are all
+      // server-derived from the workspace; the background job is the
+      // deterministic executor and completion is observable via
+      // GET /api/index/status and the index event channel.
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const { force } = body as { force?: boolean };
+        return { workspace: service.workspace, taskId, kind: 'capability.write', args: { body: { force: force === true } } };
+      },
+      handler: wrap(async ({ body }) => {
+        const request = body as { force?: boolean };
+        return service.reindex(request.force === true);
+      })
+    },
     { method: 'GET', path: '/api/index/status', response: IndexStatus, handler: wrap(async () => service.getStatus()) },
     { method: 'GET', path: '/api/index/search', query: HybridSearchQuery, response: HybridSearchResponse, handler: wrap(async ({ query }: RouteContext) => {
       const q = query as unknown as { query: string; limit?: number };

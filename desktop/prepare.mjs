@@ -4,75 +4,108 @@ import { fileURLToPath } from 'node:url';
 
 const desktop = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(desktop, '..');
-const frontend = path.join(desktop, 'frontend');
-await rm(frontend, { recursive: true, force: true });
-await mkdir(frontend, { recursive: true });
-for (const file of ['index.html', 'app.js', 'styles.css']) await cp(path.join(root, file), path.join(frontend, file));
-for (const directory of ['community', 'languages', 'debuggers', 'training', 'academy', 'blueprint', 'plugins', 'tasks', 'daemon', 'session', 'artifacts', 'providers', 'harness']) await cp(path.join(root, directory), path.join(frontend, directory), { recursive: true });
-const modelSource = path.join(root, 'models');
-const modelTarget = path.join(frontend, 'models');
-await mkdir(modelTarget, { recursive: true });
-for (const file of await readdir(modelSource)) {
-  if (file.endsWith('.gguf') && process.env.AIDE_INCLUDE_MODEL_WEIGHTS !== '1') continue;
-  await cp(path.join(modelSource, file), path.join(modelTarget, file), { recursive: true });
-}
-await mkdir(path.join(frontend, 'runtime'), { recursive: true });
-await cp(process.execPath, path.join(frontend, 'runtime', process.platform === 'win32' ? 'node.exe' : 'node'));
-console.log(`prepared desktop frontend at ${frontend}`);
-
 const resources = path.join(desktop, 'resources');
-await mkdir(resources, { recursive: true });
-const engineTarget = path.join(resources, 'runtime');
-const runtimeModelDir = path.join(resources, 'models');
-await rm(engineTarget, { recursive: true, force: true });
-await mkdir(engineTarget, { recursive: true });
-await mkdir(runtimeModelDir, { recursive: true });
+const frontend = path.join(root, 'browser', 'dist');
+const includeWeights = process.env.AIDE_INCLUDE_MODEL_WEIGHTS === '1';
+const resourceDirectories = [
+  'common',
+  'node',
+  'workbenches',
+  'community',
+  'languages',
+  'debuggers',
+  'training',
+  'academy',
+  'blueprint',
+  'plugins',
+  'tasks',
+  'session',
+  'artifacts',
+  'providers',
+  'harness',
+  'grammar',
+  'daemon'
+];
+const runtimePackages = ['zod', 'ws', 'typescript', 'typescript-language-server'];
+const weightExtensions = new Set(['.gguf', '.safetensors', '.bin']);
 
-const engineSource = process.env.AIDE_ENGINE_SOURCE || 'E:\\llama-cpp';
-const engineFiles = await readdir(engineSource).catch(async error => {
-  if (error.code === 'ENOENT') {
-    console.log(`engine source ${engineSource} absent - skipping engine staging (set AIDE_ENGINE_SOURCE to a llama.cpp build dir)`);
-    return [];
+async function copyTree(source, target, { allowWeights = false } = {}) {
+  await mkdir(target, { recursive: true });
+  for (const entry of await readdir(source, { withFileTypes: true })) {
+    const sourcePath = path.join(source, entry.name);
+    const targetPath = path.join(target, entry.name);
+    if (entry.isDirectory()) {
+      await copyTree(sourcePath, targetPath, { allowWeights });
+      continue;
+    }
+    if (entry.name.endsWith('.corrupt')) continue;
+    if (!allowWeights && weightExtensions.has(path.extname(entry.name).toLowerCase())) continue;
+    await cp(sourcePath, targetPath);
   }
-  throw error;
-});
-const serverAllowlist = ['llama-server.exe', 'llama-server-impl.dll', 'llama.dll', 'llama-common.dll', 'ggml-base.dll', 'ggml.dll', 'ggml-rpc.dll', 'ggml-rpc-server.exe', 'libomp140.x86_64.dll', 'mtmd.dll'];
-const isServerRuntimeFile = file => serverAllowlist.includes(file) || /^ggml-cpu-.+\.dll$/.test(file);
-for (const file of engineFiles.filter(isServerRuntimeFile)) {
-  await cp(path.join(engineSource, file), path.join(engineTarget, file));
 }
-const stagedDlls = engineFiles.filter(file => isServerRuntimeFile(file) && file.endsWith('.dll'));
-if (stagedDlls.length) console.log(`staged llama.cpp engine (llama-server + ${stagedDlls.length} DLLs) into ${engineTarget}`);
-await cp(process.execPath, path.join(engineTarget, process.platform === 'win32' ? 'node.exe' : 'node'));
+
+async function exists(filePath) {
+  return await access(filePath).then(() => true).catch(() => false);
+}
+
+if (!(await exists(path.join(frontend, 'index.html')))) {
+  throw new Error(`typed frontend build missing at ${frontend}; run npm run build:frontend`);
+}
+
+await rm(resources, { recursive: true, force: true });
+await mkdir(resources, { recursive: true });
+for (const directory of resourceDirectories) await copyTree(path.join(root, directory), path.join(resources, directory));
+await mkdir(path.join(resources, 'scripts'), { recursive: true });
+await cp(path.join(root, 'scripts', 'facade.mjs'), path.join(resources, 'scripts', 'facade.mjs'));
+await cp(path.join(desktop, 'stack-launcher.mjs'), path.join(resources, 'stack-launcher.mjs'));
 
 const nodeModulesTarget = path.join(resources, 'node_modules');
-await rm(nodeModulesTarget, { recursive: true, force: true });
 await mkdir(nodeModulesTarget, { recursive: true });
-const stackDeps = ['zod', 'ws', 'typescript', 'typescript-language-server'];
 const stagedVersions = [];
-for (const dep of stackDeps) {
-  const source = path.join(root, 'node_modules', dep);
-  const stagingSource = await access(source).then(() => source, () => null);
-  if (!stagingSource) throw new Error(`desktop stack dependency ${dep} missing from node_modules - run npm install in the repo root first`);
-  await cp(stagingSource, path.join(nodeModulesTarget, dep), { recursive: true });
-  const version = JSON.parse(await readFile(path.join(stagingSource, 'package.json'), 'utf8')).version;
-  stagedVersions.push(`${dep}@${version}`);
+for (const packageName of runtimePackages) {
+  const source = path.join(root, 'node_modules', packageName);
+  if (!(await exists(source))) throw new Error(`desktop stack dependency ${packageName} missing from node_modules; run npm install`);
+  await copyTree(source, path.join(nodeModulesTarget, packageName));
+  const version = JSON.parse(await readFile(path.join(source, 'package.json'), 'utf8')).version;
+  stagedVersions.push(`${packageName}@${version}`);
 }
 console.log(`staged stack dependencies (${stagedVersions.join(', ')})`);
 
+const modelSource = path.join(root, 'models');
+const runtimeModelDir = path.join(resources, 'models');
+await mkdir(runtimeModelDir, { recursive: true });
 await cp(path.join(modelSource, 'manifest.json'), path.join(runtimeModelDir, 'manifest.json'));
 const bootstrapModel = 'smollm2-360m-instruct-q8_0.gguf';
-if (await access(path.join(modelSource, bootstrapModel)).then(() => true, () => false)) {
+if (await exists(path.join(modelSource, bootstrapModel))) {
   await cp(path.join(modelSource, bootstrapModel), path.join(runtimeModelDir, bootstrapModel));
-  console.log(`staged bootstrap model ${bootstrapModel} into ${runtimeModelDir}`);
+  console.log(`staged bootstrap model ${bootstrapModel}`);
+} else if (process.env.AIDE_REQUIRE_MODEL_RUNTIME === '1') {
+  throw new Error(`desktop prepare: bootstrap model missing at ${path.join(modelSource, bootstrapModel)}`);
 } else {
-  console.log(`bootstrap model ${bootstrapModel} absent from ${modelSource} - skipping bootstrap GGUF staging`);
+  console.warn(`desktop prepare: bootstrap model not staged; release preparation must supply ${bootstrapModel}`);
 }
-if (process.env.AIDE_INCLUDE_MODEL_WEIGHTS === '1') {
+if (includeWeights) {
   for (const file of await readdir(modelSource)) {
     if (!file.endsWith('.gguf') || file === bootstrapModel) continue;
     await cp(path.join(modelSource, file), path.join(runtimeModelDir, file));
   }
-  console.log('staged all optional model weights into runtime models (AIDE_INCLUDE_MODEL_WEIGHTS=1)');
 }
-console.log('desktop resources preparation complete');
+
+const engineTarget = path.join(resources, 'runtime');
+await mkdir(engineTarget, { recursive: true });
+const engineSource = process.env.AIDE_ENGINE_SOURCE || 'E:\\llama-cpp';
+const engineFiles = await readdir(engineSource).catch(error => {
+  if (error.code === 'ENOENT') return [];
+  throw error;
+});
+const serverAllowlist = ['llama-server.exe', 'llama-server', 'llama-server-impl.dll', 'llama.dll', 'llama-common.dll', 'ggml-base.dll', 'ggml.dll', 'ggml-rpc.dll', 'ggml-rpc-server.exe', 'libomp140.x86_64.dll', 'mtmd.dll'];
+const isServerRuntimeFile = file => serverAllowlist.includes(file) || /^ggml-cpu-.+\.dll$/.test(file);
+for (const file of engineFiles.filter(isServerRuntimeFile)) await cp(path.join(engineSource, file), path.join(engineTarget, file));
+const llamaName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
+if (!(await exists(path.join(engineTarget, llamaName))) && process.env.AIDE_REQUIRE_MODEL_RUNTIME === '1') {
+  throw new Error(`desktop prepare: ${llamaName} is required; set AIDE_ENGINE_SOURCE to a verified llama.cpp build`);
+}
+await cp(process.execPath, path.join(engineTarget, process.platform === 'win32' ? 'node.exe' : 'node'));
+
+console.log(`canonical typed frontend remains at ${frontend}`);
+console.log(`prepared desktop resources at ${resources}`);

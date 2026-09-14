@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { TaskService, resolveDepPlan } from '../../node/src/services/task-service.mjs';
+import { resolveDepPlan } from '../../node/src/services/task-service.mjs';
+
+import { taskServiceFixture } from '../arch/authority-fixture.ts';
 
 async function makeWorkspace(tasksJson) {
   const dir = await mkdtemp(path.join(tmpdir(), 'aide-b3-compound-'));
@@ -56,9 +58,10 @@ test('b3: sequential compound enforces order and attributes output', async () =>
     { ...echoTask('root', 'ROOT-RAN', { dependsOn: 'build' }) }
   ]);
   process.env.B3_MARKER = path.join(ws, 'markers.txt');
+  const fx = await taskServiceFixture(ws);
+  const svc = fx.service;
   try {
-    const svc = new TaskService({ workspace: ws, onEvent: () => {} });
-    const { job_id } = await svc.run('root');
+    const { job_id } = await fx.run('root');
     await waitForTerminal(svc, job_id);
     const jobs = svc.status().jobs;
     const root = jobs.find(j => j.job_id === job_id);
@@ -74,6 +77,7 @@ test('b3: sequential compound enforces order and attributes output', async () =>
     const childJob = jobs.find(j => j.parent_job_id === job_id);
     assert.ok(childJob.name_path.startsWith('root'), `name_path groups under root: ${childJob.name_path}`);
   } finally {
+    await fx.close();
     delete process.env.B3_MARKER;
     await rm(ws, { recursive: true, force: true });
   }
@@ -87,18 +91,19 @@ test('b3: failing dependency stops chain and marks parent failed_dependency', as
     { label: 'root', type: 'process', command: NODE, args: ['-e', ''], dependsOn: ['boom', 'never'] }
   ]);
   const events = [];
-  const svc = new TaskService({ workspace: ws, onEvent: e => events.push(e) });
+  const fx = await taskServiceFixture(ws, e => events.push(e));
+  const svc = fx.service;
   try {
-    const { job_id } = await svc.run('root');
+    const { job_id } = await fx.run('root');
     await waitForTerminal(svc, job_id);
     const root = svc.status().jobs.find(j => j.job_id === job_id);
     assert.equal(root.status, 'failed');
     assert.equal(root.failed_dependency, 'boom');
-    await new Promise(r => setTimeout(r, 300));
     await assert.rejects(readFile(neverPath), /ENOENT/, 'third task never started');
     const exitEvents = events.filter(e => e.event === 'exit' && e.job_id === job_id);
     assert.equal(exitEvents.length, 1);
   } finally {
+    await fx.close();
     await rm(ws, { recursive: true, force: true });
     await rm(path.dirname(neverPath), { recursive: true, force: true });
   }
@@ -111,16 +116,17 @@ test('b3: parallel starts both; failing sibling kills the other', async () => {
     { label: 'fastfail', type: 'process', command: NODE, args: ['-e', 'setTimeout(() => process.exit(2), 400)'] },
     { label: 'par', type: 'process', command: NODE, args: ['-e', ''], dependsOn: ['slowwin', 'fastfail'], dependsOrder: 'parallel' }
   ]);
-  const svc = new TaskService({ workspace: ws, onEvent: () => {} });
-  const { job_id } = await svc.run('par');
+  const fx = await taskServiceFixture(ws);
+  const svc = fx.service;
+  const { job_id } = await fx.run('par');
   await waitForTerminal(svc, job_id, 15000);
   const jobs = svc.status().jobs;
   const par = jobs.find(j => j.job_id === job_id);
   assert.equal(par.status, 'failed');
   assert.equal(par.failed_dependency, 'fastfail');
-  await new Promise(r => setTimeout(r, 500));
   const stillRunning = jobs.filter(j => j.job_id !== job_id && svc.jobs.get(j.job_id)?.status === 'running');
   assert.equal(stillRunning.length, 0, `parallel failure must kill siblings; running: ${stillRunning.map(j => j.label)}`);
+  await fx.close();
   await rm(ws, { recursive: true, force: true });
 });
 
@@ -148,9 +154,10 @@ test('b3: background dependency becomes ready on ends-pattern without waiting ex
   ]);
   process.env.B3_MARKER = path.join(ws, 'markers.txt');
   const t0 = Date.now();
-  const svc = new TaskService({ workspace: ws, onEvent: () => {} });
+  const fx = await taskServiceFixture(ws);
+  const svc = fx.service;
   try {
-    const { job_id } = await svc.run('after');
+    const { job_id } = await fx.run('after');
     await waitForTerminal(svc, job_id, 20000);
     const elapsed = Date.now() - t0;
     assert.equal(await readFile(process.env.B3_MARKER, 'utf8').then(t => t.trim()), 'AFTER-RAN');
@@ -158,7 +165,7 @@ test('b3: background dependency becomes ready on ends-pattern without waiting ex
     const watcherJobs = svc.status().jobs.filter(j => j.label === 'watcher' && j.parent_job_id !== null || j.label === 'watcher');
     assert.ok(watcherJobs.length >= 1, 'watcher job visible');
   } finally {
-    await stopAllJobs(svc);
+    await fx.close();
     delete process.env.B3_MARKER;
     await rm(ws, { recursive: true, force: true });
   }
@@ -191,16 +198,17 @@ test('b3: stopping a compound coordinator kills running children', async () => {
     { label: 'long', type: 'process', command: NODE, args: ['-e', 'setInterval(() => {}, 1000)'] },
     { label: 'rootlong', type: 'process', command: NODE, args: ['-e', 'setInterval(() => {}, 1000)'], dependsOn: 'long' }
   ]);
-  const svc = new TaskService({ workspace: ws, onEvent: () => {} });
-  const { job_id } = await svc.run('rootlong');
-  await new Promise(r => setTimeout(r, 1200));
-  await svc.stop(job_id);
-  await new Promise(r => setTimeout(r, 700));
+  const fx = await taskServiceFixture(ws);
+  const svc = fx.service;
+  const { job_id } = await fx.run('rootlong');
+  await waitForChild(svc, job_id);
+  await fx.stop(job_id);
   const jobs = svc.status().jobs;
   assert.equal(jobs.find(j => j.job_id === job_id).status, 'stopped');
   const child = jobs.find(j => j.parent_job_id === job_id);
   assert.ok(child, 'child exists');
   assert.notEqual(child.status, 'running', 'child must be killed with parent');
+  await fx.close();
   await rm(ws, { recursive: true, force: true });
 });
 
@@ -214,16 +222,13 @@ async function waitForTerminal(svc, jobId, timeoutMs = 20000) {
   throw new Error(`job ${jobId} did not reach terminal state within ${timeoutMs}ms`);
 }
 
-async function stopAllJobs(svc) {
-  for (const job of [...svc.jobs.values()]) {
-    if (job.status === 'running') {
-      try { await svc.stop(job.job_id); } catch { /* raced to terminal */ }
-    }
+async function waitForChild(svc, jobId) {
+  // Existing status polling is bounded by a deadline; no fixed sleep is used
+  // as proof that the child has launched.
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    if (svc.status().jobs.some(j => j.parent_job_id === jobId && j.authority_state?.phase === 'command' && j.authority_state.state === 'succeeded')) return;
+    await new Promise(resolve => setImmediate(resolve));
   }
-  for (let i = 0; i < 20; i++) {
-    const anyRunning = [...svc.jobs.values()].some(j => j.status === 'running');
-    if (!anyRunning) break;
-    await new Promise(r => setTimeout(r, 100));
-  }
-  await new Promise(r => setTimeout(r, 1200));
+  throw new Error('child launch was not observed');
 }

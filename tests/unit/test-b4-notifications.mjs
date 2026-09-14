@@ -5,6 +5,7 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { NotificationService, HookValidationError, normalizeHooksFile } from '../../node/src/services/notification-service.mjs';
 import { buildToastScript } from '../../node/src/services/os-toast.mjs';
 import { encodeOsc9, encodeOsc777 } from '../../node/src/services/osc.mjs';
+import { createExecutionAuthority, AuthorityError } from '../../node/src/services/execution-authority.mjs';
 
 const tmp = await mkdtemp(path.join(os.tmpdir(), 'aide-b4-unit-'));
 let tick = 0;
@@ -19,6 +20,49 @@ function makeService(overrides = {}) {
     ...overrides
   });
   return { service, seen };
+}
+
+async function makeAuthority(workspace) {
+  const events = [];
+  const authority = createExecutionAuthority({
+    workspace,
+    record: event => { events.push(event); return { persisted: true }; }
+  });
+  const pairing = authority.control.createPairing('test');
+  const session = await authority.pair(pairing, 'test');
+  const operator = authority.authenticate(session.token, 'test');
+  return { authority, operator, events };
+}
+
+async function runHookEvent(service, operator, authority, eventName, context, taskId) {
+  const input = service.describeHookExecution(eventName, context, taskId);
+  const op = await authority.prepare(operator, input);
+  const approved = await authority.decide(operator, op.operation_id, 'approve');
+  return authority.execute(operator, approved.operation_id, input, async (_operation, execution) => {
+    return service.runHooks(eventName, context, execution);
+  });
+}
+
+async function runTaskEvent(service, operator, authority, evt, taskId) {
+  const eventName = evt.event === 'started'
+    ? 'task.started'
+    : evt.event === 'problems'
+      ? 'diagnostics.new'
+      : evt.exitCode === 0
+        ? 'task.completed'
+        : 'task.failed';
+  const context = evt.event === 'started'
+    ? { label: evt.label ?? evt.job_id ?? 'task', job_id: evt.job_id }
+    : evt.event === 'problems'
+      ? { label: evt.label ?? evt.job_id ?? 'task', job_id: evt.job_id, count: Array.isArray(evt.problems) ? evt.problems.length : 0 }
+      : { label: evt.label ?? evt.job_id ?? 'task', job_id: evt.job_id, exit_code: evt.exitCode };
+  const input = service.describeHookExecution(eventName, context, taskId);
+  const op = await authority.prepare(operator, input);
+  const approved = await authority.decide(operator, op.operation_id, 'approve');
+  return authority.execute(operator, approved.operation_id, input, async (_operation, execution) => {
+    service.ingestTaskEvent(evt, { execution });
+    await new Promise(r => setTimeout(r, 150));
+  });
 }
 
 // 1. record -> list -> unread counts
@@ -91,49 +135,52 @@ function makeService(overrides = {}) {
 
 // 7. consent guard at config time and exec time
 {
-  const { service } = makeService();
+  const { authority, operator } = await makeAuthority(tmp);
+  const { service } = makeService({ authority });
   assert.throws(
     () => service.setHooks({ hooks: [{ event: 'task.failed', command: ['curl', 'http://evil.example'] }] }),
     /network_consent/
   );
   const allowed = service.setHooks({ hooks: [{ event: 'task.failed', command: ['node', '-e', 'require("node:http"]'], network_consent: true }] });
   assert.equal(allowed.length, 1);
-  const results = await service.runHooks('task.failed', {});
+  const results = await runHookEvent(service, operator, authority, 'task.failed', {}, 'task:consent');
   assert.equal(results[0].rejected, undefined);
   // exec-time guard: mutate an already-loaded hook past the config-time normalizer
   service.hooks = [...service.hooks];
   service.hooks[1] = { ...service.hooks[1], event: 'task.completed', command: ['wget'] };
   delete service.hooks[1].network_consent;
-  const guarded = await service.runHooks('task.completed', {});
+  const guarded = await runHookEvent(service, operator, authority, 'task.completed', {}, 'task:consent');
   assert.equal(guarded[0].rejected, 'CONSENT_REQUIRED');
 }
 
 // 8. hook executes argv array and captures output; timeout kills
 {
-  const { service } = makeService();
+  const { authority, operator } = await makeAuthority(tmp);
+  const { service } = makeService({ authority });
   service.setHooks({ hooks: [
     { event: 'task.completed', command: [process.execPath, '-e', 'console.log("hook-ran")'], show: true },
     { event: 'diagnostics.new', command: [process.execPath, '-e', 'setTimeout(()=>{},60000)'], timeout_ms: 300, show: true }
   ]});
-  const okResults = await service.runHooks('task.completed', {});
+  const okResults = await runHookEvent(service, operator, authority, 'task.completed', {}, 'task:exec');
   assert.equal(okResults[0].ok, true);
   assert.equal(okResults[0].timed_out, false);
   assert.match(okResults[0].output, /hook-ran/);
   assert.ok(service.list().notifications.some(n => n.source === 'hook' && /Hook ran/.test(n.title)));
   const t0 = Date.now();
-  const slow = await service.runHooks('diagnostics.new', {});
+  const slow = await runHookEvent(service, operator, authority, 'diagnostics.new', {}, 'task:exec');
   const elapsed = Date.now() - t0;
   assert.equal(slow[0].timed_out, true);
   assert.ok(elapsed < 5000, `timeout path must return promptly, took ${elapsed}ms`);
   assert.ok(service.list().notifications.some(n => /Hook timed out/.test(n.title)));
 }
 
-// 9. hook writes marker file end-to-end via ingestTaskEvent
+// 9. hook writes marker file end-to-end via ingestTaskEvent with trusted execution
 {
   const marker = path.join(tmp, 'marker.txt');
-  const { service } = makeService();
+  const { authority, operator } = await makeAuthority(tmp);
+  const { service } = makeService({ authority });
   service.setHooks({ hooks: [{ event: 'task.failed', command: [process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'fired')`] }] });
-  service.ingestTaskEvent({ event: 'exit', job_id: 'j9', label: 'demo', exitCode: 1, signal: null });
+  await runTaskEvent(service, operator, authority, { event: 'exit', job_id: 'j9', label: 'demo', exitCode: 1, signal: null }, 'task:j9');
   for (let i = 0; i < 40 && !await readFile(marker, 'utf8').then(() => true).catch(() => false); i++) {
     await new Promise(r => setTimeout(r, 100));
   }
@@ -173,6 +220,69 @@ await rm(path.join(tmp, '.aide'), { recursive: true, force: true });
   assert.ok(hostile.startsWith('\x1b]9;a'));
   assert.equal(hostile.replace(/^.{3}/, '').split('\x07').length, 2, 'only the terminating BEL survives');
 }
+
+// 13. authority boundary for hook execution
+{
+  const marker = path.join(tmp, 'auth-marker.txt');
+  await rm(marker, { force: true });
+  const { authority, operator } = await makeAuthority(tmp);
+  const { service } = makeService({ authority });
+  service.setHooks({ hooks: [{ event: 'task.completed', command: [process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'fired')`] }] });
+
+  // 13a. authorized hook execution succeeds once
+  await runHookEvent(service, operator, authority, 'task.completed', {}, 'task:auth');
+  assert.equal(await readFile(marker, 'utf8'), 'fired', 'authorized hook must run');
+  await rm(marker, { force: true });
+
+  // 13b. missing authority denied
+  const noAuthService = makeService().service;
+  await assert.rejects(() => noAuthService.runHooks('task.completed', {}, {}), AuthorityError);
+
+  // 13c. direct service execution without proper trusted handle denied
+  await assert.rejects(() => service.runHooks('task.completed', {}, {}), AuthorityError);
+
+  // 13d. forged execution handle denied
+  await assert.rejects(() => service.runHooks('task.completed', {}, { forged: true }), AuthorityError);
+
+  // 13e. replay/consumed authority denied
+  const input = service.describeHookExecution('task.completed', {}, 'task:replay');
+  const op = await authority.prepare(operator, input);
+  const approved = await authority.decide(operator, op.operation_id, 'approve');
+  let capturedExecution;
+  await authority.execute(operator, approved.operation_id, input, async (_operation, execution) => {
+    capturedExecution = execution;
+    return service.runHooks('task.completed', {}, execution);
+  });
+  await assert.rejects(() => service.runHooks('task.completed', {}, capturedExecution), AuthorityError);
+
+  // 13f. changed command denied
+  const changedInput = service.describeHookExecution('task.completed', {}, 'task:changed');
+  const changedOp = await authority.prepare(operator, changedInput);
+  const changedApproved = await authority.decide(operator, changedOp.operation_id, 'approve');
+  service.setHooks({ hooks: [{ event: 'task.completed', command: [process.execPath, '-e', 'console.log("different")'] }] });
+  await assert.rejects(
+    () => authority.execute(operator, changedApproved.operation_id, changedInput, async (_operation, execution) => service.runHooks('task.completed', {}, execution)),
+    AuthorityError
+  );
+
+  // 13g. changed context denied
+  const contextInput = service.describeHookExecution('task.completed', { job_id: 'j1' }, 'task:context');
+  const contextOp = await authority.prepare(operator, contextInput);
+  const contextApproved = await authority.decide(operator, contextOp.operation_id, 'approve');
+  await assert.rejects(
+    () => authority.execute(operator, contextApproved.operation_id, contextInput, async (_operation, execution) => service.runHooks('task.completed', { job_id: 'j2' }, execution)),
+    AuthorityError
+  );
+
+  // 13h. event-originated execution without proper authority produces no hook process/marker
+  await rm(marker, { force: true });
+  service.setHooks({ hooks: [{ event: 'task.failed', command: [process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'fired')`] }] });
+  const { service: noAuthEventService } = makeService();
+  noAuthEventService.ingestTaskEvent({ event: 'exit', job_id: 'j-noauth', label: 'demo', exitCode: 1, signal: null });
+  await new Promise(r => setTimeout(r, 200));
+  await assert.rejects(() => readFile(marker, 'utf8'), /ENOENT/, 'event without authority must not write marker');
+}
+await rm(path.join(tmp, 'auth-marker.txt'), { force: true });
 
 async function mkdir_aide(root) {
   const { mkdir } = await import('node:fs/promises');

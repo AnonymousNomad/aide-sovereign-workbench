@@ -1,5 +1,6 @@
 import type { Route } from '../server.ts';
 import { RouteError } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import { RouterError, type ModelRouter } from '../services/model-router.ts';
 import type { ModelRuntime } from '../services/model-runtime.ts';
 import type { ChatStore } from '../services/chat-store.ts';
@@ -330,14 +331,30 @@ export function routeForChatHistory(store: ChatStore): Route {
   };
 }
 
+// Exact conversation payload the save writes. The memory journal below is a
+// bounded, deterministic subordinate effect of this same approved payload
+// (local append only, no egress, no process, no additional caller scope).
+function historySaveBody(body: unknown) {
+  const request = body as { id?: string; modelId: string; title: string; messages: { role: string; content: string }[] };
+  return {
+    ...(request.id !== undefined ? { id: request.id } : {}),
+    modelId: request.modelId,
+    title: request.title,
+    messages: request.messages
+  };
+}
+
 export function routeForChatHistorySave(store: ChatStore, workspace: string): Route {
   return {
     method: 'POST',
     path: '/api/chat/history',
     body: ChatHistorySaveRequest,
     response: ChatHistorySaveResponse,
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => ({
+      workspace, taskId, kind: 'capability.write', args: { body: historySaveBody(body) }
+    }),
     handler: async ({ body }) => {
-      const request = body as { id?: string; modelId: string; title: string; messages: { role: string; content: string }[] };
+      const request = historySaveBody(body);
       const saved = await store.save(request);
       // Gap #4 auto-memory: fire-and-forget journal of this turn so future
       // sessions recall it. Best-effort - a memory write failure must never

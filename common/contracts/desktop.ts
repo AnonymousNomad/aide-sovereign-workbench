@@ -23,6 +23,7 @@ export const DesktopActionRequest = z
   .object({
     op: z.enum(['launch_app', 'open_path', 'list_windows', 'focus_window', 'move_file', 'outlook_create_draft', 'excel_generate_report']),
     target: z.string().max(500).optional(),
+    args: z.array(z.string().max(4096)).max(24).optional(),
     destination: z.string().max(500).optional(),
     approved: z.boolean(),
     // Optional reasoning captured into the training trajectory (DC-b).
@@ -49,6 +50,9 @@ export const PanicResult = z
   .object({
     ok: z.boolean(),
     children_killed: z.number().int().nonnegative(),
+    unowned_handlers: z.number().int().nonnegative(),
+    outcomes: z.array(z.object({ id: z.string(), pid: z.number().nullable(), status: z.enum(['unowned', 'exited', 'failed', 'unconfirmed', 'terminated']),
+      killed: z.boolean(), error: z.string().optional(), exit: z.object({ code: z.number().nullable(), signal: z.string().nullable(), error: z.string().nullable() }).optional() }).strict()),
     revoked_at: z.string(),
     latency_ms: z.number().int().nonnegative()
   })

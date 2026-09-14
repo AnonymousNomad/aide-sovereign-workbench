@@ -7,6 +7,7 @@ import os from 'node:os';
 import { promises as fs } from 'node:fs';
 import { WebSocket as NodeWebSocket } from 'ws';
 import { api, ApiError } from '../../browser/src/services/api.ts';
+import { pairAuthority } from '../../browser/src/services/authority.ts';
 import { connectEvents } from '../../browser/src/services/ws.ts';
 import viteConfig from '../../browser/vite.config.ts';
 import { ArchServer } from '../../node/src/server.ts';
@@ -28,6 +29,7 @@ type FacadeModule = {
     port: number;
     routeMap: RouteMap;
     targets: Record<BackendName, { host: string; port: number }>;
+    authenticate?: (token: string, origin: string) => unknown;
   }): Promise<FacadeHandle>;
   loadRouteMap(file: string): Promise<RouteMap>;
 };
@@ -44,12 +46,9 @@ async function closeServer(server: http.Server): Promise<void> {
 }
 
 async function withRelativeFetch<T>(base: string, run: () => Promise<T>): Promise<T> {
-  const nativeFetch = globalThis.fetch;
-  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
-    const resolved = typeof input === 'string' && input.startsWith('/') ? base + input : input;
-    return nativeFetch(resolved, init);
-  }) as typeof fetch;
-  try { return await run(); } finally { globalThis.fetch = nativeFetch; }
+  const previous = globalThis.__AIDE_RUNTIME_CONFIG__;
+  globalThis.__AIDE_RUNTIME_CONFIG__ = { facadeOrigin: base };
+  try { return await run(); } finally { globalThis.__AIDE_RUNTIME_CONFIG__ = previous; }
 }
 
 test('real typed browser client receives success, backend error, malformed response and facade error through the facade', async () => {
@@ -106,10 +105,16 @@ test('legacy bare and typed envelope representations are explicit, with determin
 });
 
 test('shared browser stream transport stays incremental, reports stream errors and aborts upstream', async () => {
+  const streamToken = 'stream-test-token-'.padEnd(32, 'x');
   let mode: 'normal' | 'event-error' | 'http-error' | 'hold' = 'normal';
   let upstreamClosedResolve: (() => void) | undefined;
   const upstreamClosed = new Promise<void>(resolve => { upstreamClosedResolve = resolve; });
-  const backend = http.createServer((_req, res) => {
+  const backend = http.createServer((req, res) => {
+    if (req.method === 'POST' && req.url === '/api/authority/pair') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(ok({ token: streamToken, actor_id: 'stream-test-actor', expires_at: Date.now() + 60_000 })));
+      return;
+    }
     if (mode === 'http-error') {
       res.writeHead(504, { 'content-type': 'application/json' });
       res.end(JSON.stringify(fail('CHILD_FAILED', 'model process failed')));
@@ -122,10 +127,16 @@ test('shared browser stream transport stays incremental, reports stream errors a
     else res.on('close', () => upstreamClosedResolve?.());
   });
   const backendPort = await listen(backend);
-  const facade = await createFacade({ port: 0, routeMap: { prefixes: { '/api/chat': 'ts' }, exact: {}, upgrades: {} }, targets: { ts: { host: HOST, port: backendPort }, legacy: { host: HOST, port: 1 } } });
+  const facade = await createFacade({
+    port: 0,
+    routeMap: { prefixes: { '/api/chat': 'ts' }, exact: { '/api/authority/pair': 'ts' }, upgrades: {} },
+    targets: { ts: { host: HOST, port: backendPort }, legacy: { host: HOST, port: 1 } },
+    authenticate: async token => { if (token !== streamToken) throw new Error('invalid actor credential'); }
+  });
   const base = `http://${HOST}:${(facade.server.address() as net.AddressInfo).port}`;
   try {
     await withRelativeFetch(base, async () => {
+      await pairAuthority('stream-transport-proof');
       const started = Date.now();
       let response = await api.chatStream('model-1', [{ role: 'user', content: 'hi' }]);
       const reader = response.body!.getReader();
@@ -160,10 +171,32 @@ test('browser WebSocket client receives canonical EventHub data through facade a
   const arch = new ArchServer(workspace, path.join(workspace, 'arch.log'));
   const archServer = await arch.listen(0);
   const archPort = (archServer.address() as net.AddressInfo).port;
-  let facade = await createFacade({ port: 0, routeMap: { prefixes: {}, exact: {}, upgrades: { '/ws': 'ts' } }, targets: { ts: { host: HOST, port: archPort }, legacy: { host: HOST, port: 1 } } });
+  const pairOrigin = 'http://127.0.0.1:4173';
+  const routeMap = { prefixes: {}, exact: { '/api/authority/pair': 'ts' as const }, upgrades: { '/ws': 'ts' as const } };
+  let facade = await createFacade({ port: 0, routeMap, targets: { ts: { host: HOST, port: archPort }, legacy: { host: HOST, port: 1 } } });
   const facadePort = (facade.server.address() as net.AddressInfo).port;
+  const base = `http://${HOST}:${facadePort}`;
   const previousWebSocket = globalThis.WebSocket;
-  globalThis.WebSocket = NodeWebSocket as unknown as typeof WebSocket;
+  // The Node ws shim has no document origin; the real browser sends its page
+  // origin on every request, so the test shim must carry it for the paired
+  // actor check (pairing origin and socket origin must match).
+  class OriginWebSocket extends NodeWebSocket {
+    constructor(url: string | URL, protocols?: string | string[]) {
+      super(url, protocols ?? [], { origin: pairOrigin });
+    }
+  }
+  globalThis.WebSocket = OriginWebSocket as unknown as typeof WebSocket;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    headers.set('Origin', pairOrigin);
+    return realFetch(input, { ...init, headers });
+  }) as typeof fetch;
+  try {
+    await withRelativeFetch(base, () => pairAuthority(arch.authority.control.createPairing(pairOrigin)));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
   const statuses: boolean[] = [];
   const received: unknown[] = [];
   const bus = connectEvents(`ws://${HOST}:${facadePort}/ws`, { onStatus: value => statuses.push(value) });
@@ -180,7 +213,7 @@ test('browser WebSocket client receives canonical EventHub data through facade a
 
     await facade.close();
     for (let i = 0; i < 100 && bus.connected(); i++) await delay(20);
-    facade = await createFacade({ port: facadePort, routeMap: { prefixes: {}, exact: {}, upgrades: { '/ws': 'ts' } }, targets: { ts: { host: HOST, port: archPort }, legacy: { host: HOST, port: 1 } } });
+    facade = await createFacade({ port: facadePort, routeMap, targets: { ts: { host: HOST, port: archPort }, legacy: { host: HOST, port: 1 } } });
     for (let i = 0; i < 250 && !bus.connected(); i++) await delay(20);
     assert.equal(bus.connected(), true, 'browser event client did not reconnect through restarted facade');
     assert.ok(statuses.includes(false) && statuses.filter(Boolean).length >= 2);

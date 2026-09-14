@@ -1,4 +1,5 @@
 import { type Route, type RouteContext, RouteError } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import {
   WorkbenchListResponse,
   WorkbenchDetailResponse,
@@ -64,22 +65,64 @@ export function routesForWorkbenches(manager: WorkbenchManager): Route[] {
   return [
     { method: 'GET', path: '/api/workbenches', response: WorkbenchListResponse, handler: wrap(async () => manager.list() as unknown as WorkbenchListResponseT) },
     { method: 'POST', path: '/api/workbenches/detail', body: WorkbenchDetailRequest, response: WorkbenchDetailResponse, handler: wrap(async ({ body }) => manager.get((body as { id: string }).id) as unknown as WorkbenchDetailResponseT) },
-    { method: 'POST', path: '/api/workbenches/install', body: WorkbenchInstallRequest, response: WorkbenchDetailResponse, handler: wrap(async ({ body }) => manager.install((body as { id: string }).id) as unknown as WorkbenchDetailResponseT) },
-    { method: 'POST', path: '/api/workbenches/trust', body: WorkbenchTrustRequest, response: WorkbenchDetailResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/workbenches/install', body: WorkbenchInstallRequest, response: WorkbenchDetailResponse,
+      // Install mutates durable canonical workbench configuration only. The
+      // catalog lookup resolves the exact bundle and the state filename is
+      // server-derived; no process, egress, or caller path is involved, and the
+      // manager's containment layer independently rejects unsafe state roots
+      // and link-like state objects.
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const request = body as { id: string };
+        const workspace = manager.workspace;
+        if (!workspace) throw new RouteError('NOT_READY', 'workbench workspace unavailable');
+        return { workspace, taskId, kind: 'capability.write', args: { body: { id: request.id } } };
+      },
+      handler: wrap(async ({ body }) => manager.install((body as { id: string }).id) as unknown as WorkbenchDetailResponseT)
+    },
+    { method: 'POST', path: '/api/workbenches/trust', body: WorkbenchTrustRequest, response: WorkbenchDetailResponse, describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const request = body as { id: string; server: string; trusted: boolean };
+        const workspace = manager.workspace;
+        if (!workspace) throw new RouteError('NOT_READY', 'workbench workspace unavailable');
+        // Trust is security-sensitive persisted policy. The operation binds the
+        // exact workbench id, the exact registry-declared server name and the
+        // resulting boolean; the manager resolves both names against its own
+        // registries, so caller input never becomes a filesystem path. Trust
+        // state is descriptive policy only: it never mints authority operations
+        // or bypasses approval, and trusting an online server still requires
+        // the manager's egress-consent guard.
+        return { workspace, taskId, kind: 'capability.write', args: { body: { id: request.id, server: request.server, trusted: request.trusted } } };
+      }, handler: wrap(async ({ body }) => {
         const request = body as { id: string; server: string; trusted: boolean };
         return manager.setTrust(request.id, request.server, request.trusted) as unknown as WorkbenchDetailResponseT;
       }) },
-    { method: 'POST', path: '/api/workbenches/uninstall', body: WorkbenchUninstallRequest, response: WorkbenchUninstallResponse, handler: wrap(async ({ body }) => manager.uninstall((body as { id: string }).id) as unknown as WorkbenchUninstallResponseT) }
+    { method: 'POST', path: '/api/workbenches/uninstall', body: WorkbenchUninstallRequest, response: WorkbenchUninstallResponse,
+      // Uninstall removes only the state entry derived from the exact resolved
+      // catalog bundle; no caller path or arbitrary filename exists.
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const request = body as { id: string };
+        const workspace = manager.workspace;
+        if (!workspace) throw new RouteError('NOT_READY', 'workbench workspace unavailable');
+        return { workspace, taskId, kind: 'capability.write', args: { body: { id: request.id } } };
+      },
+      handler: wrap(async ({ body }) => manager.uninstall((body as { id: string }).id) as unknown as WorkbenchUninstallResponseT)
+    }
   ];
 }
 
 // PR A of aide-worktree-isolation: 3 shadow-worktree routes. Service is pure
 // (no I/O outside workspace/.aide/worktrees); merge/discard are user-triggered,
-// agent sees the result (pitfall 4 — never auto-merge).
+// agent sees the result (pitfall 4 — never auto-merge). Every route carries an
+// exact capability.execute descriptor binding the effective caller inputs; the
+// git side effects are the approved operation itself.
 export function routesForWorktree(workspace: string): Route[] {
   const svc = createWorktreeService({ workspace });
   return [
-    { method: 'POST', path: '/api/workbench/worktree/create', body: WorktreeCreateRequest, response: WorktreeCreateResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/workbench/worktree/create', body: WorktreeCreateRequest, response: WorktreeCreateResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const r = body as { id: string; base_ref?: string };
+        return { workspace, taskId, kind: 'capability.execute', args: { body: { id: r.id, base_ref: r.base_ref ? r.base_ref : 'HEAD' } } };
+      },
+      handler: wrap(async ({ body }) => {
         const r = body as { id: string; base_ref?: string };
         const wt = await svc.create({ id: r.id, ...(r.base_ref ? { baseRef: r.base_ref } : {}) });
         return { worktree: { id: wt.id, branch: wt.branch, base_ref: wt.base_ref, path: wt.path, created_at: wt.created_at, diff_stats: undefined } } as unknown as WorktreeCreateResponseT;
@@ -90,13 +133,23 @@ export function routesForWorktree(workspace: string): Route[] {
         return { worktrees: wts.map((w) => ({ id: w.id, branch: w.branch, base_ref: w.base_ref, path: w.path, created_at: w.created_at, diff_stats: w.diff_stats })) } as unknown as WorktreeListResponseT;
       })
     },
-    { method: 'POST', path: '/api/workbench/worktree/merge', body: WorktreeMergeRequest, response: WorktreeMergeResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/workbench/worktree/merge', body: WorktreeMergeRequest, response: WorktreeMergeResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const r = body as { id: string; strategy?: 'merge' | 'squash' | 'rebase'; commit_message?: string };
+        return { workspace, taskId, kind: 'capability.execute', args: { body: { id: r.id, strategy: r.strategy ?? 'squash', commit_message: r.commit_message ?? '' } } };
+      },
+      handler: wrap(async ({ body }) => {
         const r = body as { id: string; strategy?: 'merge' | 'squash' | 'rebase'; commit_message?: string };
         const m = await svc.merge({ id: r.id, strategy: r.strategy ?? 'squash', commit_message: r.commit_message ?? '' });
         return { id: m.id, strategy: m.strategy, commit_sha: m.commit_sha, message: m.message } as unknown as WorktreeMergeResponseT;
       })
     },
-    { method: 'POST', path: '/api/workbench/worktree/discard', body: WorktreeDiscardRequest, response: WorktreeDiscardResponse, handler: wrap(async ({ body }) => {
+    { method: 'POST', path: '/api/workbench/worktree/discard', body: WorktreeDiscardRequest, response: WorktreeDiscardResponse,
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+        const r = body as { id: string };
+        return { workspace, taskId, kind: 'capability.execute', args: { body: { id: r.id } } };
+      },
+      handler: wrap(async ({ body }) => {
         const r = body as { id: string };
         const d = await svc.discard({ id: r.id });
         return { id: d.id, state: 'discarded' as const } as unknown as WorktreeDiscardResponseT;

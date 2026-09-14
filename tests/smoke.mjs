@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { launchSupervisedStack } from './helpers/supervised-stack.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const required = [
@@ -27,37 +28,30 @@ const node = JSON.parse(readFileSync(path.join(root, 'community/node-manifest.js
 assert.equal(node.network_default, 'disabled');
 assert.equal(node.capabilities.payments, false);
 
-const port = 4877;
-const daemon = spawn(process.execPath, [path.join(root, 'daemon/server.mjs')], {
-  cwd: root,
-  env: { ...process.env, AIDE_DAEMON_PORT: String(port), AIDE_WORKSPACE: root },
-  stdio: ['ignore', 'ignore', 'pipe']
-});
-let childExit = null;
-let childError = '';
-daemon.stderr?.on('data', chunk => { childError += String(chunk); });
-daemon.once('error', error => { childError += `${error.message}\n`; });
-daemon.once('exit', (code, signal) => { childExit = `code=${code} signal=${signal}`; });
+// The canonical stack refuses to run without a trusted launch supervisor and
+// authenticates every transport caller, so the smoke suite launches through
+// the supervised test path and exercises one paired read plus the fail-closed
+// anonymous denial on a fresh workspace (never the repository itself).
+const workspace = await mkdtemp(path.join(tmpdir(), 'aide-smoke-ws-'));
+const stack = await launchSupervisedStack({ workspace });
 try {
-  let health;
-  for (let attempt = 0; attempt < 150; attempt += 1) {
-    try {
-      health = await fetch(`http://127.0.0.1:${port}/health`);
-      break;
-    } catch {
-      await delay(100);
-    }
-  }
-  if (!health) throw new Error(`daemon health endpoint did not become ready within 15s${childExit ? ` (${childExit})` : ''}${childError ? `: ${childError.trim()}` : ''}`);
-  assert.equal(health.status, 200, 'daemon health endpoint');
-  const healthBody = await health.json();
-  assert.equal(healthBody.ok, true);
-  const workspace = await fetch(`http://127.0.0.1:${port}/api/workspace`);
-  assert.equal(workspace.status, 200);
-  assert.equal((await workspace.json()).workspace, root);
+  const health = await stack.json('facade', 'GET', '/api/health');
+  assert.equal(health.status, 200, 'facade health endpoint');
+  assert.equal(health.body.ok, true);
+
+  const legacyHealth = await fetch(`${stack.bases.legacy}/health`);
+  assert.equal(legacyHealth.status, 200, 'legacy daemon health endpoint');
+
+  const workspaceRead = await stack.json('facade', 'GET', '/api/workspace');
+  assert.equal(workspaceRead.status, 200);
+  assert.equal(workspaceRead.body.data.workspace, workspace);
+
+  const anonymous = await fetch(`${stack.bases.facade}/api/workspace`);
+  assert.equal(anonymous.status, 403, 'unpaired callers must fail closed');
+  assert.equal((await anonymous.json()).code, 'FORBIDDEN');
 } finally {
-  daemon.kill('SIGTERM');
-  await delay(50);
+  await stack.close();
+  await rm(workspace, { recursive: true, force: true });
 }
 
 console.log('AIDE smoke tests passed');

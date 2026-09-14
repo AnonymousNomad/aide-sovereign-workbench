@@ -9,7 +9,8 @@ import { healthFixtures, fileReadFixtures, fileWriteFixtures, searchFixtures, se
 function mockFetch(payload: unknown, status = 200): { seen: { url: string; method: string; format: string | null }[] } {
   const seen: { url: string; method: string; format: string | null }[] = [];
   mock.method(globalThis, 'fetch', async (url: string | URL | Request, init?: RequestInit) => {
-    seen.push({ url: String(url), method: init?.method ?? 'GET', format: new Headers(init?.headers).get('X-AIDE-API-Format') });
+    const parsed = new URL(String(url));
+    seen.push({ url: parsed.pathname + parsed.search, method: init?.method ?? 'GET', format: new Headers(init?.headers).get('X-AIDE-API-Format') });
     return new Response(JSON.stringify(payload), { status });
   });
   return { seen };
@@ -99,7 +100,7 @@ test('workbench operations use the shared versioned transport and validated cont
   };
   const seen: Array<{ url: string; method: string; format: string | null; body: unknown }> = [];
   mock.method(globalThis, 'fetch', async (url: string | URL | Request, init?: RequestInit) => {
-    const path = String(url);
+    const path = new URL(String(url)).pathname;
     seen.push({
       url: path,
       method: init?.method ?? 'GET',

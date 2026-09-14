@@ -6,6 +6,7 @@ export declare function createHandoffService(options: {
   generator?: string;
   agentLoop?: { transcriptOf(sessionId: string): Array<{ role: string; content: string; tool_name: string | null; ts: string | null }> } | null;
 }): {
+  workspace: string;
   exportBundle(request?: {
     tier?: 'brief' | 'transcript' | 'full';
     session_id?: string;

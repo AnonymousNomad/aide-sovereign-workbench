@@ -1,0 +1,58 @@
+{
+  "audit_date_local": "2026-09-12",
+  "timezone": "Asia/Katmandu",
+  "baseline_commit": "536d08996d269d86aef997c5a514cd498c5686b8",
+  "purpose": "Phase-0 reconciliation, not production certification",
+  "current_gates": {
+    "details": "gates.json",
+    "node_typecheck": { "exit_code": 0 },
+    "browser_typecheck": { "exit_code": 0 },
+    "focused_tests": { "pass": 48, "fail": 0, "cancelled": 0, "skipped": 0, "exit_code": 0 },
+    "eslint": { "command": "node node_modules/eslint/bin/eslint.js .", "exit_code": 0, "errors": 0, "warnings": 65, "source": "captured exec session 82842" }
+  },
+  "diagnostics": [
+    { "artifact": "runtime-probe.json", "exit_code": 1, "result": "health/envelope observations completed; agent start exceeded 10-second diagnostic deadline; no acceptance claim" },
+    { "artifact": "runtime-probe-isolated.json", "exit_code": 0, "result": "actual buildRoutes/facade/loop with empty model inventory and scripted model capture; defects reproduced" },
+    { "artifact": "runtime-probe-extended.json", "exit_code": 0, "result": "additional false-verification and unapproved direct-tool write reproduced in disposable fixture" },
+    { "artifact": "inventory.json", "exit_code": 0, "result": "204 registered operations, 203 documented operations, 274 registry paths; verification event rejected" }
+  ],
+  "tool_failures_recorded": [
+    "Earlier inline Node diagnostic lost import quotes through Windows PowerShell; invalid JavaScript, no product result",
+    "Referenced scripts/run-bounded-arch.mjs absent; actual runner/workflow inspected",
+    "CIM/port queries denied in sandbox; approved read-only inventory subsequently succeeded",
+    "One orchestration call had an extra delimiter and did not execute",
+    "Guessed scripts/lib, desktop/src-tauri and .githooks paths absent; discovery corrected to actual files"
+  ],
+  "historical_baseline": {
+    "full_arch": "Journal reports 405/405 before hardware slice; not independently rerun in audit",
+    "hardware_slice": "Journal reports 3/3 and live facade payload; not a measured recommender qualification",
+    "p0_acceptance": "Historical success uses hermetic scripted provider",
+    "real_model_harness": "Existing artifact is standalone harness parse/Veritas evidence awaiting approval, not canonical completed coding transaction"
+  },
+  "not_run": [
+    "Full architecture battery alongside operator model/Python activity",
+    "Default launch browser acceptance",
+    "Real local-model coding transaction",
+    "Desktop staging/build/install/upgrade/uninstall",
+    "External API/provider/download/remote git verification"
+  ],
+  "cleanup": {
+    "checked_pids": [3644, 20436, 24316, 3524, 11320, 5312],
+    "survivors": [],
+    "ports_checked_no_listeners": [54254, 54255, 64917, 64918, 50534, 50535],
+    "method": "Get-Process -Id and netstat -ano; completed test runner exit codes; actual facade/server close",
+    "operator_processes_terminated": false,
+    "operator_model_ancestry_checked": { "pid": 3800, "parent_pid": 13768 },
+    "fixtures_retained": ["E:\\pip_temp\\aide-phase0-audit-XaEcKO", "E:\\pip_temp\\aide-phase0-audit-4mKxCd", "E:\\pip_temp\\aide-phase0-audit-DxPztE"],
+    "raw_report_correction": "First probe's spawnedChildProcesses:false is not exhaustive: constructors/status can run short rg/Python probes. No model start or command tool was requested by audit. Operator model PID changes were not audit children."
+  },
+  "mutation_scope": {
+    "product_source_changes": false,
+    "audit_documentation_and_diagnostics": true,
+    "project_journal_entry": true,
+    "staging_commits_pushes": false,
+    "operator_corpus_scripts_modified": false,
+    "skill_registry_modified": false
+  },
+  "conclusion": "Audit package ready for review; product defects open; Phase 1 not implemented."
+}

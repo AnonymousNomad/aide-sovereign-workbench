@@ -25,6 +25,9 @@ import { WorkflowManager } from './workflow.mjs';
 import { HandoffManager } from './handoff.mjs';
 import { buildScaffold, injectScaffold, composeDriftReminder, estimateTokens, HARNESS_VERSION } from '../harness/scaffold.mjs';
 import { createStateBus } from '../harness/cipher-state.mjs';
+import { randomUUID } from 'node:crypto';
+import { connectAuthorityChannel } from '../common/security/authority-channel.mjs';
+import { legacyOperation, normalizeOperation } from '../common/security/operation-policy.mjs';
 
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -89,8 +92,36 @@ const providerManager = new ProviderManager(await workspaceConfig('providers/man
 await providerManager.load().catch(() => {});
 const workflowManager = new WorkflowManager({ modelManager, workspaceManager, artifactStore });
 const handoffManager = new HandoffManager({ modelManager, workspaceManager, artifactStore });
+const parsedBodies = new WeakMap();
+const privateResponses = new WeakMap();
+const pendingExecutions = new Map();
+const authorityReadiness = Promise.withResolvers();
+function describeLegacy(input) {
+  // A mutable task label is not an operation: bind its loaded definitions.
+  const snapshot = input.method === 'POST' && input.path === '/api/tasks/run' ? taskManager.list() : null;
+  return legacyOperation(WORKSPACE, input, snapshot);
+}
+const authority = typeof process.send === 'function' ? connectAuthorityChannel(process, async (method, input) => {
+  if (method === 'legacy.ready') return authorityReadiness.promise;
+  if (method === 'legacy.describe') return describeLegacy(input);
+  if (method !== 'legacy.invoke') throw Object.assign(new Error('unsupported private operation'), { code: 'FORBIDDEN' });
+  const pending = pendingExecutions.get(input?.request_id);
+  if (!pending) throw Object.assign(new Error('no matching pending request'), { code: 'FORBIDDEN' });
+  pendingExecutions.delete(input.request_id);
+  if (pending.response.destroyed || normalizeOperation(describeLegacy(pending.input)).digest !== input.descriptor?.digest) {
+    throw Object.assign(new Error('operation changed or cancelled'), { code: 'CONFLICT' });
+  }
+  const captured = {};
+  const result = { status: 500, body: { error: 'legacy handler produced no result' } };
+  privateResponses.set(captured, result);
+  await handleLegacy(pending.request, captured);
+  return result;
+}) : null;
+process.once('disconnect', () => { authority?.close(); pendingExecutions.clear(); });
 
 function json(response, status, body) {
+  const captured = privateResponses.get(response);
+  if (captured) { captured.status = status; captured.body = body; return; }
   const payload = JSON.stringify(body);
   response.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -107,6 +138,7 @@ function errorStatus(error) {
 }
 
 async function body(request) {
+  if (parsedBodies.has(request)) return parsedBodies.get(request);
   let data = '';
   for await (const chunk of request) {
     data += chunk;
@@ -175,7 +207,7 @@ async function workspaceSummary() {
   }));
 }
 
-const server = http.createServer(async (request, response) => {
+async function handleLegacy(request, response) {
   if (request.method === 'OPTIONS') return json(response, 204, {});
   try {
     if (request.method === 'GET' && request.url === '/health') {
@@ -584,6 +616,37 @@ const server = http.createServer(async (request, response) => {
     console.error(`[aide] ${request.method} ${request.url}: ${error.message}`);
     return json(response, errorStatus(error), { error: error.message || 'local daemon error' });
   }
+}
+
+const server = http.createServer(async (request, response) => {
+  if (request.method === 'OPTIONS' || (request.method === 'GET' && request.url === '/health')) return handleLegacy(request, response);
+  let requestId;
+  try {
+    const header = request.headers.authorization;
+    if (!authority || typeof header !== 'string' || !header.startsWith('Bearer ')) throw Object.assign(new Error('authenticated actor required'), { code: 'FORBIDDEN' });
+    const token = header.slice(7);
+    const origin = typeof request.headers.origin === 'string' ? request.headers.origin : '';
+    const actor = await authority.call('transport.authenticate', { token, origin });
+    const parsed = await body(request);
+    parsedBodies.set(request, parsed);
+    const input = { method: request.method, path: request.url,
+      task_id: typeof request.headers['x-aide-task'] === 'string' ? request.headers['x-aide-task'] : `http:${actor.actor_id}`, body: parsed };
+    const operation = await describeLegacy(input);
+    if (!operation.kind.endsWith('.read') && typeof request.headers['x-aide-operation'] !== 'string') {
+      return json(response, 409, { error: 'exact operation approval required', code: 'NOT_READY',
+        detail: { reason: 'APPROVAL_REQUIRED', adapter: 'legacy' } });
+    }
+    if (pendingExecutions.size >= 256) throw new Error('legacy authority capacity exceeded');
+    requestId = randomUUID();
+    pendingExecutions.set(requestId, { request, response, input });
+    const result = await authority.call('legacy.execute', { token, origin, request_id: requestId, request: input, operation_id: request.headers['x-aide-operation'] }, 120000);
+    return json(response, result.status, result.body);
+  } catch (error) {
+    return json(response, error?.code === 'FORBIDDEN' ? 403 : 409, { error: 'legacy authorization or execution failed', code: error?.code ?? 'NOT_READY' });
+  } finally {
+    if (requestId) pendingExecutions.delete(requestId);
+    parsedBodies.delete(request);
+  }
 });
 
 // Telegram auto-restart hook (per aide-aide-stack-launch-and-recover skill).
@@ -614,6 +677,7 @@ const telegramAutoRestart = async () => {
 };
 
 server.listen(PORT, HOST, () => {
+  authorityReadiness.resolve(server.address());
   console.log(`AIDE local daemon listening on http://${HOST}:${PORT}`);
   console.log(`workspace: ${WORKSPACE}`);
   // Best-effort Telegram resume. Never blocks daemon startup.

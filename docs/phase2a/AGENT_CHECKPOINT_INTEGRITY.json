@@ -1,0 +1,439 @@
+{
+  "checkedAt": "2026-09-12T20:49:38.6529379+05:45",
+  "branch": "covert-production",
+  "head": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58",
+  "protected": [
+    {
+      "path": "docs/COVERT_CODER_NORTH_STAR.md",
+      "expected": "54515064b9b67b0fb58ead21c9fd7d56e4790fab01d3b46973a95fb8dc3bc0d0",
+      "actual": "54515064b9b67b0fb58ead21c9fd7d56e4790fab01d3b46973a95fb8dc3bc0d0",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/AUTHORITY_MAP.md",
+      "expected": "a8d4027d898f8246de7a9d23fd011b3bc2218c152cc3c8d89fd0cded93ae3b77",
+      "actual": "a8d4027d898f8246de7a9d23fd011b3bc2218c152cc3c8d89fd0cded93ae3b77",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/BENCHMARK_PLAN.md",
+      "expected": "6d925d185d48e614b04efe7f060c03c6d1df70ac87dfd8c76f55811594246db4",
+      "actual": "6d925d185d48e614b04efe7f060c03c6d1df70ac87dfd8c76f55811594246db4",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/CAPABILITY_MULTIPLIER.md",
+      "expected": "d8da5e49df3780d737df285132835144f8659d76a14b7cd701fbf78d0f5c58d8",
+      "actual": "d8da5e49df3780d737df285132835144f8659d76a14b7cd701fbf78d0f5c58d8",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/DUPLICATION_MAP.md",
+      "expected": "32d8e5fca7c026e2ed7564328257269b4ad0cd6d87d8c1a3fbdaf3f55932e94f",
+      "actual": "32d8e5fca7c026e2ed7564328257269b4ad0cd6d87d8c1a3fbdaf3f55932e94f",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/EVIDENCE.json",
+      "expected": "ed867e0378b38b58f9e3196dfbb091b11662579fb2e86cbc0a0aba1b3aeec766",
+      "actual": "ed867e0378b38b58f9e3196dfbb091b11662579fb2e86cbc0a0aba1b3aeec766",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/EXECUTIVE_REPORT.md",
+      "expected": "46ddddb246ccd99dba250de4bfc10b11ac9d73c54d078a86e4c52d496ca86d5c",
+      "actual": "46ddddb246ccd99dba250de4bfc10b11ac9d73c54d078a86e4c52d496ca86d5c",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/HARNESS_AUDIT.md",
+      "expected": "d173507b52608cd6f4cd326d494d70e9ede2a2b28b7fb39d9350099c7fd90158",
+      "actual": "d173507b52608cd6f4cd326d494d70e9ede2a2b28b7fb39d9350099c7fd90158",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/MEMORY_AUDIT.md",
+      "expected": "099f48a9ec910a88ea3da394ac33447688e4e1995e37f18c78d62c5f16f95fd7",
+      "actual": "099f48a9ec910a88ea3da394ac33447688e4e1995e37f18c78d62c5f16f95fd7",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/MODEL_ROUTING_AUDIT.md",
+      "expected": "79c5e8a0afc8711bdf5589ddcc9f73e7ce93b0142af44a77fb4aa6a100f561d1",
+      "actual": "79c5e8a0afc8711bdf5589ddcc9f73e7ce93b0142af44a77fb4aa6a100f561d1",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/ORCHESTRATOR_AUDIT.md",
+      "expected": "eb165cb8c81c318b817cd9b31860e170733084ca1d84d9ac52685deca80e87ff",
+      "actual": "eb165cb8c81c318b817cd9b31860e170733084ca1d84d9ac52685deca80e87ff",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/PERMISSIONS_AUDIT.md",
+      "expected": "b073c46dd6211dab7ddf35d0587730f88bd8ced28d02f6f62eaafda8b1925ed3",
+      "actual": "b073c46dd6211dab7ddf35d0587730f88bd8ced28d02f6f62eaafda8b1925ed3",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/PROVENANCE_AUDIT.md",
+      "expected": "39aff03201ff94eea3d57709e3cd489175e19cdbbb8ab605c8179e07495db4fc",
+      "actual": "39aff03201ff94eea3d57709e3cd489175e19cdbbb8ab605c8179e07495db4fc",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/REMEDIATION_ROADMAP.md",
+      "expected": "7295b5bb60574d44e95167aa30b374d01c66973fea176bf33d6500685f07f447",
+      "actual": "7295b5bb60574d44e95167aa30b374d01c66973fea176bf33d6500685f07f447",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/REQUEST_FLOW.md",
+      "expected": "6bff2d64ede97abc9c7908e63559e81e7961d6f227323fe09311958bd3190a11",
+      "actual": "6bff2d64ede97abc9c7908e63559e81e7961d6f227323fe09311958bd3190a11",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/RESIDENT_AUDIT.md",
+      "expected": "3bb646e61f918b1789b2b5d8996b5a3001f39c8c0eb8e58b036616f340c9792c",
+      "actual": "3bb646e61f918b1789b2b5d8996b5a3001f39c8c0eb8e58b036616f340c9792c",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/SKILLS_AUDIT.md",
+      "expected": "4b4716a1aa0b397968aac86806a8155239e8d2e892af05880c9b6de68777c9dd",
+      "actual": "4b4716a1aa0b397968aac86806a8155239e8d2e892af05880c9b6de68777c9dd",
+      "matches": true
+    },
+    {
+      "path": "docs/audit/intelligence-spine/VERIFICATION_AUDIT.md",
+      "expected": "8af6645dbeb6a898e5dfeae4e890915fe712e3ac868cfe45ad7aa35b8364cd6d",
+      "actual": "8af6645dbeb6a898e5dfeae4e890915fe712e3ac868cfe45ad7aa35b8364cd6d",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/CAPABILITY_MATRIX.md",
+      "expected": "65e3a08308857fb7871e9b1db34360ffbc4c7821c44783d0fc67a42ee8b3919e",
+      "actual": "65e3a08308857fb7871e9b1db34360ffbc4c7821c44783d0fc67a42ee8b3919e",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/DUPLICATION_MAP.md",
+      "expected": "8dc494f9b4cb660fb2f7bea9720205b970efd8102777b6bfe664d38d22b37683",
+      "actual": "8dc494f9b4cb660fb2f7bea9720205b970efd8102777b6bfe664d38d22b37683",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/FRONTEND_ASSESSMENT.md",
+      "expected": "28ab18f95d9522ca6d5b0c7c836d6e7f035f05f2d57b404c0544b49f282f749a",
+      "actual": "28ab18f95d9522ca6d5b0c7c836d6e7f035f05f2d57b404c0544b49f282f749a",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/REPORT.md",
+      "expected": "f97f247c9dd1fd4bd3487ce1cc2624301701c165843677cfe2a05d525b83119c",
+      "actual": "f97f247c9dd1fd4bd3487ce1cc2624301701c165843677cfe2a05d525b83119c",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/RISK_REGISTER.md",
+      "expected": "cb90fd2a5b797583f630200aecd1e15212400905b527642c147f4566e82263cd",
+      "actual": "cb90fd2a5b797583f630200aecd1e15212400905b527642c147f4566e82263cd",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/SYSTEM_MAP.md",
+      "expected": "1e6a7bd0c30352ffb9c1574f0cada5b7c766771cf859ad7372000411b23e0c16",
+      "actual": "1e6a7bd0c30352ffb9c1574f0cada5b7c766771cf859ad7372000411b23e0c16",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/evidence/gates.json",
+      "expected": "6070f2a1bb6d08632408fa13eacd192d2aeff36bf4f7925503ab3068d22792fa",
+      "actual": "6070f2a1bb6d08632408fa13eacd192d2aeff36bf4f7925503ab3068d22792fa",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/evidence/inventory.json",
+      "expected": "d37f20fc94a9691379e8fc6ab7894b9c28af5de891e21e9ffd2ab7a417545e1e",
+      "actual": "d37f20fc94a9691379e8fc6ab7894b9c28af5de891e21e9ffd2ab7a417545e1e",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/evidence/runtime-probe-extended.json",
+      "expected": "0d9a41647db1e44dec253e3d52657a7e079c0e73494ed3921eaf90c1aba10675",
+      "actual": "0d9a41647db1e44dec253e3d52657a7e079c0e73494ed3921eaf90c1aba10675",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/evidence/runtime-probe-isolated.json",
+      "expected": "6fd5810f6ea19c4fc5cdd938c59a808f2f11d615ec9386c4dbe8f104097e8eda",
+      "actual": "6fd5810f6ea19c4fc5cdd938c59a808f2f11d615ec9386c4dbe8f104097e8eda",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/evidence/runtime-probe.json",
+      "expected": "ce4fa8c19d75b555452521864a351e61dfd8fa94ed98e5f0c41ca620c0822859",
+      "actual": "ce4fa8c19d75b555452521864a351e61dfd8fa94ed98e5f0c41ca620c0822859",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/evidence/verification-ledger.json",
+      "expected": "efbfd2c45caf256c16ecc6b258c46216d88b6e72dace45e338d62e3760ddad7e",
+      "actual": "efbfd2c45caf256c16ecc6b258c46216d88b6e72dace45e338d62e3760ddad7e",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/inventory.mjs",
+      "expected": "5f999a921873e70679b0a1e9aa1ed3382a31b025d3806faf1d355b3e54d2879e",
+      "actual": "5f999a921873e70679b0a1e9aa1ed3382a31b025d3806faf1d355b3e54d2879e",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/probe.mjs",
+      "expected": "3f737fe74978484c42ef934310c885e6fc1d50981dc03ffcc6feda670b2830e4",
+      "actual": "3f737fe74978484c42ef934310c885e6fc1d50981dc03ffcc6feda670b2830e4",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/run-checks.mjs",
+      "expected": "0e08bcc81d9787a310a7fb0ad3dcac059ffe738cb6bcc00c90c0de5ca4ba1cb8",
+      "actual": "0e08bcc81d9787a310a7fb0ad3dcac059ffe738cb6bcc00c90c0de5ca4ba1cb8",
+      "matches": true
+    },
+    {
+      "path": "docs/phase0/skills/audit-probe-discipline/SKILL.md",
+      "expected": "e2fa31d05676627bf4b99ebe051f5660cd7fa771a6766990d8f06ef295c2f850",
+      "actual": "e2fa31d05676627bf4b99ebe051f5660cd7fa771a6766990d8f06ef295c2f850",
+      "matches": true
+    },
+    {
+      "path": "scripts/harvest-aide-gold.mjs",
+      "expected": "8290c70cf79f337b209e31ad952a31ebe779a830ac50daeb2ebff0748f1f6238",
+      "actual": "8290c70cf79f337b209e31ad952a31ebe779a830ac50daeb2ebff0748f1f6238",
+      "matches": true
+    },
+    {
+      "path": "scripts/harvest-trajectories.mjs",
+      "expected": "44f97a714be247052add0f708c0719ec08ebdec3f379ed4648b11bd4a7cd9daa",
+      "actual": "44f97a714be247052add0f708c0719ec08ebdec3f379ed4648b11bd4a7cd9daa",
+      "matches": true
+    },
+    {
+      "path": "scripts/tokenize_unified_corpus.py",
+      "expected": "700565e03c9a3850e51a9cbe04c7ce6beceddfec7cdd890fa5fbb167ae69309e",
+      "actual": "700565e03c9a3850e51a9cbe04c7ce6beceddfec7cdd890fa5fbb167ae69309e",
+      "matches": true
+    },
+    {
+      "path": "scripts/unify_corpus.py",
+      "expected": "4f162852994aad30171a91abe407e699fa8f19b802de4fd1bd935f4fee20a9a1",
+      "actual": "4f162852994aad30171a91abe407e699fa8f19b802de4fd1bd935f4fee20a9a1",
+      "matches": true
+    }
+  ],
+  "protectedCount": 38,
+  "protectedMatches": 38,
+  "checkedFixturePids": [
+    18840,
+    4968,
+    10972,
+    8444,
+    2764,
+    10572,
+    8060,
+    2608,
+    21488,
+    19392,
+    9696,
+    20840,
+    21072,
+    21924,
+    20824,
+    8336,
+    796,
+    1932,
+    19396
+  ],
+  "remainingFixturePids": [],
+  "checkedFixturePorts": [
+    60697,
+    60704,
+    60705,
+    60700,
+    60696,
+    60701,
+    60839,
+    60840,
+    51899,
+    51902,
+    51903
+  ],
+  "remainingFixtureListeners": [],
+  "matchingFixtureCommands": [],
+  "trackedChanged": [
+    "app.js",
+    "browser/src/main.ts",
+    "browser/src/services/api.ts",
+    "browser/src/services/ws.ts",
+    "common/contracts/audit.ts",
+    "common/contracts/desktop.ts",
+    "common/facade-route-map.json",
+    "daemon/server.mjs",
+    "desktop/src/main.rs",
+    "desktop/stack-launcher.mjs",
+    "node/src/events.ts",
+    "node/src/openapi.ts",
+    "node/src/routes/agent.ts",
+    "node/src/routes/desktop.ts",
+    "node/src/routes/telegram.ts",
+    "node/src/server.ts",
+    "node/src/services/agent-checkpoints.d.mts",
+    "node/src/services/agent-checkpoints.mjs",
+    "node/src/services/agent-loop.d.mts",
+    "node/src/services/agent-loop.mjs",
+    "node/src/services/agent-tools.d.mts",
+    "node/src/services/agent-tools.mjs",
+    "node/src/services/audit-trail.d.mts",
+    "node/src/services/audit-trail.mjs",
+    "node/src/services/desktop-control.mjs",
+    "node/src/services/telegram-brain.mjs",
+    "node/src/services/telegram.mjs",
+    "scripts/facade.mjs",
+    "scripts/start.mjs",
+    "scripts/telegram-brain-battery.mjs",
+    "tests/unit/test-a1-agent.mjs",
+    "tests/unit/test-agent-loop-tier.mjs"
+  ],
+  "untracked": [
+    "browser/src/services/authority.ts",
+    "common/contracts/authority.ts",
+    "common/security/authority-channel.d.mts",
+    "common/security/authority-channel.mjs",
+    "common/security/operation-policy.d.mts",
+    "common/security/operation-policy.mjs",
+    "docs/COVERT_CODER_NORTH_STAR.md",
+    "docs/audit/intelligence-spine/AUTHORITY_MAP.md",
+    "docs/audit/intelligence-spine/BENCHMARK_PLAN.md",
+    "docs/audit/intelligence-spine/CAPABILITY_MULTIPLIER.md",
+    "docs/audit/intelligence-spine/DUPLICATION_MAP.md",
+    "docs/audit/intelligence-spine/EVIDENCE.json",
+    "docs/audit/intelligence-spine/EXECUTIVE_REPORT.md",
+    "docs/audit/intelligence-spine/HARNESS_AUDIT.md",
+    "docs/audit/intelligence-spine/MEMORY_AUDIT.md",
+    "docs/audit/intelligence-spine/MODEL_ROUTING_AUDIT.md",
+    "docs/audit/intelligence-spine/ORCHESTRATOR_AUDIT.md",
+    "docs/audit/intelligence-spine/PERMISSIONS_AUDIT.md",
+    "docs/audit/intelligence-spine/PROVENANCE_AUDIT.md",
+    "docs/audit/intelligence-spine/REMEDIATION_ROADMAP.md",
+    "docs/audit/intelligence-spine/REQUEST_FLOW.md",
+    "docs/audit/intelligence-spine/RESIDENT_AUDIT.md",
+    "docs/audit/intelligence-spine/SKILLS_AUDIT.md",
+    "docs/audit/intelligence-spine/VERIFICATION_AUDIT.md",
+    "docs/phase0/CAPABILITY_MATRIX.md",
+    "docs/phase0/DUPLICATION_MAP.md",
+    "docs/phase0/FRONTEND_ASSESSMENT.md",
+    "docs/phase0/REPORT.md",
+    "docs/phase0/RISK_REGISTER.md",
+    "docs/phase0/SYSTEM_MAP.md",
+    "docs/phase0/evidence/gates.json",
+    "docs/phase0/evidence/inventory.json",
+    "docs/phase0/evidence/runtime-probe-extended.json",
+    "docs/phase0/evidence/runtime-probe-isolated.json",
+    "docs/phase0/evidence/runtime-probe.json",
+    "docs/phase0/evidence/verification-ledger.json",
+    "docs/phase0/inventory.mjs",
+    "docs/phase0/probe.mjs",
+    "docs/phase0/run-checks.mjs",
+    "docs/phase0/skills/audit-probe-discipline/SKILL.md",
+    "docs/phase2a/BEFORE_STATE.json",
+    "docs/phase2a/BOUNDARY_REQUEST.md",
+    "docs/phase2a/BOUNDARY_REQUEST_AGENT_CHECKPOINTS.md",
+    "docs/phase2a/BOUNDARY_REQUEST_DIRECT_SERVICES.md",
+    "docs/phase2a/BOUNDARY_REQUEST_TELEGRAM_ROUTE.md",
+    "docs/phase2a/CHECKPOINT_A_RESULTS.json",
+    "docs/phase2a/CHECKPOINT_B_RESULTS.json",
+    "docs/phase2a/CHECKPOINT_C_RESULTS.json",
+    "docs/phase2a/CHECKPOINT_C_TRANSPORT_RESULTS.json",
+    "docs/phase2a/CHECKPOINT_DELEGATION_OWNERSHIP_RESULTS.json",
+    "docs/phase2a/CURRENT_STATUS.md",
+    "docs/phase2a/DELEGATION_OWNERSHIP_INTEGRITY.json",
+    "docs/phase2a/FIXTURE_FINDINGS.md",
+    "docs/phase2a/INTEGRITY.json",
+    "docs/phase2a/ROUTE_INVENTORY.json",
+    "docs/phase2a/STATUS.md",
+    "docs/phase2a/TRANSPORT_INTEGRITY.json",
+    "node/src/routes/authority.ts",
+    "node/src/services/execution-authority.d.mts",
+    "node/src/services/execution-authority.mjs",
+    "node/src/services/owned-process.mjs",
+    "scripts/harvest-aide-gold.mjs",
+    "scripts/harvest-trajectories.mjs",
+    "scripts/tokenize_unified_corpus.py",
+    "scripts/unify_corpus.py",
+    "tests/arch/authority-fixture.ts",
+    "tests/arch/capability-authority.test.ts",
+    "tests/arch/execution-authority.test.ts",
+    "tests/integration/test-authority-launch.mjs",
+    "tests/integration/test-desktop-panic-ownership.mjs",
+    "tests/unit/test-owned-process.mjs"
+  ],
+  "staged": [],
+  "status": [
+    " M app.js",
+    " M browser/src/main.ts",
+    " M browser/src/services/api.ts",
+    " M browser/src/services/ws.ts",
+    " M common/contracts/audit.ts",
+    " M common/contracts/desktop.ts",
+    " M common/facade-route-map.json",
+    " M daemon/server.mjs",
+    " M desktop/src/main.rs",
+    " M desktop/stack-launcher.mjs",
+    " M node/src/events.ts",
+    " M node/src/openapi.ts",
+    " M node/src/routes/agent.ts",
+    " M node/src/routes/desktop.ts",
+    " M node/src/routes/telegram.ts",
+    " M node/src/server.ts",
+    " M node/src/services/agent-checkpoints.d.mts",
+    " M node/src/services/agent-checkpoints.mjs",
+    " M node/src/services/agent-loop.d.mts",
+    " M node/src/services/agent-loop.mjs",
+    " M node/src/services/agent-tools.d.mts",
+    " M node/src/services/agent-tools.mjs",
+    " M node/src/services/audit-trail.d.mts",
+    " M node/src/services/audit-trail.mjs",
+    " M node/src/services/desktop-control.mjs",
+    " M node/src/services/telegram-brain.mjs",
+    " M node/src/services/telegram.mjs",
+    " M scripts/facade.mjs",
+    " M scripts/start.mjs",
+    " M scripts/telegram-brain-battery.mjs",
+    " M tests/unit/test-a1-agent.mjs",
+    " M tests/unit/test-agent-loop-tier.mjs",
+    "?? browser/src/services/authority.ts",
+    "?? common/contracts/authority.ts",
+    "?? common/security/",
+    "?? docs/COVERT_CODER_NORTH_STAR.md",
+    "?? docs/audit/",
+    "?? docs/phase0/",
+    "?? docs/phase2a/",
+    "?? node/src/routes/authority.ts",
+    "?? node/src/services/execution-authority.d.mts",
+    "?? node/src/services/execution-authority.mjs",
+    "?? node/src/services/owned-process.mjs",
+    "?? scripts/harvest-aide-gold.mjs",
+    "?? scripts/harvest-trajectories.mjs",
+    "?? scripts/tokenize_unified_corpus.py",
+    "?? scripts/unify_corpus.py",
+    "?? tests/arch/authority-fixture.ts",
+    "?? tests/arch/capability-authority.test.ts",
+    "?? tests/arch/execution-authority.test.ts",
+    "?? tests/integration/test-authority-launch.mjs",
+    "?? tests/integration/test-desktop-panic-ownership.mjs",
+    "?? tests/unit/test-owned-process.mjs"
+  ],
+  "newBoundaryFilesStatus": [],
+  "snapshotNote": "Measured before documentation-only checkpoint update; additional evidence docs listed in CURRENT_STATUS.md."
+}

@@ -5,11 +5,13 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-workspace-routes-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 interface TreeNode {
   name: string;
@@ -40,12 +42,13 @@ before(async () => {
   await fs.writeFile(path.join(workspace, 'node_modules', 'pkg', 'index.js'), '// nope\n');
   server = new ArchServer(workspace, path.join(workspace, '.aide', 'workspace-routes.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', { events: server.events, logger: server.logger });
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events, logger: server.logger });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -71,7 +74,7 @@ async function dataOf<T>(response: Response): Promise<T> {
 }
 
 test('GET /api/workspace lists dot-filtered entries with name+kind (parity: build dirs stay listed)', async () => {
-  const data = await dataOf<WorkspaceListData>(await fetch(`${base}/api/workspace`));
+  const data = await dataOf<WorkspaceListData>(await owner.request('/api/workspace'));
   assert.equal(data.workspace, workspace);
   const names = data.entries.map(entry => entry.name).sort();
   // plugins/ is created by the Bucket C PluginManager load (legacy parity:
@@ -82,7 +85,7 @@ test('GET /api/workspace lists dot-filtered entries with name+kind (parity: buil
 });
 
 test('GET /api/workspace/tree is parity with legacy - nested posix nodes, dot/build dirs excluded', async () => {
-  const data = await dataOf<WorkspaceTreeData>(await fetch(`${base}/api/workspace/tree`));
+  const data = await dataOf<WorkspaceTreeData>(await owner.request('/api/workspace/tree'));
   assert.equal(data.workspace, workspace);
   const names = data.tree.map(node => node.name);
   assert.deepEqual(names, ['a.txt', 'lib', 'plugins', 'src', 'zed.txt']);

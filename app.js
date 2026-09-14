@@ -2,26 +2,79 @@ const $ = s => document.querySelector(s);
 const API = 'http://127.0.0.1:4777';
 const state = { selected: null, ready: false, started: false, history: [] };
 
+// Compatibility transport: same authority, legacy response representation.
+// Credentials remain in this closure, never workspace storage or model input.
+const legacyFetch = (() => {
+  let token = null;
+  let expiresAt = 0;
+  let pairing = null;
+  const authorizedHeaders = input => {
+    const headers = new window.Headers(input);
+    if (token && Date.now() < expiresAt) headers.set('Authorization', `Bearer ${token}`);
+    return headers;
+  };
+  async function control(endpoint, body) {
+    const response = await fetch(`${API}${endpoint}`, { method: 'POST',
+      headers: authorizedHeaders({ 'Content-Type': 'application/json', 'X-AIDE-API-Format': 'envelope-v1' }), body: JSON.stringify(body) });
+    const envelope = await response.json();
+    if (!response.ok || envelope.ok !== true) throw new Error(envelope.error?.message || 'Authority request failed');
+    return envelope.data;
+  }
+  async function ensurePaired() {
+    if (token && Date.now() < expiresAt) return;
+    if (!pairing) pairing = (async () => {
+      const proof = window.prompt('Pair this Covert session: type pair in the launch terminal, then enter its one-use code.');
+      if (typeof proof !== 'string' || !proof.trim()) throw new Error('Pairing cancelled; access remains disabled.');
+      const session = await control('/api/authority/pair', { proof: proof.trim() });
+      if (typeof session.token !== 'string' || !Number.isFinite(session.expires_at)) throw new Error('Invalid pairing response');
+      token = session.token; expiresAt = session.expires_at;
+    })().finally(() => { pairing = null; });
+    await pairing;
+  }
+  return async (input, init = {}) => {
+    const url = new window.URL(input, API);
+    if (url.origin !== API || url.username || url.password) throw new Error('Legacy transport requires the canonical local facade');
+    await ensurePaired();
+    const request = { ...init, headers: authorizedHeaders(init.headers) };
+    const response = await fetch(url, request);
+    if (response.status !== 409) return response;
+    const error = await response.clone().json().catch(() => null);
+    if (error?.code !== 'NOT_READY' || error.detail?.reason !== 'APPROVAL_REQUIRED') return response;
+    const adapter = error.detail.adapter;
+    if (adapter !== 'ts' && adapter !== 'legacy') throw new Error('Unknown approval adapter');
+    if (init.body !== undefined && typeof init.body !== 'string') throw new Error('Exact JSON body required for approval');
+    const task = window.crypto.randomUUID();
+    const operation = await control('/api/authority/prepare', { adapter, method: init.method ?? 'GET',
+      path: url.pathname + url.search, task_id: task, body: init.body === undefined ? {} : JSON.parse(init.body) });
+    const allowed = window.confirm(`Approve this operation once?\n${JSON.stringify(operation, null, 2)}`);
+    await control('/api/authority/decision', { operation_id: operation.operation_id, decision: allowed ? 'approve' : 'reject' });
+    if (!allowed) throw new Error('Operation denied; no execution authorized.');
+    request.headers.set('X-AIDE-Operation', operation.operation_id);
+    request.headers.set('X-AIDE-Task', task);
+    return fetch(url, request);
+  };
+})();
+
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const setStrip = t => { $('#strip-text').textContent = t; };
 const stepDone = n => document.querySelector(`#checklist li[data-step="${n}"]`)?.classList.add('done');
 
 async function jget(url) {
-  const r = await fetch(url);
+  const r = await legacyFetch(url);
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
   return j;
 }
 
 async function jpost(url, body) {
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const r = await legacyFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json();
   if (!r.ok) throw new Error((j.error && (j.error.message || j.error)) || `HTTP ${r.status}`);
   return j;
 }
 
 async function jput(url, body) {
-  const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const r = await legacyFetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json();
   if (!r.ok) throw new Error((j.error && (j.error.message || j.error)) || `HTTP ${r.status}`);
   return j;
@@ -76,7 +129,7 @@ async function startEngine() {
   $('#cold-line').innerHTML = `Starting <b>${esc(model.name)}</b> — first start can take a while. Hang tight.`;
   setStrip(`Starting ${model.name}… waiting for the readiness signal.`);
   try {
-    const r = await fetch(`${API}/api/models/start`, {
+    const r = await legacyFetch(`${API}/api/models/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: model.id })
     });
@@ -127,7 +180,7 @@ async function sendDescribe(value) {
       ` <div><span class="prov-chip">ROUTED ${esc(r.phase.toUpperCase())}</span><span class="muted small"> micro-expert advisory · ${(r.confidence * 100).toFixed(0)}% · ${esc(r.expert)}</span></div>`);
   }).catch(() => {});
   try {
-    const r = await fetch(`${API}/api/chat`, {
+    const r = await legacyFetch(`${API}/api/chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         modelId: state.selected.id,
@@ -180,7 +233,7 @@ $('#stop-engine').addEventListener('click', async () => {
   $('#stop-engine').disabled = true;
   setStrip('Stopping the engine and freeing memory…');
   try {
-    await fetch(`${API}/api/models/stop`, {
+    await legacyFetch(`${API}/api/models/stop`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: state.selected.id })
     });
@@ -209,7 +262,7 @@ async function refreshEngineList() {
         const found = res.models.find(m => m.id === id);
         if (!found) return;
         state.selected = found; state.ready = false; state.started = false;
-        fetch(`${API}/api/session`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selected_engine_id: found.id }) }).catch(() => {});
+        legacyFetch(`${API}/api/session`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selected_engine_id: found.id }) }).catch(() => {});
         $('#models-panel').hidden = true;
         document.body.classList.replace('state-ready', 'state-cold');
         $('#cold-card').hidden = false;
@@ -242,7 +295,7 @@ async function pollDownloads() {
       }).join('');
       box.querySelectorAll('[data-cancel]').forEach(btn => {
         btn.onclick = async () => {
-          await fetch(`${API}/api/modelhub/downloads/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: btn.dataset.cancel }) });
+          await legacyFetch(`${API}/api/modelhub/downloads/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: btn.dataset.cancel }) });
           pollDownloads();
         };
       });
@@ -250,7 +303,7 @@ async function pollDownloads() {
       for (const job of justDone) {
         job.registered = true;
         try {
-          const reg = await fetch(`${API}/api/models/register`, {
+          const reg = await legacyFetch(`${API}/api/models/register`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filename: job.filename, repo_id: job.repo_id })
           });
@@ -284,7 +337,7 @@ document.querySelectorAll('[data-preset]').forEach(btn => {
     if (!state.selected) return;
     $('#tuning-note').textContent = 'Saving preset…';
     try {
-      const r = await fetch(`${API}/api/models/profile`, {
+      const r = await legacyFetch(`${API}/api/models/profile`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: state.selected.id, preset: btn.dataset.preset })
       });
@@ -331,7 +384,7 @@ $('#hub-search-btn').addEventListener('click', async () => {
           files.querySelectorAll('[data-dl]').forEach(dbtn => {
             dbtn.onclick = async () => {
               dbtn.disabled = true; dbtn.textContent = 'QUEUED';
-              const dr = await fetch(`${API}/api/modelhub/download`, {
+              const dr = await legacyFetch(`${API}/api/modelhub/download`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ repo_id: dbtn.dataset.repo2, filename: dbtn.dataset.dl })
               });
@@ -360,7 +413,7 @@ $('#import-btn').addEventListener('click', async () => {
   if (!p) return;
   out.textContent = 'Registering (file stays in place; engine added to MODELS)…';
   try {
-    const r = await fetch(`${API}/api/models/ingest`, {
+    const r = await legacyFetch(`${API}/api/models/ingest`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: p })
     });
@@ -393,7 +446,7 @@ async function planAndBuild(task) {
   const note = threadMsg('pending', 'Starting agent loop…');
   let sessionId = null;
   try {
-    const r = await fetch(`${API}/api/agent/start`, {
+    const r = await legacyFetch(`${API}/api/agent/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ task, mode: 'act' })
     });
@@ -425,7 +478,7 @@ async function planAndBuild(task) {
       // STANDARD posture; STRICT asks for everything. Writes always ask.
       const READ_ONLY = new Set(['read_file', 'list_dir', 'search']);
       if (delegationMode === 'standard' && READ_ONLY.has(a.tool)) {
-        await fetch(`${API}/api/agent/decision`, {
+        await legacyFetch(`${API}/api/agent/decision`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: sessionId, approval_id: a.approval_id, decision: 'approve' })
         }).catch(() => {});
@@ -482,7 +535,7 @@ async function planAndBuild(task) {
       card.querySelector('.approval-preview')?.classList.add('dim');
       setStrip(decision === 'approve' ? 'Approved — agent continues.' : 'Rejected — agent adjusts course.');
       try {
-        await fetch(`${API}/api/agent/decision`, {
+        await legacyFetch(`${API}/api/agent/decision`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: sid, approval_id: a.approval_id, decision })
         });
@@ -503,7 +556,7 @@ async function workflowPlan(task) {
   const card = threadMsg('pending', 'Planning…');
   setStrip(`Planning "${task.slice(0, 40)}${task.length > 40 ? '…' : ''}" — the model drafts, validation gates check it.`);
   try {
-    const r = await fetch(`${API}/api/workflow/plan`, {
+    const r = await legacyFetch(`${API}/api/workflow/plan`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ modelId: state.selected.id, task })
     });
@@ -528,7 +581,7 @@ async function workflowPlan(task) {
       ok.disabled = true; no.disabled = true;
       setStrip('Applying your approved patch…');
       try {
-        const ar = await fetch(`${API}/api/workflow/apply`, {
+        const ar = await legacyFetch(`${API}/api/workflow/apply`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ patch: j.patch, approved: true })
         });
@@ -593,7 +646,7 @@ async function refreshRail() {
 // Hot-exit v0: persist unsaved buffer on unload; offer recovery on boot.
 window.addEventListener('beforeunload', () => {
   if (!editorState.path) return;
-  fetch(`${API}/api/session`, {
+  legacyFetch(`${API}/api/session`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, keepalive: true,
     body: JSON.stringify({
       selected_engine_id: state.selected?.id,
@@ -621,7 +674,7 @@ async function tryHotExitRecovery() {
     const no = document.createElement('button'); no.textContent = 'DISCARD';
     ok.onclick = async () => {
       bar.remove(); recover.remove();
-      await fetch(`${API}/api/file/write`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, content: text, approved: true }) });
+      await legacyFetch(`${API}/api/file/write`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, content: text, approved: true }) });
       threadMsg('system', `Recovered ${path} to disk (${text.length} chars).`);
     };
     no.onclick = () => { bar.remove(); recover.remove(); };
@@ -753,7 +806,7 @@ async function saveCurrentFile() {
     if (formatOnSave && FORMAT_LANGS.has(editorState.path.split('.').pop().toLowerCase())) {
       await formatActiveDocument();
     }
-    const r = await fetch(`${API}/api/file/write`, {
+    const r = await legacyFetch(`${API}/api/file/write`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: editorState.path, content: editorState.instance.getValue(), approved: true })
     });
@@ -810,7 +863,7 @@ function lspPosition(model, position) {
 async function ensureLsp() {
   if (lspState.started) return true;
   try {
-    const r = await fetch(`${API}/api/lsp/start`, {
+    const r = await legacyFetch(`${API}/api/lsp/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ languageId: 'typescript' })
     });
@@ -822,7 +875,7 @@ async function ensureLsp() {
 async function lspNotify(method, params) {
   if (!lspState.started) return;
   try {
-    await fetch(`${API}/api/lsp/notify`, {
+    await legacyFetch(`${API}/api/lsp/notify`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: 'typescript', message: { method, params } })
     });
@@ -832,7 +885,7 @@ async function lspNotify(method, params) {
 async function lspRequest(method, params, attempt = 0) {
   if (!await ensureLsp()) return null;
   try {
-    const r = await fetch(`${API}/api/lsp/request`, {
+    const r = await legacyFetch(`${API}/api/lsp/request`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: 'typescript', message: { method, params } })
     });
@@ -1026,12 +1079,12 @@ $('#ship-commit').addEventListener('click', async () => {
   $('#ship-commit').disabled = true;
   setStrip('Staging and committing your approved changes…');
   try {
-    const s = await fetch(`${API}/api/git/stage`, {
+    const s = await legacyFetch(`${API}/api/git/stage`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paths })
     });
     if (!s.ok) { const sj = await s.json().catch(() => ({})); throw new Error(sj.error || `stage HTTP ${s.status}`); }
-    const c = await fetch(`${API}/api/git/commit`, {
+    const c = await legacyFetch(`${API}/api/git/commit`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: finalMessage, intent: lastIntent || undefined })
     });
@@ -1197,7 +1250,7 @@ $('#gs-replace-all').addEventListener('click', async () => {
   if (!confirm(`Replace ALL "${q}" with "${replacement || '(empty)'}" across ${fileCount} file(s)? This rewrites files on disk.`)) return;
   setStrip('Replacing across workspace (approval granted)…');
   try {
-    const r = await fetch(`${API}/api/search/replace`, {
+    const r = await legacyFetch(`${API}/api/search/replace`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: q, replacement, approved: true, icase: true })
     });
@@ -1249,7 +1302,7 @@ $('#term-form').addEventListener('submit', async e => {
   termPrint('> ' + raw, 'muted');
   const parts = splitArgs(raw);
   try {
-    const r = await fetch(`${API}/api/terminal/run`, {
+    const r = await legacyFetch(`${API}/api/terminal/run`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ program: parts[0], args: parts.slice(1), approved: true })
     });
@@ -1305,7 +1358,7 @@ $('#git-switch').addEventListener('click', async () => {
   if (!branch) return;
   setStrip(`Switching to ${branch}…`);
   try {
-    await fetch(`${API}/api/git/checkout`, {
+    await legacyFetch(`${API}/api/git/checkout`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ branch })
     }).then(async r => { if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || `HTTP ${r.status}`); } });
@@ -1322,7 +1375,7 @@ $('#git-push').addEventListener('click', async () => {
   if (!confirm('Push commits to the remote? This makes one network call.')) return;
   $('#push-note').textContent = 'Pushing…';
   try {
-    const r = await fetch(`${API}/api/git/push`, {
+    const r = await legacyFetch(`${API}/api/git/push`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
@@ -1565,12 +1618,12 @@ function renderPlugins() {
   ).join('') || '<span class="muted small">All catalog plugins installed.</span>';
 
   document.querySelectorAll('[data-trust]').forEach(btn => btn.onclick = async () => {
-    await fetch(`${API}/api/plugins/trust`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: btn.dataset.trust, trusted: btn.dataset.val === 'true' }) });
+    await legacyFetch(`${API}/api/plugins/trust`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: btn.dataset.trust, trusted: btn.dataset.val === 'true' }) });
     loadPluginsPanel();
   });
   document.querySelectorAll('[data-install]').forEach(btn => btn.onclick = async () => {
     btn.disabled = true; btn.textContent = 'INSTALLING…';
-    await fetch(`${API}/api/plugins/scaffold`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: btn.dataset.install, approved: true }) });
+    await legacyFetch(`${API}/api/plugins/scaffold`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: btn.dataset.install, approved: true }) });
     loadPluginsPanel();
   });
   document.querySelectorAll('[data-open]').forEach(btn => btn.onclick = () => PLUGIN_CONTRIBUTIONS[btn.dataset.open]?.run());
@@ -1681,7 +1734,7 @@ $('#rename-approve').addEventListener('click', async () => {
       if (editorState.path === group.rel && editorState.instance) content = editorState.instance.getValue();
       else content = (await jget(`${API}/api/file?path=${encodeURIComponent(group.rel)}`)).content ?? '';
       const updated = applyTextEditsToContent(content, group.edits);
-      const w = await fetch(`${API}/api/file/write`, {
+      const w = await legacyFetch(`${API}/api/file/write`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: group.rel, content: updated, approved: true })
       });

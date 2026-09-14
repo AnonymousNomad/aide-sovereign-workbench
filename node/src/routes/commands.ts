@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { RouteError, type Route } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import {
   CommandInvokeRequest,
   CommandInvokeResponse,
@@ -22,6 +24,28 @@ import {
 import type { CommandRegistry } from '../../../node/src/services/command-registry.mjs';
 import type { KeybindingService } from '../../../node/src/services/keybinding-service.mjs';
 import type { SettingsService } from '../../../node/src/services/settings-service.mjs';
+import { describeCommandInvoke, type BuiltinCommand } from '../services/command-invoke-authority.ts';
+
+// Settings writes bind the complete normalized value set before approval; the
+// machine-scope rejection mirrors writeUserValues so approval cannot be
+// prepared for keys the handler would refuse. The user settings file anchors
+// the workspace and fails closed if the production layout is absent.
+function settingsWorkspaceOf(service: SettingsService): string {
+  const userFile = (service as unknown as { userFile?: unknown }).userFile;
+  if (typeof userFile !== 'string') throw new RouteError('FORBIDDEN', 'workspace anchor unavailable');
+  const aideDir = path.dirname(userFile);
+  if (path.basename(aideDir) !== '.aide') throw new RouteError('FORBIDDEN', 'workspace anchor unavailable');
+  return path.dirname(aideDir);
+}
+
+function normalizeSettingsValues(service: SettingsService, values: unknown): Record<string, unknown> {
+  if (!values || typeof values !== 'object' || Array.isArray(values)) throw new RouteError('BAD_REQUEST', 'settings payload must be an object');
+  const machineScoped = new Set(service.descriptors().filter(descriptor => descriptor.scope === 'machine').map(descriptor => descriptor.key));
+  for (const key of Object.keys(values)) {
+    if (machineScoped.has(key)) throw new RouteError('BAD_REQUEST', `setting ${key} is machine-scoped and read-only from UI`);
+  }
+  return values as Record<string, unknown>;
+}
 
 export function routeForCommandList(registry: CommandRegistry): Route {
   return {
@@ -32,12 +56,20 @@ export function routeForCommandList(registry: CommandRegistry): Route {
   };
 }
 
-export function routeForCommandInvoke(registry: CommandRegistry): Route {
+export function routeForCommandInvoke(registry: CommandRegistry, builtinCommands: ReadonlyArray<BuiltinCommand>, workspace: string): Route {
+  // Pinned ten-command allowlist derived from the frozen builtin array; no
+  // wildcard ever admits a command id.
+  const allowedIds = new Set(builtinCommands.map(command => command.id));
   return {
     method: 'POST',
     path: '/api/commands/invoke',
     body: CommandInvokeRequest,
     response: CommandInvokeResponse,
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+      const input = body as unknown as CommandInvokeRequestT;
+      const { id, args_digest, registry_digest, handler_digest } = describeCommandInvoke(registry, allowedIds, workspace, taskId, input.id, input.args);
+      return { workspace, taskId, kind: 'capability.execute', args: { body: { id, args_digest, registry_digest, handler_digest } } };
+    },
     handler: async ({ body }): Promise<CommandInvokeResponseT> => {
       const input = body as unknown as CommandInvokeRequestT;
       const result = await registry.invoke(input.id, input.args, {});
@@ -83,6 +115,10 @@ export function routeForSettingsPut(service: SettingsService): Route {
     path: '/api/settings',
     body: SettingsPutRequest,
     response: SettingsPutResponse,
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+      const values = normalizeSettingsValues(service, (body as unknown as SettingsPutRequestT).values);
+      return { workspace: settingsWorkspaceOf(service), taskId, kind: 'capability.write', args: { body: { values } } };
+    },
     handler: async ({ body }): Promise<SettingsPutResponseT> => {
       try {
         return { values: await service.writeUserValues((body as unknown as SettingsPutRequestT).values) };

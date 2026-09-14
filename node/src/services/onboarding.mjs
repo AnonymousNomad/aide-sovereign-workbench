@@ -51,54 +51,99 @@ async function writeStateAtomic(filePath, state) {
   await fs.rename(partial, filePath);
 }
 
+// Stale-transition conflict: the durable state no longer matches the
+// precondition that was bound into the approved operation. This is a state
+// conflict, not an authorization forgery; routes map it to CONFLICT.
+export class OnboardingConflictError extends Error {
+  constructor(message = "onboarding state changed before this transition executed") {
+    super(message);
+    this.name = "ONBOARDING_CONFLICT";
+  }
+}
+
 export function createOnboardingService({ workspace }) {
   if (!workspace) throw new Error("workspace is required");
   const stateFile = path.join(workspace, ".aide", "onboarding-state.json");
+
+  // Per-service FIFO critical section. It holds compare -> derive -> durable
+  // write as one serialized operation so a stale approved transition can never
+  // observe or act on state that another writer changed underneath it. It is
+  // not authority: it grants nothing, persists nothing, and never crosses
+  // service/workspace instances. Failures release the queue.
+  let queue = Promise.resolve();
+  function critical(operation) {
+    const run = queue.then(operation);
+    queue = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  function assertExpectedStep(current, expected) {
+    if (expected && expected.from_step !== undefined && current.current_step !== expected.from_step) {
+      throw new OnboardingConflictError(`approved from_step ${expected.from_step} does not match current step ${current.current_step}`);
+    }
+  }
 
   async function getState() {
     return readState(stateFile);
   }
 
   async function setState(next) {
-    const parsed = OnboardingState.parse(next);
-    await fs.mkdir(path.dirname(stateFile), { recursive: true });
-    await writeStateAtomic(stateFile, parsed);
-    return parsed;
+    // Full-state replacement keeps exact-replacement semantics, but it
+    // participates in the same critical section so it can never interleave
+    // between another transition's compare and durable write.
+    return critical(async () => {
+      const parsed = OnboardingState.parse(next);
+      await fs.mkdir(path.dirname(stateFile), { recursive: true });
+      await writeStateAtomic(stateFile, parsed);
+      return parsed;
+    });
   }
 
-  async function nextStep(partial) {
-    const current = await getState();
-    if (partial && typeof partial === "object") {
-      Object.assign(current.user_choices, partial);
-    }
-    current.completed[current.current_step] = { skipped: false, completed_at: Date.now() };
-    const advanced = nextStepName(current.current_step);
-    current.current_step = advanced;
-    if (advanced === "system_map") {
-      // Stay on the last step until complete() is called.
-      current.current_step = "system_map";
-    }
-    await writeStateAtomic(stateFile, current);
-    return { state: current, advanced_to: current.current_step };
+  async function nextStep(partial, expected = {}) {
+    return critical(async () => {
+      const current = await readState(stateFile);
+      assertExpectedStep(current, expected);
+      if (partial && typeof partial === "object") {
+        Object.assign(current.user_choices, partial);
+      }
+      current.completed[current.current_step] = { skipped: false, completed_at: Date.now() };
+      const advanced = nextStepName(current.current_step);
+      current.current_step = advanced;
+      if (advanced === "system_map") {
+        // Stay on the last step until complete() is called.
+        current.current_step = "system_map";
+      }
+      await writeStateAtomic(stateFile, current);
+      return { state: current, advanced_to: current.current_step };
+    });
   }
 
-  async function skipStep(partial) {
-    const current = await getState();
-    if (partial && typeof partial === "object") {
-      Object.assign(current.user_choices, partial);
-    }
-    current.completed[current.current_step] = { skipped: true, completed_at: Date.now() };
-    current.current_step = nextStepName(current.current_step);
-    await writeStateAtomic(stateFile, current);
-    return current;
+  async function skipStep(partial, expected = {}) {
+    return critical(async () => {
+      const current = await readState(stateFile);
+      assertExpectedStep(current, expected);
+      if (partial && typeof partial === "object") {
+        Object.assign(current.user_choices, partial);
+      }
+      current.completed[current.current_step] = { skipped: true, completed_at: Date.now() };
+      current.current_step = nextStepName(current.current_step);
+      await writeStateAtomic(stateFile, current);
+      return current;
+    });
   }
 
-  async function complete() {
-    const current = await getState();
-    current.completed.system_map = { skipped: false, completed_at: Date.now() };
-    current.walkthrough_complete = true;
-    await writeStateAtomic(stateFile, current);
-    return current;
+  async function complete(expected = {}) {
+    return critical(async () => {
+      const current = await readState(stateFile);
+      assertExpectedStep(current, expected);
+      if (expected.walkthrough_complete !== undefined && current.walkthrough_complete !== expected.walkthrough_complete) {
+        throw new OnboardingConflictError(`approved walkthrough_complete ${expected.walkthrough_complete} does not match current state ${current.walkthrough_complete}`);
+      }
+      current.completed.system_map = { skipped: false, completed_at: Date.now() };
+      current.walkthrough_complete = true;
+      await writeStateAtomic(stateFile, current);
+      return current;
+    });
   }
 
   return { getState, setState, nextStep, skipStep, complete };

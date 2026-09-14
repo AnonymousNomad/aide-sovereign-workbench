@@ -1,0 +1,456 @@
+{
+  "audit": "Covert Coder Intelligence Spine Architecture Audit",
+  "date": "2026-09-12",
+  "mode": "Read-only source audit with isolated fixture tests and captured-executor probes; audit documentation writes only",
+  "repository": "E:\\aide-sovereign-workbench",
+  "branch": "covert-production",
+  "head": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58",
+  "accepted_baselines": {
+    "phase1A": "61e5edc8d0250016deac6295d3f41000503136d8",
+    "phase1B": "a152d1d55cff10e4ee2cbf19113db78d20600472",
+    "phase1C": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58"
+  },
+  "severity_counts": {
+    "P0": 3,
+    "P1": 10,
+    "P2": 5
+  },
+  "inspection": {
+    "method": "Full or targeted source inspection and registration/caller searches. Inclusion does not claim full-file inspection or runtime acceptance.",
+    "manifest_count": 95,
+    "files": [
+      "AGENTS.md",
+      "package.json",
+      "scripts/start.mjs",
+      "scripts/facade.mjs",
+      "common/facade-route-map.json",
+      "desktop/tauri.conf.json",
+      "docs/HANDOFF_OPENCODE.md",
+      "docs/phase0/REPORT.md",
+      "docs/phase0/SYSTEM_MAP.md",
+      "docs/phase0/RISK_REGISTER.md",
+      "docs/phase0/DUPLICATION_MAP.md",
+      "docs/COVERT_CODER_NORTH_STAR.md",
+      "browser/src/main.ts",
+      "browser/src/resident/resident.ts",
+      "browser/src/chat/chat.ts",
+      "browser/src/services/api.ts",
+      "browser/src/services/runtime-config.ts",
+      "browser/src/services/ws.ts",
+      "app.js",
+      "node/src/server.ts",
+      "node/src/openapi.ts",
+      "node/src/events.ts",
+      "node/src/routes/resident.ts",
+      "node/src/routes/chat.ts",
+      "node/src/routes/agent.ts",
+      "node/src/routes/memory.ts",
+      "node/src/routes/fs.ts",
+      "node/src/routes/git.ts",
+      "node/src/routes/terminal.ts",
+      "node/src/routes/tasks.ts",
+      "node/src/routes/desktop.ts",
+      "node/src/routes/providers.ts",
+      "node/src/routes/closed-loop.ts",
+      "node/src/routes/audit.ts",
+      "node/src/routes/lsp.ts",
+      "node/src/routes/dap.ts",
+      "node/src/services/agent-loop.mjs",
+      "node/src/services/agent-tools.mjs",
+      "node/src/services/agent-parser.mjs",
+      "node/src/services/agent-checkpoints.mjs",
+      "node/src/services/skills-loader.mjs",
+      "node/src/services/model-router.ts",
+      "node/src/services/model-runtime.ts",
+      "node/src/services/providers.ts",
+      "node/src/services/byok-service.mjs",
+      "node/src/services/history-fit.ts",
+      "node/src/services/memory-recall.mjs",
+      "node/src/services/index-service.mjs",
+      "node/src/services/index-store.mjs",
+      "node/src/services/orch-context.mjs",
+      "node/src/services/chat-store.ts",
+      "node/src/services/handoff-service.mjs",
+      "node/src/services/audit-trail.mjs",
+      "node/src/services/egress-journal.mjs",
+      "node/src/services/desktop-control.mjs",
+      "node/src/services/desktop-policy-hook.mjs",
+      "node/src/services/telegram-brain.mjs",
+      "node/src/services/telegram.mjs",
+      "node/src/services/task-service.mjs",
+      "node/src/services/git-service.mjs",
+      "node/src/services/lsp.ts",
+      "node/src/services/workspace.ts",
+      "common/contracts/agent.ts",
+      "common/contracts/git.ts",
+      "harness/orchestrator.mjs",
+      "harness/veritas.mjs",
+      "harness/checks.mjs",
+      "harness/sandbox.mjs",
+      "harness/scaffold.mjs",
+      "harness/gates.mjs",
+      "harness/cipher-state.mjs",
+      "harness/memory-blocks.mjs",
+      "harness/memory-spine.mjs",
+      "harness/helix-join.mjs",
+      "harness/helix-retention.mjs",
+      "daemon/server.mjs",
+      "daemon/agent-policy.mjs",
+      "daemon/operator.mjs",
+      "daemon/workflow.mjs",
+      "daemon/sandbox-flow.mjs",
+      "daemon/intent-router.mjs",
+      "daemon/lsp-manager.mjs",
+      "plugins/manager.mjs",
+      "scripts/selfimprove.mjs",
+      "scripts/acceptance-real.mjs",
+      "scripts/acceptance-p0.mjs",
+      "skills/registry.json",
+      "skills/packs/aide-desktop-control-cipher/SKILL.md",
+      "skills/developer-discipline.mjs",
+      "skills/dap-enhancement.mjs",
+      "tests/arch/agent-execution-integrity.test.ts",
+      "tests/arch/agent-expert-advisory.test.ts",
+      "tests/arch/agent-subagent.test.ts",
+      "tests/arch/desktop-policy-hook.test.ts",
+      "common/harness/credocore.md"
+    ]
+  },
+  "worktree": {
+    "initial_tracked_changes": [],
+    "preexisting_untracked_count": 21,
+    "protected_snapshot_timing": "Before audit-document writes; captured after read-only source/test probes. No source mutations performed.",
+    "protected_files": [
+      {
+        "path": "docs/COVERT_CODER_NORTH_STAR.md",
+        "bytes": 15905,
+        "sha256": "54515064B9B67B0FB58EAD21C9FD7D56E4790FAB01D3B46973A95FB8DC3BC0D0"
+      },
+      {
+        "path": "docs/phase0/CAPABILITY_MATRIX.md",
+        "bytes": 7805,
+        "sha256": "65E3A08308857FB7871E9B1DB34360FFBC4C7821C44783D0FC67A42EE8B3919E"
+      },
+      {
+        "path": "docs/phase0/DUPLICATION_MAP.md",
+        "bytes": 4769,
+        "sha256": "8DC494F9B4CB660FB2F7BEA9720205B970EFD8102777B6BFE664D38D22B37683"
+      },
+      {
+        "path": "docs/phase0/FRONTEND_ASSESSMENT.md",
+        "bytes": 11040,
+        "sha256": "28AB18F95D9522CA6D5B0C7C836D6E7F035F05F2D57B404C0544B49F282F749A"
+      },
+      {
+        "path": "docs/phase0/REPORT.md",
+        "bytes": 15313,
+        "sha256": "F97F247C9DD1FD4BD3487CE1CC2624301701C165843677CFE2A05D525B83119C"
+      },
+      {
+        "path": "docs/phase0/RISK_REGISTER.md",
+        "bytes": 8268,
+        "sha256": "CB90FD2A5B797583F630200AECD1E15212400905B527642C147F4566E82263CD"
+      },
+      {
+        "path": "docs/phase0/SYSTEM_MAP.md",
+        "bytes": 8036,
+        "sha256": "1E6A7BD0C30352FFB9C1574F0CADA5B7C766771CF859AD7372000411B23E0C16"
+      },
+      {
+        "path": "docs/phase0/evidence/gates.json",
+        "bytes": 6286,
+        "sha256": "6070F2A1BB6D08632408FA13EACD192D2AEFF36BF4F7925503AB3068D22792FA"
+      },
+      {
+        "path": "docs/phase0/evidence/inventory.json",
+        "bytes": 1674,
+        "sha256": "D37F20FC94A9691379E8FC6AB7894B9C28AF5DE891E21E9FFD2AB7A417545E1E"
+      },
+      {
+        "path": "docs/phase0/evidence/runtime-probe-extended.json",
+        "bytes": 26541,
+        "sha256": "0D9A41647DB1E44DEC253E3D52657A7E079C0E73494ED3921EAF90C1ABA10675"
+      },
+      {
+        "path": "docs/phase0/evidence/runtime-probe-isolated.json",
+        "bytes": 25648,
+        "sha256": "6FD5810F6EA19C4FC5CDD938C59A808F2F11D615EC9386C4DBE8F104097E8EDA"
+      },
+      {
+        "path": "docs/phase0/evidence/runtime-probe.json",
+        "bytes": 24589,
+        "sha256": "CE4FA8C19D75B555452521864A351E61DFD8FA94ED98E5F0C41CA620C0822859"
+      },
+      {
+        "path": "docs/phase0/evidence/verification-ledger.json",
+        "bytes": 3806,
+        "sha256": "EFBFD2C45CAF256C16ECC6B258C46216D88B6E72DACE45E338D62E3760DDAD7E"
+      },
+      {
+        "path": "docs/phase0/inventory.mjs",
+        "bytes": 2646,
+        "sha256": "5F999A921873E70679B0A1E9AA1ED3382A31B025D3806FAF1D355B3E54D2879E"
+      },
+      {
+        "path": "docs/phase0/probe.mjs",
+        "bytes": 10615,
+        "sha256": "3F737FE74978484C42EF934310C885E6FC1D50981DC03FFCC6FEDA670B2830E4"
+      },
+      {
+        "path": "docs/phase0/run-checks.mjs",
+        "bytes": 1877,
+        "sha256": "0E08BCC81D9787A310A7FB0AD3DCAC059FFE738CB6BCC00C90C0DE5CA4BA1CB8"
+      },
+      {
+        "path": "docs/phase0/skills/audit-probe-discipline/SKILL.md",
+        "bytes": 2919,
+        "sha256": "E2FA31D05676627BF4B99EBE051F5660CD7FA771A6766990D8F06EF295C2F850"
+      },
+      {
+        "path": "scripts/harvest-aide-gold.mjs",
+        "bytes": 7491,
+        "sha256": "8290C70CF79F337B209E31AD952A31EBE779A830AC50DAEB2EBFF0748F1F6238"
+      },
+      {
+        "path": "scripts/harvest-trajectories.mjs",
+        "bytes": 5256,
+        "sha256": "44F97A714BE247052ADD0F708C0719EC08EBDEC3F379ED4648B11BD4A7CD9DAA"
+      },
+      {
+        "path": "scripts/tokenize_unified_corpus.py",
+        "bytes": 3047,
+        "sha256": "700565E03C9A3850E51A9CBE04C7CE6BECEDDFEC7CDD890FA5FBB167AE69309E"
+      },
+      {
+        "path": "scripts/unify_corpus.py",
+        "bytes": 6294,
+        "sha256": "4F162852994AAD30171A91ABE407E699FA8F19B802DE4FD1BD935F4FEE20A9A1"
+      }
+    ],
+    "allowed_new_directory": "docs/audit/intelligence-spine",
+    "committed": false,
+    "pushed": false
+  },
+  "executed": [
+    {
+      "level": [
+        "UNIT",
+        "INTEGRATION",
+        "FIXTURE RUNTIME"
+      ],
+      "command": "node --test tests/arch/agent-execution-integrity.test.ts",
+      "exit_code": 0,
+      "tests": 29,
+      "passed": 29,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "duration_ms": 8376.8994,
+      "fixture": "E:\\pip_temp\\aide-integrity-iX9R14",
+      "model": "Scripted callback; no real model inference",
+      "coverage": [
+        "False/string/omitted/malformed/model-escalated approval variants and sandbox/direct mutation denial",
+        "Real agent route context selection/loading reaches model-construction callback",
+        "Missing requested artifacts/tests stays unverified",
+        "Real verification event through EventHub/facade WebSocket/subscriber",
+        "Audit failure observable; session lifecycle"
+      ],
+      "process": {
+        "pid": 3024,
+        "arch_port": 54355,
+        "facade_port": 54356,
+        "server_close_report": {
+          "archListening": false,
+          "facadeListening": false
+        }
+      }
+    },
+    {
+      "level": [
+        "UNIT",
+        "PURE FUNCTION PROBE"
+      ],
+      "command": "Inline Node imports of actual Veritas, sandbox and history-fit exports; no filesystem mutation",
+      "observations": [
+        {
+          "input": "evaluateExecution({execution:{passed:true,checks:{},results:[]}})",
+          "output": {
+            "passed": true,
+            "status": "verified"
+          }
+        },
+        {
+          "input": "evaluateExecution({execution:{passed:\"false\",checks:{}}})",
+          "output": {
+            "passed": true,
+            "status": "verified"
+          }
+        },
+        {
+          "input": "evaluateVeritas({evidenceScore:1,checks:{}})",
+          "output": {
+            "passed": true,
+            "status": "verified"
+          }
+        },
+        {
+          "input": "sandbox.runVerification([])",
+          "output": {
+            "passed": true
+          },
+          "commands_executed": 0
+        },
+        {
+          "input": "fitHistory: system 2048 characters, user 400 characters; context 1024, reserve 512",
+          "output": {
+            "estimated": 612,
+            "budget": 512,
+            "overflow": false,
+            "dropped": 1
+          }
+        }
+      ],
+      "scope_limit": "Does not reproduce a positive VERIFIED through current AgentLoop, which forces passed:false."
+    },
+    {
+      "level": [
+        "INTEGRATION",
+        "CAPTURED MODEL BOUNDARY"
+      ],
+      "command": "Inline Node composition of real routesForAgent and routeForChatStream with in-memory callbacks",
+      "observations": {
+        "local_expert_consultations": 0,
+        "provider_expert_consultations": 1,
+        "stream_input_messages": 1,
+        "stream_model_messages": 1,
+        "stream_messages_unchanged": true
+      },
+      "scope_limit": "No real model invocation or claim of skill adherence."
+    },
+    {
+      "level": [
+        "INTEGRATION",
+        "FIXTURE RUNTIME"
+      ],
+      "command": "Inline Node real facade -> real ArchServer -> routesForGit; GitService.stage/run temporarily captured in memory and restored",
+      "request": {
+        "method": "POST",
+        "route": "/api/git/stage",
+        "origin": "http://untrusted.invalid",
+        "content_type": "text/plain",
+        "body": {
+          "paths": [
+            "fixture-only.txt"
+          ]
+        },
+        "approval": "absent"
+      },
+      "observed": {
+        "http_status": 200,
+        "response": {
+          "oid": "fixture-head"
+        },
+        "access_control_allow_origin": null,
+        "stage_executor_called": true
+      },
+      "safety": {
+        "real_git_mutation": false,
+        "external_network": false,
+        "fixture": "E:\\pip_temp\\aide-integrity-iX9R14"
+      },
+      "process": {
+        "pid": 2784,
+        "arch_port": 59367,
+        "facade_port": 59368,
+        "serversClosed": true
+      },
+      "scope_limit": "Proves server dispatch with a captured executor, not a browser exploit. Browser Private Network Access and other browser controls were not tested."
+    },
+    {
+      "level": [
+        "STATIC",
+        "READ-ONLY LOADER PROBE"
+      ],
+      "command": "Load actual skills registry and selected excerpts for desktop/control task",
+      "observed": {
+        "registry_entries": 274,
+        "selected_count": 3,
+        "excerpt_characters": 3652,
+        "confidence_clause_in_selected_excerpts": false
+      }
+    },
+    {
+      "level": [
+        "UNIT",
+        "SYNTHETIC MEMORY PROBE"
+      ],
+      "command": "Actual memory-recall reader with fs.promises.readFile temporarily replaced by in-memory 501-row fixture and restored",
+      "observed": {
+        "loaded_rows": 500,
+        "last_loaded_ts": "2025-03-27T22:13:20.000Z",
+        "newest_fixture_ts": "2025-03-28T22:13:20.000Z",
+        "newest_unique_fact_hits": [],
+        "degraded": false,
+        "approxTokens": 0
+      },
+      "filesystem_mutation": false
+    }
+  ],
+  "evidence_classification": {
+    "STATIC": "Source/registration/caller tracing completed; exact scope in inspection manifest and linked reports.",
+    "TYPECHECK": "NOT RUN: documentation-only audit; historical handoff results not rerun.",
+    "UNIT": "29-test focused file plus actual exported-function probes; no full unit battery.",
+    "INTEGRATION": "Real routes and facade composition with scripted/captured execution boundaries.",
+    "RUNTIME": "Isolated Node HTTP/WebSocket fixture runtime only; no normal UI or real model runtime acceptance.",
+    "BUILD": "NOT RUN: no production changes; no packaging installation.",
+    "BROWSER_ACCEPTANCE": "NOT RUN.",
+    "FULL_ACCEPTANCE": "NOT RUN.",
+    "REAL_MODEL_ACCEPTANCE": "NOT RUN; no same-model benchmark measurements exist in this audit."
+  },
+  "not_run": [
+    "Full architecture/unit/acceptance batteries; intentionally bounded audit rather than product release certification.",
+    "Typechecks, lint, contract generation and build; no production/test/config changes.",
+    "Real local-model coding loop or A-E benchmark; avoid operator workload interference.",
+    "Native desktop/Rust/install/upgrade/uninstall and real browser acceptance.",
+    "External BYOK/provider/embedding/network execution.",
+    "Destructive panic, checkpoint restore, sandbox real apply or mutation exploit.",
+    "Adversarial upstream SSE error/EOF probe; stream findings source-derived."
+  ],
+  "diagnostic_limitations": [
+    "Several initial read-only searches used unavailable guessed paths or Windows literal globs; corrected by enumerating actual files/imports. These were diagnostic lookup errors, not failed product tests.",
+    "Broad source/search output was sometimes truncated; narrowed targeted inspections were used. File manifest is not a claim that all listed files were read in full.",
+    "Historical handoff acceptance-real labeling is not real-model evidence: the inspected script exercises legacy services without model inference.",
+    "No skills/SOPs created; no fixes attempted."
+  ],
+  "process_hygiene": {
+    "spawned_fixture_pids": [
+      3024,
+      2784
+    ],
+    "loopback_ports": [
+      54355,
+      54356,
+      59367,
+      59368
+    ],
+    "completion_read_only_check": "Get-Process for both PIDs returned none; Get-NetTCPConnection for all four ports returned no listeners.",
+    "operator_processes_terminated": false,
+    "temporary_fixture_retained": true
+  },
+  "final_document_validation": {
+    "result": "PASS",
+    "markdown_documents": 16,
+    "evidence_json_documents": 1,
+    "inspected_paths_exist": 95,
+    "protected_hashes_matched": 21,
+    "total_untracked_files": 38,
+    "unexpected_untracked_files": 0,
+    "broken_local_link_targets": 0,
+    "empty_documents": 0,
+    "tracked_changes": 0,
+    "staged_changes": 0,
+    "branch_and_head_unchanged": true,
+    "severity_counts_reconciled": true,
+    "scope": "Documentation/readback integrity only; not product acceptance."
+  }
+}

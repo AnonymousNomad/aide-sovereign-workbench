@@ -1,0 +1,84 @@
+{
+  "date": "2026-09-11T21:39:11.001Z",
+  "registry": {
+    "declared": 274,
+    "actual": 274,
+    "missingPaths": []
+  },
+  "openapi": {
+    "paths": 193,
+    "operations": 203
+  },
+  "routeCounts": {
+    "registered": 204,
+    "uniqueOperations": 204,
+    "facadeTs": 173,
+    "facadeLegacy": 31,
+    "prefixes": 39,
+    "exact": 5
+  },
+  "facadeLegacyFamilies": [
+    [
+      "/api/chat",
+      3
+    ],
+    [
+      "/api/training",
+      13
+    ],
+    [
+      "/api/workbenches",
+      5
+    ],
+    [
+      "/api/workbench",
+      4
+    ],
+    [
+      "/api/onboarding",
+      4
+    ],
+    [
+      "/api/system-map",
+      1
+    ],
+    [
+      "/api/openapi.json",
+      1
+    ]
+  ],
+  "verificationEvent": {
+    "schemaAcceptsActualEmitterShape": false,
+    "error": [
+      {
+        "code": "invalid_union",
+        "errors": [],
+        "note": "No matching discriminator",
+        "discriminator": "event",
+        "options": [
+          "message",
+          "tool_call",
+          "tool_result",
+          "awaiting_approval",
+          "done",
+          "error",
+          "aborted"
+        ],
+        "path": [
+          "event"
+        ],
+        "message": "Invalid discriminator value. Expected 'message' | 'tool_call' | 'tool_result' | 'awaiting_approval' | 'done' | 'error' | 'aborted'"
+      }
+    ]
+  },
+  "evidenceLogContainsEventRejection": true,
+  "frontend": {
+    "rootLoadsAppJs": true,
+    "viteDirect4778": true,
+    "desktopStagesLegacy": true
+  },
+  "archive": {
+    "fullBattery": "Historical journal 405/405 before hardware slice; not rerun in Phase 0",
+    "hardwareSlice": "Historical journal 3/3; not a device suitability benchmark"
+  }
+}

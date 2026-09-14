@@ -9,11 +9,13 @@ import { WorkspaceService } from '../../node/src/services/workspace.ts';
 import { routeForFileRead, routeForFileWrite } from '../../node/src/routes/fs.ts';
 import { Envelope } from '../../common/errors.ts';
 import { FileReadResponse, FileWriteResponse } from '../../common/contracts/file.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 let dir: string;
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-fs-'));
@@ -27,6 +29,7 @@ before(async () => {
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -36,7 +39,7 @@ after(async () => {
 });
 
 test('file read returns content for an existing file', async () => {
-  const response = await fetch(`${base}/api/file?path=hello.txt`);
+  const response = await owner.request('/api/file?path=hello.txt');
   assert.equal(response.status, 200);
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
@@ -49,7 +52,7 @@ test('file read returns content for an existing file', async () => {
 });
 
 test('file read returns the too_large gate for >1MiB files', async () => {
-  const response = await fetch(`${base}/api/file?path=big.bin`);
+  const response = await owner.request('/api/file?path=big.bin');
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
   if (!envelope.success || !envelope.data.ok) return;
@@ -63,7 +66,7 @@ test('file read returns the too_large gate for >1MiB files', async () => {
 
 test('file read rejects containment escapes', async () => {
   for (const escape of ['../secret.txt', '../../etc/passwd', `${dir}/hello.txt`, 'sub/../../escape']) {
-    const response = await fetch(`${base}/api/file?path=${encodeURIComponent(escape)}`);
+    const response = await owner.request(`/api/file?path=${encodeURIComponent(escape)}`);
     const envelope = Envelope.safeParse(await response.json());
     assert.equal(envelope.success, true, `escape ${escape}`);
     if (!envelope.success) continue;
@@ -73,7 +76,7 @@ test('file read rejects containment escapes', async () => {
 });
 
 test('file read returns NOT_FOUND for a missing file', async () => {
-  const response = await fetch(`${base}/api/file?path=nope.txt`);
+  const response = await owner.request('/api/file?path=nope.txt');
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
   if (!envelope.success || envelope.data.ok) return;
@@ -81,10 +84,14 @@ test('file read returns NOT_FOUND for a missing file', async () => {
 });
 
 test('file write requires approval', async () => {
-  const response = await fetch(`${base}/api/file/write`, {
+  // The transport approves this exact operation; the domain flag `approved:false`
+  // must still be refused by the workspace service (defense in depth).
+  const body = { path: 'x.txt', content: 'x', approved: false };
+  const headers = await owner.approve('POST', '/api/file/write', body, 'file-write-requires-approval');
+  const response = await owner.request('/api/file/write', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ path: 'x.txt', content: 'x', approved: false })
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body)
   });
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
@@ -93,10 +100,12 @@ test('file write requires approval', async () => {
 });
 
 test('file write round-trips and rejects escapes', async () => {
-  const response = await fetch(`${base}/api/file/write`, {
+  const body = { path: 'sub/dir/new.txt', content: 'content-1', approved: true };
+  const headers = await owner.approve('POST', '/api/file/write', body, 'file-write-roundtrip');
+  const response = await owner.request('/api/file/write', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ path: 'sub/dir/new.txt', content: 'content-1', approved: true })
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body)
   });
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
@@ -107,10 +116,12 @@ test('file write round-trips and rejects escapes', async () => {
   assert.equal(payload.data.bytes, 9);
   assert.equal(await fs.readFile(path.join(dir, 'sub', 'dir', 'new.txt'), 'utf8'), 'content-1');
 
-  const bad = await fetch(`${base}/api/file/write`, {
+  const badBody = { path: '../evil.txt', content: 'x', approved: true };
+  const badHeaders = await owner.approve('POST', '/api/file/write', badBody, 'file-write-escape');
+  const bad = await owner.request('/api/file/write', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ path: '../evil.txt', content: 'x', approved: true })
+    headers: { ...badHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify(badBody)
   });
   const badEnvelope = Envelope.safeParse(await bad.json());
   assert.equal(badEnvelope.success, true);
@@ -119,7 +130,9 @@ test('file write round-trips and rejects escapes', async () => {
 });
 
 test('file write rejects a body with unknown keys (strict)', async () => {
-  const response = await fetch(`${base}/api/file/write`, {
+  // Strict body validation runs at the transport boundary before any authority
+  // dispatch, so this exact operation is rejected without an approval.
+  const response = await owner.request('/api/file/write', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ path: 'x.txt', content: 'x', approved: true, extra: 1 })

@@ -22,6 +22,8 @@ import { createResidentPanel } from './resident/resident.ts';
 import type { DiagnosticsEventT } from '../../common/contracts/events.ts';
 import type { LspStatusEventT } from '../../common/contracts/lsp.ts';
 import { connectEvents } from './services/ws.ts';
+import { facadeWebSocketUrl } from './services/runtime-config.ts';
+import { initializeAuthority } from './services/authority.ts';
 
 self.MonacoEnvironment = {
   getWorker(_workerId: string, label: string): Worker {
@@ -67,6 +69,7 @@ function renderLspStatus(shell: ReturnType<typeof createShell>, states: Record<s
 }
 
 async function boot(): Promise<void> {
+  await initializeAuthority();
   const app = document.getElementById('app');
   if (app === null) throw new Error('#app missing');
   const store = new Store(INITIAL_STATE);
@@ -101,7 +104,7 @@ async function boot(): Promise<void> {
   createWorkbenchesPanel(shell.workbenchesPanel, { onToast: (code, message) => showToast(shell.statusRight, code, message) });
   createResidentPanel(shell.residentPanel, shell.residentStatus, { onToast: (code, message) => showToast(shell.statusRight, code, message) });
 
-  const events = connectEvents(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`, {
+  const events = connectEvents(facadeWebSocketUrl('/ws'), {
     onStatus: connected => {
       shell.statusDot.className = connected ? 'status-dot ok' : 'status-dot err';
     }

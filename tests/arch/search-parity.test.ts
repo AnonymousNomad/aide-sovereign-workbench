@@ -5,11 +5,13 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-search-parity-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 interface SearchHit {
   line: number;
@@ -42,12 +44,13 @@ before(async () => {
   await fs.writeFile(path.join(workspace, 'src', 'other.md'), '# TODO item\nquick as can be\n');
   server = new ArchServer(workspace, path.join(workspace, '.aide', 'search-parity.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', { events: server.events, logger: server.logger });
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events, logger: server.logger });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -73,7 +76,7 @@ async function dataOf<T>(response: Response): Promise<T> {
 }
 
 test('GET /api/search returns the legacy-compatible response shape', async () => {
-  const data = await dataOf<SearchData>(await fetch(`${base}/api/search?q=quick&regex=0&icase=1`));
+  const data = await dataOf<SearchData>(await owner.request('/api/search?q=quick&regex=0&icase=1'));
   assert.deepEqual(Object.keys(data).sort(), ['caseInsensitive', 'fileMask', 'query', 'regex', 'results', 'total', 'wholeWord'].sort());
   assert.equal(data.query, 'quick');
   assert.equal(data.regex, false);
@@ -92,10 +95,12 @@ test('GET /api/search returns the legacy-compatible response shape', async () =>
 });
 
 test('POST /api/search/replace writes bytes and reports parity counts', async () => {
-  const response = await fetch(`${base}/api/search/replace`, {
+  const body = { query: 'quick', regex: false, icase: true, word: false, replacement: 'slow', approved: true };
+  const headers = await owner.approve('POST', '/api/search/replace', body, 'search-parity-replace');
+  const response = await owner.request('/api/search/replace', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ query: 'quick', regex: false, icase: true, word: false, replacement: 'slow', approved: true })
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(body)
   });
   const replaced = await dataOf<ReplaceData>(response);
   assert.deepEqual(replaced, { files_changed: 2, occurrences: 2 });
@@ -108,7 +113,7 @@ test('POST /api/search/replace writes bytes and reports parity counts', async ()
 
 test('GET /api/search rejects an oversized query with a typed error', async () => {
   const longQuery = 'x'.repeat(201);
-  const response = await fetch(`${base}/api/search?q=${longQuery}`);
+  const response = await owner.request(`/api/search?q=${longQuery}`);
   const body: { ok: boolean; error?: { code: string; message: string } } = await response.json();
   assert.equal(body.ok, false);
   assert.ok(body.error);

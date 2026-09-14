@@ -12,8 +12,50 @@ const ARCHIVE_DIR = '.aide/experts/archive';
 const SIGNALS_FILE = '.aide/experts/signals.json';
 export const MAX_PARAMS = 10_000;
 
+// Canonical expert identity: a logical registry identifier, never a path.
+// Narrowest grammar covering every existing manifest name (lowercase
+// alphanumerics and hyphens, starting alphanumeric, bounded length). This
+// rejects '..', '.', '/', '\', absolute/drive/UNC/URI values, control
+// characters, whitespace, and anything capable of creating a path component.
+const EXPERT_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+// 'signals' names the stigmergic signal store (signals.json): registry state,
+// not an expert, and never a legal expert identity.
+const RESERVED_EXPERT_NAMES = new Set(['signals']);
+
 export class ExpertError extends Error {
   constructor(code, message) { super(message); this.code = code; }
+}
+
+function assertExpertName(name) {
+  if (typeof name !== 'string' || !EXPERT_NAME_RE.test(name) || RESERVED_EXPERT_NAMES.has(name)) {
+    const shown = typeof name === 'string' ? JSON.stringify(name.slice(0, 64)) : typeof name;
+    throw new ExpertError('VALIDATION', `invalid expert name: ${shown}`);
+  }
+  return name;
+}
+
+function isContained(candidateReal, rootReal) {
+  return candidateReal === rootReal || candidateReal.startsWith(`${rootReal}${path.sep}`);
+}
+
+// Deepest-existing-ancestor real resolution: non-existent leaf segments cannot
+// contain a reparse object, so they are appended lexically after resolving.
+async function realResolve(target) {
+  const absolute = path.resolve(target);
+  const missing = [];
+  let current = absolute;
+  for (;;) {
+    try {
+      const real = await fs.realpath(current);
+      return path.join(real, ...missing.reverse());
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+      const parent = path.dirname(current);
+      if (parent === current) throw error;
+      missing.push(path.basename(current));
+      current = parent;
+    }
+  }
 }
 
 function paramCount(arch, inDim, classes) {
@@ -52,20 +94,71 @@ function toVector(manifest, features) {
 }
 
 export function createExpertRegistry({ workspace }) {
-  const hot = new Map(); // name -> parsed manifest
+  const hot = new Map(); // canonical expert name -> parsed manifest
 
+  // Canonical expert root, proven to live inside the workspace even when a
+  // link/junction sits at (or above) .aide/experts.
+  async function canonicalExpertRoot() {
+    const root = path.join(workspace, EXPERTS_DIR);
+    const workspaceReal = await realResolve(workspace);
+    const rootReal = await realResolve(root);
+    if (!isContained(rootReal, workspaceReal)) {
+      throw new ExpertError('VALIDATION', 'expert root resolves outside the canonical workspace');
+    }
+    return { root, rootReal };
+  }
+
+  // Single validated resolver: canonical name -> server-derived filename ->
+  // lexically contained path under the canonical expert root. Callers must
+  // never build `${name}.json` themselves.
   function fileFor(name, dormant = false) {
-    return path.join(workspace, dormant ? DORMANT_DIR : EXPERTS_DIR, `${name}.json`);
+    const root = path.join(workspace, EXPERTS_DIR);
+    const file = path.join(root, dormant ? 'dormant' : '', `${assertExpertName(name)}.json`);
+    const rel = path.relative(root, file);
+    if (rel === '' || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+      throw new ExpertError('VALIDATION', 'expert path escapes the registry root');
+    }
+    return file;
+  }
+
+  // Effective containment for one expert object. Rejects link-like and
+  // non-regular objects; for missing leaves it proves the deepest existing
+  // ancestor (the write parent) still resolves inside the canonical root, so a
+  // junctioned parent can never redirect a read, write, or rename.
+  async function assertContainedObject(file, what) {
+    const { rootReal } = await canonicalExpertRoot();
+    const info = await fs.lstat(file).catch(() => null);
+    if (info === null) {
+      const pendingReal = await realResolve(file);
+      if (!isContained(pendingReal, rootReal)) {
+        throw new ExpertError('VALIDATION', `expert target resolves outside the registry root (${what})`);
+      }
+      return false;
+    }
+    if (info.isSymbolicLink()) throw new ExpertError('VALIDATION', `refusing link-like expert file (${what})`);
+    if (!info.isFile()) throw new ExpertError('VALIDATION', `refusing non-file expert object (${what})`);
+    const real = await fs.realpath(file);
+    if (!isContained(real, rootReal)) {
+      throw new ExpertError('VALIDATION', `expert file resolves outside the registry root (${what})`);
+    }
+    return true;
   }
 
   async function load(name) {
-    if (hot.has(name)) return hot.get(name);
+    const canonical = assertExpertName(name); // validate before cache or filesystem use
+    if (hot.has(canonical)) return hot.get(canonical);
     for (const dormant of [false, true]) {
       try {
-        const manifest = JSON.parse(await fs.readFile(fileFor(name, dormant), 'utf8'));
-        hot.set(name, manifest);
+        const file = fileFor(canonical, dormant);
+        await assertContainedObject(file, `load ${dormant ? 'dormant' : 'hot'}`);
+        const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+        hot.set(canonical, manifest);
         return manifest;
-      } catch { /* try next tier */ }
+      } catch (error) {
+        // Containment/identifier failures fail closed; only missing or
+        // unreadable tiers fall through to the next tier.
+        if (error instanceof ExpertError) throw error;
+      }
     }
     throw new ExpertError('EXPERT_NOT_FOUND', `no such micro-expert: ${name}`);
   }
@@ -83,11 +176,13 @@ export function createExpertRegistry({ workspace }) {
     if (!Array.isArray(manifest.classes) || manifest.classes.length < 2) {
       throw new ExpertError('VALIDATION', 'classes must have at least two entries');
     }
-    const file = fileFor(manifest.name);
+    const name = assertExpertName(manifest.name);
+    const file = fileFor(name);
     await fs.mkdir(path.dirname(file), { recursive: true });
+    await assertContainedObject(file, 'save destination');
     await fs.writeFile(file, JSON.stringify(manifest, null, 2), 'utf8');
-    hot.set(manifest.name, manifest);
-    return { name: manifest.name, params };
+    hot.set(name, manifest);
+    return { name, params };
   }
 
   // Deterministic inference. Same inputs -> identical outputs, always.
@@ -272,7 +367,9 @@ export function createExpertRegistry({ workspace }) {
       try {
         const files = await fs.readdir(path.join(workspace, rel));
         files.filter(f => f.endsWith('.json') && f !== 'signals.json').forEach(f => {
-          out.push({ name: f.replace('.json', ''), domain: '', dormant });
+          const name = f.replace('.json', '');
+          if (!EXPERT_NAME_RE.test(name) || RESERVED_EXPERT_NAMES.has(name)) return;
+          out.push({ name, domain: '', dormant });
         });
       } catch { /* dir may not exist yet */ }
     }
@@ -287,24 +384,35 @@ export function createExpertRegistry({ workspace }) {
   }
 
   async function freeze(name) {
-    await load(name);
-    await fs.mkdir(path.join(workspace, DORMANT_DIR), { recursive: true });
-    await fs.rename(fileFor(name), fileFor(name, true));
-    hot.delete(name);
-    return { name, state: 'dormant' };
+    const canonical = assertExpertName(name);
+    await load(canonical);
+    const source = fileFor(canonical);
+    const destination = fileFor(canonical, true);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await assertContainedObject(source, 'freeze source');
+    await assertContainedObject(destination, 'freeze destination');
+    await fs.rename(source, destination);
+    hot.delete(canonical);
+    return { name: canonical, state: 'dormant' };
   }
 
   async function thaw(name) {
-    const manifest = await load(name); // load() checks dormant tier too
-    return { name: manifest.name, state: 'hot' };
+    const canonical = assertExpertName(name);
+    await load(canonical); // load() checks dormant tier too
+    return { name: canonical, state: 'hot' };
   }
 
   async function prune(name, reason) {
-    await load(name);
-    await fs.mkdir(path.join(workspace, ARCHIVE_DIR), { recursive: true });
-    await fs.rename(fileFor(name), path.join(workspace, ARCHIVE_DIR, `${name}.${Date.now()}.json`));
-    hot.delete(name);
-    return { name, state: 'archived', reason };
+    const canonical = assertExpertName(name);
+    await load(canonical);
+    const source = fileFor(canonical);
+    const destination = path.join(workspace, ARCHIVE_DIR, `${canonical}.${Date.now()}.json`);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await assertContainedObject(source, 'prune source');
+    await assertContainedObject(destination, 'prune destination');
+    await fs.rename(source, destination);
+    hot.delete(canonical);
+    return { name: canonical, state: 'archived', reason };
   }
 
   return {

@@ -1,6 +1,7 @@
 import type { Route } from '../server.ts';
 import { RouteError } from '../server.ts';
-import { ModelRuntimeError, type ModelRuntime } from '../services/model-runtime.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
+import { ModelRuntimeError, validateRegistrationFilename, type ModelRuntime } from '../services/model-runtime.ts';
 import {
   ModelStatusResponse,
   ModelIdRequest,
@@ -13,8 +14,43 @@ import {
   ModelRegisterRequest,
   ModelRegisterResponse,
   ModelProfileRequest,
-  ModelProfileResponse
+  ModelProfileResponse,
+  type ModelRegisterRequestT,
+  type ModelProfileRequestT
 } from '../../../common/contracts/models.ts';
+
+// Registration is a bounded local metadata write: the filename must be a safe
+// relative .gguf that already exists inside the canonical model directory (the
+// exact same validation register() applies), and the normalized descriptor
+// body is what the handler executes. Nothing here imports, copies, downloads,
+// converts, or executes a model, and BYOK configuration is not involved.
+function registrationBody(manager: ModelRuntime, body: unknown): Record<string, unknown> {
+  const input = body as ModelRegisterRequestT;
+  let filename: string;
+  try {
+    filename = validateRegistrationFilename(manager.modelDir, input.filename);
+  } catch (error) {
+    throw toRouteError(error);
+  }
+  return {
+    filename,
+    ...(input.repo_id !== undefined ? { repo_id: input.repo_id } : {}),
+    ...(input.quant_label !== undefined ? { quant_label: input.quant_label } : {}),
+    ...(input.context_tokens !== undefined ? { context_tokens: input.context_tokens } : {})
+  };
+}
+
+// Profile writes are bounded per-model sidecar patches. The model id must be
+// allowlisted by the runtime at execution; the patch is the exact normalized
+// value set the handler passes to saveProfile.
+function profilePatch(body: unknown): { preset?: string; samplers?: Record<string, number>; runtime?: Record<string, number | string | boolean> } {
+  const { preset, samplers, runtime } = body as ModelProfileRequestT;
+  const patch: { preset?: string; samplers?: Record<string, number>; runtime?: Record<string, number | string | boolean> } = {};
+  if (preset !== undefined) patch.preset = preset;
+  if (samplers !== undefined) patch.samplers = samplers;
+  if (runtime !== undefined) patch.runtime = runtime;
+  return patch;
+}
 
 export function routeForModelStatus(manager: ModelRuntime): Route {
   return {
@@ -43,6 +79,14 @@ export function routeForModelStart(manager: ModelRuntime): Route {
     path: '/api/models/start',
     body: ModelIdRequest,
     response: ModelStartResponse,
+    // The approved operation binds the exact model identity. Every material
+    // process input — executable, model file, arguments, backend/ngl, port and
+    // environment — is derived server-side from the allowlisted model registry
+    // and profile sidecar; none of it is caller-controlled.
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+      const { id } = body as { id: string };
+      return { workspace: manager.workspace, taskId, kind: 'capability.execute', args: { body: { id } } };
+    },
     handler: async ({ body }) => {
       const request = body as { id: string };
       try {
@@ -61,6 +105,13 @@ export function routeForModelStop(manager: ModelRuntime): Route {
     path: '/api/models/stop',
     body: ModelIdRequest,
     response: ModelStopResponse,
+    // The approved operation binds the exact model identity; the target process
+    // is resolved through the runtime's retained child handle for that model id
+    // (never a caller-supplied PID) and fails closed when no handle is owned.
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+      const { id } = body as { id: string };
+      return { workspace: manager.workspace, taskId, kind: 'capability.execute', args: { body: { id } } };
+    },
     handler: async ({ body }) => {
       const request = body as { id: string };
       const result = await manager.stop(request.id);
@@ -109,8 +160,11 @@ export function routeForModelRegister(manager: ModelRuntime): Route {
     path: '/api/models/register',
     body: ModelRegisterRequest,
     response: ModelRegisterResponse,
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => ({
+      workspace: manager.workspace, taskId, kind: 'capability.write', args: { body: registrationBody(manager, body) }
+    }),
     handler: async ({ body }) => {
-      const request = body as Parameters<ModelRuntime['register']>[0];
+      const request = registrationBody(manager, body) as Parameters<ModelRuntime['register']>[0];
       try {
         return await manager.register(request);
       } catch (error) {
@@ -126,14 +180,14 @@ export function routeForModelProfile(manager: ModelRuntime): Route {
     path: '/api/models/profile',
     body: ModelProfileRequest,
     response: ModelProfileResponse,
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+      const { id } = body as ModelProfileRequestT;
+      return { workspace: manager.workspace, taskId, kind: 'capability.write', args: { body: { id, patch: profilePatch(body) } } };
+    },
     handler: async ({ body }) => {
-      const { id, preset, samplers, runtime } = body as { id: string; preset?: string; samplers?: Record<string, number>; runtime?: Record<string, number | string | boolean> };
+      const { id } = body as ModelProfileRequestT;
       try {
-        const patch: { preset?: string; samplers?: Record<string, number>; runtime?: Record<string, number | string | boolean> } = {};
-        if (preset !== undefined) patch.preset = preset;
-        if (samplers !== undefined) patch.samplers = samplers;
-        if (runtime !== undefined) patch.runtime = runtime;
-        return await manager.saveProfile(id, patch);
+        return await manager.saveProfile(id, profilePatch(body));
       } catch (error) {
         throw toRouteError(error);
       }

@@ -13,6 +13,16 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const createAgentLoop = require('../../node/src/services/agent-loop.mjs').createAgentLoop;
+import { pairServiceFixture } from './authority-fixture.ts';
+
+// The agent loop requires the canonical execution authority at creation and an
+// approved exact agent.start operation per session; the fixture supplies both.
+async function startLoop(options: Record<string, unknown>, task: string, mode: 'plan' | 'act' = 'act') {
+  const fixture = await pairServiceFixture(dir);
+  const loop = createAgentLoop({ workspace: dir, authority: fixture.authority, ...options });
+  const result = await fixture.startAgent(loop, task, mode);
+  return { loop, result };
+}
 
 // Each test creates its own tmp dir; we rm it in afterEach so the
 // `.aide/desktop/trajectories` files written by the loop are cleaned up
@@ -45,8 +55,8 @@ test('plain one-call loop still works (architectEditor: false default)', async (
   // to state='error'. This is acceptable — the test just proves the
   // plain one-call path is intact.
   const chatFn = async () => '<read_file>\n<path>package.json</path>\n</read_file>';
-  const loop = createAgentLoop({ workspace: dir, chatFn, maxIterations: 2, maxMistakes: 3 });
-  const { session_id } = loop.start('read package.json', 'act');
+  const { loop, result } = await startLoop({ chatFn, maxIterations: 2, maxMistakes: 3 }, 'read package.json', 'act');
+  const { session_id } = result;
   const final = await waitForTerminalState(loop, session_id);
   assert.ok(['aborted', 'error'].includes(final.state), `unexpected terminal state: ${final.state}`);
 });
@@ -70,17 +80,17 @@ test('architect/editor: two-call path with a plan, then attempt_completion on th
     return '';
   };
   const events: Array<Record<string, unknown>> = [];
-  const loop = createAgentLoop({
-    workspace: dir,
+  const { loop, result } = await startLoop({
     chatFn,
     maxIterations: 3,
     maxMistakes: 5,
     architectEditor: true,
     onEvent: (e: Record<string, unknown>) => events.push(e)
-  });
-  const { session_id } = loop.start('inspect package.json', 'act');
+  }, 'inspect package.json', 'act');
+  const { session_id } = result;
   const final = await waitForTerminalState(loop, session_id);
   // 2 calls: architect + editor (the attempt_completion in editor ends the session)
+  assert.equal(final.state, 'done', `unexpected terminal state: ${final.state}`);
   assert.equal(calls.length, 2, `expected 2 chat calls, got ${calls.length}: ${JSON.stringify(calls)}`);
   assert.deepEqual(calls, ['architect', 'editor']);
   // 1 plan event
@@ -90,6 +100,7 @@ test('architect/editor: two-call path with a plan, then attempt_completion on th
   assert.match(planEvent.plan, /Read the package\.json/);
   assert.equal(planEvent.cycle, 1);
   assert.equal(planEvent.max_cycles, 8);
+});
 
 test('architect collapsed into editor: tool calls directly, no plan, no second call', async () => {
   // The architect immediately emits attempt_completion (a single trivial
@@ -101,15 +112,14 @@ test('architect collapsed into editor: tool calls directly, no plan, no second c
     return '<attempt_completion>\n<result>trivial</result>\n</attempt_completion>';
   };
   const events: Array<Record<string, unknown>> = [];
-  const loop = createAgentLoop({
-    workspace: dir,
+  const { loop, result } = await startLoop({
     chatFn,
     maxIterations: 3,
     maxMistakes: 5,
     architectEditor: true,
     onEvent: (e: Record<string, unknown>) => events.push(e)
-  });
-  const { session_id } = loop.start('trivial', 'act');
+  }, 'trivial', 'act');
+  const { session_id } = result;
   const final = await waitForTerminalState(loop, session_id);
   assert.equal(callCount, 1, `expected exactly 1 chat call (architect collapsed), got ${callCount}`);
   const planEvents = events.filter(e => e.event === 'plan');
@@ -135,15 +145,14 @@ test('architect/editor cost cap: after 8 cycles the loop falls back to one-call'
     return '<list_dir>\n<path>.</path>\n</list_dir>';
   };
   const events: Array<Record<string, unknown>> = [];
-  const loop = createAgentLoop({
-    workspace: dir,
+  const { loop, result } = await startLoop({
     chatFn,
     maxIterations: 30,
     maxMistakes: 5,
     architectEditor: true,
     onEvent: (e: Record<string, unknown>) => events.push(e)
-  });
-  const { session_id } = loop.start('iterate', 'act');
+  }, 'iterate', 'act');
+  const { session_id } = result;
   const final = await waitForTerminalState(loop, session_id, 8000);
   // The first 8 architect turns produce 8 plan events; turns 9+ must not.
   const planEvents = events.filter(e => e.event === 'plan');
@@ -164,15 +173,14 @@ test('plan-mode + architect/editor compose: plan mode is read-only and architect
     return '<attempt_completion>\n<result>plan ok</result>\n</attempt_completion>';
   };
   const events: Array<Record<string, unknown>> = [];
-  const loop = createAgentLoop({
-    workspace: dir,
+  const { loop, result } = await startLoop({
     chatFn,
     maxIterations: 3,
     maxMistakes: 5,
     architectEditor: true,
     onEvent: (e: Record<string, unknown>) => events.push(e)
-  });
-  const { session_id } = loop.start('plan only', 'plan');
+  }, 'plan only', 'plan');
+  const { session_id } = result;
   await waitForTerminalState(loop, session_id);
   assert.equal(callCount, 2, 'plan mode: 1 read + 1 completion (architect/editor is off in plan mode)');
   const planEvents = events.filter(e => e.event === 'plan');
@@ -191,23 +199,18 @@ test('empty plan block: fall through to one-call path, no second call', async ()
     return '<attempt_completion>\n<result>done</result>\n</attempt_completion>';
   };
   const events: Array<Record<string, unknown>> = [];
-  const loop = createAgentLoop({
-    workspace: dir,
+  const { loop, result } = await startLoop({
     chatFn,
     maxIterations: 5,
     maxMistakes: 5,
     architectEditor: true,
     onEvent: (e: Record<string, unknown>) => events.push(e)
-  });
-  const { session_id } = loop.start('short plan', 'act');
+  }, 'short plan', 'act');
+  const { session_id } = result;
   const final = await waitForTerminalState(loop, session_id);
   // 2 calls total: 1 architect (empty plan) + 1 editor (completion).
   assert.equal(callCount, 2, `expected 2 calls, got ${callCount}`);
   const planEvents = events.filter(e => e.event === 'plan');
   assert.equal(planEvents.length, 0, 'no plan event when plan block is empty');
-  assert.equal(final.state, 'done');
-});
-
-  // The session must finish (done), not abort.
   assert.equal(final.state, 'done');
 });

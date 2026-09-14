@@ -1,0 +1,144 @@
+{
+  "checkpoint": "C",
+  "status": "PARTIAL_BOUNDARY_EXPANSION_REQUIRED",
+  "baseline": {
+    "branch": "covert-production",
+    "head": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58"
+  },
+  "implemented": [
+    "Real HTTP pairing/control routes at ArchServer; bearer authentication separate from exact operation approval.",
+    "Explicit initial route-policy map; unknown capabilities fail closed.",
+    "HTTP normalized operation binding and single-use consumption through the authority core.",
+    "EventHub first-frame authentication; no subscription/event without actor; actor rechecked on delivery and subscription.",
+    "Production audit adapter for authority receipts; no raw bodies or credentials in authority event projection.",
+    "Private Node IPC primitive added but NOT connected to startup/facade/legacy."
+  ],
+  "static": {
+    "diffCheck": {
+      "exit_code": 0
+    },
+    "nodeTypecheck": {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.node.json --noEmit",
+      "exit_code": 0
+    },
+    "browserTypecheck": {
+      "command": "node node_modules/typescript/bin/tsc -p browser/tsconfig.browser.json --noEmit",
+      "exit_code": 0
+    },
+    "targetedLint": {
+      "exit_code": 0,
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "focused": {
+    "command": "node --test tests/arch/execution-authority.test.ts tests/arch/capability-authority.test.ts",
+    "passed": 13,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "duration_ms": 1737.1744,
+    "exit_code": 0,
+    "classification": "10 isolated core UNIT cases; 3 composed INTEGRATION tests (HTTP unpaired direct/facade, direct TS pairing/action approval, direct TS WebSocket actor/revocation). Not whole-stack RUNTIME or full ACCEPTANCE."
+  },
+  "negative_evidence": [
+    "Unpaired direct TS and facade Git stage denied, zero captured executions.",
+    "Extra approved body values rejected by strict Git schema; schema-valid body without operation approval returns 409 APPROVAL_REQUIRED; zero captured executions.",
+    "Wrong operator decision, wrong actor consumption, modified paths, wrong task, forged bearer/internal actor headers denied.",
+    "Concurrent consumption: exactly one 200 and one 409; exactly one captured stage and no real Git mutation.",
+    "Unpaired/forged privileged WS subscriptions close1008 with no events; paired real event delivered; revocation closes1008 with no further delivery.",
+    "Core unit coverage: expiry/revocation/workspace mismatch/audit failure/delegated self-approval/replay. Not yet all composed."
+  ],
+  "history": [
+    {
+      "passed": 11,
+      "failed": 1,
+      "duration_ms": 808.4509,
+      "reason": "New fixture expected409 instead of schema400; diagnosed and corrected exact expectation."
+    },
+    {
+      "nodeTypecheck": 2,
+      "browserTypecheck": 0,
+      "targetedLint": 0,
+      "reason": "New fixture Headers iterable mismatch and inferred WebSocket types; corrected using forEach and explicit types."
+    }
+  ],
+  "production_modified": [
+    "common/contracts/audit.ts",
+    "node/src/events.ts",
+    "node/src/openapi.ts",
+    "node/src/server.ts",
+    "node/src/services/audit-trail.d.mts",
+    "node/src/services/audit-trail.mjs"
+  ],
+  "production_added": [
+    "common/contracts/authority.ts",
+    "common/security/operation-policy.mjs",
+    "common/security/operation-policy.d.mts",
+    "common/security/authority-channel.mjs",
+    "common/security/authority-channel.d.mts",
+    "node/src/routes/authority.ts",
+    "node/src/services/execution-authority.mjs",
+    "node/src/services/execution-authority.d.mts"
+  ],
+  "tests_added": [
+    "tests/arch/execution-authority.test.ts",
+    "tests/arch/capability-authority.test.ts",
+    "tests/arch/authority-fixture.ts",
+    "tests/unit/test-owned-process.mjs"
+  ],
+  "not_run": [
+    "Full lint",
+    "Frontend build",
+    "Contract generation/idempotence; common/openapi.json has not been regenerated",
+    "Architecture battery",
+    "Full browser/facade authenticated positive path",
+    "Private IPC integration/bootstrap",
+    "Legacy private adapter enforcement",
+    "Checkpoint D agent/desktop/Telegram canonical authority integration",
+    "Checkpoint E ownership panic repair and live fixture tests",
+    "Checkpoint F full adversarial matrix",
+    "Real-model acceptance (not required for 2A)"
+  ],
+  "native": {
+    "files_changed": [],
+    "compilation": "DEFERRED — RUST TOOLCHAIN UNAVAILABLE",
+    "startup": "DEFERRED — RUST TOOLCHAIN UNAVAILABLE"
+  },
+  "integrity": {
+    "protected_files_checked": 38,
+    "changed_protected_paths": [],
+    "checked_test_pids": [
+      18296,
+      10632,
+      15212,
+      21224,
+      20304
+    ],
+    "remaining_checked_test_pids": [],
+    "checked_fixture_ports": [
+      64907,
+      64908,
+      54209,
+      54210,
+      53030,
+      53031,
+      52188,
+      52189,
+      65179,
+      65180
+    ],
+    "remaining_checked_fixture_listeners": [],
+    "operator_processes_terminated": 0,
+    "committed": false,
+    "pushed": false
+  },
+  "warnings": [
+    "Normal frontend/bootstrap clients have NOT been migrated: do not launch or deploy this partial worktree as a usable secured stack.",
+    "Direct legacy and desktop panic P0 remain unrepaired; facade relies on downstream TS enforcement in the negative regression only.",
+    "Only an initial explicit HTTP route subset is enrolled. No blanket allow fallback.",
+    "EventHub fixture migrations approved previously remain pending; five additional direct-service fixtures require approval.",
+    "User now requests pushing completed updates to GitHub; no partial checkpoint was committed/pushed."
+  ],
+  "assessment": "NOT ACCEPTANCE-READY"
+}

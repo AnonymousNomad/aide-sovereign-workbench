@@ -6,11 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
 import type { TaskEventT } from '../../common/contracts/tasks.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-b2-problems-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 const TSC_LINE = "src/index.ts(10,5): error TS2304: Cannot find name 'foo'.";
 const TASKS_JSON = JSON.stringify({
@@ -34,6 +36,29 @@ const TASKS_JSON = JSON.stringify({
 });
 
 const events: Array<{ channel: string; data: TaskEventT }> = [];
+const pendingDecisions = new Set<Promise<void>>();
+const decisionErrors: unknown[] = [];
+
+// Per-command operations proposed by the task service are answered live by the
+// paired operator; nothing is approved before the service proposes it.
+function approvePendingOperation(event: TaskEventT): void {
+  if (event.event !== 'authority' || event.authority_state.state !== 'pending') return;
+  const id = event.authority_state.operation_id;
+  if (!id) return;
+  const decision = (async () => {
+    const response = await owner.decide(id, 'approve');
+    assert.equal(response.status, 200);
+    const envelope = (await response.json()) as { ok: boolean };
+    assert.equal(envelope.ok, true);
+  })();
+  pendingDecisions.add(decision);
+  void decision.catch(error => decisionErrors.push(error)).finally(() => pendingDecisions.delete(decision));
+}
+
+async function drainDecisions(): Promise<void> {
+  for (const decision of [...pendingDecisions]) await decision.catch(() => {});
+  if (decisionErrors.length > 0) throw new AggregateError(decisionErrors, 'pending operator decisions failed');
+}
 
 before(async () => {
   await fs.mkdir(path.join(workspace, '.vscode'), { recursive: true });
@@ -42,9 +67,13 @@ before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
   const routes = await buildRoutes(workspace, 'test', {
+    authority: server.authority,
     events: {
       publish: (channel: string, data: unknown) => {
-        if (channel === 'tasks') events.push({ channel, data: data as TaskEventT });
+        if (channel !== 'tasks') return;
+        const event = data as TaskEventT;
+        events.push({ channel, data: event });
+        approvePendingOperation(event);
       },
       attach: () => {},
       close: () => {},
@@ -56,9 +85,14 @@ before(async () => {
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
+  await drainDecisions();
+  server.events.close();
+  await server.logger.flush();
+  httpServer.closeAllConnections?.();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
@@ -73,14 +107,24 @@ after(async () => {
 
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
-async function post<T>(pathName: string, payload: unknown): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+async function post<T>(pathName: string, payload: unknown, headers: Record<string, string> = {}): Promise<{ status: number; body: Envelope<T> }> {
+  const response = await owner.request(pathName, {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30000)
+  });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
 async function get<T>(pathName: string): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`);
+  const response = await owner.request(pathName, { signal: AbortSignal.timeout(30000) });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
+}
+
+async function runTask<T>(label: string, taskId: string): Promise<{ status: number; body: Envelope<T> }> {
+  const headers = await owner.approve('POST', '/api/tasks/run', { label }, taskId);
+  return post<T>('/api/tasks/run', { label }, headers);
 }
 
 function waitForEvent(predicate: (event: TaskEventT) => boolean, label: string): Promise<TaskEventT> {
@@ -172,7 +216,7 @@ test('POST /api/problems/parse accepts matcher arrays and merges results without
 });
 
 test('running a task with $tsc emits resolved diagnostics over the tasks event channel', async () => {
-  const run = await post<{ job_id: string }>('/api/tasks/run', { label: 'typecheck demo' });
+  const run = await runTask<{ job_id: string }>('typecheck demo', 'task-run-typecheck-demo');
   assert.equal(run.status, 200);
   const jobId = run.body.data!.job_id;
 
@@ -190,7 +234,7 @@ test('running a task with $tsc emits resolved diagnostics over the tasks event c
 });
 
 test('tasks referencing an unknown matcher fail fast with BAD_REQUEST before spawn', async () => {
-  const run = await post('/api/tasks/run', { label: 'bad matcher' });
+  const run = await runTask('bad matcher', 'task-run-bad-matcher');
   assert.equal(run.status, 400);
   assert.equal(run.body.error?.code, 'BAD_REQUEST');
   assert.match(run.body.error?.message ?? '', /unknown problem matcher/);

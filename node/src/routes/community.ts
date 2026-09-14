@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { RouteError, type Route } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import {
   CommunityItemAddRequest,
   CommunityItemOperationRequest,
@@ -12,6 +14,16 @@ import {
   type CommunityRootT
 } from '../../../common/contracts/community.ts';
 import type { CommunityStore } from '../../../community/store.mjs';
+
+// Item mutations bind the exact collection, target index and content. The
+// store file anchors the workspace and the descriptor fails closed otherwise.
+function operationFor(store: CommunityStore, taskId: string, body: unknown): OperationInput {
+  const file = (store as unknown as { file?: unknown }).file;
+  if (typeof file !== 'string') throw new RouteError('FORBIDDEN', 'workspace anchor unavailable');
+  const aideDir = path.dirname(file);
+  if (path.basename(aideDir) !== '.aide') throw new RouteError('FORBIDDEN', 'workspace anchor unavailable');
+  return { workspace: path.dirname(aideDir), taskId, kind: 'capability.write', args: { body } };
+}
 
 export function routeForCommunityList(store: CommunityStore): Route {
   return {
@@ -28,6 +40,7 @@ export function routeForCommunityAdd(store: CommunityStore): Route {
     path: '/api/community/items',
     body: CommunityItemAddRequest,
     response: CommunityItemResponse,
+    describeOperation: async (ctx, taskId) => operationFor(store, taskId, ctx.body),
     handler: async ({ body }): Promise<CommunityItemResponseT> => {
       const input = body as unknown as CommunityItemAddRequestT;
       try {
@@ -45,6 +58,7 @@ export function routeForCommunityUpdate(store: CommunityStore): Route {
     path: '/api/community/items',
     body: CommunityItemUpdateRequest,
     response: CommunityItemResponse,
+    describeOperation: async (ctx, taskId) => operationFor(store, taskId, ctx.body),
     handler: async ({ body }): Promise<CommunityItemResponseT> => {
       const input = body as unknown as CommunityItemUpdateRequestT;
       try {
@@ -62,6 +76,7 @@ export function routeForCommunityRemove(store: CommunityStore): Route {
     path: '/api/community/items',
     body: CommunityItemOperationRequest,
     response: CommunityItemResponse,
+    describeOperation: async (ctx, taskId) => operationFor(store, taskId, ctx.body),
     handler: async ({ body }): Promise<CommunityItemResponseT> => {
       const input = body as unknown as CommunityItemOperationRequestT;
       try {

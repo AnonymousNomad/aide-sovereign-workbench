@@ -1,4 +1,5 @@
-import { type Route } from '../server.ts';
+import { RouteError, type Route } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 import { MemoryDigestResponse, MemoryDigestsQuery, MemoryDigestsResponse } from '../../../common/contracts/memory.ts';
 import { createRequire } from 'node:module';
 
@@ -10,9 +11,25 @@ const helixJoin = require('../../../harness/helix-join.mjs');
 const helixRetention = require('../../../harness/helix-retention.mjs');
 
 export type MemoryService = {
+  workspace: string;
   listDigests(query: { from?: string; to?: string }): Promise<{ digests: unknown[]; refreshed: string[] }>;
   digest(): Promise<{ refreshed: string[] }>;
 };
+
+// The digests route refreshes day digests and drives the Helix cascade, so it
+// is a durable operation and must be authorized as one. The range is
+// normalized here and bound into the operation exactly as the handler will
+// apply it; absent bounds mean "all recorded dates" (explicit null).
+export function normalizeDigestRange(query: unknown): { from: string | null; to: string | null } {
+  const q = (query ?? {}) as { from?: string; to?: string };
+  return { from: q.from ?? null, to: q.to ?? null };
+}
+
+function assertDigestRange(range: { from: string | null; to: string | null }): void {
+  if (range.from !== null && range.to !== null && range.to < range.from) {
+    throw new RouteError('BAD_REQUEST', 'digest range is inverted');
+  }
+}
 
 const CASCADE_TIMEOUT_MS = 1500;
 
@@ -37,6 +54,7 @@ async function runHelixCascade(workspace: string): Promise<void> {
 
 export function createMemoryService(workspace: string): MemoryService {
   return {
+    workspace,
     async listDigests(query) {
       // Refresh-on-read keeps digests honest without a background scheduler
       // (X1.c adds idle-triggered consolidation later; this stays correct
@@ -70,12 +88,29 @@ export function routesForMemory(service: MemoryService): Route[] {
       path: '/api/memory/digests',
       query: MemoryDigestsQuery,
       response: MemoryDigestsResponse,
-      handler: async ({ query }) => service.listDigests(query as { from?: string; to?: string })
+      describeOperation: async ({ query }, taskId): Promise<OperationInput> => {
+        const range = normalizeDigestRange(query);
+        assertDigestRange(range);
+        return { workspace: service.workspace, taskId, kind: 'capability.write', args: { body: range } };
+      },
+      handler: async ({ query }) => {
+        const range = normalizeDigestRange(query);
+        assertDigestRange(range);
+        return service.listDigests({
+          ...(range.from !== null ? { from: range.from } : {}),
+          ...(range.to !== null ? { to: range.to } : {})
+        });
+      }
     },
     {
       method: 'POST',
       path: '/api/memory/digest',
       response: MemoryDigestResponse,
+      // No caller inputs: the approved operation is "refresh all day digests
+      // and drive the bounded Helix cascade" for this workspace.
+      describeOperation: async (_ctx, taskId): Promise<OperationInput> => ({
+        workspace: service.workspace, taskId, kind: 'capability.write', args: { body: {} }
+      }),
       handler: async () => service.digest()
     }
   ];

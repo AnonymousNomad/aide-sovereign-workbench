@@ -5,21 +5,24 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-hardware-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', { events: server.events });
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -39,7 +42,7 @@ const TIER_RE = /^(S|M|L|XL)$/;
 const BACKEND_RE = /^(vulkan|cuda|cpu|apple)$/;
 
 test('hardware profile reports real RAM/CPU/VRAM with tier + backend', async () => {
-  const response = await fetch(`${base}/api/hardware/profile`);
+  const response = await owner.request('/api/hardware/profile');
   assert.equal(response.status, 200);
   const envelope = (await response.json()) as { ok: boolean; data?: Record<string, unknown> };
   const profile = envelope.data!;
@@ -53,7 +56,7 @@ test('hardware profile reports real RAM/CPU/VRAM with tier + backend', async () 
 });
 
 test('recommend returns exactly three roles with real pack ids and honest fit', async () => {
-  const response = await fetch(`${base}/api/hardware/recommend`);
+  const response = await owner.request('/api/hardware/recommend');
   assert.equal(response.status, 200);
   const envelope = (await response.json()) as {
     ok: boolean;
@@ -79,8 +82,8 @@ test('recommend returns exactly three roles with real pack ids and honest fit', 
 });
 
 test('profile is stable across calls (deterministic probe data)', async () => {
-  const a = (await (await fetch(`${base}/api/hardware/profile`)).json()) as { data: { tier: string; logicalCpus: number; totalRamBytes: number } };
-  const b = (await (await fetch(`${base}/api/hardware/profile`)).json()) as { data: { tier: string; logicalCpus: number; totalRamBytes: number } };
+  const a = (await (await owner.request('/api/hardware/profile')).json()) as { data: { tier: string; logicalCpus: number; totalRamBytes: number } };
+  const b = (await (await owner.request('/api/hardware/profile')).json()) as { data: { tier: string; logicalCpus: number; totalRamBytes: number } };
   assert.equal(a.data.tier, b.data.tier);
   assert.equal(a.data.logicalCpus, b.data.logicalCpus);
   assert.equal(a.data.totalRamBytes, b.data.totalRamBytes);

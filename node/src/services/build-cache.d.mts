@@ -1,3 +1,6 @@
+import type { ExecutionAuthority, ExecutionHandle } from './execution-authority.mjs';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
+export class CacheBoundaryError extends Error { code: string; detail: Record<string, unknown>; }
 export interface CacheManifest {
   key: string;
   label: string;
@@ -28,13 +31,14 @@ export interface CachedRestore {
 }
 
 export class BuildCache {
-  constructor(options?: { workspace?: string; dir?: string; maxEntries?: number; maxBytes?: number });
+  constructor(options: { workspace: string; dir?: string; authority?: ExecutionAuthority; maxEntries?: number; maxBytes?: number });
   readonly workspace: string | undefined;
   readonly dir: string;
   has(key: string): boolean;
-  get(key: string): Promise<CachedRestore | null>;
-  record(manifest: CacheManifest, logText: string, problems: unknown[]): Promise<void>;
-  clear(): number;
+  describe(action: 'record' | 'get' | 'clear', payload: unknown, taskId: string): OperationInput & { args: { body: Record<string, unknown> } };
+  get(key: string, execution?: ExecutionHandle): Promise<CachedRestore | null>;
+  record(manifest: CacheManifest, logText: string, problems: unknown[], execution?: ExecutionHandle): Promise<void>;
+  clear(execution?: ExecutionHandle): number;
   stats(): CacheStats;
 }
 

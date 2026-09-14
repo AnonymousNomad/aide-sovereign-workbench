@@ -5,22 +5,25 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-p3-arch-'));
 await fs.writeFile(path.join(workspace, 'sample.ts'), 'export const answer = 42;\n');
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', { events: server.events });
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -38,15 +41,16 @@ after(async () => {
 });
 
 async function putSetting(values: Record<string, unknown>) {
-  return fetch(`${base}/api/settings`, {
+  const headers = await owner.approve('PUT', '/api/settings', { values }, 'editor-options');
+  return owner.request('/api/settings', {
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ values })
   });
 }
 
 test('editor options endpoint returns defaults inside a strict envelope', async () => {
-  const response = await fetch(`${base}/api/editor/options`);
+  const response = await owner.request('/api/editor/options');
   assert.equal(response.status, 200);
   const envelope = (await response.json()) as { ok?: boolean; data?: Record<string, unknown>; error?: unknown };
   assert.equal(envelope.ok, true);
@@ -69,7 +73,7 @@ test('settings writes are reflected through clamped editor options', async () =>
   });
   assert.equal(put.status, 200);
 
-  const response = await fetch(`${base}/api/editor/options`);
+  const response = await owner.request('/api/editor/options');
   const envelope = (await response.json()) as { data?: Record<string, unknown> };
   const data = envelope.data ?? {};
   assert.equal(data.fontSize, 48, 'fontSize clamped to documented max');

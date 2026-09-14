@@ -12,12 +12,22 @@ import type {
   OnboardingUserChoicesT
 } from '../../common/contracts/onboarding.ts';
 
+export declare class OnboardingConflictError extends Error {
+  constructor(message?: string);
+  name: 'ONBOARDING_CONFLICT';
+}
+
+export declare interface OnboardingExpectedState {
+  from_step?: OnboardingStateT['current_step'];
+  walkthrough_complete?: boolean;
+}
+
 export declare interface OnboardingService {
   getState(): Promise<OnboardingStateT>;
   setState(next: OnboardingStateT): Promise<OnboardingStateT>;
-  nextStep(partial?: Partial<OnboardingUserChoicesT>): Promise<OnboardingNextResponseT>;
-  skipStep(partial?: Partial<OnboardingUserChoicesT>): Promise<OnboardingStateT>;
-  complete(): Promise<OnboardingStateT>;
+  nextStep(partial?: Partial<OnboardingUserChoicesT>, expected?: OnboardingExpectedState): Promise<OnboardingNextResponseT>;
+  skipStep(partial?: Partial<OnboardingUserChoicesT>, expected?: OnboardingExpectedState): Promise<OnboardingStateT>;
+  complete(expected?: OnboardingExpectedState): Promise<OnboardingStateT>;
 }
 
 export declare function createOnboardingService(options: { workspace: string }): OnboardingService;

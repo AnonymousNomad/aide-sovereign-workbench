@@ -105,11 +105,25 @@ interface PythonCandidate {
 
 const ALLOWED_ARCHITECTURES = ['llama', 'qwen2'];
 
+// Pure registration-filename validation shared by the HTTP descriptor (before
+// approval) and register() (at execution) so the approved target is the target
+// executed. Rejections are deterministic and never rewrite the identifier.
+export function validateRegistrationFilename(modelDir: string, filename: unknown): string {
+  const rel = String(filename || '');
+  if (!/\.gguf$/i.test(rel)) throw new ModelRuntimeError('BAD_REQUEST', 'only .gguf artifacts can be registered');
+  if (rel.includes('\\') || rel.startsWith('/') || rel.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
+    throw new ModelRuntimeError('BAD_REQUEST', 'filename must be a relative path of safe segments');
+  }
+  const file = path.resolve(modelDir, rel);
+  if (!file.startsWith(`${path.resolve(modelDir)}${path.sep}`)) throw new ModelRuntimeError('BAD_REQUEST', 'path escaped model directory');
+  return rel;
+}
+
 export class ModelRuntime {
-  private readonly workspace: string;
+  readonly workspace: string;
   private readonly manifestPath: string;
   private readonly ingestedPath: string;
-  private readonly modelDir: string;
+  readonly modelDir: string;
   private readonly spawnChild: typeof spawn;
   private readonly logger: ModelRuntimeOptions['logger'];
   private readonly onStatusChange: NonNullable<ModelRuntimeOptions['onStatusChange']>;
@@ -868,13 +882,8 @@ export class ModelRuntime {
   // store (ingested-models.json), NOT the checked-in manifest.json — the
   // manifest stays pristine (git clean); the ingested store survives restarts.
   async register(options: { filename: string; repo_id?: string; quant_label?: string; context_tokens?: number }): Promise<{ id: string; status: string; endpoint: string }> {
-    const rel = String(options.filename || '');
-    if (!/\.gguf$/i.test(rel)) throw new ModelRuntimeError('BAD_REQUEST', 'only .gguf artifacts can be registered');
-    if (rel.includes('\\') || rel.startsWith('/') || rel.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
-      throw new ModelRuntimeError('BAD_REQUEST', 'filename must be a relative path of safe segments');
-    }
+    const rel = validateRegistrationFilename(this.modelDir, options.filename);
     const file = path.resolve(this.modelDir, rel);
-    if (!file.startsWith(`${path.resolve(this.modelDir)}${path.sep}`)) throw new ModelRuntimeError('BAD_REQUEST', 'path escaped model directory');
     const stat = await fs.stat(file).catch(() => {
       throw new ModelRuntimeError('BAD_REQUEST', `artifact not found in models directory: ${rel}`);
     });

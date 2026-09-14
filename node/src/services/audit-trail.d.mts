@@ -12,6 +12,7 @@ export interface AuditEvent {
 }
 
 export interface AuditTrailService {
+  emitAuthority(event: Readonly<Record<string, unknown>>): Promise<PersistenceResult>;
   emitChat(event: { task: string; modelId?: string; source?: string; extra?: Record<string, unknown> }): Promise<PersistenceResult>;
   emitAgentStart(event: { sessionId: string; mode: string; task: string; bundleId?: string; chatSource?: string; extra?: Record<string, unknown> }): Promise<PersistenceResult>;
   emitAgentMessage(event: { sessionId: string; role: string; content: string; iteration?: number; extra?: Record<string, unknown> }): Promise<PersistenceResult>;

@@ -7,11 +7,13 @@ import path from 'node:path';
 import { WebSocket } from 'ws';
 import { ArchServer } from '../../node/src/server.ts';
 import { AgentStreamEvent } from '../../common/contracts/agent.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-a1-arch-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 const scriptedReplies: string[] = [];
 let scriptIndex = 0;
@@ -21,6 +23,8 @@ before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-a1.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
   const routes = await buildRoutes(workspace, 'test', {
+    authority: server.authority,
+    events: server.events,
     agentChatFn: async () => {
       const reply = scriptedReplies[Math.min(scriptIndex, scriptedReplies.length - 1)] ?? '';
       scriptIndex += 1;
@@ -32,9 +36,13 @@ before(async () => {
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
+  server.events.close();
+  await server.logger.flush();
+  httpServer.closeAllConnections?.();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
@@ -49,21 +57,43 @@ after(async () => {
 
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
-async function post<T>(pathName: string, payload: unknown): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+async function post<T>(pathName: string, payload: unknown, headers: Record<string, string> = {}): Promise<{ status: number; body: Envelope<T> }> {
+  const response = await owner.request(pathName, {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30000)
+  });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
 async function get<T>(pathName: string): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`);
+  const response = await owner.request(pathName, { signal: AbortSignal.timeout(30000) });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
+}
+
+async function startSession<T>(payload: { task: string; mode?: 'plan' | 'act'; chat_source?: 'local' | 'provider' }, taskId: string): Promise<{ status: number; body: Envelope<T> }> {
+  const headers = await owner.approve('POST', '/api/agent/start', payload, taskId);
+  return post<T>('/api/agent/start', payload, headers);
+}
+
+async function decideSession<T>(sessionId: string, approvalId: string, decision: 'approve' | 'reject' | 'abort', taskId: string): Promise<{ status: number; body: Envelope<T> }> {
+  const payload = { session_id: sessionId, approval_id: approvalId, decision };
+  const headers = await owner.approve('POST', '/api/agent/decision', payload, taskId);
+  return post<T>('/api/agent/decision', payload, headers);
 }
 
 function wsSubscribe(channels: string[]): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
     const url = base.replace('http://', 'ws://') + '/ws';
-    const socket = new WebSocket(url);
-    socket.on('open', () => {
+    const token = owner.headers.Authorization.slice(7);
+    const socket = new WebSocket(url, { headers: { Origin: 'http://fixture.local' } });
+    const timer = setTimeout(() => reject(new Error('ws auth timeout')), 5000);
+    socket.on('open', () => socket.send(JSON.stringify({ type: 'authenticate', token })));
+    socket.on('message', raw => {
+      const message = JSON.parse(String(raw)) as { type?: string };
+      if (message.type !== 'authenticated') return;
+      clearTimeout(timer);
       socket.send(JSON.stringify({ type: 'subscribe', channels }));
       resolve(socket);
     });
@@ -129,7 +159,7 @@ test('agent routes enforce strict contracts and error envelopes', async () => {
   const badDecision = await post('/api/agent/decision', { session_id: 'nope', approval_id: 'nope', decision: 'maybe' });
   assert.equal(badDecision.status, 400);
 
-  const decisionUnknownSession = await post('/api/agent/decision', { session_id: 'nope', approval_id: 'nope', decision: 'approve' });
+  const decisionUnknownSession = await decideSession('nope', 'nope', 'approve', 'task:agent-decision-unknown');
   assert.equal(decisionUnknownSession.status, 404);
 });
 
@@ -145,27 +175,30 @@ test('e2e scripted session over HTTP: read → approved write → done, zero egr
 
   const socket = await wsSubscribe(['agent']);
   void nextEvent(socket);
-  const start = await post<{ session_id: string }>('/api/agent/start', { task: 'update the readme greeting', mode: 'act' });
+  const start = await startSession<{ session_id: string }>({ task: 'update the readme greeting', mode: 'act' }, 'task:agent-e2e-start');
   assert.equal(start.status, 200);
   const sessionId = start.body.data?.session_id as string;
   assert.ok(sessionId);
 
   let sawApproval = false;
+  let sawToolApproval = false;
+  let lastDecided: string | null = null;
   const deadline = Date.now() + 15000;
   let finalState = '';
   while (Date.now() < deadline) {
-    const status = await get<{ state: string; pending_approval: { approval_id: string } | null }>(`/api/agent/status?id=${sessionId}`);
+    const status = await get<{ state: string; pending_approval: { approval_id: string; tool?: string } | null }>(`/api/agent/status?id=${sessionId}`);
     finalState = status.body.data?.state ?? '';
-    if (finalState === 'awaiting_approval' && !sawApproval && status.body.data?.pending_approval) {
+    if (finalState === 'awaiting_approval' && status.body.data?.pending_approval && status.body.data.pending_approval.approval_id !== lastDecided) {
       sawApproval = true;
-      const decision = await post('/api/agent/decision', {
-        session_id: sessionId,
-        approval_id: status.body.data.pending_approval.approval_id,
-        decision: 'approve'
-      });
+      const pending = status.body.data.pending_approval;
+      lastDecided = pending.approval_id;
+      const decision = await decideSession(sessionId, pending.approval_id, 'approve', `task:agent-e2e-decision-${pending.approval_id}`);
       assert.equal(decision.status, 200);
-      assert.equal(scriptedReplies.length, 2);
-      scriptedReplies.push('<attempt_completion>\n<result>readme updated</result>\n</attempt_completion>');
+      if (pending.tool !== 'checkpoint.snapshot' && !sawToolApproval) {
+        sawToolApproval = true;
+        assert.equal(scriptedReplies.length, 2, 'the model must not be called again before the write decision');
+        scriptedReplies.push('<attempt_completion>\n<result>readme updated</result>\n</attempt_completion>');
+      }
       continue;
     }
     if (['done', 'error', 'aborted'].includes(finalState)) break;
@@ -185,7 +218,7 @@ test('e2e scripted session over HTTP: read → approved write → done, zero egr
 
 // --- H2 chat_source provider guards ---
 test('agent: chat_source provider without consent is refused FORBIDDEN before any egress', async () => {
-  const res = await post('/api/agent/start', { task: 'route me to a provider', mode: 'act', chat_source: 'provider' });
+  const res = await startSession({ task: 'route me to a provider', mode: 'act', chat_source: 'provider' }, 'task:agent-provider-consent');
   assert.equal(res.status, 403);
   assert.equal(res.body.ok, false);
   assert.match(res.body.error?.message ?? '', /consent/i);
@@ -193,7 +226,7 @@ test('agent: chat_source provider without consent is refused FORBIDDEN before an
 
 test('agent: chat_source local (explicit) starts normally with scripted replies', async () => {
   scriptedReplies.push('<attempt_completion>\n<result>local-ok</result>\n</attempt_completion>');
-  const res = await post<{ session_id: string }>('/api/agent/start', { task: 'local only', mode: 'act', chat_source: 'local' });
+  const res = await startSession<{ session_id: string }>({ task: 'local only', mode: 'act', chat_source: 'local' }, 'task:agent-local-start');
   assert.equal(res.status, 200);
   assert.match(res.body.data!.session_id, /-/);
 });

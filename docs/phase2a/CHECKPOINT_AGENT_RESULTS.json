@@ -1,0 +1,111 @@
+{
+  "baseline": {
+    "branch": "covert-production",
+    "head": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58"
+  },
+  "verdict": "NOT ACCEPTANCE-READY",
+  "stop": "BuildCache destructive-target boundary expansion required",
+  "filesThisTurn": {
+    "production": [
+      "common/security/operation-policy.mjs",
+      "node/src/services/execution-authority.mjs",
+      "node/src/services/execution-authority.d.mts",
+      "node/src/services/agent-checkpoints.mjs",
+      "node/src/services/agent-checkpoints.d.mts",
+      "node/src/services/agent-loop.mjs",
+      "node/src/services/agent-loop.d.mts",
+      "node/src/services/agent-tools.mjs",
+      "node/src/services/agent-tools.d.mts",
+      "node/src/routes/agent.ts",
+      "node/src/openapi.ts"
+    ],
+    "tests": [
+      "tests/unit/test-a1-agent.mjs",
+      "tests/unit/test-agent-loop-tier.mjs",
+      "tests/arch/authority-fixture.ts",
+      "tests/arch/capability-authority.test.ts",
+      "tests/integration/test-desktop-panic-ownership.mjs"
+    ]
+  },
+  "commands": {
+    "combined": "node --test tests/arch/execution-authority.test.ts tests/arch/capability-authority.test.ts scripts/telegram-brain-battery.mjs tests/unit/test-owned-process.mjs tests/integration/test-desktop-panic-ownership.mjs tests/integration/test-authority-launch.mjs tests/unit/test-a1-agent.mjs tests/unit/test-agent-loop-tier.mjs",
+    "backend": "node node_modules/typescript/bin/tsc -p tsconfig.node.json --noEmit",
+    "browser": "node node_modules/typescript/bin/tsc -p browser/tsconfig.browser.json --noEmit"
+  },
+  "results": {
+    "combined": {
+      "chunk_id": "80c93f",
+      "wall_time_seconds": 6.7421796,
+      "exit_code": 1,
+      "original_token_count": 2389,
+      "output": "✔ parseProposal accepts DSL forms and rejects prose/unknown ops (3.753ms)\n✔ /ask with ready engine proposes action and YES executes through grants (10.9664ms)\n✔ NO cancels without execution; expired proposals refuse (3.184ms)\n✔ no engine READY yields honest guidance, not a fake promise (2.141ms)\n✔ Telegram cannot forge identity, approval, ingress, action arguments or replay (6.0072ms)\n{\"cacheScopeFixture\":\"E:\\\\pip_temp\\\\phase2a-cache-scope-bqJx2z\",\"capturedDeletionTargets\":[\"E:\\\\pip_temp\\\\phase2a-cache-scope-bqJx2z\\\\source.log\",\"E:\\\\pip_temp\\\\phase2a-cache-scope-bqJx2z\\\\source.problems.json\"],\"outsideCacheTargets\":[\"E:\\\\pip_temp\\\\phase2a-cache-scope-bqJx2z\\\\source.log\",\"E:\\\\pip_temp\\\\phase2a-cache-scope-bqJx2z\\\\source.problems.json\"],\"realDeletions\":0,\"errorObserved\":null}\n✖ cache eviction cannot turn workspace-controlled index keys into out-of-cache deletion (23.2989ms)\n{\"telegramFixture\":\"E:\\\\pip_temp\\\\phase2a-telegram-http-x6jKtn\",\"port\":60697,\"negativeCases\":10,\"approvedIdentityBindings\":1,\"networkCalls\":0}\n✔ Telegram HTTP routes propagate canonical authority and never grant from payloads (290.6519ms)\n{\"pid\":18840,\"workspace\":\"E:\\\\pip_temp\\\\opencode\\\\phase2a-authority-PHrrCh\",\"observations\":[{\"port\":60704,\"status\":403,\"body\":{\"ok\":false,\"error\":{\"code\":\"FORBIDDEN\",\"message\":\"authenticated actor required\"}}},{\"port\":60705,\"status\":403,\"body\":{\"error\":\"authenticated actor required\",\"code\":\"FORBIDDEN\"}}],\"capturedExecutions\":0,\"realGitMutation\":false}\n{\"cleanup\":\"closed\",\"archListening\":false,\"facadeListening\":false}\n✔ unpaired capability callers cannot stage through direct TS or facade (21.5778ms)\n✔ privileged WebSocket subscription requires paired actor; revocation stops delivery (40.6199ms)\n{\"pid\":18840,\"workspace\":\"E:\\\\pip_temp\\\\phase2a-http-oyjTx6\",\"closed\":true,\"capturedExecutions\":1,\"realGitMutation\":false}\n✔ real HTTP pairing and action-bound approval preserve Git reads and deny forgery/replay (133.8888ms)\n✔ pairing requires a single-use supervisor proof; claims and origins cannot mint actors (12.1572ms)\n✔ authentication is not mutation approval; forged approved fields confer nothing (8.1308ms)\n✔ read-only policy needs no mutation approval and execution is still single-use (2.2478ms)\n✔ approved immutable descriptor binds content, task, operation, actor and workspace (3.3725ms)\n✔ agent cannot self-approve or acquire permission-administration scope (2.0811ms)\n✔ expiry and revocation prevent execution with zero side effects (2.4026ms)\n✔ concurrent replay cannot cross a pending audit write (1.4852ms)\n✔ revocation during audit persistence stops the reserved operation (0.9091ms)\n✔ required decision/consumption receipts fail closed; completion failure never permits replay (3.1692ms)\n✔ unknown operations and malformed non-JSON descriptors are rejected (2.1132ms)\n✔ execution handles are opaque, argument-bound and invalid after executor returns (1.1314ms)\n✔ Telegram identities need private ingress proof, exact action confirmation and single-use consumption (3.0355ms)\n✔ Telegram confirmation cannot cross expiry, revocation or another adapter binding (11.9238ms)\nPOST /api/authority/pair -> ts 200 20ms\nPOST /api/file/write -> ts 409 4ms\nPOST /api/authority/prepare -> ts 200 12ms\nPOST /api/authority/decision -> ts 200 13ms\nPOST /api/file/write -> ts 409 4ms\nPOST /api/file/write -> ts 200 24ms\nPOST /api/file/write -> ts 409 3ms\nPOST /api/authority/prepare -> ts 200 9ms\nPOST /api/authority/decision -> ts 200 9ms\nGET /api/file -> ts 200 22ms\n{\"workspace\":\"E:\\\\pip_temp\\\\phase2a-stack-YcIDYE\",\"fixturePids\":[4968,10972],\"ports\":[60700,60696,60701],\"negativeHttpCases\":9,\"approvedWorkspaceWrites\":2,\"realModelAcceptance\":\"NOT_RUN\"}\n{\"fixtureChildrenExited\":[{\"pid\":4968,\"exitCode\":null,\"signalCode\":\"SIGTERM\"},{\"pid\":10972,\"exitCode\":null,\"signalCode\":\"SIGTERM\"}]}\n✔ real supervisor -> facade/direct TS/legacy: pairing, bound write and denial without fallback (1695.6631ms)\n{\"mode\":\"throw\",\"fixturePid\":8444,\"outcome\":{\"id\":\"b5e59614-6b58-47cb-ba64-2efab276c571\",\"pid\":8444,\"status\":\"failed\",\"killed\":false,\"error\":\"injected native termination failure\"},\"disarmed\":true,\"attempts\":1}\n{\"mode\":\"refuse\",\"fixturePid\":2764,\"outcome\":{\"id\":\"5ca88221-3896-4eec-964e-60f1ee7f3ef0\",\"pid\":2764,\"status\":\"failed\",\"killed\":false,\"error\":\"native process handle did not accept termination\"},\"disarmed\":true,\"attempts\":1}\n{\"mode\":\"unconfirmed\",\"fixturePid\":10572,\"outcome\":{\"id\":\"349976f7-c0ce-4090-80a2-db152d7df30a\",\"pid\":10572,\"status\":\"unconfirmed\",\"killed\":false,\"error\":\"exit not observed before deadline\"},\"disarmed\":true,\"attempts\":1}\n✔ owned termination errors and unconfirmed exits are truthful, disarmed, and never retried (130.4224ms)\n{\"ownedPid\":8060,\"unrelatedPid\":2608,\"sameExecutable\":true,\"sameArguments\":true,\"unrelatedSurvived\":true,\"outcomes\":[{\"id\":\"c2b0d8c9-67c4-4f26-ad3d-06e060cc0b76\",\"pid\":8060,\"status\":\"terminated\",\"killed\":true,\"exit\":{\"code\":null,\"signal\":\"SIGTERM\",\"error\":null}}]}\n✔ owned native child termination never targets an unrelated identical command or forged PID handle (61.1287ms)\n✔ panic racing spawn revokes launch and observes its exit, with no detached survivor (15.3693ms)\n✔ an exited original process handle cannot authorize a new termination (125.8233ms)\n{\"workspace\":\"E:\\\\pip_temp\\\\phase2a-desktop-vTTkPH\",\"unrelatedPid\":21488,\"ownedOutcomes\":[{\"id\":\"37c5de5b-2230-4784-b338-48efbffd21cf\",\"pid\":19392,\"status\":\"terminated\",\"killed\":true,\"exit\":{\"code\":null,\"signal\":\"SIGTERM\",\"error\":null}}],\"unrelatedSurvived\":true,\"repeatedPanicKilled\":0}\n✔ real desktop grant/action/panic uses canonical approvals and protects identical unrelated child (123.5165ms)\n✔ checkpoint authority: direct calls and forged approvals cannot initialize or mutate (21.8549ms)\n✔ checkpoint authority: head lookup never initializes a checkpoint repository (9.0794ms)\n✔ checkpoint authority: exact target, replay, expiry and revocation deny without filesystem effects (1030.1194ms)\n✔ checkpoint authority: nested metadata restoration failure is surfaced with recovery paths (806.5554ms)\n✔ checkpoint authority: revocation during metadata movement restores exactly the moved metadata (403.7259ms)\n✔ checkpoint authority: agent awaits approved snapshot before dependent tool; failure stops continuation (800.6706ms)\n✔ agent authority: direct session and mutation-tool calls cannot approve themselves (4.0702ms)\n✔ parser extracts single and multiple calls with prose noise around them (3.4174ms)\n✔ parser rejects unknown tools and unclosed known params, ignores unknown pseudo-tags (3.0485ms)\n✔ path jail blocks traversal, absolute escapes and symlink escapes; allows inside paths (8.6378ms)\n✔ invisible characters are detected and flagged as risks for writes (2.6093ms)\n✔ computeRisks flags protected files and network commands (2.5841ms)\n✔ replace_in_file: exact, CRLF-normalized, indentation-loose, first-match-only, no-match error quality (3.5931ms)\n✔ splitCommandLine respects quotes (2.4048ms)\n✔ checkpoints: commit, mutate, restore returns prior content; user git untouched; nested repo preserved (2275.8218ms)\n✔ loop: scripted chatFn completes via attempt_completion after an approved write; approval gate blocks until decision (178.2028ms)\n✔ loop: reject feeds rejection to model; abort terminates session (210.5143ms)\n✔ loop: plan mode blocks write tools and counts mistakes; malformed calls hit mistake limit (34.0462ms)\n✔ loop: tool output is untrusted DATA — injected tool-call-looking output is never re-parsed (127.4191ms)\n✔ agent: start accepts chatFn override and the loop uses it instead of default chatFn (36.6596ms)\n✔ agent: nil override falls back to constructor chatFn (36.2654ms)\n✔ tier: default (no effectiveContextTokens) keeps the legacy full-credo prompt (267.3146ms)\n✔ tier: micro (<8192) swaps full credo for the 3-line operating layer but keeps the machine contract (40.8891ms)\n✔ tier: full (>=8192) composes credo via the scaffold, not the hand-rolled loader (44.5598ms)\n✔ tier: per-session override beats the loop-level default (48.6966ms)\n{\"workspace\":\"E:\\\\pip_temp\\\\opencode\\\\phase2a-panic-vsE6Ll\",\"captured\":[],\"result\":{\"ok\":true,\"children_killed\":0,\"unowned_handlers\":0,\"outcomes\":[],\"revoked_at\":\"2026-09-12T15:03:26.488Z\",\"latency_ms\":0},\"realProcessesTerminated\":0}\n✔ panic never treats an allowlisted image as an owned process (39.9544ms)\nℹ tests 55\nℹ suites 0\nℹ pass 54\nℹ fail 1\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 6428.395\n\n✖ failing tests:\n\ntest at tests\\arch\\capability-authority.test.ts:16:1\n✖ cache eviction cannot turn workspace-controlled index keys into out-of-cache deletion (23.2989ms)\n  AssertionError [ERR_ASSERTION]: cache index content must not enlarge an approved mutation target\n  + actual - expected\n  \n  + [\n  +   'E:\\\\pip_temp\\\\phase2a-cache-scope-bqJx2z\\\\source.log',\n  +   'E:\\\\pip_temp\\\\phase2a-cache-scope-bqJx2z\\\\source.problems.json'\n  + ]\n  - []\n  \n      at TestContext.<anonymous> (file:///E:/aide-sovereign-workbench/tests/arch/capability-authority.test.ts:41:10)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: [ 'E:\\\\pip_temp\\\\phase2a-cache-scope-bqJx2z\\\\source.log', 'E:\\\\pip_temp\\\\phase2a-cache-scope-bqJx2z\\\\source.problems.json' ],\n    expected: [],\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    "cacheRegression": {
+      "chunk_id": "ee59cb",
+      "wall_time_seconds": 1.0845092,
+      "exit_code": 1,
+      "original_token_count": 400,
+      "output": "{\"cacheScopeFixture\":\"E:\\\\pip_temp\\\\phase2a-cache-scope-X70Io8\",\"capturedDeletionTargets\":[\"E:\\\\pip_temp\\\\phase2a-cache-scope-X70Io8\\\\source.log\",\"E:\\\\pip_temp\\\\phase2a-cache-scope-X70Io8\\\\source.problems.json\"],\"outsideCacheTargets\":[\"E:\\\\pip_temp\\\\phase2a-cache-scope-X70Io8\\\\source.log\",\"E:\\\\pip_temp\\\\phase2a-cache-scope-X70Io8\\\\source.problems.json\"],\"realDeletions\":0,\"errorObserved\":null}\n✖ cache eviction cannot turn workspace-controlled index keys into out-of-cache deletion (15.211ms)\nℹ tests 1\nℹ suites 0\nℹ pass 0\nℹ fail 1\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 756.8349\n\n✖ failing tests:\n\ntest at tests\\arch\\capability-authority.test.ts:16:1\n✖ cache eviction cannot turn workspace-controlled index keys into out-of-cache deletion (15.211ms)\n  AssertionError [ERR_ASSERTION]: cache index content must not enlarge an approved mutation target\n  + actual - expected\n  \n  + [\n  +   'E:\\\\pip_temp\\\\phase2a-cache-scope-X70Io8\\\\source.log',\n  +   'E:\\\\pip_temp\\\\phase2a-cache-scope-X70Io8\\\\source.problems.json'\n  + ]\n  - []\n  \n      at TestContext.<anonymous> (file:///E:/aide-sovereign-workbench/tests/arch/capability-authority.test.ts:41:10)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: [ 'E:\\\\pip_temp\\\\phase2a-cache-scope-X70Io8\\\\source.log', 'E:\\\\pip_temp\\\\phase2a-cache-scope-X70Io8\\\\source.problems.json' ],\n    expected: [],\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }\n"
+    },
+    "backendTypecheck": {
+      "chunk_id": "26ba57",
+      "wall_time_seconds": 5.6537303,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    "browserTypecheck": {
+      "chunk_id": "bde12a",
+      "wall_time_seconds": 2.1016739,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    "targetedLint": {
+      "chunk_id": "8027c9",
+      "wall_time_seconds": 3.2717517,
+      "exit_code": 0,
+      "original_token_count": 225,
+      "output": "\nE:\\aide-sovereign-workbench\\app.js\n    76:16  warning  'jput' is defined but never used                                        no-unused-vars\n   663:54  warning  'path' is defined but never used. Allowed unused args must match /^_/u  no-unused-vars\n   919:5   warning  'lspChangeTimer' is assigned a value but never used                     no-unused-vars\n  1051:35  warning  'i' is defined but never used. Allowed unused args must match /^_/u     no-unused-vars\n  1065:9   warning  'kinds' is assigned a value but never used                              no-unused-vars\n  1587:10  warning  'pluginTrusted' is defined but never used                               no-unused-vars\n\nE:\\aide-sovereign-workbench\\node\\src\\services\\desktop-control.mjs\n  131:48  warning  'destination' is defined but never used. Allowed unused args must match /^_/u  no-unused-vars\n\n✖ 7 problems (0 errors, 7 warnings)\n\n"
+    },
+    "diffCheck": {
+      "exit_code": 0,
+      "output": ""
+    }
+  },
+  "counts": {
+    "total": 55,
+    "passed": 54,
+    "failed": 1,
+    "skipped": 0,
+    "cancelled": 0,
+    "core": 13,
+    "originalHTTP_WS": 3,
+    "telegramDelegation": 5,
+    "telegramHTTP": 1,
+    "ownership": 6,
+    "composedTransport": 1,
+    "agentCheckpointTier": 25,
+    "cacheBoundaryRegressionFailed": 1
+  },
+  "firstRegression": {
+    "command": "node --test --test-name-pattern='checkpoint authority:' tests/unit/test-a1-agent.mjs",
+    "passed": 0,
+    "failed": 2,
+    "cancelled": 0,
+    "skipped": 0,
+    "failures": [
+      "Unauthenticated commit did not reject",
+      "headHash initialized repository, then git rev-parse failed"
+    ]
+  },
+  "fixtureCorrection": {
+    "failure": "Telegram synchronous authority denial escaped assert.rejects before it received a promise",
+    "fix": "Wrap invocation in async callback; retain exact FORBIDDEN assertion; no production change"
+  },
+  "native": {
+    "compilation": "DEFERRED — RUST TOOLCHAIN UNAVAILABLE",
+    "startup": "DEFERRED — RUST TOOLCHAIN UNAVAILABLE",
+    "filesChangedThisTurn": []
+  }
+}

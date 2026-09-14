@@ -1,4 +1,5 @@
 import { EventEnvelope } from '../../../common/contracts/events.ts';
+import { authenticateEventSocket } from './authority.ts';
 
 export interface EventBus {
   subscribe(channel: string, handler: (data: unknown) => void): () => void;
@@ -27,7 +28,7 @@ export function connectEvents(wsUrl: string, opts: EventBusOptions = {}): EventB
   }
 
   function subscribeAll(): void {
-    if (socket === null || socket.readyState !== WebSocket.OPEN) return;
+    if (socket === null || socket.readyState !== WebSocket.OPEN || !connected) return;
     socket.send(JSON.stringify({ type: 'subscribe', channels: [...handlers.keys()] }));
   }
 
@@ -49,15 +50,19 @@ export function connectEvents(wsUrl: string, opts: EventBusOptions = {}): EventB
       return;
     }
     socket.addEventListener('open', () => {
-      reconnectDelay = MIN_BACKOFF_MS;
-      setStatus(true);
-      subscribeAll();
+      if (socket) authenticateEventSocket(socket);
     });
     socket.addEventListener('message', (event: MessageEvent) => {
       let raw: unknown;
       try {
         raw = JSON.parse(String(event.data));
       } catch {
+        return;
+      }
+      if ((raw as { type?: string } | null)?.type === 'authenticated') {
+        reconnectDelay = MIN_BACKOFF_MS;
+        setStatus(true);
+        subscribeAll();
         return;
       }
       const parsed = EventEnvelope.safeParse(raw);

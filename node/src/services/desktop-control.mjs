@@ -3,8 +3,9 @@
 // Zero new native deps: Windows ops via cmd start / explorer / PowerShell / fs.
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { execFile, spawn } from 'node:child_process';
 import { createStateBus } from '../../../harness/cipher-state.mjs';
+import { AuthorityError } from './execution-authority.mjs';
+import { createOwnedProcesses } from './owned-process.mjs';
 
 const GRANTS_FILE = '.aide/desktop/grants.json';
 
@@ -22,9 +23,16 @@ function isSubpath(root, target) {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
-export function createDesktopControl({ workspace }) {
+export function createDesktopControl({ workspace, authority, clock = Date.now }) {
+  function authorized(execution, kind, body) {
+    if (!authority) throw new AuthorityError('FORBIDDEN', 'canonical authority required');
+    return authority.assertExecution(execution, kind, body);
+  }
   let manifest = null;
-  const children = new Set();
+  const processes = createOwnedProcesses();
+  let grantOwner = null;
+  let panicked = false;
+  let unownedHandlers = 0;
   const panics = [];
   let turnCounter = 0;
   // Executor seam (T2 contract): external desktop-agent submits actions,
@@ -74,24 +82,25 @@ export function createDesktopControl({ workspace }) {
   async function loadManifest() {
     if (manifest) return manifest;
     try {
-      manifest = JSON.parse(await fs.readFile(path.join(workspace, GRANTS_FILE), 'utf8'));
+      manifest = { ...JSON.parse(await fs.readFile(path.join(workspace, GRANTS_FILE), 'utf8')), enabled: false };
     } catch { manifest = null; }
     return manifest;
   }
 
   async function saveManifest(next) {
-    manifest = next;
     const file = path.join(workspace, GRANTS_FILE);
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify(next, null, 2), 'utf8');
+    manifest = next;
     return next;
   }
 
   async function activeGrants() {
     const m = await loadManifest();
-    if (!m || !m.enabled) throw new DesktopRefusedError('DISABLED', 'desktop control is not enabled');
-    if (panics.includes(m.session_started_at)) throw new DesktopRefusedError('PANIC', 'panic switch tripped for this session');
-    const ageMin = (Date.now() - new Date(m.session_started_at).getTime()) / 60000;
+    if (panicked) throw new DesktopRefusedError('PANIC', 'panic switch tripped for this session');
+    if (!m || !m.enabled || !grantOwner) throw new DesktopRefusedError('DISABLED', 'desktop control is not enabled');
+    authority.assertActor(grantOwner);
+    const ageMin = (clock() - new Date(m.session_started_at).getTime()) / 60000;
     if (ageMin > m.ttl_minutes) throw new DesktopRefusedError('EXPIRED', `grants expired after ${m.ttl_minutes} minutes`);
     return m.grants;
   }
@@ -101,13 +110,20 @@ export function createDesktopControl({ workspace }) {
     void kind;
   }
 
-  function run(cmd, args, opts = {}) {
-    return new Promise((resolve, reject) => {
-      execFile(cmd, args, { timeout: 8000, windowsHide: true, ...opts }, (err, stdout, stderr) => {
-        if (err) reject(err); else resolve(String(stdout));
-      });
-    });
+  async function run(cmd, args, opts = {}) {
+    let stdout = ''; let stderr = '';
+    const launched = processes.launch(cmd, args, { cwd: workspace,
+      onStdout: chunk => { stdout = (stdout + String(chunk)).slice(-262144); },
+      onStderr: chunk => { stderr = (stderr + String(chunk)).slice(-262144); } });
+    await launched.spawned;
+    const timer = setTimeout(() => { void processes.terminate(launched.handle); }, opts.timeout ?? 8000);
+    try {
+      const result = await launched.finished;
+      if (result.code !== 0 || result.signal || result.error) throw new Error(stderr || result.error || 'desktop helper failed or was terminated');
+      return stdout;
+    } finally { clearTimeout(timer); }
   }
+  const psLiteral = text => `'${String(text).replaceAll("'", "''")}'`;
 
   const ops = {
     // Business-lane ops (drafts-first doctrine: AIDE creates drafts, humans
@@ -124,22 +140,18 @@ export function createDesktopControl({ workspace }) {
       const script = [
         '$o = New-Object -ComObject Outlook.Application -ErrorAction Stop',
         `$m = $o.CreateItem(0)`,
-        `$m.To = ${JSON.stringify(to)}`,
-        `$m.Subject = ${JSON.stringify(subject)}`,
-        `$m.Body = ${JSON.stringify(body)}`,
+        `$m.To = ${psLiteral(to)}`,
+        `$m.Subject = ${psLiteral(subject)}`,
+        `$m.Body = ${psLiteral(body)}`,
         '$m.Save()',
         'Write-Output "draft-saved"'
       ].join('; ');
-      const out = await new Promise((resolve, reject) => {
-        execFile('powershell.exe', ['-NoProfile', '-STA', '-NonInteractive', '-Command', script],
-          { windowsHide: true, timeout: 30000 }, (err, stdout, stderr) => {
-            if (err) {
-              const msg = String(stderr || err.message);
-              if (msg.includes('0x80040154')) reject(new DesktopRefusedError('OUTLOOK_UNAVAILABLE', 'classic Outlook is not installed/signed-in (COM class not registered); drafts-first policy requires it'));
-              else reject(new Error(msg.slice(0, 300)));
-            } else resolve(String(stdout));
-          });
-      });
+      let out;
+      try { out = await run('powershell.exe', ['-NoProfile', '-STA', '-NonInteractive', '-Command', script], { timeout: 30000 }); }
+      catch (error) {
+        if (error.message.includes('0x80040154')) throw new DesktopRefusedError('OUTLOOK_UNAVAILABLE', 'classic Outlook COM unavailable');
+        throw error;
+      }
       return out.includes('draft-saved') ? `draft saved to Outlook (${to})` : out;
     },
     async excel_generate_report(grants, target, destination) {
@@ -160,17 +172,12 @@ export function createDesktopControl({ workspace }) {
         const script = [
           '$e = New-Object -ComObject Excel.Application -ErrorAction Stop',
           '$e.Visible = $false; $e.DisplayAlerts = $false',
-          `$w = $e.Workbooks.Open(${JSON.stringify(csvPath)})`,
-          `$w.SaveAs(${JSON.stringify(destination)}, 51)`, // xlOpenXMLWorkbook
+          `$w = $e.Workbooks.Open(${psLiteral(csvPath)})`,
+          `$w.SaveAs(${psLiteral(destination)}, 51)`, // xlOpenXMLWorkbook
           '$w.Close($false); $e.Quit()',
           'Write-Output "xlsx-written"'
         ].join('; ');
-        const out = await new Promise((resolve, reject) => {
-          execFile('powershell.exe', ['-NoProfile', '-STA', '-NonInteractive', '-Command', script],
-            { windowsHide: true, timeout: 60000 }, (err, stdout) => {
-              if (err) reject(err); else resolve(String(stdout));
-            });
-        });
+        const out = await run('powershell.exe', ['-NoProfile', '-STA', '-NonInteractive', '-Command', script], { timeout: 60000 });
         return out.includes('xlsx-written') ? `report written: ${destination}` : out;
       } catch (error) {
         if (String(error?.message || error).includes('0x80040154')) {
@@ -179,29 +186,24 @@ export function createDesktopControl({ workspace }) {
         throw new DesktopRefusedError('CHILD_FAILED', `excel failed: ${String(error?.message || error).slice(0, 200)}`);
       }
     },
-    async launch_app(grants, target) {
+    async launch_app(grants, target, _destination, request) {
       const name = String(target || '').trim().toLowerCase().replace(/\.exe$/, '');
       const hit = grants.apps.find(a => a.toLowerCase().replace(/\.exe$/, '') === name);
       if (!hit) throw new DesktopRefusedError('NOT_ALLOWLISTED', `app "${target}" is not on the allowlist`);
-      const child = spawn('cmd.exe', ['/d', '/s', '/c', 'start', '', hit], { detached: true, stdio: 'ignore', windowsHide: true });
-      child.unref();
-      children.add(child.pid);
-      child.once('exit', () => children.delete(child.pid));
-      return `launched ${hit}`;
+      const launched = processes.launch(hit, request.args ?? [], { cwd: workspace });
+      await launched.spawned;
+      return { output: `launched ${hit}; owned process ${launched.handle.pid}`, handle: launched.handle };
     },
     async open_path(grants, target) {
       const root = grants.roots.find(r => isSubpath(r, String(target)));
       if (!root) throw new DesktopRefusedError('PATH_NOT_GRANTED', `"${target}" is outside granted roots`);
       const stat = await fs.stat(target).catch(() => null);
       if (!stat) throw new DesktopRefusedError('NOT_FOUND', `${target} does not exist`);
-      // explorer.exe returns exit code 1 on success when opening files (Windows
-      // quirk) — use detached start like launch_app so success is not misreported.
-      const child = spawn('cmd.exe', ['/d', '/s', '/c', 'start', '', String(target)],
-        { detached: true, stdio: 'ignore', windowsHide: true });
-      child.unref();
-      children.add(child.pid);
-      child.once('exit', () => children.delete(child.pid));
-      return `opened ${target}`;
+      // The registered OS handler may reuse another application's process.
+      // Own only the helper, and explicitly report the handler as unowned.
+      await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Start-Process -FilePath ${psLiteral(target)} -WindowStyle Hidden -ErrorAction Stop`]);
+      unownedHandlers += 1;
+      return `open requested for ${target}; handler process ownership unproven`;
     },
     async move_file(grants, target, destination) {
       const fromRoot = grants.roots.find(r => isSubpath(r, String(target)));
@@ -223,26 +225,18 @@ export function createDesktopControl({ workspace }) {
       if (!listing.toLowerCase().includes(title.toLowerCase())) {
         throw new DesktopRefusedError('WINDOW_NOT_FOUND', `no visible window matches "${title}"`);
       }
-      const script = `(New-Object -ComObject WScript.Shell).AppActivate(@'${title}'@) | Out-Null`;
+      const script = `(New-Object -ComObject WScript.Shell).AppActivate(${psLiteral(title)}) | Out-Null`;
       await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script]);
       return `focused window matching ${title}`;
     }
   };
 
-  async function autoAssert(op, target, destination) {
+  async function autoAssert(op, target, destination, output) {
     // DC-b: every trajectory row carries a state assertion — R3 law forbids
     // training on unverified rollouts. Assertions are mechanical, per-op.
     switch (op) {
       case 'launch_app': {
-        const image = path.basename(String(target)).trim();
-        const safe = /^[A-Za-z0-9._-]+$/.test(image) ? image : null;
-        if (!safe) return { pass: false, check: 'image-name-parse' };
-        const exists = await new Promise(resolve => {
-          execFile('tasklist', ['/FI', `IMAGENAME eq ${safe}`], { windowsHide: true }, (err, stdout) => {
-            resolve(!err && String(stdout).toLowerCase().includes(safe.toLowerCase()));
-          });
-        });
-        return { pass: exists, check: `process_alive:${safe}` };
+        return { pass: processes.alive(output?.handle), check: `owned_process_alive:${output?.handle?.pid ?? 'unknown'}` };
       }
       case 'move_file': {
         try {
@@ -253,6 +247,7 @@ export function createDesktopControl({ workspace }) {
         }
       }
       case 'open_path':
+        return { pass: false, check: 'handler_ownership_unproven' };
       case 'focus_window':
       case 'list_windows':
       default:
@@ -270,7 +265,8 @@ export function createDesktopControl({ workspace }) {
     } catch { /* training capture is best-effort; never blocks actions */ }
   }
 
-  async function act(request, sessionId = 'default') {
+  async function act(request, execution, sessionId = 'default') {
+    const trusted = authorized(execution, 'desktop.action', request);
     const started = Date.now();
     if (request.approved !== true) {
       await evidence('desktop', { op: request.op, target: request.target, decision: 'refused-no-approval' });
@@ -283,12 +279,14 @@ export function createDesktopControl({ workspace }) {
       throw new DesktopRefusedError('NO_APPROVAL', 'explicit approval required for desktop actions');
     }
     const grants = await activeGrants();
+    if (trusted.owner !== grantOwner) throw new AuthorityError('FORBIDDEN', 'desktop grants belong to another operator');
+    authorized(execution, 'desktop.action', request);
     const fn = ops[request.op];
     if (!fn) throw new DesktopRefusedError('UNKNOWN_OP', `unsupported op: ${request.op}`);
     try {
-      const output = await fn(grants, request.target, request.destination);
-      const assertion = await autoAssert(request.op, request.target, request.destination);
-      const result = { ok: true, decision: 'executed', output: String(output).slice(0, 2000), latency_ms: Date.now() - started, assertion };
+      const output = await fn(grants, request.target, request.destination, request);
+      const assertion = await autoAssert(request.op, request.target, request.destination, output);
+      const result = { ok: true, decision: 'executed', output: String(output?.output ?? output).slice(0, 2000), latency_ms: Date.now() - started, assertion };
       await evidence('desktop', { op: request.op, target: request.target, decision: 'executed' });
       await recordTrajectory(sessionId, {
         ts: new Date().toISOString(), turn: ++turnCounter,
@@ -313,27 +311,16 @@ export function createDesktopControl({ workspace }) {
     }
   }
 
-  async function panic() {
+  async function panic(execution) {
+    authorized(execution, 'desktop.panic', {});
     const started = Date.now();
+    panicked = true; grantOwner = null;
+    authority.control.revokePending();
     if (manifest) panics.push(manifest.session_started_at);
-    let killed = 0;
-    for (const pid of [...children]) {
-      killed += 1;
-      try { process.kill(pid); } catch { /* already gone */ }
-      children.delete(pid);
-    }
-    // Detached `start` launches are untrackable at spawn time (cmd wrapper
-    // exits immediately) — sweep allowlisted app names so panic is COMPLETE:
-    // no granted app may survive a tripwire.
-    for (const app of manifest?.grants?.apps ?? []) {
-      const image = path.basename(app).trim();
-      if (!/^[A-Za-z0-9._-]+$/.test(image)) continue;
-      await new Promise(resolve => {
-        execFile('taskkill', ['/IM', image, '/F'], { windowsHide: true }, () => resolve(null));
-      });
-      killed += 1;
-    }
-    const result = { ok: true, children_killed: killed, revoked_at: new Date().toISOString(), latency_ms: Date.now() - started };
+    const outcomes = await processes.revoke();
+    const killed = outcomes.filter(item => item.killed).length;
+    const result = { ok: outcomes.every(item => item.status === 'terminated' || item.status === 'exited'), children_killed: killed,
+      unowned_handlers: unownedHandlers, outcomes, revoked_at: new Date().toISOString(), latency_ms: Date.now() - started };
     await evidence('desktop', { op: 'panic', decision: 'executed', children_killed: killed });
     return result;
   }
@@ -351,21 +338,28 @@ export function createDesktopControl({ workspace }) {
       // "desktop control returns 502 on /api/desktop/status" root cause.
       const m = await loadManifest();
       return {
-        enabled: Boolean(m?.enabled),
+        enabled: Boolean(m?.enabled && grantOwner && !panicked),
         ttl_minutes: m?.ttl_minutes ?? null,
         session_started_at: m?.session_started_at ?? null,
         grants: m?.grants ?? { apps: [], roots: [], window_titles: [] },
-        tracked_children: children.size,
-        panicked: m ? panics.includes(m.session_started_at) : false
+        tracked_children: processes.snapshot().length,
+        panicked
       };
     },
-    setGrants: saveManifest,
+    setGrants: async (input, execution) => {
+      const trusted = authorized(execution, 'desktop.grants', input);
+      const next = await saveManifest({ version: 1, ...input, session_started_at: new Date(clock()).toISOString(), approved_by: 'operator-wizard' });
+      authorized(execution, 'desktop.grants', input);
+      grantOwner = trusted.owner; panicked = false;
+      if (input.enabled) processes.arm(); else await processes.revoke();
+      return next;
+    },
     act,
     panic,
     submitPending,
     waitForVerdict,
     resolvePending,
     listPending,
-    _test: { children, panics } // battery access; not part of public contract
+    _test: { panics } // no injectable PID/ownership registry
   };
 }

@@ -7,6 +7,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const run = promisify(execFile);
 
@@ -14,6 +15,7 @@ const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-p4-git-'));
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 async function git(args: string, cwd = workspace) {
   await run('git', args.split(' '), { cwd });
@@ -38,15 +40,21 @@ before(async () => {
 
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', { events: server.events });
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
+  // The WebSocketServer attached in listen() keeps the HTTP close callback
+  // from firing; closing the hub first is the verified exit path.
+  server.events.close();
+  await server.logger.flush();
+  httpServer.closeAllConnections?.();
   await new Promise<void>(resolve => httpServer.close(() => resolve()));
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
@@ -61,13 +69,19 @@ after(async () => {
 
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
-async function post<T>(pathName: string, payload: unknown): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+async function post<T>(pathName: string, payload: unknown, taskId?: string): Promise<{ status: number; body: Envelope<T> }> {
+  const headers = taskId ? await owner.approve('POST', pathName, payload, taskId) : {};
+  const response = await owner.request(pathName, {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30000)
+  });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
 async function get<T>(pathName: string): Promise<{ status: number; body: Envelope<T> }> {
-  const response = await fetch(`${base}${pathName}`);
+  const response = await owner.request(pathName, { signal: AbortSignal.timeout(30000) });
   return { status: response.status, body: (await response.json()) as Envelope<T> };
 }
 
@@ -86,12 +100,12 @@ test('status parses branch, staged/unstaged split and untracked entries', async 
 });
 
 test('stage and commit round trip updates log', async () => {
-  const staged = await post<{ oid?: string }>('/api/git/stage', { paths: ['gamma.txt'] });
+  const staged = await post<{ oid?: string }>('/api/git/stage', { paths: ['gamma.txt'] }, 'task:git-stage-gamma');
   assert.equal(staged.status, 200);
   const diffCached = await post<{ text: string; truncated: boolean }>('/api/git/diff', { path: 'gamma.txt', cached: true });
   assert.match(diffCached.body.data!.text, /\+brand new file/);
 
-  const committed = await post<{ oid: string }>('/api/git/commit', { message: 'add gamma' });
+  const committed = await post<{ oid: string }>('/api/git/commit', { message: 'add gamma' }, 'task:git-commit-gamma');
   assert.equal(committed.status, 200);
   assert.match(committed.body.data!.oid, /^[0-9a-f]{7,40}$/);
 
@@ -105,7 +119,7 @@ test('hunk listing and selective staging stage exactly one hunk', async () => {
   const list = hunks.body.data!.hunks;
   assert.ok(list.length >= 2, `expected >=2 hunks in alpha.txt diff, got ${list.length}`);
 
-  const stageFirst = await post<{ staged_indexes: number[] }>('/api/git/hunks/stage', { path: 'alpha.txt', indexes: [list[0]!.index] });
+  const stageFirst = await post<{ staged_indexes: number[] }>('/api/git/hunks/stage', { path: 'alpha.txt', indexes: [list[0]!.index] }, 'task:git-hunks-stage-first');
   assert.equal(stageFirst.status, 200);
 
   const diffCached = await post<{ text: string }>('/api/git/diff', { path: 'alpha.txt', cached: true });
@@ -115,16 +129,16 @@ test('hunk listing and selective staging stage exactly one hunk', async () => {
   const worktreeStillDirty = await post<{ text: string }>('/api/git/diff', { path: 'alpha.txt', cached: false });
   assert.ok(worktreeStillDirty.body.data!.text.includes('L15 CHANGED'), 'worktree keeps the unstaged hunk');
 
-  const unstaged = await post<{ staged_indexes: number[] }>('/api/git/hunks/unstage', { path: 'alpha.txt', indexes: [1] });
+  const unstaged = await post<{ staged_indexes: number[] }>('/api/git/hunks/unstage', { path: 'alpha.txt', indexes: [1] }, 'task:git-hunks-unstage-first');
   assert.equal(unstaged.status, 200);
   const afterUnstage = await post<{ text: string }>('/api/git/diff', { path: 'alpha.txt', cached: true });
   assert.ok(!afterUnstage.body.data!.text.includes('L02 CHANGED'), 'unstage reversed the hunk');
 });
 
 test('blame reports the latest committing short oid for a modified line', async () => {
-  const beforeBlame = await post('/api/git/hunks/stage', { path: 'alpha.txt', indexes: [1] });
+  const beforeBlame = await post('/api/git/hunks/stage', { path: 'alpha.txt', indexes: [1] }, 'task:git-hunks-stage-blame');
   assert.equal(beforeBlame.status, 200);
-  const committed = await post<{ oid: string }>('/api/git/commit', { message: 'partial alpha' });
+  const committed = await post<{ oid: string }>('/api/git/commit', { message: 'partial alpha' }, 'task:git-commit-partial');
   assert.equal(committed.status, 200);
 
   const blame = await post<{ lines: Array<{ line_number: number; commit: string; text: string }> }>('/api/git/blame', { path: 'alpha.txt' });
@@ -142,18 +156,18 @@ test('file timeline lists commits touching one path', async () => {
 });
 
 test('path escape and empty message are rejected with typed codes', async () => {
-  const escape = await post('/api/git/stage', { paths: ['../outside.txt'] });
+  const escape = await post('/api/git/stage', { paths: ['../outside.txt'] }, 'task:git-stage-escape');
   assert.equal(escape.status, 400);
   assert.equal(escape.body.error?.code, 'BAD_REQUEST');
 
-  const emptyMessage = await post<{ message: string }>('/api/git/commit', { message: '   ' });
+  const emptyMessage = await post<{ message: string }>('/api/git/commit', { message: '   ' }, 'task:git-commit-empty');
   assert.equal(emptyMessage.status, 400);
 });
 
 test('commit records intent telemetry to ships.log', async () => {
-  const staged = await post<{ oid?: string }>('/api/git/stage', { paths: ['alpha.txt'] });
+  const staged = await post<{ oid?: string }>('/api/git/stage', { paths: ['alpha.txt'] }, 'task:git-stage-telemetry');
   assert.equal(staged.status, 200);
-  const committed = await post<{ oid: string }>('/api/git/commit', { message: 'telemetry alpha', intent: 'test intent' });
+  const committed = await post<{ oid: string }>('/api/git/commit', { message: 'telemetry alpha', intent: 'test intent' }, 'task:git-commit-telemetry');
   assert.equal(committed.status, 200);
   assert.match(committed.body.data!.oid, /^[0-9a-f]{7,40}$/);
   const ships = await fs.readFile(path.join(workspace, '.aide', 'metrics', 'ships.log'), 'utf8');
@@ -164,7 +178,7 @@ test('commit records intent telemetry to ships.log', async () => {
 });
 
 test('commit with no staged changes maps to BAD_REQUEST', async () => {
-  const empty = await post('/api/git/commit', { message: 'nothing staged here' });
+  const empty = await post('/api/git/commit', { message: 'nothing staged here' }, 'task:git-commit-nothing-staged');
   assert.equal(empty.status, 400);
   assert.equal(empty.body.error?.code, 'BAD_REQUEST');
   assert.match(empty.body.error?.message ?? '', /no changes to commit/);
@@ -172,20 +186,20 @@ test('commit with no staged changes maps to BAD_REQUEST', async () => {
 
 test('checkout switches branches and refuses a dirty tree', async () => {
   await git('branch feature/switch');
-  const switched = await post<{ branch: string }>('/api/git/checkout', { branch: 'feature/switch' });
+  const switched = await post<{ branch: string }>('/api/git/checkout', { branch: 'feature/switch' }, 'task:git-checkout-feature');
   assert.equal(switched.status, 200);
   assert.equal(switched.body.data?.branch, 'feature/switch');
   const after = await get<{ branch: string | null }>('/api/git/status');
   assert.equal(after.body.data?.branch, 'feature/switch');
 
   await fs.appendFile(path.join(workspace, 'beta.txt'), 'dirty line\n');
-  const refused = await post('/api/git/checkout', { branch: 'main' });
+  const refused = await post('/api/git/checkout', { branch: 'main' }, 'task:git-checkout-main-refused');
   assert.equal(refused.status, 400);
   assert.equal(refused.body.error?.code, 'BAD_REQUEST');
   assert.match(refused.body.error?.message ?? '', /uncommitted changes/);
 
   await git('checkout -- beta.txt');
-  const back = await post<{ branch: string }>('/api/git/checkout', { branch: 'main' });
+  const back = await post<{ branch: string }>('/api/git/checkout', { branch: 'main' }, 'task:git-checkout-main');
   assert.equal(back.status, 200);
   assert.equal(back.body.data?.branch, 'main');
 });
@@ -195,7 +209,7 @@ test('push uploads the current branch to an explicit local remote and records eg
   try {
     await run('git', ['init', '--bare', '-q', bare], { cwd: os.tmpdir() });
     await run('git', ['-C', workspace, 'remote', 'add', 'origin', bare]);
-    const pushed = await post<{ pushed: boolean; output: string }>('/api/git/push', {});
+    const pushed = await post<{ pushed: boolean; output: string }>('/api/git/push', {}, 'task:git-push');
     assert.equal(pushed.status, 200);
     assert.equal(pushed.body.data?.pushed, true);
     assert.equal(typeof pushed.body.data?.output, 'string');
@@ -214,14 +228,18 @@ test('not-a-repo workspace maps to NOT_A_REPO code', async () => {
   try {
     const plainServer = new ArchServer(plainDir, path.join(plainDir, 'arch-test.log'));
     const { buildRoutes } = await import('../../node/src/openapi.ts');
-    const routes = await buildRoutes(plainDir, 'test', { events: plainServer.events });
+    const routes = await buildRoutes(plainDir, 'test', { authority: plainServer.authority, events: plainServer.events });
     for (const route of routes) plainServer.route(route);
     const plainHttp = await plainServer.listen(0);
     const address = plainHttp.address();
     assert.ok(address && typeof address === 'object');
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/git/status`);
+    const plainBase = `http://127.0.0.1:${address.port}`;
+    const plainOwner = await pairFixture(plainServer, plainBase);
+    const response = await plainOwner.request('/api/git/status', { signal: AbortSignal.timeout(30000) });
     const body = (await response.json()) as Envelope<unknown>;
     assert.equal(body.error?.code, 'NOT_A_REPO');
+    plainServer.events.close();
+    plainHttp.closeAllConnections?.();
     await new Promise<void>(resolve => plainHttp.close(() => resolve()));
   } finally {
     await fs.rm(plainDir, { recursive: true, force: true }).catch(() => {});

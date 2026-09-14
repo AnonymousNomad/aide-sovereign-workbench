@@ -1,4 +1,6 @@
 import { buildToastScript } from './os-toast.mjs';
+import type { ExecutionAuthority, ExecutionHandle } from './execution-authority.mjs';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
 
 export type HookRunResult = {
   ok: boolean;
@@ -49,6 +51,7 @@ export declare class NotificationService {
     workspace?: string;
     onEvent?: (notification: NotificationEntry) => void;
     clock?: () => number;
+    authority?: ExecutionAuthority | undefined;
   });
   list(options?: { unreadOnly?: boolean }): { notifications: NotificationEntry[]; unread: number };
   record(input: {
@@ -63,8 +66,9 @@ export declare class NotificationService {
   loadHooks(): Promise<ReturnType<typeof normalizeHooksFile>['hooks']>;
   setHooks(value: unknown): ReturnType<typeof normalizeHooksFile>['hooks'];
   listHooks(): { hooks: ReturnType<typeof normalizeHooksFile>['hooks'] };
-  ingestTaskEvent(evt: TaskEventLike): void;
-  runHooks(eventName: 'task.started' | 'task.completed' | 'task.failed' | 'diagnostics.new', context?: Record<string, unknown>): Promise<Array<{ hook_index: number; ok: boolean; timed_out: boolean; output: string; rejected?: string }>>;
+  describeHookExecution(eventName: 'task.started' | 'task.completed' | 'task.failed' | 'diagnostics.new', context: Record<string, unknown>, taskId: string): OperationInput;
+  ingestTaskEvent(evt: TaskEventLike, options?: { execution?: ExecutionHandle }): void;
+  runHooks(eventName: 'task.started' | 'task.completed' | 'task.failed' | 'diagnostics.new', context: Record<string, unknown>, execution: ExecutionHandle): Promise<Array<{ hook_index: number; ok: boolean; timed_out: boolean; output: string; rejected?: string }>>;
   runHookCommand(hook: { command: string[]; timeout_ms?: number }): Promise<HookRunResult>;
   setOsEnabled(value: boolean): void;
   maybeShowOsToast(input: { title: string; body?: string }): Promise<{ shown: boolean; reason: string }>;

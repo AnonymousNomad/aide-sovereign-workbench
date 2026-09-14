@@ -1,0 +1,27 @@
+{
+  "head": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58",
+  "branch": "covert-production",
+  "tracked_diff": "",
+  "staged_diff": "",
+  "protected_checked": 38,
+  "protected_mismatches": [],
+  "phase2a_created_files": [
+    "common/contracts/authority.ts",
+    "common/security/operation-policy.d.mts",
+    "common/security/operation-policy.mjs",
+    "docs/phase2a/BEFORE_STATE.json",
+    "docs/phase2a/BOUNDARY_REQUEST.md",
+    "docs/phase2a/CHECKPOINT_A_RESULTS.json",
+    "docs/phase2a/CHECKPOINT_B_RESULTS.json",
+    "docs/phase2a/INTEGRITY.json",
+    "docs/phase2a/ROUTE_INVENTORY.json",
+    "docs/phase2a/STATUS.md",
+    "node/src/services/execution-authority.d.mts",
+    "node/src/services/execution-authority.mjs",
+    "tests/arch/capability-authority.test.ts",
+    "tests/arch/execution-authority.test.ts",
+    "tests/unit/test-owned-process.mjs"
+  ],
+  "process_hygiene": "All Checkpoint B test/typecheck/lint commands returned exit codes. No long-running services or fixture listeners were started in B. No operator process terminated.",
+  "assessment": "NOT ACCEPTANCE-READY"
+}

@@ -3,6 +3,7 @@ import net from 'node:net';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { connectAuthorityChannel } from '../common/security/authority-channel.mjs';
 
 const HOP_BY_HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade']);
 const API_FORMAT_HEADER = 'x-aide-api-format';
@@ -25,6 +26,8 @@ function stripHopByHop(headers) {
 const DEFAULT_ALLOWED_ORIGINS = new Set([
   'http://127.0.0.1:4173',
   'http://localhost:4173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5173',
   'http://tauri.localhost',
   'https://tauri.localhost',
   'tauri://localhost'
@@ -43,7 +46,7 @@ function corsHeadersFor(request) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-AIDE-API-Format',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-AIDE-API-Format, X-AIDE-Operation, X-AIDE-Task',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin'
   };
@@ -89,7 +92,8 @@ function rewriteErrorEnvelope(rawBody) {
   try {
     const parsed = JSON.parse(rawBody);
     if (parsed && typeof parsed.error === 'object' && parsed.error !== null && typeof parsed.error.message === 'string') {
-      return JSON.stringify({ error: parsed.error.message, code: parsed.error.code });
+      return JSON.stringify({ error: parsed.error.message, code: parsed.error.code,
+        ...(parsed.error.detail === undefined ? {} : { detail: parsed.error.detail }) });
     }
   } catch {}
   return null;
@@ -126,7 +130,7 @@ export async function loadRouteMap(file) {
   return map;
 }
 
-export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }) {
+export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets, authenticate }) {
   if (!targets?.ts || !targets?.legacy) throw new Error('targets.ts and targets.legacy are required');
   const closed = { value: false };
   const relays = new Set();
@@ -168,6 +172,17 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
       return;
     }
     const corsForRequest = corsHeadersFor(request);
+    if (!(request.method === 'GET' && pathname === '/api/health') && !(request.method === 'POST' && pathname === '/api/authority/pair')) {
+      try {
+        const header = request.headers.authorization;
+        if (typeof header !== 'string' || !header.startsWith('Bearer ') || typeof authenticate !== 'function') throw new Error('missing authority');
+        await authenticate(header.slice(7), typeof request.headers.origin === 'string' ? request.headers.origin : '');
+      } catch {
+        const payload = JSON.stringify(apiFormat.kind === ENVELOPE_V1 ? envelopeError('FORBIDDEN', 'authenticated actor required') : { error: 'authenticated actor required', code: 'FORBIDDEN' });
+        response.writeHead(403, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...(corsForRequest ?? {}) });
+        response.end(payload); return;
+      }
+    }
     const targetName = pickTarget(routeMap, pathname);
     if (apiFormat.kind === ENVELOPE_V1 && targetName === 'legacy') {
       finish(400, targetName);
@@ -238,7 +253,10 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
       socket.destroy();
       return;
     }
-    const targetName = (routeMap.upgrades && Object.prototype.hasOwnProperty.call(routeMap.upgrades, pathname)) ? routeMap.upgrades[pathname] : 'legacy';
+    // Only the canonical event source can receive upgrades. It authenticates
+    // the first frame before subscription; unknown paths never fall back.
+    if (pathname !== '/ws' || routeMap.upgrades?.[pathname] !== 'ts' || request.url !== '/ws') { socket.destroy(); return; }
+    const targetName = 'ts';
     const target = targets[targetName];
     const headers = {};
     for (const [key, value] of Object.entries(request.headers)) {
@@ -291,6 +309,8 @@ export function createFacade({ port = 0, host = '127.0.0.1', routeMap, targets }
 }
 
 export async function main() {
+  if (typeof process.send !== 'function') throw new Error('trusted launch supervisor required; use npm start or npm run dev');
+  const authority = connectAuthorityChannel(process);
   const overridePath = path.join(process.cwd(), '.aide', 'facade-routes.json');
   const defaultPath = path.join(ROOT, 'common', 'facade-route-map.json');
   let mapFile = defaultPath;
@@ -303,10 +323,12 @@ export async function main() {
     ts: { host: '127.0.0.1', port: Number(process.env.AIDE_ARCH_PORT || 4778) },
     legacy: { host: '127.0.0.1', port: Number(process.env.AIDE_LEGACY_PORT || process.env.AIDE_DAEMON_PORT || 4779) }
   };
-  const facade = await createFacade({ port: Number(process.env.AIDE_FACADE_PORT || 4777), routeMap, targets });
+  const facade = await createFacade({ port: Number(process.env.AIDE_FACADE_PORT || 4777), routeMap, targets,
+    authenticate: (token, origin) => authority.call('transport.authenticate', { token, origin }) });
   const bound = facade.server.address();
   console.log(`facade listening on ${bound.address}:${bound.port} (routes: ${mapFile}, ts: ${targets.ts.port}, legacy: ${targets.legacy.port})`);
-  const stop = () => facade.close().then(() => process.exit(0));
+  const stop = () => { authority.close(); return facade.close().then(() => process.exit(0)); };
+  process.once('disconnect', stop);
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
 }

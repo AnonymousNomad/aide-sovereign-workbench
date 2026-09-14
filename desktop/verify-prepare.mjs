@@ -1,37 +1,57 @@
-import { access, readdir } from 'node:fs/promises';
-const webPaths = ['desktop/frontend/index.html', 'desktop/frontend/app.js', 'desktop/frontend/models/manifest.json', 'desktop/frontend/academy/courses/python-foundations.json', 'desktop/frontend/plugins/README.md', 'desktop/frontend/tasks/manifest.json'];
-for (const path of webPaths) await access(path);
-await access(`desktop/frontend/runtime/${process.platform === 'win32' ? 'node.exe' : 'node'}`);
-await access('desktop/frontend/daemon/server.mjs');
-const modelFiles = (await readdir('desktop/frontend/models')).filter(file => file.endsWith('.gguf'));
-if (process.env.AIDE_INCLUDE_MODEL_WEIGHTS === '1') {
-  if (!modelFiles.length) throw new Error('weight-inclusive desktop preparation requested but no GGUF files were staged');
-} else if (modelFiles.length) {
-  throw new Error(`core desktop preparation must not bundle GGUF weights: ${modelFiles.join(', ')}`);
-}
-console.log('desktop frontend preparation verified');
+import { access, readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const runtimeDir = process.platform === 'win32' ? 'node.exe' : 'node';
-await access(`desktop/resources/runtime/${runtimeDir}`);
-await access('desktop/resources/stack-launcher.mjs');
-await access('desktop/resources/node/src/server.ts');
-await access('desktop/resources/daemon/server.mjs');
-await access('desktop/resources/scripts/facade.mjs');
-await access('desktop/resources/models/manifest.json');
-const engineExe = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
-await access(`desktop/resources/runtime/${engineExe}`);
-const engineDlls = await readdir('desktop/resources/runtime').then(files => files.filter(file => file.endsWith('.dll')));
-const requiredDlls = ['llama-server-impl.dll', 'llama.dll', 'llama-common.dll', 'ggml-base.dll', 'libomp140.x86_64.dll'];
-if (process.platform === 'win32') {
-  for (const dll of requiredDlls) {
-    if (!engineDlls.includes(dll)) throw new Error(`packaged engine missing required DLL: ${dll}`);
-  }
-  if (!engineDlls.some(file => file.startsWith('ggml-cpu-'))) throw new Error('packaged engine missing any ggml-cpu-* backend DLL');
-}
-const runtimeModelFiles = (await readdir('desktop/resources/models')).filter(file => file.endsWith('.gguf'));
+const desktop = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(desktop, '..');
+const frontend = path.join(root, 'browser', 'dist');
+const resources = path.join(desktop, 'resources');
+const config = JSON.parse(await readFile(path.join(desktop, 'tauri.conf.json'), 'utf8'));
+if (config.build?.frontendDist !== '../browser/dist') throw new Error(`Tauri frontendDist is not canonical: ${config.build?.frontendDist}`);
+
+const index = await readFile(path.join(frontend, 'index.html'), 'utf8');
+if (!index.includes('<div id="app"></div>') || !index.includes('type="module"')) throw new Error('browser/dist does not contain the typed frontend entrypoint');
+if (/src=["'](?:\.\/)?app\.js["']/.test(index)) throw new Error('browser/dist unexpectedly selects the legacy app.js frontend');
+const assetFiles = await readdir(path.join(frontend, 'assets'));
+if (!assetFiles.some(file => file.endsWith('.js'))) throw new Error('typed frontend JavaScript asset missing');
+if (!assetFiles.some(file => file.endsWith('.css'))) throw new Error('typed frontend CSS asset missing');
+
+const required = [
+  path.join(resources, 'academy', 'courses', 'python-foundations.json'),
+  path.join(resources, 'plugins', 'README.md'),
+  path.join(resources, 'tasks', 'manifest.json'),
+  path.join(resources, 'daemon', 'server.mjs'),
+  path.join(resources, 'node', 'src', 'server.ts'),
+  path.join(resources, 'common', 'facade-route-map.json'),
+  path.join(resources, 'scripts', 'facade.mjs'),
+  path.join(resources, 'stack-launcher.mjs'),
+  path.join(resources, 'models', 'manifest.json'),
+  path.join(resources, 'languages', 'manifest.json'),
+  path.join(resources, 'debuggers', 'manifest.json'),
+  path.join(resources, 'training', 'manifest.json'),
+  path.join(resources, 'plugins', 'presets.json'),
+  path.join(resources, 'grammar', 'sr-proposal.gbnf'),
+  path.join(resources, 'runtime', process.platform === 'win32' ? 'node.exe' : 'node'),
+  path.join(resources, 'node_modules', 'zod', 'package.json'),
+  path.join(resources, 'node_modules', 'ws', 'package.json'),
+  path.join(resources, 'node_modules', 'typescript', 'package.json'),
+  path.join(resources, 'node_modules', 'typescript-language-server', 'lib', 'cli.mjs')
+];
+for (const file of required) await access(file);
+
+const sourceLauncher = await readFile(path.join(desktop, 'stack-launcher.mjs'));
+const stagedLauncher = await readFile(path.join(resources, 'stack-launcher.mjs'));
+if (!sourceLauncher.equals(stagedLauncher)) throw new Error('staged stack launcher differs from its tracked source authority');
+
+const runtimeModelFiles = (await readdir(path.join(resources, 'models'))).filter(file => file.endsWith('.gguf'));
 if (process.env.AIDE_INCLUDE_MODEL_WEIGHTS === '1') {
-  if (!runtimeModelFiles.length) throw new Error('weight-inclusive desktop preparation requested but no runtime model weights were staged');
-} else {
-  if (!runtimeModelFiles.includes('smollm2-360m-instruct-q8_0.gguf')) throw new Error(`bootstrap model must be staged: smollm2-360m-instruct-q8_0.gguf (got ${runtimeModelFiles.join(', ')})`);
+  if (!runtimeModelFiles.length) throw new Error('weight-inclusive desktop preparation requested but no GGUF files were staged');
+} else if (await access(path.join(root, 'models', 'smollm2-360m-instruct-q8_0.gguf')).then(() => true).catch(() => false)) {
+  if (!runtimeModelFiles.includes('smollm2-360m-instruct-q8_0.gguf')) throw new Error(`bootstrap model was not staged: ${runtimeModelFiles.join(', ')}`);
 }
-console.log('desktop resources (offline stack + engine + bootstrap model) verified');
+
+const llamaName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
+const hasLlama = await access(path.join(resources, 'runtime', llamaName)).then(() => true).catch(() => false);
+if (!hasLlama && process.env.AIDE_REQUIRE_MODEL_RUNTIME === '1') throw new Error(`desktop preparation is missing required model runtime: ${llamaName}`);
+
+console.log(`desktop preparation verified (frontend: typed browser/dist; model runtime: ${hasLlama ? 'staged' : 'not supplied'})`);

@@ -5,6 +5,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { pairFixture } from './authority-fixture.ts';
 import { buildRoutes } from '../../node/src/openapi.ts';
 import { Envelope } from '../../common/errors.ts';
 import { ExerciseNextResponse, ExerciseAttemptResponse } from '../../common/contracts/exercise.ts';
@@ -13,15 +14,17 @@ const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-exercise-routes-
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
-  const routes = await buildRoutes(workspace, 'test');
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -38,15 +41,16 @@ after(async () => {
 });
 
 async function attempt(id: string, answer: string) {
-  return fetch(`${base}/api/academy/exercises/attempt`, {
+  const headers = await owner.approve('POST', '/api/academy/exercises/attempt', { id, answer }, `exercise-${id}`);
+  return owner.request('/api/academy/exercises/attempt', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...headers, 'content-type': 'application/json' },
     body: JSON.stringify({ id, answer })
   });
 }
 
 test('next returns a public exercise without the answer', async () => {
-  const response = await fetch(`${base}/api/academy/exercises/next`);
+  const response = await owner.request('/api/academy/exercises/next');
   assert.equal(response.status, 200);
   const envelope = Envelope.safeParse(await response.json());
   assert.equal(envelope.success, true);
@@ -86,7 +90,7 @@ test('correct submission passes with no reveal and feeds learner state', async (
   if (!parsed.success) return;
   assert.deepEqual(parsed.data, { passed: true, revealed: null });
 
-  const state = await fetch(`${base}/api/learner/state`);
+  const state = await owner.request('/api/learner/state');
   const stateEnvelope = Envelope.safeParse(await state.json());
   if (!stateEnvelope.success || !stateEnvelope.data.ok) return assert.fail('state envelope broken');
   const snapshot = stateEnvelope.data.data as { skills: Record<string, { attempts: number }> };

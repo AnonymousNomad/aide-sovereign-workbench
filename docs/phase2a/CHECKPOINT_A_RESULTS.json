@@ -1,0 +1,37 @@
+{
+  "checkpoint": "A",
+  "status": "EXPECTED_RED",
+  "command": "node --test --test-concurrency=1 tests/arch/capability-authority.test.ts tests/unit/test-owned-process.mjs",
+  "exit_code": 1,
+  "tests": 2,
+  "passed": 0,
+  "failed": 2,
+  "cancelled": 0,
+  "skipped": 0,
+  "duration_ms": 6274.2955,
+  "findings": [
+    {
+      "defect": "F01",
+      "direct_ts_status": 200,
+      "facade_status": 200,
+      "captured_executions": 2,
+      "real_git_mutations": 0
+    },
+    {
+      "defect": "F03",
+      "captured_command": {
+        "file": "taskkill",
+        "args": [
+          "/IM",
+          "fixture-unrelated.exe",
+          "/F"
+        ]
+      },
+      "reported_killed": 1,
+      "owned_children": 0,
+      "real_processes_terminated": 0
+    }
+  ],
+  "classification": "Regression-first integration/captured-executor evidence. These failing tests are not acceptance passes.",
+  "raw_output": "POST /api/git/stage -> ts 200 5ms\n{\"pid\":11016,\"workspace\":\"E:\\\\pip_temp\\\\opencode\\\\phase2a-authority-IaBnQu\",\"observations\":[{\"port\":64650,\"status\":200,\"body\":{\"ok\":true,\"data\":{\"oid\":\"fixture-head\"}}},{\"port\":64651,\"status\":200,\"body\":{\"oid\":\"fixture-head\"}}],\"capturedExecutions\":2,\"realGitMutation\":false}\n{\"cleanup\":\"closed\",\"archListening\":false,\"facadeListening\":false}\n✖ unpaired capability callers cannot stage through direct TS or facade (72.7373ms)\n{\"workspace\":\"E:\\\\pip_temp\\\\opencode\\\\phase2a-panic-5EsIIj\",\"captured\":[{\"file\":\"taskkill\",\"args\":[\"/IM\",\"fixture-unrelated.exe\",\"/F\"]}],\"result\":{\"ok\":true,\"children_killed\":1,\"revoked_at\":\"2026-09-12T12:29:24.997Z\",\"latency_ms\":1},\"realProcessesTerminated\":0}\n✖ panic never treats an allowlisted image as an owned process (1026.3267ms)\nℹ tests 2\nℹ suites 0\nℹ pass 0\nℹ fail 2\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 6274.2955\n\n✖ failing tests:\n\ntest at tests\\arch\\capability-authority.test.ts:12:1\n✖ unpaired capability callers cannot stage through direct TS or facade (72.7373ms)\n  AssertionError [ERR_ASSERTION]: unpaired request reached a Git mutation executor\n  + actual - expected\n  \n    {\n  +   capturedExecutions: 2,\n  +   denied: false\n  -   capturedExecutions: 0,\n  -   denied: true\n    }\n  \n      at TestContext.<anonymous> (file:///E:/aide-sovereign-workbench/tests/arch/capability-authority.test.ts:42:12)\n      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: { denied: false, capturedExecutions: 2 },\n    expected: { denied: true, capturedExecutions: 0 },\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }\n\ntest at tests\\unit\\test-owned-process.mjs:10:1\n✖ panic never treats an allowlisted image as an owned process (1026.3267ms)\n  AssertionError [ERR_ASSERTION]: panic attempted termination without any owned child\n  + actual - expected\n  \n    {\n  +   commands: [\n  +     {\n  +       args: [\n  +         '/IM',\n  +         'fixture-unrelated.exe',\n  +         '/F'\n  +       ],\n  +       file: 'taskkill'\n  +     }\n  +   ],\n  +   killed: 1\n  -   commands: [],\n  -   killed: 0\n    }\n  \n      at TestContext.<anonymous> (file:///E:/aide-sovereign-workbench/tests/unit/test-owned-process.mjs:27:12)\n      at async Test.run (node:internal/test_runner/test:1389:7)\n      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {\n    generatedMessage: false,\n    code: 'ERR_ASSERTION',\n    actual: { commands: [ [Object] ], killed: 1 },\n    expected: { commands: [], killed: 0 },\n    operator: 'deepStrictEqual',\n    diff: 'simple'\n  }\n"
+}

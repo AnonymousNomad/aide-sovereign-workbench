@@ -1,34 +1,53 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
+import { launchSupervisedStack } from '../tests/helpers/supervised-stack.mjs';
+
 const run = promisify(execFile);
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function removeTree(target) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try { await rm(target, { recursive: true, force: true }); return; }
+    catch (error) {
+      if (!['EBUSY', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
+      await sleep(500);
+    }
+  }
+}
+
 const workspace = await mkdtemp(path.join(tmpdir(), 'aide-git-'));
 await run('git', ['init', '-q'], { cwd: workspace });
 await run('git', ['config', 'user.name', 'AIDE Test'], { cwd: workspace });
 await run('git', ['config', 'user.email', 'aide@test.invalid'], { cwd: workspace });
-await writeFile(path.join(workspace, 'README.md'), 'base\n'); await run('git', ['add', '.'], { cwd: workspace }); await run('git', ['commit', '-qm', 'base'], { cwd: workspace });
+await writeFile(path.join(workspace, 'README.md'), 'base\n');
+await run('git', ['add', '.'], { cwd: workspace });
+await run('git', ['commit', '-qm', 'base'], { cwd: workspace });
 await writeFile(path.join(workspace, 'README.md'), 'changed\n');
-const port = '4891'; const daemon = spawn(process.execPath, ['daemon/server.mjs'], { cwd: process.cwd(), env: { ...process.env, AIDE_WORKSPACE: workspace, AIDE_DAEMON_PORT: port }, stdio: ['ignore', 'ignore', 'pipe'] });
-let daemonExit = null;
-let daemonError = null;
-let daemonStderr = '';
-daemon.stderr.on('data', chunk => { daemonStderr = `${daemonStderr}${chunk}`.slice(-4000); });
-daemon.once('error', error => { daemonError = `daemon spawn error: ${error.message}`; });
-daemon.once('exit', (code, signal) => { daemonExit = `daemon exited before readiness (code=${code}, signal=${signal || 'none'})`; });
+
+// The canonical Git surface is the TS route family reached through the
+// supervised facade: unapproved mutations fail closed with the authority
+// envelope and only an explicitly approved exact operation executes.
+const stack = await launchSupervisedStack({ workspace });
 try {
-  let ready = false;
-  for (let i = 0; i < 150; i += 1) {
-    try { if ((await fetch(`http://127.0.0.1:${port}/health`)).ok) { ready = true; break; } } catch {}
-    if (daemonError || daemonExit) break;
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  assert.equal(ready, true, daemonError || daemonExit || `daemon did not become ready within 15 seconds${daemonStderr ? `: ${daemonStderr.trim()}` : ''}`);
-  assert.equal((await fetch(`http://127.0.0.1:${port}/api/git/stage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paths: ['README.md'], approved: false }) })).status, 500);
-  assert.equal((await fetch(`http://127.0.0.1:${port}/api/git/stage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paths: ['README.md'], approved: true }) })).status, 200);
-  assert.equal((await fetch(`http://127.0.0.1:${port}/api/git/commit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'test change', approved: true }) })).status, 200);
+  const unapproved = await stack.json('facade', 'POST', '/api/git/stage', { body: { paths: ['README.md'] } });
+  assert.equal(unapproved.status, 409, 'unapproved stage must fail closed');
+  const stillDirty = await run('git', ['diff', '--name-only'], { cwd: workspace });
+  assert.equal(stillDirty.stdout.trim(), 'README.md', 'unapproved stage must not touch the index');
+
+  const staged = await stack.approveJson({ adapter: 'ts', method: 'POST', path: '/api/git/stage', body: { paths: ['README.md'] } });
+  assert.equal(staged.status, 200, JSON.stringify(staged.body).slice(0, 200));
+
+  const committed = await stack.approveJson({ adapter: 'ts', method: 'POST', path: '/api/git/commit', body: { message: 'test change' } });
+  assert.equal(committed.status, 200, JSON.stringify(committed.body).slice(0, 200));
+
+  const log = await run('git', ['log', '-1', '--format=%s'], { cwd: workspace });
+  assert.equal(log.stdout.trim(), 'test change');
   console.log('git api test passed');
-} finally { daemon.kill('SIGTERM'); }
+} finally {
+  await stack.close();
+  await removeTree(workspace);
+}

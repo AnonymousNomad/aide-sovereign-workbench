@@ -1,0 +1,113 @@
+{
+  "baseline": {
+    "branch": "covert-production",
+    "head": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58"
+  },
+  "checkpoint": "BuildCache confinement repair; Phase 2A incomplete; fixture boundary stop",
+  "changedThisContinuation": {
+    "production": [
+      "node/src/services/build-cache.mjs",
+      "node/src/services/build-cache.d.mts",
+      "common/security/operation-policy.mjs"
+    ],
+    "tests": [
+      "tests/arch/capability-authority.test.ts"
+    ]
+  },
+  "finalFocused": {
+    "command": "node --test tests/arch/execution-authority.test.ts tests/arch/capability-authority.test.ts scripts/telegram-brain-battery.mjs tests/unit/test-owned-process.mjs tests/integration/test-desktop-panic-ownership.mjs tests/integration/test-authority-launch.mjs tests/unit/test-a1-agent.mjs tests/unit/test-agent-loop-tier.mjs",
+    "passed": 59,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "result": {
+      "chunk_id": "1d0415",
+      "wall_time_seconds": 7.2206571,
+      "exit_code": 0,
+      "original_token_count": 2241,
+      "output": "✔ parseProposal accepts DSL forms and rejects prose/unknown ops (3.6031ms)\n✔ /ask with ready engine proposes action and YES executes through grants (9.8266ms)\n✔ NO cancels without execution; expired proposals refuse (2.7363ms)\n✔ no engine READY yields honest guidance, not a fake promise (2.0317ms)\n✔ Telegram cannot forge identity, approval, ingress, action arguments or replay (4.7415ms)\n{\"cacheScopeFixture\":\"E:\\\\pip_temp\\\\phase2a-cache-scope-yRyvh3\",\"capturedDeletionTargets\":[],\"outsideCacheTargets\":[],\"realDeletions\":0,\"errorObserved\":\"invalid canonical cache key\"}\n✔ cache eviction cannot turn workspace-controlled index keys into out-of-cache deletion (25.4675ms)\n{\"cacheKeyMatrix\":23,\"deletedTargets\":[],\"platform\":\"win32\"}\n✔ cache path matrix rejects traversal, rooted, normalized, encoded and invalid keys before I/O (41.7489ms)\n{\"cacheCompatibility\":\"record/hit/LRU/clear\",\"root\":\"E:\\\\pip_temp\\\\phase2a-cache-valid-zPbacU\\\\.aide\\\\cache\\\\builds\",\"hits\":true}\n✔ cache canonical authority preserves record/hit/LRU/clear and denies forgery, alteration and replay (405.1965ms)\n✔ cache rejects redirected roots and linked targets, and binds resolved target identity (34.1084ms)\n✔ cache eviction deletion failure remains a failure with completed-target evidence (117.853ms)\n{\"telegramFixture\":\"E:\\\\pip_temp\\\\phase2a-telegram-http-abXLsv\",\"port\":64155,\"negativeCases\":10,\"approvedIdentityBindings\":1,\"networkCalls\":0}\n✔ Telegram HTTP routes propagate canonical authority and never grant from payloads (328.8001ms)\n{\"pid\":4960,\"workspace\":\"E:\\\\pip_temp\\\\opencode\\\\phase2a-authority-c8pbP1\",\"observations\":[{\"port\":64160,\"status\":403,\"body\":{\"ok\":false,\"error\":{\"code\":\"FORBIDDEN\",\"message\":\"authenticated actor required\"}}},{\"port\":64161,\"status\":403,\"body\":{\"error\":\"authenticated actor required\",\"code\":\"FORBIDDEN\"}}],\"capturedExecutions\":0,\"realGitMutation\":false}\n{\"cleanup\":\"closed\",\"archListening\":false,\"facadeListening\":false}\n✔ unpaired capability callers cannot stage through direct TS or facade (14.535ms)\n✔ privileged WebSocket subscription requires paired actor; revocation stops delivery (28.6422ms)\n{\"pid\":4960,\"workspace\":\"E:\\\\pip_temp\\\\phase2a-http-q6mtZw\",\"closed\":true,\"capturedExecutions\":1,\"realGitMutation\":false}\n✔ real HTTP pairing and action-bound approval preserve Git reads and deny forgery/replay (140.0871ms)\n✔ pairing requires a single-use supervisor proof; claims and origins cannot mint actors (11.2277ms)\n✔ authentication is not mutation approval; forged approved fields confer nothing (6.9145ms)\n✔ read-only policy needs no mutation approval and execution is still single-use (1.2092ms)\n✔ approved immutable descriptor binds content, task, operation, actor and workspace (2.7903ms)\n✔ agent cannot self-approve or acquire permission-administration scope (1.9115ms)\n✔ expiry and revocation prevent execution with zero side effects (1.7164ms)\n✔ concurrent replay cannot cross a pending audit write (1.3528ms)\n✔ revocation during audit persistence stops the reserved operation (1.1917ms)\n✔ required decision/consumption receipts fail closed; completion failure never permits replay (2.7869ms)\n✔ unknown operations and malformed non-JSON descriptors are rejected (1.7653ms)\n✔ execution handles are opaque, argument-bound and invalid after executor returns (2.1335ms)\n✔ Telegram identities need private ingress proof, exact action confirmation and single-use consumption (4.3958ms)\n✔ Telegram confirmation cannot cross expiry, revocation or another adapter binding (6.2272ms)\nPOST /api/authority/pair -> ts 200 22ms\nPOST /api/file/write -> ts 409 4ms\nPOST /api/authority/prepare -> ts 200 12ms\nPOST /api/authority/decision -> ts 200 42ms\nPOST /api/file/write -> ts 409 2ms\nPOST /api/file/write -> ts 200 18ms\nPOST /api/file/write -> ts 409 2ms\nPOST /api/authority/prepare -> ts 200 10ms\nPOST /api/authority/decision -> ts 200 6ms\nGET /api/file -> ts 200 22ms\n{\"workspace\":\"E:\\\\pip_temp\\\\phase2a-stack-o6RmcW\",\"fixturePids\":[5964,13128],\"ports\":[64148,64147,64149],\"negativeHttpCases\":9,\"approvedWorkspaceWrites\":2,\"realModelAcceptance\":\"NOT_RUN\"}\n{\"fixtureChildrenExited\":[{\"pid\":5964,\"exitCode\":null,\"signalCode\":\"SIGTERM\"},{\"pid\":13128,\"exitCode\":null,\"signalCode\":\"SIGTERM\"}]}\n✔ real supervisor -> facade/direct TS/legacy: pairing, bound write and denial without fallback (1795.8723ms)\n{\"mode\":\"throw\",\"fixturePid\":10972,\"outcome\":{\"id\":\"a4a198ad-25e4-4a42-a1d5-5c440f46452d\",\"pid\":10972,\"status\":\"failed\",\"killed\":false,\"error\":\"injected native termination failure\"},\"disarmed\":true,\"attempts\":1}\n{\"mode\":\"refuse\",\"fixturePid\":8284,\"outcome\":{\"id\":\"0cb15ca9-a441-4f2c-bfc1-63e125b61ce5\",\"pid\":8284,\"status\":\"failed\",\"killed\":false,\"error\":\"native process handle did not accept termination\"},\"disarmed\":true,\"attempts\":1}\n{\"mode\":\"unconfirmed\",\"fixturePid\":17800,\"outcome\":{\"id\":\"8825f72d-5e4b-4228-9169-391d6092565c\",\"pid\":17800,\"status\":\"unconfirmed\",\"killed\":false,\"error\":\"exit not observed before deadline\"},\"disarmed\":true,\"attempts\":1}\n✔ owned termination errors and unconfirmed exits are truthful, disarmed, and never retried (116.9402ms)\n{\"ownedPid\":21892,\"unrelatedPid\":17760,\"sameExecutable\":true,\"sameArguments\":true,\"unrelatedSurvived\":true,\"outcomes\":[{\"id\":\"a1930c89-b084-4dd7-aeba-c36211acd1a2\",\"pid\":21892,\"status\":\"terminated\",\"killed\":true,\"exit\":{\"code\":null,\"signal\":\"SIGTERM\",\"error\":null}}]}\n✔ owned native child termination never targets an unrelated identical command or forged PID handle (60.78ms)\n✔ panic racing spawn revokes launch and observes its exit, with no detached survivor (15.6697ms)\n✔ an exited original process handle cannot authorize a new termination (134.1288ms)\n{\"workspace\":\"E:\\\\pip_temp\\\\phase2a-desktop-UV4HVX\",\"unrelatedPid\":804,\"ownedOutcomes\":[{\"id\":\"9214a854-47a2-4aa4-85b6-6f65704ef119\",\"pid\":1828,\"status\":\"terminated\",\"killed\":true,\"exit\":{\"code\":null,\"signal\":\"SIGTERM\",\"error\":null}}],\"unrelatedSurvived\":true,\"repeatedPanicKilled\":0}\n✔ real desktop grant/action/panic uses canonical approvals and protects identical unrelated child (125.5999ms)\n✔ checkpoint authority: direct calls and forged approvals cannot initialize or mutate (23.5185ms)\n✔ checkpoint authority: head lookup never initializes a checkpoint repository (10.1952ms)\n✔ checkpoint authority: exact target, replay, expiry and revocation deny without filesystem effects (949.8798ms)\n✔ checkpoint authority: nested metadata restoration failure is surfaced with recovery paths (871.973ms)\n✔ checkpoint authority: revocation during metadata movement restores exactly the moved metadata (474.299ms)\n✔ checkpoint authority: agent awaits approved snapshot before dependent tool; failure stops continuation (768.6037ms)\n✔ agent authority: direct session and mutation-tool calls cannot approve themselves (3.5981ms)\n✔ parser extracts single and multiple calls with prose noise around them (3.1693ms)\n✔ parser rejects unknown tools and unclosed known params, ignores unknown pseudo-tags (2.6662ms)\n✔ path jail blocks traversal, absolute escapes and symlink escapes; allows inside paths (9.0756ms)\n✔ invisible characters are detected and flagged as risks for writes (2.4003ms)\n✔ computeRisks flags protected files and network commands (2.3178ms)\n✔ replace_in_file: exact, CRLF-normalized, indentation-loose, first-match-only, no-match error quality (3.2626ms)\n✔ splitCommandLine respects quotes (2.6763ms)\n✔ checkpoints: commit, mutate, restore returns prior content; user git untouched; nested repo preserved (2071.3337ms)\n✔ loop: scripted chatFn completes via attempt_completion after an approved write; approval gate blocks until decision (810.4906ms)\n✔ loop: reject feeds rejection to model; abort terminates session (265.3887ms)\n✔ loop: plan mode blocks write tools and counts mistakes; malformed calls hit mistake limit (34.9688ms)\n✔ loop: tool output is untrusted DATA — injected tool-call-looking output is never re-parsed (73.3513ms)\n✔ agent: start accepts chatFn override and the loop uses it instead of default chatFn (33.9618ms)\n✔ agent: nil override falls back to constructor chatFn (75.7505ms)\n✔ tier: default (no effectiveContextTokens) keeps the legacy full-credo prompt (46.384ms)\n✔ tier: micro (<8192) swaps full credo for the 3-line operating layer but keeps the machine contract (28.2582ms)\n✔ tier: full (>=8192) composes credo via the scaffold, not the hand-rolled loader (96.3757ms)\n✔ tier: per-session override beats the loop-level default (30.2032ms)\n{\"workspace\":\"E:\\\\pip_temp\\\\opencode\\\\phase2a-panic-KoINxS\",\"captured\":[],\"result\":{\"ok\":true,\"children_killed\":0,\"unowned_handlers\":0,\"outcomes\":[],\"revoked_at\":\"2026-09-12T15:17:46.575Z\",\"latency_ms\":1},\"realProcessesTerminated\":0}\n✔ panic never treats an allowlisted image as an owned process (34.0939ms)\nℹ tests 59\nℹ suites 0\nℹ pass 59\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 6909.9748\n"
+    }
+  },
+  "gates": [
+    {
+      "cmd": "node node_modules/typescript/bin/tsc -p tsconfig.node.json --noEmit",
+      "chunk_id": "917f84",
+      "wall_time_seconds": 6.8619041,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "cmd": "node node_modules/typescript/bin/tsc -p browser/tsconfig.browser.json --noEmit",
+      "chunk_id": "b5fe1c",
+      "wall_time_seconds": 3.6810089,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "cmd": "node node_modules/eslint/bin/eslint.js node/src/services/build-cache.mjs common/security/operation-policy.mjs tests/arch/capability-authority.test.ts",
+      "chunk_id": "bbd043",
+      "wall_time_seconds": 2.5777096999999998,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "cmd": "git diff --check",
+      "chunk_id": "ef7bb1",
+      "wall_time_seconds": 0.5269391,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    }
+  ],
+  "initialBackendTypecheck": {
+    "result": {
+      "chunk_id": "58dc60",
+      "wall_time_seconds": 6.7739432,
+      "exit_code": 1,
+      "original_token_count": 127,
+      "output": "tests/arch/capability-authority.test.ts(78,48): error TS18046: 'input.args' is of type 'unknown'.\r\ntests/arch/capability-authority.test.ts(89,106): error TS18046: 'input.args' is of type 'unknown'.\r\ntests/arch/capability-authority.test.ts(97,57): error TS18046: 'getInput.args' is of type 'unknown'.\r\ntests/arch/capability-authority.test.ts(103,61): error TS18046: 'clearInput.args' is of type 'unknown'.\r\ntests/arch/capability-authority.test.ts(144,48): error TS18046: 'input.args' is of type 'unknown'.\r\n"
+    },
+    "resolution": "describe declaration now exposes args.body as Record<string, unknown>; final backend and browser typechecks passed without any/ignores"
+  },
+  "separateLegacyFixtureProbe": {
+    "command": "node --test --test-name-pattern='LRU eviction' tests/unit/test-b5-cache.mjs",
+    "exitCode": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "cancelled": 0,
+    "durationMs": 113.2875,
+    "failure": "AuthorityError: cache execution authority required",
+    "code": "FORBIDDEN",
+    "line": 156,
+    "interpretation": "Unmodified legacy fixture constructs BuildCache without authority; fixture migration outside approved boundary. Not a passing gate."
+  },
+  "cache": {
+    "tests": 5,
+    "pathVariants": 23,
+    "coverage": [
+      "captured ../../../source persisted-index escape rejected with CACHE_BOUNDARY; no rmSync/unlinkSync target",
+      "absolute/rooted/drive-relative/UNC/extended Windows/alternate-separator/normalized/empty/encoded/ADS/device/prototype keys denied",
+      "real approved record/get/LRU/clear; missing/forged authority and replay denied",
+      "invalid root, junction, hardlink, root replacement after approval denied; peer sentinel preserved",
+      "injected EACCES eviction reports partial with completed writes; original victim remains; canonical execution-failed receipt"
+    ],
+    "limitation": "Portable checks are not race-free OS directory-handle sandboxing against another process changing ancestry; no crash-atomic/cross-process transaction claimed."
+  },
+  "unrun": [
+    "full lint",
+    "frontend build",
+    "contract generation/idempotence",
+    "full affected architecture battery",
+    "task/terminal authority integration acceptance",
+    "full browser/startup acceptance",
+    "native compilation/startup"
+  ],
+  "verdict": "NOT ACCEPTANCE-READY",
+  "native": "DEFERRED — RUST TOOLCHAIN UNAVAILABLE",
+  "integrityFile": "CACHE_INTEGRITY.json"
+}
+

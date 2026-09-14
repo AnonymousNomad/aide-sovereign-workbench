@@ -9,21 +9,24 @@ import { ArchServer } from '../../node/src/server.ts';
 import { buildRoutes } from '../../node/src/openapi.ts';
 import { Envelope } from '../../common/errors.ts';
 import { HintResult } from '../../common/contracts/hint.ts';
+import { pairFixture } from './authority-fixture.ts';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-hint-routes-'));
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 let server: ArchServer;
 let httpServer: http.Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-test.log'));
-  const routes = await buildRoutes(workspace, 'test');
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -41,7 +44,7 @@ after(async () => {
 
 async function fetchHint(course: string, lesson: string, after?: number) {
   const suffix = after === undefined ? '' : `&after=${after}`;
-  return fetch(`${base}/api/academy/hint?course=${encodeURIComponent(course)}&lesson=${encodeURIComponent(lesson)}${suffix}`);
+  return owner.request(`/api/academy/hint?course=${encodeURIComponent(course)}&lesson=${encodeURIComponent(lesson)}${suffix}`);
 }
 
 test('hint route walks the ladder level by level', async () => {

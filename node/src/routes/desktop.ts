@@ -11,6 +11,7 @@ import {
   DesktopVerdictResult
 } from '../../../common/contracts/desktop.ts';
 import { createRequire } from 'node:module';
+import { AuthorityError, type ExecutionAuthority, type ExecutionHandle } from '../services/execution-authority.mjs';
 
 const require = createRequire(import.meta.url);
 const z = require('zod') as typeof import('zod');
@@ -20,20 +21,21 @@ type ErrorCode = 'BAD_REQUEST' | 'FORBIDDEN' | 'NOT_FOUND' | 'CONFLICT' | 'PAYLO
 
 export type DesktopService = {
   status(): Promise<Record<string, unknown>>;
-  setGrants(manifest: unknown): Promise<unknown>;
-  act(request: unknown): Promise<unknown>;
-  panic(): Promise<unknown>;
+  setGrants(manifest: unknown, execution?: ExecutionHandle): Promise<unknown>;
+  act(request: unknown, execution?: ExecutionHandle): Promise<unknown>;
+  panic(execution?: ExecutionHandle): Promise<unknown>;
   submitPending(input: unknown): unknown;
   waitForVerdict(id: string, timeoutMs?: number): Promise<{ verdict: string }>;
   resolvePending(id: string, decision: string): unknown;
   listPending(): Array<Record<string, unknown>>;
 };
 
-export function createDesktopService(workspace: string): DesktopService {
-  return createDesktopControl({ workspace });
+export function createDesktopService(workspace: string, authority?: ExecutionAuthority): DesktopService {
+  return createDesktopControl({ workspace, authority });
 }
 
 function toRouteError(error: unknown): RouteError {
+  if (error instanceof AuthorityError) return new RouteError(error.code as ErrorCode, error.message, error.detail);
   if (error && typeof error === 'object' && 'code' in error) {
     const e = error as { code: string; message: string };
     const map: Record<string, ErrorCode> = {
@@ -71,20 +73,13 @@ export function routesForDesktop(service: DesktopService): Route[] {
         }).strict();
       })(),
       response: DesktopStatusResponse,
-      handler: async ({ body }) => {
+      handler: async ({ body, execution }) => {
         const input = body as { enabled: boolean; grants: { apps: string[]; roots: string[]; window_titles: string[] }; ttl_minutes: number };
         // Grants are ONLY settable by the operator wizard — this route requires
         // the same local-machine trust as every other daemon write, and the
         // manifest records approved_by:'operator-wizard'. Respond with the
         // STATUS shape (contract) rather than the stored manifest.
-        await service.setGrants({
-          version: 1,
-          enabled: input.enabled,
-          grants: input.grants,
-          session_started_at: new Date().toISOString(),
-          ttl_minutes: input.ttl_minutes,
-          approved_by: 'operator-wizard'
-        });
+        await service.setGrants(input, execution);
         return await service.status();
       }
     },
@@ -93,9 +88,9 @@ export function routesForDesktop(service: DesktopService): Route[] {
       path: '/api/desktop/action',
       body: DesktopActionRequest,
       response: DesktopActionResult,
-      handler: async ({ body }) => {
+      handler: async ({ body, execution }) => {
         try {
-          return await service.act(body);
+          return await service.act(body, execution);
         } catch (error) {
           throw toRouteError(error);
         }
@@ -105,7 +100,7 @@ export function routesForDesktop(service: DesktopService): Route[] {
       method: 'POST',
       path: '/api/desktop/panic',
       response: PanicResult,
-      handler: async () => service.panic()
+      handler: async ({ execution }) => service.panic(execution)
     },
     {
       // Executor seam (T2 contract): desktop-agent submits a pending action,

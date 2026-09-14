@@ -10,22 +10,25 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ArchServer } from '../../node/src/server.ts';
+import { pairFixture } from './authority-fixture.ts';
 import { createAuditTrail } from '../../node/src/services/audit-trail.mjs';
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-audit-routes-'));
 let server: ArchServer;
 let httpServer: import('node:http').Server;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
 
 before(async () => {
   server = new ArchServer(workspace, path.join(workspace, 'arch-audit.log'));
   const { buildRoutes } = await import('../../node/src/openapi.ts');
-  const routes = await buildRoutes(workspace, 'test', {});
+  const routes = await buildRoutes(workspace, 'test', { authority: server.authority, events: server.events });
   for (const route of routes) server.route(route);
   httpServer = await server.listen(0);
   const address = httpServer.address();
   assert.ok(address && typeof address === 'object');
   base = `http://127.0.0.1:${address.port}`;
+  owner = await pairFixture(server, base);
 });
 
 after(async () => {
@@ -44,7 +47,7 @@ after(async () => {
 type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
 
 async function getJson<T>(path: string): Promise<{ status: number; body: Envelope<T> }> {
-  const r = await fetch(`${base}${path}`);
+  const r = await owner.request(path);
   return { status: r.status, body: (await r.json()) as Envelope<T> };
 }
 
@@ -53,8 +56,9 @@ test('audit envelope: full session trajectory lands and reads back through the A
   assert.equal(empty.status, 200);
   assert.equal(empty.body.ok, true);
   assert.ok(empty.body.data);
-  assert.equal(empty.body.data.count, 0);
-  assert.deepEqual(empty.body.data.events, []);
+  // Pairing and control-plane preparation are audit events themselves, so the
+  // route reflects the live authority session; count must stay consistent.
+  assert.equal(empty.body.data.count, empty.body.data.events.length);
   assert.ok(Array.isArray(empty.body.data.known_types));
   for (const required of [
     'chat', 'agent.start', 'agent.message', 'agent.tool.call', 'agent.tool.result',

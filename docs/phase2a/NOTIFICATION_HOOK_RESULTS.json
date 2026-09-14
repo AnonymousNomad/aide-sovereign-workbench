@@ -1,0 +1,121 @@
+{
+  "checkpoint": "NOTIFICATION_HOOK_AUTHORITY",
+  "phase": "2A",
+  "status": "BOUNDARY_REPAIRED_NOT_ACCEPTANCE_READY",
+  "baseline": {
+    "branch": "covert-production",
+    "head": "bdbaff6eeb435a7a9ffe18551843ed24d4f97a58"
+  },
+  "implemented": [
+    "NotificationService constructor accepts an ExecutionAuthority instance.",
+    "describeHookExecution returns a canonical capability.execute OperationInput binding event, context, hooks, workspace and taskId.",
+    "runHooks requires the injected authority and an approved ExecutionHandle; it asserts and claims execution against the exact hook body before running any command.",
+    "ingestTaskEvent accepts an optional execution handle and only runs hooks when a trusted handle is supplied; without it, task events still record notifications but do not spawn hooks.",
+    "Hook timeout path still uses runHookCommand but only after authority consumption; no ownership change to timeout/kill logic in this slice."
+  ],
+  "production_modified": [
+    "node/src/services/notification-service.mjs",
+    "node/src/services/notification-service.d.mts"
+  ],
+  "tests_modified": [
+    "tests/unit/test-b4-notifications.mjs",
+    "tests/arch/capability-authority.test.ts"
+  ],
+  "static": {
+    "diffCheck": {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "notes": "CRLF replacement warnings only for the three modified .mjs/.mts files; no whitespace errors."
+    },
+    "nodeTypecheck": {
+      "command": "node node_modules/typescript/bin/tsc -p tsconfig.node.json --noEmit",
+      "exit_code": 0
+    },
+    "browserTypecheck": {
+      "command": "node node_modules/typescript/bin/tsc -p browser/tsconfig.browser.json --noEmit",
+      "exit_code": 0
+    },
+    "targetedLint": {
+      "command": "npx eslint node/src/services/notification-service.mjs node/src/routes/notifications.ts tests/unit/test-b4-notifications.mjs tests/arch/capability-authority.test.ts",
+      "exit_code": 0,
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "focused": {
+    "command": "node --test --test-timeout=30000 tests/arch/execution-authority.test.ts tests/arch/capability-authority.test.ts tests/unit/test-b4-notifications.mjs tests/unit/test-b3-compound.mjs tests/unit/test-b5-cache.mjs tests/unit/test-owned-process.mjs",
+    "passed": 44,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "duration_ms": 3897.2511,
+    "exit_code": 0,
+    "coverage": "authority core (14), capability HTTP/WS (3), task HTTP/WS lifecycle (2), cache security/path matrix (7), Telegram delegation/HTTP (6), desktop ownership/panic (6), b3 compound (8), b4 notification hook authority (1), b5 cache (7)"
+  },
+  "regression": {
+    "command": "node --test --test-timeout=60000 tests/integration/test-npm-start-shutdown.mjs",
+    "passed": 1,
+    "failed": 0,
+    "duration_ms": 19579.3838,
+    "exit_code": 0,
+    "notes": "Parent-only OS kill of npm wrapper; start.mjs cleans up owned stack."
+  },
+  "build": {
+    "command": "npm run build:frontend",
+    "exit_code": 0,
+    "modules": 1376,
+    "duration_ms": 5710,
+    "notes": "Large-chunk and plugin-timing warnings remain pre-existing; no UI edits."
+  },
+  "contracts": {
+    "command": "node scripts/contracts.mjs (twice, SHA-256 compared)",
+    "exit_code": 0,
+    "bytes": 685805,
+    "routes": 207,
+    "sha256": "7f88246d31fe13abe32ddd9cba7b8c32c5271621dc3b94b69657c577149c4e4a",
+    "idempotent": true
+  },
+  "protected_files": {
+    "checked": 38,
+    "mismatches": 0,
+    "command": "node E:/pip_temp/opencode/verify-protected-hashes.mjs"
+  },
+  "process_hygiene": {
+    "notes": "One node process remained after tests (PID 3268, command line = OpenCode/Codex agent); not test-owned. No test fixture listeners on ephemeral ports. No operator processes terminated.",
+    "test_temp_dirs": [
+      "E:/pip_temp\\\\phase2a-hook-boundary-EWLLpb",
+      "E:/pip_temp\\\\phase2a-task-http-A6PLGb",
+      "E:/pip_temp\\\\phase2a-task-authority-QOgNBu",
+      "E:/pip_temp\\\\phase2a-cache-scope-RHXX2G",
+      "E:/pip_temp\\\\phase2a-cache-valid-85E6fA",
+      "E:/pip_temp\\\\phase2a-cache-2hvQTv",
+      "E:/pip_temp\\\\phase2a-cache-rWAn0L",
+      "E:/pip_temp\\\\phase2a-cache-5p7KC1",
+      "E:/pip_temp\\\\phase2a-cache-TcEkhk",
+      "E:/pip_temp\\\\phase2a-telegram-http-uxYMFZ",
+      "E:/pip_temp\\\\phase2a-authority-I7dJAL",
+      "E:/pip_temp\\\\phase2a-http-dNvXbw",
+      "E:/pip_temp\\\\opencode\\\\phase2a-panic-JFsbC2",
+      "E:/pip_temp\\\\aide-b3-compound-D832jO",
+      "E:/pip_temp\\\\aide-b3-compound-2V7kCo",
+      "E:/pip_temp\\\\aide-b3-compound-XdKSjE",
+      "E:/pip_temp\\\\aide-b3-compound-EpDXAf",
+      "E:/pip_temp\\\\aide-b3-compound-Q1F1JT",
+      "E:/pip_temp\\\\aide-b5-cache-87zMc9",
+      "E:/pip_temp\\\\aide-b5-cache-2hvQTv",
+      "E:/pip_temp\\\\aide-b5-cache-rWAn0L",
+      "E:/pip_temp\\\\aide-b5-cache-5p7KC1",
+      "E:/pip_temp\\\\aide-b5-cache-TcEkhk"
+    ]
+  },
+  "remaining_limitations": [
+    "Production task-event wiring in node/src/openapi.ts still calls ingestTaskEvent without an execution handle; real task-event hooks will not execute until that slice is authorized and implemented.",
+    "Task stop proves/terminates retained direct child handles only; arbitrary descendants from shell/npm commands are not guaranteed owned or terminated.",
+    "Session/operation revocation prevents pending/new actions; cleanup of already-running arbitrary subprocesses after revocation needs broader policy acceptance.",
+    "Full adversarial matrix, architecture battery, facade task/cache workflow acceptance, and native desktop compile/startup remain unrun/deferred.",
+    "Current UI has not been migrated to present task approval phases or hook execution authority; no UI redesign authorized."
+  ],
+  "committed": false,
+  "pushed": false,
+  "assessment": "NOT ACCEPTANCE-READY"
+}

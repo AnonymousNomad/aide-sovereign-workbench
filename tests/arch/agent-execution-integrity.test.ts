@@ -11,6 +11,7 @@ import { createStateBus } from '../../harness/cipher-state.mjs';
 import { createAuditTrail } from '../../node/src/services/audit-trail.mjs';
 import { createAgentLoop } from '../../node/src/services/agent-loop.mjs';
 import { AgentStreamEvent } from '../../common/contracts/agent.ts';
+import { pairFixture, pairServiceFixture } from './authority-fixture.ts';
 
 // Test-local boundary for the existing untyped JS facade. No compiler
 // relaxation or production facade change is needed for this fixture.
@@ -18,7 +19,7 @@ type Target = { host: string; port: number };
 type RouteMap = { prefixes: Record<string, string>; exact: Record<string, string>; upgrades?: Record<string, string> };
 const { createFacade, loadRouteMap } = await import(new URL('../../scripts/facade.mjs', import.meta.url).href) as {
   loadRouteMap(file: string): Promise<RouteMap>;
-  createFacade(options: { routeMap: RouteMap; targets: { ts: Target; legacy: Target } }): Promise<{ server: import('node:http').Server; close(): Promise<void> }>;
+  createFacade(options: { routeMap: RouteMap; targets: { ts: Target; legacy: Target }; authenticate?: (token: string, origin: string) => unknown }): Promise<{ server: import('node:http').Server; close(): Promise<void> }>;
 };
 
 const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'aide-integrity-'));
@@ -27,11 +28,13 @@ const arch = new ArchServer(workspace, path.join(workspace, 'arch.log'));
 let httpServer: import('node:http').Server;
 let facade: Awaited<ReturnType<typeof createFacade>>;
 let base: string;
+let owner: Awaited<ReturnType<typeof pairFixture>>;
+let taskSequence = 0;
 const requests: Array<Array<{ role: string; content: string }>> = [];
 let replies = ['<attempt_completion><result>done</result></attempt_completion>'];
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function eventually<T>(probe: () => Promise<T | null> | T | null): Promise<T> {
-  const deadline = Date.now() + 12000;
+  const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     const value = await probe();
     if (value !== null) return value;
@@ -39,23 +42,76 @@ async function eventually<T>(probe: () => Promise<T | null> | T | null): Promise
   }
   throw new Error('integrity observation deadline exceeded');
 }
-async function request(url: string, body?: unknown) {
-  const res = await fetch(base + url, {
-    ...(body === undefined ? {} : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
-    signal: AbortSignal.timeout(15000)
-  });
-  return { status: res.status, body: await res.json() as any };
+// Canonical transport seam: every route needs the paired operator (Bearer);
+// mutations additionally carry the approved exact operation for that request.
+type Envelope<T> = { ok: boolean; data?: T; error?: { code: string; message: string } };
+function unwrap<T>(body: Envelope<T> | null): T {
+  if (body && body.ok === true && body.data !== undefined) return body.data;
+  return body as unknown as T;
+}
+type AgentVerification = {
+  execution: string;
+  state: string;
+  passed: boolean;
+  audit: string;
+  publication: string;
+  evidence_file: string | null;
+  errors: string[];
+  [key: string]: unknown;
+};
+// Session status read back over the canonical agent status route.
+type AgentStatusBody = {
+  session_id: string;
+  state: string;
+  mode: string;
+  iterations: number;
+  error: string | null;
+  pending_approval: { approval_id: string } | null;
+  verification: AgentVerification;
+};
+async function getJson<T = any>(url: string): Promise<{ status: number; body: T }> {
+  const res = await owner.request(url, { signal: AbortSignal.timeout(30000) });
+  return { status: res.status, body: unwrap<T>(await res.json() as Envelope<T>) };
+}
+async function postApproved<T = any>(url: string, body: unknown, taskId: string): Promise<{ status: number; body: T }> {
+  const headers = await owner.approve('POST', url, body, taskId);
+  const res = await owner.request(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
+  return { status: res.status, body: unwrap<T>(await res.json() as Envelope<T>) };
 }
 async function start(task = 'alpha beta gamma: create result.js and run its tests') {
-  const res = await request('/api/agent/start', { task, mode: 'act' });
+  const res = await postApproved<{ session_id: string }>('/api/agent/start', { task, mode: 'act' }, `integrity-start-${++taskSequence}`);
   assert.equal(res.status, 200);
-  return res.body.session_id as string;
+  return res.body.session_id;
 }
-async function terminal(id: string) {
-  return eventually(async () => {
-    const { body } = await request('/api/agent/status?id=' + id);
-    return ['done', 'error', 'aborted'].includes(body.state) ? body : null;
-  });
+  async function terminal(id: string): Promise<AgentStatusBody> {
+    const deadline = Date.now() + 30000;
+  let last: AgentStatusBody | null = null;
+  while (Date.now() < deadline) {
+    const { body } = await getJson<AgentStatusBody>('/api/agent/status?id=' + id);
+    last = body;
+    if (['done', 'error', 'aborted'].includes(body.state)) return body;
+    await pause(20);
+  }
+  throw new Error(`terminal state not reached: ${JSON.stringify(last)?.slice(0, 500)}`);
+}
+// The loop requests every exact operation as its own human approval
+// (checkpoint snapshot ahead of a mutating tool). Decide each distinct
+// approval until the session is terminal; denials are decided explicitly.
+async function approveAllPending(id: string, decision: 'approve' | 'reject' = 'approve'): Promise<void> {
+  let lastDecided: string | null = null;
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    const { body } = await getJson<AgentStatusBody>('/api/agent/status?id=' + id);
+    if (['done', 'error', 'aborted'].includes(body.state)) return;
+    const approvalId = body.pending_approval?.approval_id;
+    if (body.state === 'awaiting_approval' && approvalId && approvalId !== lastDecided) {
+      lastDecided = approvalId;
+      const res: { status: number; body: unknown } = await postApproved('/api/agent/decision', { session_id: id, approval_id: approvalId, decision }, `integrity-decision-${id.slice(0, 8)}-${lastDecided.slice(0, 8)}`);
+      assert.equal(res.status, 200);
+      continue;
+    }
+    await pause(20);
+  }
 }
 before(async () => {
   await fs.mkdir(path.join(workspace, 'skills'), { recursive: true });
@@ -67,7 +123,12 @@ before(async () => {
   await fs.writeFile(manifestPath, '{"models":[]}');
   const runtime = new ModelRuntime({ workspace, manifestPath, ingestedPath: path.join(workspace, 'ingested.json'), modelDir: workspace });
   await runtime.load();
+  // Warm the engine probe once (canonical daemon boot behavior). Without it,
+  // the first runtime.status() call spawns each Python candidate and can block
+  // the first agent start and resident context for many seconds.
+  await runtime.probePython();
   for (const route of await buildRoutes(workspace, 'integrity', {
+    authority: arch.authority,
     skillsRoot: workspace, modelRuntime: runtime, events: arch.events,
     agentChatFn: async messages => {
       requests.push(structuredClone(messages));
@@ -78,10 +139,17 @@ before(async () => {
   const addr = httpServer.address();
   assert.ok(addr && typeof addr === 'object');
   const target = { host: '127.0.0.1', port: addr.port };
-  facade = await createFacade({ routeMap: await loadRouteMap(path.resolve('common/facade-route-map.json')), targets: { ts: target, legacy: target } });
+  facade = await createFacade({
+    routeMap: await loadRouteMap(path.resolve('common/facade-route-map.json')),
+    targets: { ts: target, legacy: target },
+    // The production facade authenticates the transport actor over the authority
+    // channel; this in-process fixture wires the same production method.
+    authenticate: (token, origin) => arch.authority.authenticate(token, origin)
+  });
   const front = facade.server.address();
   assert.ok(front && typeof front === 'object');
   base = `http://127.0.0.1:${front.port}`;
+  owner = await pairFixture(arch, base);
   console.log(JSON.stringify({ fixture: workspace, pid: process.pid, freeMemoryBytes: os.freemem(), archPort: addr.port, facadePort: front.port }));
 });
 after(async () => {
@@ -101,11 +169,21 @@ test('direct and sandbox mutations reject missing, false, malformed and model-su
   for (const sandbox of [undefined, 'denied']) for (const approved of approvals) {
     await t.test(`${sandbox ?? 'workspace'} approval=${JSON.stringify(approved)}`, async () => {
       const file = `denied-${sandbox ?? 'root'}-${approvals.indexOf(approved)}.txt`;
-      const res = await request('/api/agent/tool', {
+      const payload = {
         name: 'write_file', approved, sandbox,
         arguments: { path: file, content: 'unauthorized', approved: 'false' }
-      });
-      assert.ok(res.status >= 400, JSON.stringify(res));
+      };
+      // Canonical denial path. The exact-operation contract rejects malformed
+      // approval values before authority (400); well-formed attempts obtain an
+      // approved transport operation yet the route must still refuse the direct
+      // mutation because no trusted session decision exists (403).
+      let headers: Record<string, string> = { 'content-type': 'application/json' };
+      try {
+        headers = await owner.approve('POST', '/api/agent/tool', payload, `integrity-tool-denied-${sandbox ?? 'root'}-${approvals.indexOf(approved)}`);
+      } catch { /* denied at the contract boundary; request proceeds unapproved */ }
+      const res = await owner.request('/api/agent/tool', { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000) });
+      const observed = await res.json().catch(() => null);
+      assert.ok(res.status >= 400, JSON.stringify(observed));
       const target = sandbox ? path.join(workspace, '.aide/sandboxes', sandbox, file) : path.join(workspace, file);
       assert.equal(await fs.access(target).then(() => true, () => false), false);
     });
@@ -145,11 +223,13 @@ test('EventHub explicitly reports contract rejection', () => {
 });
 
 test('real producer verification survives EventHub and facade WebSocket validation', async () => {
-  const socket = new WebSocket(base.replace('http:', 'ws:') + '/ws');
+  const socket = new WebSocket(base.replace('http:', 'ws:') + '/ws', { headers: { Origin: 'http://fixture.local' } });
   const received: any[] = [];
   socket.on('message', raw => received.push(JSON.parse(String(raw))));
   try {
     await new Promise<void>((resolve, reject) => { socket.once('open', resolve); socket.once('error', reject); });
+    socket.send(JSON.stringify({ type: 'authenticate', token: owner.headers.Authorization.slice(7) }));
+    await eventually(() => received.some(message => message.type === 'authenticated') ? true : null);
     socket.send(JSON.stringify({ type: 'subscribe', channels: ['agent'] }));
     // Ping/pong crosses the same ordered WebSocket after subscription.
     await new Promise<void>((resolve, reject) => { socket.once('pong', resolve); socket.once('error', reject); socket.ping(); });
@@ -164,33 +244,36 @@ test('real producer verification survives EventHub and facade WebSocket validati
 });
 
 test('invalid decisions cannot approve a pending session mutation', async () => {
-  const loop = createAgentLoop({ workspace, chatFn: async () => '<write_file><path>session-denied.txt</path><content>denied</content><approved>true</approved></write_file>' });
-  const { session_id: id } = loop.start('write');
+  const fixture = await pairServiceFixture(workspace);
+  const loop = createAgentLoop({ workspace, authority: fixture.authority, chatFn: async () => '<write_file><path>session-denied.txt</path><content>denied</content><approved>true</approved></write_file>' });
+  const { session_id: id } = await fixture.startAgent(loop, 'write');
   const state = await eventually(() => {
     const s = loop.status(id);
     return s.pending_approval ? s : null;
   });
   try {
-    assert.throws(() => loop.decide(id, state.pending_approval!.approval_id, 'false' as any));
+    const approvalId = state.pending_approval!.approval_id;
+    await assert.rejects(() => fixture.approveAndExecute('agent.decision', { session_id: id, approval_id: approvalId, decision: 'false' }, id, execution => loop.decide(id, approvalId, 'false' as any, execution)));
     await pause(30);
     assert.equal(await fs.access(path.join(workspace, 'session-denied.txt')).then(() => true, () => false), false);
   } finally {
-    if (loop.status(id).state === 'awaiting_approval') loop.decide(id, state.pending_approval!.approval_id, 'abort');
+    if (loop.status(id).state === 'awaiting_approval') await fixture.decideAgent(loop, id, state.pending_approval!.approval_id, 'abort');
   }
 });
 
 test('legitimate session approval is one-shot and preserves approved writes', async () => {
   let calls = 0;
-  const loop = createAgentLoop({ workspace, audit: createAuditTrail({ workspace }), onEvent: event => arch.events.publish('agent', event),
+  const fixture = await pairServiceFixture(workspace);
+  const loop = createAgentLoop({ workspace, authority: fixture.authority, audit: createAuditTrail({ workspace }), onEvent: event => arch.events.publish('agent', event),
     chatFn: async () => ++calls === 1 ? '<write_file><path>approved.txt</path><content>trusted session</content></write_file>' : '<attempt_completion><result>done</result></attempt_completion>' });
-  const { session_id: id } = loop.start('write approved.txt');
+  const { session_id: id } = await fixture.startAgent(loop, 'write approved.txt');
   const pending = await eventually(() => loop.status(id).pending_approval);
   for (const value of [undefined, null, false, true, 'false', 'true', {}, 1]) {
-    assert.throws(() => loop.decide(id, pending.approval_id, value as any));
+    await assert.rejects(() => Promise.resolve(loop.decide(id, pending.approval_id, value as any)));
   }
   assert.equal(await fs.access(path.join(workspace, 'approved.txt')).then(() => true, () => false), false);
-  loop.decide(id, pending.approval_id, 'approve');
-  assert.throws(() => loop.decide(id, pending.approval_id, 'approve'));
+  await fixture.decideAgent(loop, id, pending.approval_id, 'approve');
+  await assert.rejects(() => fixture.decideAgent(loop, id, pending.approval_id, 'approve'));
   const final = await eventually(() => loop.status(id).state === 'done' ? loop.status(id) : null);
   assert.equal(await fs.readFile(path.join(workspace, 'approved.txt'), 'utf8'), 'trusted session');
   assert.equal(final.verification?.execution, 'succeeded');
@@ -201,13 +284,13 @@ test('legitimate session approval is one-shot and preserves approved writes', as
 
 test('direct aliases and sandbox read cannot create an unauthorized sandbox', async () => {
   for (const name of ['str_replace_editor', 'execute_bash', 'run_command', 'desktop_action', 'switch_mode']) {
-    const res = await request('/api/agent/tool', { name, approved: true, sandbox: 'never-created', arguments: { approved: 'true', path: 'x', content: 'y', command: 'node --version', target: 'act' } });
+    const res = await postApproved('/api/agent/tool', { name, approved: true, sandbox: 'never-created', arguments: { approved: 'true', path: 'x', content: 'y', command: 'node --version', target: 'act' } }, `integrity-tool-alias-${name}`);
     assert.equal(res.status, 403, name);
   }
-  const read = await request('/api/agent/tool', { name: 'read_file', sandbox: 'never-created', arguments: { path: 'missing' } });
+  const read = await postApproved('/api/agent/tool', { name: 'read_file', sandbox: 'never-created', arguments: { path: 'missing' } }, 'integrity-tool-read-sandbox');
   assert.ok(read.status >= 400);
   assert.equal(await fs.access(path.join(workspace, '.aide/sandboxes/never-created')).then(() => true, () => false), false);
-  const valid = await request('/api/agent/tool', { name: 'read_file', arguments: { path: 'skills/SKILL.md' } });
+  const valid = await postApproved<{ output: string }>('/api/agent/tool', { name: 'read_file', arguments: { path: 'skills/SKILL.md' } }, 'integrity-tool-read-valid');
   assert.equal(valid.status, 200);
   assert.match(valid.body.output, new RegExp(marker));
 });
@@ -228,6 +311,7 @@ test('selected skill read failure stops production inference and records context
     const id = await start();
     const final = await terminal(id);
     assert.equal(final.state, 'error');
+    assert.ok(final.error, 'terminal error message must be observable');
     assert.match(final.error, /skills context failed/);
     assert.equal(requests.length, offset);
     const rows = await createAuditTrail({ workspace }).readEvents({ type: 'agent.context', sessionId: id });
@@ -240,8 +324,20 @@ test('production audit write failure cannot claim durable evidence', async () =>
   await fs.rename(bus, bus + '.saved');
   await fs.mkdir(bus);
   try {
-    const final = await terminal(await start());
+    // The transport authority here records in memory (fixture-owned), while the
+    // session's own audit trail points at the blocked bus: execution can run
+    // and its verification must expose the audit failure instead of a pass.
+    const fixture = await pairServiceFixture(workspace);
+    const loop = createAgentLoop({
+      workspace,
+      authority: fixture.authority,
+      audit: createAuditTrail({ workspace }),
+      chatFn: async () => '<attempt_completion><result>done</result></attempt_completion>'
+    });
+    const { session_id: id } = await fixture.startAgent(loop, 'audit-failure probe');
+    const final = await eventually(() => loop.status(id).state === 'done' ? loop.status(id) : null);
     assert.equal(final.state, 'done');
+    assert.ok(final.verification, 'verification outcome must be observable');
     assert.equal(final.verification.execution, 'succeeded');
     assert.equal(final.verification.passed, false);
     assert.equal(final.verification.audit, 'failed');
@@ -279,11 +375,11 @@ test('evidence-file persistence failure is exposed without claiming a filename',
 test('nonzero command result is execution failure, not successful tool execution', async () => {
   replies = ['<run_command><command>node --invalid-phase1a-option</command></run_command>', '<attempt_completion><result>tests passed</result></attempt_completion>'];
   const id = await start();
-  const pending = await eventually(async () => {
-    const { body } = await request('/api/agent/status?id=' + id);
+  await eventually(async () => {
+    const { body } = await getJson<{ pending_approval: { approval_id: string } | null }>('/api/agent/status?id=' + id);
     return body.pending_approval ?? null;
   });
-  assert.equal((await request('/api/agent/decision', { session_id: id, approval_id: pending.approval_id, decision: 'approve' })).status, 200);
+  await approveAllPending(id);
   const final = await terminal(id);
   assert.equal(final.verification.execution, 'failed');
   assert.equal(final.verification.state, 'failed');

@@ -24,7 +24,7 @@ import type { Route } from '../../node/src/server.ts';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const PHASE2A_ACCEPTANCE_REQUESTED = false;
-const EXPECTED_WAIVER_COUNT = 35;
+const EXPECTED_WAIVER_COUNT = 34;
 
 type WaiverClassification = 'READY-DESCRIPTOR' | 'ARCHITECTURE-DECISION';
 interface MigrationWaiverEntry { method: string; path: string; classification: WaiverClassification }
@@ -32,7 +32,6 @@ interface MigrationWaiverEntry { method: string; path: string; classification: W
 const MIGRATION_WAIVER: MigrationWaiverEntry[] = [
   { method: 'DELETE', path: '/api/byok/key/delete', classification: 'ARCHITECTURE-DECISION' },
   { method: 'DELETE', path: '/api/byok/providers/delete', classification: 'ARCHITECTURE-DECISION' },
-  { method: 'GET', path: '/api/modelhub/search', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/byok/test', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/chat', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/chat/stream', classification: 'ARCHITECTURE-DECISION' },

@@ -47,10 +47,26 @@ function wrap(handler: (ctx: RouteContext) => Promise<unknown> | unknown): (ctx:
 
 export function routesForModelHub(service: HubService): Route[] {
   return [
-    { method: 'GET', path: '/api/modelhub/search', query: HubSearchQuery, response: HubSearchResponse, handler: wrap(async ({ query }) => {
-      const parsed = HubSearchQuery.parse(query);
-      return service.search(parsed.q, parsed.sort ?? 'downloads', parsed.limit ?? 20);
-    }) },
+    { method: 'GET', path: '/api/modelhub/search', query: HubSearchQuery, response: HubSearchResponse,
+      // A read-class external search (mirrors the accepted /api/modelhub/files
+      // disposition): the approved operation binds the exact validated query.
+      // The HF endpoint, gguf filter, direction, user-agent, defaults, egress
+      // journal and response mapping are server-owned. Omitted optionals stay
+      // null in the authority identity so an omitted value never collapses
+      // into an explicit default.
+      describeOperation: async ({ query }, taskId): Promise<OperationInput> => {
+        const parsed = HubSearchQuery.parse(query);
+        return {
+          workspace: service.workspace,
+          taskId,
+          kind: 'capability.read',
+          args: { body: { q: parsed.q, sort: parsed.sort ?? null, limit: parsed.limit ?? null } }
+        };
+      },
+      handler: wrap(async ({ query }) => {
+        const parsed = HubSearchQuery.parse(query);
+        return service.search(parsed.q, parsed.sort ?? 'downloads', parsed.limit ?? 20);
+      }) },
     { method: 'GET', path: '/api/modelhub/files', query: HubFilesQuery, response: HubFilesResponse, handler: wrap(async ({ query }) => {
       const parsed = HubFilesQuery.parse(query);
       return service.listRepoFiles(parsed.repo_id);

@@ -31,9 +31,23 @@ let hub: ReturnType<typeof createHubService>;
 const fetchedUrls: string[] = [];
 let releaseSlow: (() => void) | null = null;
 let slowMode = false;
+let searchFailureStatus = 0;
+const SEARCH_JSON = JSON.stringify([
+  { id: 'org/model-1', downloads: 5, likes: 2, tags: ['gguf', 'text-generation'] },
+  { id: 'org/model-2', downloads: 1, likes: 0, tags: [] }
+]);
 
 const fakeFetch = (async (input: unknown) => {
-  fetchedUrls.push(String(input));
+  const target = String(input);
+  fetchedUrls.push(target);
+  if (target.includes('/api/models?')) {
+    if (searchFailureStatus !== 0) {
+      const status = searchFailureStatus;
+      searchFailureStatus = 0;
+      return new Response('upstream failure', { status });
+    }
+    return new Response(SEARCH_JSON, { status: 200, headers: { 'content-type': 'application/json' } });
+  }
   if (slowMode) {
     let release: () => void = () => {};
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -141,6 +155,13 @@ async function waitForDoneEvent(jobId: string, timeoutMs = 10000): Promise<void>
   throw new Error(`done event for ${jobId} not observed`);
 }
 
+async function searchJournal(): Promise<Array<{ action: string; url: string }>> {
+  const raw = await fs.readFile(path.join(workspace, '.aide', 'egress', 'journal.jsonl'), 'utf8').catch(() => '');
+  return raw.split('\n').filter(Boolean)
+    .map(line => JSON.parse(line) as { action: string; url: string })
+    .filter(entry => entry.action === 'modelhub.search');
+}
+
 test('download: approved exact operation is the only way to start an egress job', async () => {
   const body = { repo_id: 'org/repo', filename: 'arch-model.gguf', quant_label: 'Q4_K_M' };
 
@@ -243,10 +264,96 @@ test('cancel: approved exact operation targets only the owned job', async () => 
   assert.equal(again.body.data?.cancelled, false, 'already-cancelled job preserves the false contract');
 });
 
-test('search enforces strict query contract without network', async () => {
+test('search: read enrollment binds the exact query, egress journal and pinned host', async () => {
+  // Malformed strict contract preserved (pre-authority 400s, no network).
   assert.equal((await get('/api/modelhub/search')).status, 400);
   assert.equal((await get('/api/modelhub/search?q=')).status, 400);
   assert.equal((await get('/api/modelhub/search?q=tiny&sort=stars')).status, 400);
+  assert.equal((await get('/api/modelhub/search?q=tiny&limit=0')).status, 400);
+  assert.equal((await get('/api/modelhub/search?q=tiny&limit=51')).status, 400);
+  assert.equal((await get(`/api/modelhub/search?q=${'x'.repeat(201)}`)).status, 400);
+  const anonymous = await fetch(`${base}/api/modelhub/search?q=anon`, { signal: AbortSignal.timeout(5000) });
+  assert.equal(anonymous.status, 403, 'anonymous rejected');
+  const fetchesBefore = fetchedUrls.length;
+  const journalBefore = (await searchJournal()).length;
+
+  // Control-plane identity: exact q/sort/limit, server workspace, read kind.
+  const handle = server.authority.authenticate(owner.headers.Authorization.slice(7), 'http://fixture.local');
+  const searchInput = (q: string, sort: string | null, limit: number | null) => ({
+    workspace: path.resolve(workspace), taskId: 'task:search-digest', kind: 'capability.read',
+    args: { body: { q, sort, limit } }
+  });
+  const prepared = await server.authority.prepare(handle, searchInput('gemma tiny', 'likes', 7));
+  assert.equal(prepared.kind, 'capability.read');
+  assert.equal(prepared.workspace, path.resolve(workspace));
+  assert.deepEqual(prepared.args, { body: { q: 'gemma tiny', sort: 'likes', limit: 7 } });
+  const omitted = await server.authority.prepare(handle, searchInput('gemma tiny', null, null));
+  assert.deepEqual(omitted.args, { body: { q: 'gemma tiny', sort: null, limit: null } });
+  const explicit = await server.authority.prepare(handle, searchInput('gemma tiny', 'downloads', 20));
+  assert.notEqual(omitted.digest, explicit.digest, 'omitted != explicit default in the authority identity');
+
+  // Changed-input attacks at the authority boundary: CONFLICT, no egress.
+  for (const changed of [searchInput('changed q', 'likes', 7), searchInput('gemma tiny', 'modified', 7), searchInput('gemma tiny', 'likes', 8)]) {
+    await assert.rejects(() => server.authority.execute(handle, prepared.operation_id, changed, async () => 'never'), /changed after approval/);
+  }
+  assert.equal(fetchedUrls.length, fetchesBefore, 'changed inputs produced zero fetch');
+  assert.equal((await searchJournal()).length, journalBefore, 'changed inputs produced zero journal effect');
+
+  // Approved exact read (paired actor; capability.read is the accepted policy):
+  // pinned endpoint, mapped bounded response, one egress journal entry.
+  const applied = await get(`/api/modelhub/search?q=${encodeURIComponent('gemma tiny')}&sort=likes&limit=7`);
+  assert.equal(applied.status, 200, JSON.stringify(applied.body));
+  assert.deepEqual(applied.body.data, {
+    models: [
+      { repo_id: 'org/model-1', downloads: 5, likes: 2, tags: ['gguf', 'text-generation'] },
+      { repo_id: 'org/model-2', downloads: 1, likes: 0, tags: [] }
+    ]
+  });
+  assert.equal(fetchedUrls.length, fetchesBefore + 1, 'exactly one pinned fetch');
+  const called = new URL(fetchedUrls[fetchesBefore]!);
+  assert.equal(called.origin, 'https://huggingface.co');
+  assert.equal(called.pathname, '/api/models');
+  assert.equal(called.searchParams.get('search'), 'gemma tiny');
+  assert.equal(called.searchParams.get('filter'), 'gguf');
+  assert.equal(called.searchParams.get('sort'), 'likes');
+  assert.equal(called.searchParams.get('direction'), '-1');
+  assert.equal(called.searchParams.get('limit'), '7');
+  const after = await searchJournal();
+  assert.equal(after.length, journalBefore + 1, 'approved search writes exactly one egress journal entry');
+  assert.equal(after[after.length - 1]!.url, fetchedUrls[fetchesBefore]);
+
+  // URL-injection payload stays fully encoded; host/filter/direction pinned.
+  const inject = 'x&filter=evil&direction=1#frag';
+  const injected = await get(`/api/modelhub/search?q=${encodeURIComponent(inject)}`);
+  assert.equal(injected.status, 200);
+  const injectedUrl = new URL(fetchedUrls[fetchedUrls.length - 1]!);
+  assert.equal(injectedUrl.origin, 'https://huggingface.co');
+  assert.equal(injectedUrl.searchParams.get('search'), inject);
+  assert.equal(injectedUrl.searchParams.get('filter'), 'gguf');
+  assert.equal(injectedUrl.searchParams.get('direction'), '-1');
+
+  // Server-owned defaults preserved when optionals are omitted.
+  assert.equal((await get('/api/modelhub/search?q=defaults')).status, 200);
+  const defaultUrl = new URL(fetchedUrls[fetchedUrls.length - 1]!);
+  assert.equal(defaultUrl.searchParams.get('sort'), 'downloads');
+  assert.equal(defaultUrl.searchParams.get('limit'), '20');
+
+  // Read-class dispatch never honors caller operation ids: the exact current
+  // request is auto-prepared and executed (no caller substitution surface).
+  const foreign = await owner.request('/api/modelhub/search?q=foreign-id', {
+    headers: { 'X-AIDE-Operation': '00000000-0000-4000-8000-000000000000' }, signal: AbortSignal.timeout(15000)
+  });
+  assert.equal(foreign.status, 200, 'foreign operation id has no authority effect for reads');
+  assert.equal((await foreign.json() as { ok: boolean }).ok, true);
+
+  // Upstream failure preserves the current mapping (UPSTREAM -> BAD_RESPONSE)
+  // and the egress journal stays truthful (the attempt is recorded first).
+  searchFailureStatus = 503;
+  const journalBeforeFailure = (await searchJournal()).length;
+  const failure = await get('/api/modelhub/search?q=upstream-down');
+  assert.equal(failure.status, 500, JSON.stringify(failure.body));
+  assert.equal(failure.body.error?.code, 'BAD_RESPONSE');
+  assert.equal((await searchJournal()).length, journalBeforeFailure + 1, 'attempt journaled before the failing fetch');
 });
 
 test('downloads list holds shape for the authorized actor', async () => {

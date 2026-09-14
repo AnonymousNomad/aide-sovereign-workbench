@@ -86,6 +86,43 @@ const MAX_RECEIPTS = 8192;
 const MAX_TOMBSTONES = 16_384;
 type Plain = Record<string, unknown>;
 
+/*
+ * Runtime provenance is deliberately kept outside every serialized H2
+ * artifact.  These module-private sets/maps are the small composition-root
+ * seam used by the trusted H1/provider adapters.  A digest can establish
+ * integrity, but only an object identity present in one of these registries
+ * can establish runtime provenance.
+ */
+const TRUSTED_OBSERVATIONS = new WeakMap<object, object>();
+const TRUSTED_LEDGER_TOKENS = new WeakSet<object>();
+const TRUSTED_CAPABILITY_EPOCHS = new WeakMap<object, object>();
+const TRUSTED_H1_EPOCHS = new WeakMap<object, object>();
+
+function issueLedgerToken(): object {
+  const token = Object.freeze({});
+  TRUSTED_LEDGER_TOKENS.add(token);
+  return token;
+}
+
+function brandTrustedObservation(value: object, token: object): void { TRUSTED_OBSERVATIONS.set(value, token); }
+function isTrustedObservation(value: object, token: object | undefined): boolean { return token !== undefined && TRUSTED_OBSERVATIONS.get(value) === token; }
+
+class AsyncMutex {
+  private tail: Promise<void> = Promise.resolve();
+
+  async run<T>(fn: () => Promise<T> | T): Promise<T> {
+    const previous = this.tail;
+    let release!: () => void;
+    this.tail = new Promise<void>(resolve => { release = resolve; });
+    await previous;
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  }
+}
+
 function plain(value: unknown): value is Plain {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const proto = Object.getPrototypeOf(value);
@@ -97,6 +134,9 @@ function scanInert(value: unknown, ancestors = new Set<object>(), nodes = { coun
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) fail('NON_JSON_NUMBER');
+    // JSON-compatible numeric fields may be fractional, but an integer that
+    // cannot be represented exactly is never safe identity/provenance data.
+    if (Number.isInteger(value) && !Number.isSafeInteger(value)) fail('UNSAFE_INTEGER');
     return;
   }
   if (typeof value !== 'object') fail('NON_JSON_VALUE');
@@ -438,6 +478,7 @@ function sameReceiptIdentity(a: AuthorityConsumptionRef, b: AuthorityConsumption
 }
 
 function validateAuthorityEvent(value: unknown): AuthorityAuditEvent {
+  scanInert(value);
   const input = record(value, ['type', 'ts', 'workspace', 'operation_id', 'actor_id', 'owner_id', 'task_id', 'kind', 'digest', 'policy_revision', 'decision', 'approver_id', 'origin'], 'AUTHORITY_EVENT');
   const approverId = optionalText(input, 'approver_id', 'INVALID_AUTHORITY_APPROVER');
   const origin = has(input, 'origin') ? (typeof input.origin === 'number' || typeof input.origin === 'string' ? input.origin : fail('INVALID_AUTHORITY_ORIGIN')) : undefined;
@@ -761,9 +802,10 @@ function capabilityMember(value: object, key: string): PropertyDescriptor | unde
  * H2 artifacts.  Snapshot their callable members without invoking accessors
  * or retaining a caller-mutable method table.
  */
-function snapshotCapability(value: unknown): TrustedProviderGenerationCapability {
+function snapshotCapability(value: unknown, trusted: WeakSet<object>): TrustedProviderGenerationCapability {
   if (value === null || typeof value !== 'object') return fail('PROCESS_GENERATION_UNAVAILABLE');
   const objectValue = value as object;
+  if (!trusted.has(objectValue)) return fail('PROCESS_GENERATION_UNAVAILABLE', 'provider capability was not issued by the trusted provider adapter');
   for (const key of Reflect.ownKeys(objectValue)) {
     if (typeof key !== 'string' || !['capabilityId', 'verifyExactGeneration', 'terminateExact', 'observeExactExit'].includes(key)) return fail('PROCESS_GENERATION_UNAVAILABLE');
     const descriptor = Object.getOwnPropertyDescriptor(objectValue, key);
@@ -780,12 +822,14 @@ function snapshotCapability(value: unknown): TrustedProviderGenerationCapability
   const verify = verifyDescriptor.value as (...args: never[]) => boolean | Promise<boolean>;
   const terminate = terminateDescriptor && 'value' in terminateDescriptor ? terminateDescriptor.value as (...args: never[]) => Promise<'exact_generation_exited' | 'already_exited' | 'survived' | 'unconfirmed'> : undefined;
   const observe = observeDescriptor && 'value' in observeDescriptor ? observeDescriptor.value as (...args: never[]) => boolean | Promise<boolean> : undefined;
-  return Object.freeze({
+  const snapshot = Object.freeze({
     capabilityId: idDescriptor.value,
     verifyExactGeneration: () => verify.call(value),
     ...(terminate === undefined ? {} : { terminateExact: () => terminate.call(value) }),
     ...(observe === undefined ? {} : { observeExactExit: () => observe.call(value) })
   });
+  trusted.add(snapshot);
+  return snapshot;
 }
 
 interface AdmissionInternal {
@@ -828,6 +872,20 @@ export class AdmissionLedger {
   private sequence = 0;
   private revision = 0;
   private readonly faultModes = new Set<'commit' | 'fact'>();
+  private readonly mutex = new AsyncMutex();
+  #registryToken: object | undefined;
+  private readonly admissionCutoffs = new Map<string, { readonly scope: { readonly workspaceId: WorkspaceId; readonly taskId: TaskId; readonly taskRevision: TaskRevision; readonly requestId: HarnessExecutionRequestId; readonly attemptId: WorkerAttemptId; readonly transactionId: HarnessTransactionId }; readonly registryEpochId: string; readonly revision: number }>();
+
+  /** Internal composition-root binding; the token itself is module-private. */
+  bindRegistryToken(token: object): void {
+    if (!TRUSTED_LEDGER_TOKENS.has(token)) return fail('OWNERSHIP_NOT_PROVEN');
+    if (this.#registryToken !== undefined && this.#registryToken !== token) return fail('OWNERSHIP_NOT_PROVEN');
+    this.#registryToken = token;
+  }
+
+  private assertRegistryToken(token: object | undefined): void {
+    if (!token || token !== this.#registryToken || !TRUSTED_LEDGER_TOKENS.has(token)) return fail('OWNERSHIP_NOT_PROVEN');
+  }
 
   /** Test/adapter hook for proving fail-closed partial-commit behavior. */
   setFault(mode: 'commit' | 'fact', enabled = true): void {
@@ -837,18 +895,23 @@ export class AdmissionLedger {
   get ledgerRevision(): number { return this.revision; }
 
   async reserve(value: AdmissionReservationRef): Promise<Readonly<AdmissionFact>> {
+    value = validateAdmissionReservationRef(value);
     await assertCurrentDigest(hasReservationIntegrity(value), 'INVALID_RESERVATION_INTEGRITY');
-    const existing = this.entries.get(value.admissionId);
-    if (existing) {
-      if (!sameReservation(existing.reservation, value)) return fail('ADMISSION_CONFLICT');
-      return existing.facts[0]!;
-    }
-    const fact = await this.makeFact(value, 'RESERVED', undefined, undefined);
-    const entry: AdmissionInternal = { reservation: detached(value), facts: [fact as AdmissionFact], state: 'RESERVED', terminal: false, dispatchStarted: false };
-    this.entries.set(value.admissionId, entry);
-    this.transactionHistory.add(value.transactionId);
-    this.revision++;
-    return fact;
+    const detachedReservation = detached(value);
+    const fact = await this.makeFact(detachedReservation, 'RESERVED', undefined, undefined);
+    return this.mutex.run(() => {
+      if (this.admissionCutoffs.has(value.transactionId)) return fail('ADMISSION_NOT_STOPPED', 'transaction admission cutoff is already closed');
+      const existing = this.entries.get(value.admissionId);
+      if (existing) {
+        if (!sameReservation(existing.reservation, detachedReservation)) return fail('ADMISSION_CONFLICT');
+        return existing.facts[0]!;
+      }
+      const entry: AdmissionInternal = { reservation: detachedReservation, facts: [fact as AdmissionFact], state: 'RESERVED', terminal: false, dispatchStarted: false };
+      this.entries.set(value.admissionId, entry);
+      this.transactionHistory.add(value.transactionId);
+      this.revision++;
+      return fact;
+    });
   }
 
   private async makeFact(reservation: AdmissionReservationRef, state: AdmissionState, reason?: string, authorityConsumption?: AuthorityConsumptionRef, admittedOperation?: AdmittedOperationRef): Promise<Readonly<AdmissionFact>> {
@@ -866,6 +929,10 @@ export class AdmissionLedger {
   }
 
   get(value: AdmissionReservationRef | string): Readonly<AdmissionInternal> {
+    if (typeof value !== 'string') {
+      scanInert(value);
+      value = validateAdmissionReservationRef(value);
+    }
     const entry = this.entry(value);
     return detached({ ...entry, facts: [...entry.facts] }) as Readonly<AdmissionInternal>;
   }
@@ -881,72 +948,95 @@ export class AdmissionLedger {
   hasTransactionHistory(transactionId: string): boolean { return this.transactionHistory.has(transactionId); }
 
   async noteAuthorityConsumption(reservation: AdmissionReservationRef, receipt: AuthorityConsumptionRef): Promise<void> {
-    const entry = this.entry(reservation);
+    reservation = validateAdmissionReservationRef(reservation);
+    receipt = validateAuthorityConsumptionRef(receipt);
+    await assertCurrentDigest(hasReservationIntegrity(reservation), 'INVALID_RESERVATION_INTEGRITY');
     await assertCurrentDigest(hasAuthorityReceiptIntegrity(receipt), 'INVALID_AUTHORITY_RECEIPT_INTEGRITY');
     if (!receiptMatchesReservation(receipt, reservation)) return fail('AUTHORITY_MISMATCH');
-    const authorityOwner = this.authorityToAdmission.get(receipt.authorityOperationId);
-    if (authorityOwner !== undefined && authorityOwner !== reservation.admissionId) return fail('ADMISSION_CONFLICT');
-    const receiptOwner = this.receiptToAdmission.get(receipt.receiptDigest);
-    if (receiptOwner !== undefined && receiptOwner !== reservation.admissionId) return fail('ADMISSION_CONFLICT');
-    if (entry.authorityConsumption) {
-      if (entry.authorityConsumption.receiptDigest !== receipt.receiptDigest) return fail('ADMISSION_CONFLICT');
-      return;
-    }
-    if (entry.state !== 'RESERVED') return fail('ADMISSION_CONFLICT');
-    const fact = await this.makeFact(entry.reservation, 'RESERVED', 'authority_consumed', receipt);
-    entry.authorityConsumption = detached(receipt);
-    this.authorityToAdmission.set(receipt.authorityOperationId, reservation.admissionId);
-    this.receiptToAdmission.set(receipt.receiptDigest, reservation.admissionId);
-    entry.facts.push(fact as AdmissionFact);
-    this.revision++;
+    await this.mutex.run(async () => {
+      const entry = this.entry(reservation);
+      const authorityOwner = this.authorityToAdmission.get(receipt.authorityOperationId);
+      if (authorityOwner !== undefined && authorityOwner !== reservation.admissionId) return fail('ADMISSION_CONFLICT');
+      const receiptOwner = this.receiptToAdmission.get(receipt.receiptDigest);
+      if (receiptOwner !== undefined && receiptOwner !== reservation.admissionId) return fail('ADMISSION_CONFLICT');
+      if (entry.authorityConsumption) {
+        if (entry.authorityConsumption.receiptDigest !== receipt.receiptDigest) return fail('ADMISSION_CONFLICT');
+        return;
+      }
+      if (entry.state !== 'RESERVED') return fail('ADMISSION_CONFLICT');
+      const fact = await this.makeFact(entry.reservation, 'RESERVED', 'authority_consumed', receipt);
+      entry.authorityConsumption = detached(receipt);
+      this.authorityToAdmission.set(receipt.authorityOperationId, reservation.admissionId);
+      this.receiptToAdmission.set(receipt.receiptDigest, reservation.admissionId);
+      entry.facts.push(fact as AdmissionFact);
+      this.revision++;
+    });
   }
 
   async abortPreconsumption(reservation: AdmissionReservationRef, reason = 'authority_not_consumed'): Promise<void> {
-    const entry = this.entry(reservation);
-    if (entry.state === 'ABORTED_PRECONSUMPTION') return;
-    if (entry.state !== 'RESERVED' || entry.authorityConsumption) return fail('ADMISSION_CONFLICT');
-    const fact = await this.makeFact(entry.reservation, 'ABORTED_PRECONSUMPTION', reason);
-    entry.state = 'ABORTED_PRECONSUMPTION'; entry.facts.push(fact as AdmissionFact); this.revision++;
+    reservation = validateAdmissionReservationRef(reservation);
+    await assertCurrentDigest(hasReservationIntegrity(reservation), 'INVALID_RESERVATION_INTEGRITY');
+    await this.mutex.run(async () => {
+      const entry = this.entry(reservation);
+      if (entry.state === 'ABORTED_PRECONSUMPTION') return;
+      if (entry.state !== 'RESERVED' || entry.authorityConsumption) return fail('ADMISSION_CONFLICT');
+      const fact = await this.makeFact(entry.reservation, 'ABORTED_PRECONSUMPTION', reason);
+      entry.state = 'ABORTED_PRECONSUMPTION'; entry.facts.push(fact as AdmissionFact); this.revision++;
+    });
   }
 
   async consumedNoDispatch(reservation: AdmissionReservationRef, reason: string): Promise<void> {
-    const entry = this.entry(reservation);
-    if (entry.state === 'CONSUMED_NO_DISPATCH') return;
-    if (entry.state !== 'RESERVED' || !entry.authorityConsumption || entry.dispatchStarted) return fail('ADMISSION_CONFLICT');
-    const fact = await this.makeFact(entry.reservation, 'CONSUMED_NO_DISPATCH', reason, entry.authorityConsumption);
-    entry.state = 'CONSUMED_NO_DISPATCH'; entry.facts.push(fact as AdmissionFact); this.revision++;
+    reservation = validateAdmissionReservationRef(reservation);
+    await assertCurrentDigest(hasReservationIntegrity(reservation), 'INVALID_RESERVATION_INTEGRITY');
+    await this.mutex.run(async () => {
+      const entry = this.entry(reservation);
+      if (entry.state === 'CONSUMED_NO_DISPATCH') return;
+      if (entry.state !== 'RESERVED' || !entry.authorityConsumption || entry.dispatchStarted) return fail('ADMISSION_CONFLICT');
+      const fact = await this.makeFact(entry.reservation, 'CONSUMED_NO_DISPATCH', reason, entry.authorityConsumption);
+      entry.state = 'CONSUMED_NO_DISPATCH'; entry.facts.push(fact as AdmissionFact); this.revision++;
+    });
   }
 
   async consumedUnresolved(reservation: AdmissionReservationRef, reason: string): Promise<void> {
-    const entry = this.entry(reservation);
-    if (entry.state === 'CONSUMED_UNRESOLVED') return;
-    if (!entry.authorityConsumption && entry.state !== 'RESERVED') return fail('ADMISSION_CONFLICT');
-    if (entry.state === 'COMMITTED') return fail('ADMISSION_CONFLICT');
-    const fact = await this.makeFact(entry.reservation, 'CONSUMED_UNRESOLVED', reason, entry.authorityConsumption);
-    entry.state = 'CONSUMED_UNRESOLVED'; entry.facts.push(fact as AdmissionFact); this.revision++;
+    reservation = validateAdmissionReservationRef(reservation);
+    await assertCurrentDigest(hasReservationIntegrity(reservation), 'INVALID_RESERVATION_INTEGRITY');
+    await this.mutex.run(async () => {
+      const entry = this.entry(reservation);
+      if (entry.state === 'CONSUMED_UNRESOLVED') return;
+      if (!entry.authorityConsumption && entry.state !== 'RESERVED') return fail('ADMISSION_CONFLICT');
+      if (entry.state === 'COMMITTED') return fail('ADMISSION_CONFLICT');
+      const fact = await this.makeFact(entry.reservation, 'CONSUMED_UNRESOLVED', reason, entry.authorityConsumption);
+      entry.state = 'CONSUMED_UNRESOLVED'; entry.facts.push(fact as AdmissionFact); this.revision++;
+    });
   }
 
   async commit(reservation: AdmissionReservationRef): Promise<Readonly<AdmittedOperationRef>> {
-    const entry = this.entry(reservation);
-    if (entry.state === 'COMMITTED' && entry.admittedOperation) return entry.admittedOperation;
-    if (entry.state !== 'RESERVED' || !entry.authorityConsumption) return fail('ADMISSION_CONFLICT');
-    if (this.faultModes.has('commit')) return fail('INTERNAL_HARNESS_FAILURE');
-    const sequence = (++this.sequence) as SafeInteger;
-    const admitted = await createAdmittedOperation(entry.reservation, sequence);
-    const fact = await this.makeFact(entry.reservation, 'COMMITTED', undefined, entry.authorityConsumption, admitted);
-    entry.admittedOperation = admitted;
-    entry.state = 'COMMITTED'; entry.facts.push(fact as AdmissionFact); this.revision++;
-    return admitted;
+    reservation = validateAdmissionReservationRef(reservation);
+    await assertCurrentDigest(hasReservationIntegrity(reservation), 'INVALID_RESERVATION_INTEGRITY');
+    return this.mutex.run(async () => {
+      const entry = this.entry(reservation);
+      if (entry.state === 'COMMITTED' && entry.admittedOperation) return entry.admittedOperation;
+      if (entry.state !== 'RESERVED' || !entry.authorityConsumption) return fail('ADMISSION_CONFLICT');
+      if (this.faultModes.has('commit')) return fail('INTERNAL_HARNESS_FAILURE');
+      const sequence = (++this.sequence) as SafeInteger;
+      const admitted = await createAdmittedOperation(entry.reservation, sequence);
+      const fact = await this.makeFact(entry.reservation, 'COMMITTED', undefined, entry.authorityConsumption, admitted);
+      entry.admittedOperation = admitted;
+      entry.state = 'COMMITTED'; entry.facts.push(fact as AdmissionFact); this.revision++;
+      return admitted;
+    });
   }
 
   async markDispatchStarted(admissionId: string): Promise<void> {
-    const entry = this.entry(admissionId);
-    if (entry.state !== 'COMMITTED' || !entry.admittedOperation || entry.terminal) return fail('ADMISSION_CONFLICT');
-    if (entry.dispatchStarted) return fail('ADMISSION_REPLAY');
-    entry.dispatchStarted = true; this.revision++;
+    await this.mutex.run(() => {
+      const entry = this.entry(admissionId);
+      if (entry.state !== 'COMMITTED' || !entry.admittedOperation || entry.terminal) return fail('ADMISSION_CONFLICT');
+      if (entry.dispatchStarted) return fail('ADMISSION_REPLAY');
+      entry.dispatchStarted = true; this.revision++;
+    });
   }
 
-  async markTerminal(admissionId: string, observationId: string): Promise<void> {
+  private markTerminalUnlocked(admissionId: string, observationId: string): void {
     const entry = this.entry(admissionId);
     if (entry.state !== 'COMMITTED' || !entry.admittedOperation) return fail('ADMISSION_CONFLICT');
     const terminalObservation = text(observationId, 'INVALID_TERMINAL_OBSERVATION');
@@ -957,26 +1047,51 @@ export class AdmissionLedger {
     entry.terminal = true; entry.terminalObservation = terminalObservation; this.revision++;
   }
 
+  async markTerminal(admissionId: string, observation: object, token?: object): Promise<void> {
+    this.assertRegistryToken(token);
+    if (!isTrustedObservation(observation, token)) return fail('OWNERSHIP_NOT_PROVEN', 'terminal observation was not issued by a trusted runtime observer');
+    const observationId = peekStringField(observation, 'observationId');
+    if (!observationId) return fail('INVALID_TERMINAL_OBSERVATION');
+    await this.mutex.run(() => this.markTerminalUnlocked(admissionId, observationId));
+  }
+
   /** Persistent-service start work closes by a trusted live-generation handoff, not process exit. */
-  async closeByHandoff(admissionId: string, observationId: string): Promise<void> {
-    const entry = this.entry(admissionId);
-    if (entry.state !== 'COMMITTED' || !entry.admittedOperation) return fail('ADMISSION_CONFLICT');
-    const terminalObservation = text(observationId, 'INVALID_HANDOFF_OBSERVATION');
-    if (entry.terminal) {
-      if (entry.terminalObservation !== terminalObservation) return fail('ADMISSION_CONFLICT');
-      return;
-    }
-    entry.terminal = true; entry.terminalObservation = terminalObservation; this.revision++;
+  async closeByHandoff(admissionId: string, observation: object, token?: object): Promise<void> {
+    this.assertRegistryToken(token);
+    if (!isTrustedObservation(observation, token)) return fail('OWNERSHIP_NOT_PROVEN', 'handoff observation was not issued by a trusted runtime observer');
+    const observationId = peekStringField(observation, 'observationId');
+    if (!observationId) return fail('INVALID_HANDOFF_OBSERVATION');
+    await this.mutex.run(() => this.markTerminalUnlocked(admissionId, observationId));
+  }
+
+  /** Internal rollback used only before a failed publication becomes visible. */
+  async rollbackHandoff(admissionId: string, observation: object, token: object): Promise<void> {
+    this.assertRegistryToken(token);
+    if (!isTrustedObservation(observation, token)) return fail('OWNERSHIP_NOT_PROVEN');
+    const observationId = peekStringField(observation, 'observationId');
+    if (!observationId) return fail('INVALID_HANDOFF_OBSERVATION');
+    await this.mutex.run(() => {
+      const entry = this.entry(admissionId);
+      if (entry.state !== 'COMMITTED' || entry.terminalObservation !== observationId) return fail('INTERNAL_HARNESS_FAILURE', 'handoff rollback identity mismatch');
+      entry.terminal = false;
+      delete entry.terminalObservation;
+      this.revision++;
+    });
   }
 
   /** Exact generation exit/termination closes every committed operation affected by it. */
-  async markGenerationTerminal(liveGenerationId: string, observationPrefix: string): Promise<void> {
-    const prefix = text(observationPrefix, 'INVALID_TERMINAL_OBSERVATION');
-    for (const entry of this.listForGeneration(liveGenerationId)) {
-      if (entry.state === 'COMMITTED' && entry.admittedOperation && !entry.terminal) {
-        await this.markTerminal(entry.reservation.admissionId, `${prefix}:${entry.reservation.admissionId}`);
+  async markGenerationTerminal(liveGenerationId: string, observation: object, token?: object): Promise<void> {
+    this.assertRegistryToken(token);
+    if (!isTrustedObservation(observation, token)) return fail('OWNERSHIP_NOT_PROVEN');
+    const prefix = peekStringField(observation, 'observationId');
+    if (!prefix) return fail('INVALID_TERMINAL_OBSERVATION');
+    await this.mutex.run(() => {
+      for (const entry of this.entries.values()) {
+        if (entry.reservation.liveGenerationId === liveGenerationId && entry.state === 'COMMITTED' && entry.admittedOperation && !entry.terminal) {
+          this.markTerminalUnlocked(entry.reservation.admissionId, `${prefix}:${entry.reservation.admissionId}`);
+        }
       }
-    }
+    });
   }
 
   activeForGeneration(liveGenerationId: string): readonly Readonly<AdmittedOperationRef>[] {
@@ -987,20 +1102,46 @@ export class AdmissionLedger {
     return this.listForTransaction(transactionId).filter(entry => entry.state === 'RESERVED' || entry.state === 'CONSUMED_UNRESOLVED' || (entry.state === 'COMMITTED' && !entry.terminal)).map(entry => entry.reservation.admissionId);
   }
 
-  async createQuiescence(scope: { workspaceId: WorkspaceId; taskId: TaskId; taskRevision: TaskRevision; requestId: HarnessExecutionRequestId; attemptId: WorkerAttemptId; transactionId: HarnessTransactionId }, options: { admissionCutoff: boolean; registryCompleteness: boolean; registryEpochId?: string; unresolvedDescendantIds?: readonly string[] }): Promise<Readonly<QuiescenceObservation>> {
-    if (!options.admissionCutoff) return fail('ADMISSION_NOT_STOPPED');
-    const entries = this.listForTransaction(scope.transactionId);
-    const unresolvedDescendantIds = [...(options.unresolvedDescendantIds ?? [])].map(id => text(id, 'INVALID_DESCENDANT_ID')).sort();
-    if (!options.registryCompleteness) return fail('QUIESCENCE_NOT_PROVEN');
-    if (new Set(unresolvedDescendantIds).size !== unresolvedDescendantIds.length) return fail('QUIESCENCE_NOT_PROVEN');
-    if (entries.some(entry => !sameH1Scope(entry.reservation, scope))) return fail('OWNERSHIP_SCOPE_MISMATCH');
-    const registeredAdmissionIds = entries.map(entry => entry.reservation.admissionId).sort();
-    const closedAdmissionIds = entries.filter(entry => (entry.state === 'ABORTED_PRECONSUMPTION' || entry.state === 'CONSUMED_NO_DISPATCH' || (entry.state === 'COMMITTED' && entry.terminal))).map(entry => entry.reservation.admissionId).sort();
-    const activeAdmissionIds = entries.filter(entry => entry.state === 'COMMITTED' && !entry.terminal).map(entry => entry.reservation.admissionId).sort();
-    const unresolvedAdmissionIds = entries.filter(entry => entry.state === 'RESERVED' || entry.state === 'CONSUMED_UNRESOLVED').map(entry => entry.reservation.admissionId).sort();
-    const quiescent = activeAdmissionIds.length === 0 && unresolvedAdmissionIds.length === 0 && unresolvedDescendantIds.length === 0;
-    const base: Plain = { kind: 'quiescence-observation', observationId: uniqueId('quiescence'), registryEpochId: options.registryEpochId ?? 'ledger-' + this.revision.toString(36), ...scope, admissionCutoff: true, registryCompleteness: true, registeredAdmissionIds, closedAdmissionIds, activeAdmissionIds, unresolvedAdmissionIds, unresolvedDescendantIds, quiescent, observationDigest: '0'.repeat(64) };
-    return makeDigestArtifact('quiescence-observation', base, 'observationDigest') as Promise<Readonly<QuiescenceObservation>>;
+  async closeAdmission(scope: { workspaceId: WorkspaceId; taskId: TaskId; taskRevision: TaskRevision; requestId: HarnessExecutionRequestId; attemptId: WorkerAttemptId; transactionId: HarnessTransactionId }, registryEpochId: string, token: object): Promise<void> {
+    this.assertRegistryToken(token);
+    scanInert(scope);
+    const detachedScope = detached(scope) as typeof scope;
+    await this.mutex.run(() => {
+      const existing = this.admissionCutoffs.get(scope.transactionId);
+      if (existing && (existing.registryEpochId !== registryEpochId || !sameH1Scope(existing.scope, detachedScope))) return fail('ADMISSION_CONFLICT', 'conflicting admission cutoff');
+      if (!existing) this.admissionCutoffs.set(scope.transactionId, { scope: detachedScope, registryEpochId, revision: this.revision });
+    });
+  }
+
+  async createQuiescence(scope: { workspaceId: WorkspaceId; taskId: TaskId; taskRevision: TaskRevision; requestId: HarnessExecutionRequestId; attemptId: WorkerAttemptId; transactionId: HarnessTransactionId }, registryEpochId: string, token: object, unresolvedDescendantIds: readonly string[] = []): Promise<Readonly<QuiescenceObservation>> {
+    this.assertRegistryToken(token);
+    scanInert(scope);
+    scanInert(unresolvedDescendantIds);
+    // Snapshot the cutoff and all canonical entries under the ledger mutex.
+    // A quiescence observation must not race a reservation, promotion, or
+    // terminal update and then publish a stale "complete" set.
+    return this.mutex.run(async () => {
+      const cutoff = this.admissionCutoffs.get(scope.transactionId);
+      if (!cutoff || cutoff.registryEpochId !== registryEpochId || !sameH1Scope(cutoff.scope, scope)) return fail('ADMISSION_NOT_STOPPED');
+      const entries = [...this.entries.values()].filter(entry => entry.reservation.transactionId === scope.transactionId);
+      // A transaction that has a trusted creation history cannot become
+      // quiescent merely because its entry map appears empty.  This closes the
+      // registry-loss/empty-ledger false-clean path; only a cutoff established
+      // before any admission history may yield a genuine empty result.
+      if (entries.length === 0 && this.transactionHistory.has(scope.transactionId)) return fail('QUIESCENCE_NOT_PROVEN', 'admission history exists but the canonical entry set is incomplete');
+      if (entries.some(entry => !sameH1Scope(entry.reservation, scope))) return fail('OWNERSHIP_SCOPE_MISMATCH');
+      const unresolvedDescendants = [...unresolvedDescendantIds].map(id => text(id, 'INVALID_DESCENDANT_ID')).sort();
+      if (new Set(unresolvedDescendants).size !== unresolvedDescendants.length) return fail('QUIESCENCE_NOT_PROVEN');
+      const registeredAdmissionIds = entries.map(entry => entry.reservation.admissionId).sort();
+      const closedAdmissionIds = entries.filter(entry => (entry.state === 'ABORTED_PRECONSUMPTION' || entry.state === 'CONSUMED_NO_DISPATCH' || (entry.state === 'COMMITTED' && entry.terminal))).map(entry => entry.reservation.admissionId).sort();
+      const activeAdmissionIds = entries.filter(entry => entry.state === 'COMMITTED' && !entry.terminal).map(entry => entry.reservation.admissionId).sort();
+      const unresolvedAdmissionIds = entries.filter(entry => entry.state === 'RESERVED' || entry.state === 'CONSUMED_UNRESOLVED').map(entry => entry.reservation.admissionId).sort();
+      const quiescent = activeAdmissionIds.length === 0 && unresolvedAdmissionIds.length === 0 && unresolvedDescendants.length === 0;
+      const base: Plain = { kind: 'quiescence-observation', observationId: uniqueId('quiescence'), registryEpochId, ...scope, admissionCutoff: true, registryCompleteness: true, registeredAdmissionIds, closedAdmissionIds, activeAdmissionIds, unresolvedAdmissionIds, unresolvedDescendantIds: unresolvedDescendants, quiescent, observationDigest: '0'.repeat(64) };
+      const observation = await makeDigestArtifact('quiescence-observation', base, 'observationDigest') as Readonly<QuiescenceObservation>;
+      brandTrustedObservation(observation as object, token);
+      return observation;
+    });
   }
 }
 
@@ -1016,6 +1157,7 @@ export class TransactionExecutionRegistry {
   }
 
   setProjection(transactionId: HarnessTransactionId, admissionIds: readonly string[]): void {
+    scanInert(admissionIds);
     if (new Set(admissionIds).size !== admissionIds.length) return fail('INTERNAL_HARNESS_FAILURE', 'duplicate transaction admission projection');
     this.projections.set(transactionId, new Set(admissionIds)); this.revision++;
   }
@@ -1029,22 +1171,6 @@ export class TransactionExecutionRegistry {
   }
 }
 
-class AsyncMutex {
-  private tail: Promise<void> = Promise.resolve();
-
-  async run<T>(fn: () => Promise<T> | T): Promise<T> {
-    const previous = this.tail;
-    let release!: () => void;
-    this.tail = new Promise<void>(resolve => { release = resolve; });
-    await previous;
-    try {
-      return await fn();
-    } finally {
-      release();
-    }
-  }
-}
-
 interface LiveEntry {
   readonly ref: Readonly<LiveOwnedGenerationRef>;
   readonly capability: TrustedProviderGenerationCapability;
@@ -1053,6 +1179,26 @@ interface LiveEntry {
   fence?: Readonly<RetirementFenceRef>;
   handoff?: Readonly<LiveGenerationHandoffObservation>;
 }
+
+interface H1Provenance {
+  readonly epoch: object;
+  active: boolean;
+}
+
+/**
+ * Composition-root-only runtime ingress.  The callbacks are handed to the
+ * trusted H1/provider construction root; no serialized artifact contains one
+ * of these identities and there is no public minting function.
+ */
+export interface TrustedH2RuntimeIngress {
+  readonly registerProviderCapability: (capability: TrustedProviderGenerationCapability) => void;
+  readonly registerH1ExecutionRef: (executionRef: OwnedExecutionRef, epoch?: object) => void;
+  readonly invalidateH1ExecutionRef: (executionRef: OwnedExecutionRef) => void;
+  readonly issueHandoffProof: () => object;
+  readonly issueObservation: (observation: object) => void;
+}
+
+export type TrustedH2RuntimeBootstrap = (ingress: TrustedH2RuntimeIngress) => void;
 
 export interface RegisterProvisionalInput {
   readonly executionRef: OwnedExecutionRef;
@@ -1071,6 +1217,8 @@ export interface HandoffInput {
   readonly noUnresolvedLaunchWork: true;
   readonly noUnresolvedDescendants: true;
   readonly responsibilityTransferred: true;
+  /** Adapter-local proof; never serialized into the handoff observation. */
+  readonly trustedHandoffProof?: object;
 }
 
 function parseHandoff(value: unknown): HandoffInput {
@@ -1132,7 +1280,10 @@ function sanitizeRegisterInput(value: RegisterProvisionalInput): RegisterProvisi
     if (typeof key !== 'string' || !allowed.has(key)) return fail('INVALID_REGISTER_INPUT');
     const descriptor = descriptors[key];
     if (!descriptor || !('value' in descriptor) || !descriptor.enumerable) return fail('INVALID_REGISTER_INPUT');
-    if (key === 'capability') output[key] = snapshotCapability(descriptor.value);
+    // Adapter-local executable capability is intentionally not traversed or
+    // detached here.  registerProvisional performs the private provenance
+    // check and snapshots it at the trusted registration boundary.
+    if (key === 'capability') output[key] = descriptor.value;
     else output[key] = descriptor.value;
   }
   if (!Object.prototype.hasOwnProperty.call(output, 'executionRef') || !Object.prototype.hasOwnProperty.call(output, 'capability')) return fail('INVALID_REGISTER_INPUT');
@@ -1141,7 +1292,7 @@ function sanitizeRegisterInput(value: RegisterProvisionalInput): RegisterProvisi
   const inert = Object.create(null) as Record<string, unknown>;
   for (const [key, item] of Object.entries(output)) if (key !== 'capability') inert[key] = item;
   scanInert(inert);
-  return output as RegisterProvisionalInput;
+  return output as unknown as RegisterProvisionalInput;
 }
 
 /**
@@ -1168,15 +1319,61 @@ export class LiveGenerationRegistry {
   private readonly projectionFailures = new Set<string>();
   private readonly liveProjection = new Map<string, { revision: number; admissionIds: readonly string[] }>();
   private readonly trustedServiceScopeKeys: ReadonlySet<string>;
+  // ECMAScript private fields are intentional here: TypeScript `private`
+  // alone is only erased at runtime and would let a caller mutate the trust
+  // roots through reflective property access.
+  readonly #trustedCapabilities = new WeakSet<object>();
+  readonly #capabilityAliases = new WeakMap<object, TrustedProviderGenerationCapability>();
+  readonly #capabilityOwners = new WeakMap<object, string>();
+  readonly #trustedHandoffProofs = new WeakSet<object>();
+  readonly #h1Provenance = new WeakMap<object, H1Provenance>();
+  #runtimeEpochToken: object;
+  #ledgerToken: object;
+  private readonly descendants = new Map<string, Map<string, { readonly capability: TrustedProviderGenerationCapability; resolved: boolean }>>();
   private receiptBridge: AuthorityConsumptionReceiptBridge | undefined;
 
-  constructor(options: { registryEpochId?: string; ledger?: AdmissionLedger; transactionRegistry?: TransactionExecutionRegistry; receiptBridge?: AuthorityConsumptionReceiptBridge; trustedServiceScopes?: readonly ServiceScope[] } = {}) {
+  constructor(options: { registryEpochId?: string; ledger?: AdmissionLedger; transactionRegistry?: TransactionExecutionRegistry; receiptBridge?: AuthorityConsumptionReceiptBridge; trustedServiceScopes?: readonly ServiceScope[]; trustedRuntime?: TrustedH2RuntimeBootstrap } = {}) {
     this.registryEpochId = options.registryEpochId ?? uniqueId('registry-epoch');
+    this.#runtimeEpochToken = Object.freeze({});
     this.ledger = options.ledger ?? new AdmissionLedger();
+    this.#ledgerToken = issueLedgerToken();
+    this.ledger.bindRegistryToken(this.#ledgerToken);
     this.transactionRegistry = options.transactionRegistry ?? new TransactionExecutionRegistry();
     const trustedScopes = (options.trustedServiceScopes ?? []).map(scope => validateShape(scope, parseServiceScope));
     this.trustedServiceScopeKeys = new Set(trustedScopes.map(serviceScopeKey));
     this.receiptBridge = options.receiptBridge;
+    options.trustedRuntime?.({
+      registerProviderCapability: capability => {
+        if (capability === null || typeof capability !== 'object') return fail('PROCESS_GENERATION_UNAVAILABLE');
+        const objectCapability = capability as object;
+        const priorEpoch = TRUSTED_CAPABILITY_EPOCHS.get(objectCapability);
+        if (priorEpoch !== undefined && priorEpoch !== this.#runtimeEpochToken) return fail('OWNERSHIP_STALE', 'provider capability belongs to another registry epoch');
+        TRUSTED_CAPABILITY_EPOCHS.set(objectCapability, this.#runtimeEpochToken);
+        this.#trustedCapabilities.add(objectCapability);
+      },
+      registerH1ExecutionRef: (executionRef, epoch = Object.freeze({})) => {
+        if (executionRef === null || typeof executionRef !== 'object' || epoch === null || typeof epoch !== 'object') return fail('OWNERSHIP_NOT_PROVEN');
+        const objectExecutionRef = executionRef as object;
+        const priorEpoch = TRUSTED_H1_EPOCHS.get(objectExecutionRef);
+        if (priorEpoch !== undefined && priorEpoch !== this.#runtimeEpochToken) return fail('OWNERSHIP_STALE', 'an H1 execution object belongs to another registry epoch');
+        if (this.#h1Provenance.has(objectExecutionRef)) return fail('OWNERSHIP_STALE', 'an H1 execution object cannot be rebound to a second epoch');
+        TRUSTED_H1_EPOCHS.set(objectExecutionRef, this.#runtimeEpochToken);
+        this.#h1Provenance.set(objectExecutionRef, { epoch, active: true });
+      },
+      invalidateH1ExecutionRef: executionRef => {
+        const provenance = this.#h1Provenance.get(executionRef as object);
+        if (provenance) provenance.active = false;
+      },
+      issueHandoffProof: () => {
+        const proof = Object.freeze({});
+        this.#trustedHandoffProofs.add(proof);
+        return proof;
+      },
+      issueObservation: observation => {
+        if (observation === null || typeof observation !== 'object') return fail('OWNERSHIP_NOT_PROVEN');
+        brandTrustedObservation(observation, this.#ledgerToken);
+      }
+    });
   }
 
   setReceiptBridge(bridge: AuthorityConsumptionReceiptBridge): void { this.receiptBridge = bridge; }
@@ -1192,14 +1389,24 @@ export class LiveGenerationRegistry {
     return entry;
   }
 
-  private async verifyCapability(entry: LiveEntry): Promise<void> {
-    await this.verifyCapabilityValue(entry.capability);
-  }
-
   private async verifyCapabilityValue(capability: TrustedProviderGenerationCapability): Promise<void> {
+    if (capability === null || typeof capability !== 'object' || !this.#trustedCapabilities.has(capability as object)) return fail('PROCESS_GENERATION_UNAVAILABLE', 'provider capability provenance is not trusted');
     let exact = false;
     try { exact = (await capability.verifyExactGeneration()) === true; } catch { exact = false; }
     if (!exact) return fail('OWNERSHIP_GENERATION_MISMATCH');
+  }
+
+  private assertTrustedExecutionRef(value: unknown): asserts value is OwnedExecutionRef {
+    if (value === null || typeof value !== 'object') return fail('OWNERSHIP_NOT_PROVEN', 'H1 execution reference is not an object identity registered by H1');
+    const provenance = this.#h1Provenance.get(value as object);
+    if (provenance && !provenance.active) return fail('OWNERSHIP_STALE', 'H1 execution epoch is closed');
+    if (!provenance) return fail('OWNERSHIP_NOT_PROVEN', 'H1 execution reference was not issued by a trusted runtime');
+  }
+
+  private assertCurrentH1ExecutionRef(value: OwnedExecutionRef): void {
+    const provenance = this.#h1Provenance.get(value as object);
+    if (provenance && !provenance.active) return fail('OWNERSHIP_STALE', 'H1 execution epoch is closed');
+    if (!provenance) return fail('OWNERSHIP_NOT_PROVEN');
   }
 
   private assertScopeCompatibility(scope: ServiceScope, executionRef: OwnedExecutionRef): void {
@@ -1214,11 +1421,12 @@ export class LiveGenerationRegistry {
     const key = bindingKey(executionRef, liveGenerationId);
     if (this.closedBindingKeys.has(key)) return fail('OWNERSHIP_STALE', 'transaction control binding has expired');
     const candidates = this.bindings.get(key) ?? [];
-    const binding = candidates.find(candidate => candidate.executionRef.operationId === executionRef.operationId && candidate.executionRef.operationDigest === executionRef.operationDigest && (supplied === undefined || candidate.bindingDigest === supplied.bindingDigest));
+    const binding = candidates.find(candidate => candidate.executionRef.operationId === executionRef.operationId && candidate.executionRef.operationDigest === executionRef.operationDigest && (supplied === undefined || candidate === supplied));
     if (!binding) return fail('OWNERSHIP_NOT_PROVEN', 'transaction binding was not minted by this registry');
     if (binding.executionRef.bindingGenerationId !== executionRef.bindingGenerationId ||
         binding.executionRef.ownershipId !== executionRef.ownershipId ||
         !sameH1Scope(binding.executionRef, executionRef)) return fail('OWNERSHIP_SCOPE_MISMATCH');
+    this.assertCurrentH1ExecutionRef(binding.executionRef);
     return binding;
   }
 
@@ -1235,7 +1443,8 @@ export class LiveGenerationRegistry {
     const candidates = [...this.bindings.values()].flat().filter(candidate => {
       const ref = candidate.executionRef;
       const liveGenerationId = 'liveGenerationRef' in candidate ? candidate.liveGenerationRef.liveGenerationId : candidate.liveGenerationId;
-      return !this.closedBindingKeys.has(bindingKey(ref, liveGenerationId)) && liveGenerationId === reservation.liveGenerationId && ref.ownershipId.length > 0 && sameH1Scope(ref, reservation) && ref.bindingGenerationId === reservation.bindingGenerationId && ref.targetId === reservation.targetId && ref.targetDigest === reservation.targetDigest && ref.effectScopeDigest === reservation.effectScopeDigest && ref.providerId === reservation.providerId && ref.providerVersion === reservation.providerVersion;
+      const provenance = this.#h1Provenance.get(ref as object);
+      return !this.closedBindingKeys.has(bindingKey(ref, liveGenerationId)) && provenance?.active === true && liveGenerationId === reservation.liveGenerationId && ref.ownershipId.length > 0 && sameH1Scope(ref, reservation) && ref.bindingGenerationId === reservation.bindingGenerationId && ref.targetId === reservation.targetId && ref.targetDigest === reservation.targetDigest && ref.effectScopeDigest === reservation.effectScopeDigest && ref.providerId === reservation.providerId && ref.providerVersion === reservation.providerVersion;
     });
     if (candidates.length === 0) return fail('OWNERSHIP_NOT_PROVEN', 'reservation has no registry-issued control binding');
     return candidates[0]!;
@@ -1243,7 +1452,11 @@ export class LiveGenerationRegistry {
 
   async registerProvisional(input: RegisterProvisionalInput): Promise<Readonly<LiveOwnedGenerationRef>> {
     input = sanitizeRegisterInput(input);
+    const suppliedExecutionRef = input.executionRef;
+    this.assertTrustedExecutionRef(suppliedExecutionRef);
+    if (input.capability === null || typeof input.capability !== 'object' || !this.#trustedCapabilities.has(input.capability as object)) return fail('PROCESS_GENERATION_UNAVAILABLE', 'provider capability was not issued by the trusted provider adapter');
     input = { ...input, executionRef: validateOwnedExecutionRef(input.executionRef) };
+    this.assertCurrentH1ExecutionRef(suppliedExecutionRef);
     if (input.executionRef.executionKind === 'process' && !input.processKind) return fail('PROCESS_KIND_REQUIRED');
     if (input.executionRef.executionKind === 'tool' && !input.toolKind) return fail('TOOL_KIND_REQUIRED');
     if (input.processKind && input.toolKind) return fail('LIVE_KIND_CONFLICT');
@@ -1251,11 +1464,14 @@ export class LiveGenerationRegistry {
     await assertCurrentDigest(hasOwnedExecutionIntegrity(input.executionRef), 'OWNERSHIP_NOT_PROVEN');
     const serviceScope = validateShape(input.serviceScope, parseServiceScope);
     this.assertScopeCompatibility(serviceScope, input.executionRef);
+    const trustedCapability = snapshotCapability(input.capability, this.#trustedCapabilities);
+    const capabilityEpoch = TRUSTED_CAPABILITY_EPOCHS.get(trustedCapability as object);
+    if (capabilityEpoch !== undefined && capabilityEpoch !== this.#runtimeEpochToken) return fail('OWNERSHIP_STALE', 'provider capability snapshot belongs to another registry epoch');
+    TRUSTED_CAPABILITY_EPOCHS.set(trustedCapability as object, this.#runtimeEpochToken);
+    await this.verifyCapabilityValue(trustedCapability);
     const liveGenerationId = uniqueId('live-generation');
     const entry = await this.mutex.run(async () => {
-      const capabilityId = text(input.capability.capabilityId, 'PROCESS_GENERATION_UNAVAILABLE');
-      if (!capabilityId || typeof input.capability.verifyExactGeneration !== 'function') return fail('PROCESS_GENERATION_UNAVAILABLE');
-      await this.verifyCapabilityValue(input.capability);
+      if (this.#capabilityOwners.has(input.capability as object) || this.#capabilityOwners.has(trustedCapability as object)) return fail('PROCESS_GENERATION_UNAVAILABLE', 'provider capability is already bound to a live generation');
       const target = targetKey(input.targetId, input.targetDigest, serviceScope);
       const policy = input.targetPolicy ?? 'exclusive';
       if (policy !== 'exclusive' && policy !== 'multi') return fail('TARGET_CONFLICT');
@@ -1277,8 +1493,11 @@ export class LiveGenerationRegistry {
         originBindingGenerationId: input.executionRef.bindingGenerationId, originRequestId: input.executionRef.requestId,
         originTransactionId: input.executionRef.transactionId, creationProvenanceDigest: input.executionRef.provenanceDigest
       });
-      const liveEntry: LiveEntry = { ref, capability: input.capability, disposition: 'provisional', version: 1 as SafeInteger };
+      const liveEntry: LiveEntry = { ref, capability: trustedCapability, disposition: 'provisional', version: 1 as SafeInteger };
       this.entries.set(liveGenerationId, liveEntry);
+      this.#capabilityOwners.set(input.capability as object, liveGenerationId);
+      this.#capabilityOwners.set(trustedCapability as object, liveGenerationId);
+      this.#capabilityAliases.set(input.capability as object, trustedCapability);
       this.targetPolicies.set(target, policy);
       return liveEntry;
     });
@@ -1298,8 +1517,22 @@ export class LiveGenerationRegistry {
   async completePersistentHandoff(liveGenerationId: string, originReservation: AdmissionReservationRef, handoff: HandoffInput): Promise<Readonly<LiveGenerationHandoffObservation>> {
     originReservation = validateAdmissionReservationRef(originReservation);
     await assertCurrentDigest(hasReservationIntegrity(originReservation), 'INVALID_RESERVATION_INTEGRITY');
-    const parsedHandoff = parseHandoff(handoff);
-    return this.mutex.run(async () => {
+    if (handoff === null || typeof handoff !== 'object') return fail('PUBLICATION_NOT_READY');
+    scanInert(handoff);
+    const handoffProofDescriptor = Object.getOwnPropertyDescriptor(handoff, 'trustedHandoffProof');
+    if (!handoffProofDescriptor || !('value' in handoffProofDescriptor)) return fail('PUBLICATION_NOT_READY', 'trusted handoff proof is required');
+    const handoffProof = handoffProofDescriptor.value;
+    if (handoffProof === null || typeof handoffProof !== 'object' || !this.#trustedHandoffProofs.has(handoffProof as object)) return fail('PUBLICATION_NOT_READY', 'trusted handoff proof is required');
+    const handoffKeys = Reflect.ownKeys(handoff);
+    if (handoffKeys.some(key => typeof key !== 'string' || !['noUnresolvedLaunchWork', 'noUnresolvedDescendants', 'responsibilityTransferred', 'trustedHandoffProof'].includes(key))) return fail('PUBLICATION_NOT_READY');
+    const publicHandoff = Object.create(null) as Plain;
+    for (const key of ['noUnresolvedLaunchWork', 'noUnresolvedDescendants', 'responsibilityTransferred']) {
+      const descriptor = Object.getOwnPropertyDescriptor(handoff, key);
+      if (!descriptor || !('value' in descriptor) || !descriptor.enumerable) return fail('PUBLICATION_NOT_READY');
+      publicHandoff[key] = descriptor.value;
+    }
+    const parsedHandoff = parseHandoff(publicHandoff);
+    const snapshot = await this.mutex.run(() => {
       const entry = this.current(liveGenerationId);
       if (entry.disposition !== 'provisional') return fail(entry.disposition === 'retirement_fenced' ? 'FENCE_CONFLICT' : 'PUBLICATION_NOT_READY');
       if (entry.ref.executionKind === 'process' && entry.ref.processKind !== 'persistent_service') return fail('PUBLICATION_NOT_READY', 'short-lived process cannot be handed off as a live service');
@@ -1314,7 +1547,6 @@ export class LiveGenerationRegistry {
           reservation.reservation.providerId !== entry.ref.providerId ||
           reservation.reservation.providerVersion !== entry.ref.providerVersion) return fail('OWNERSHIP_SCOPE_MISMATCH');
       this.assertReservationBinding(originReservation);
-      await this.verifyCapability(entry);
       const target = targetKey(entry.ref.targetId, entry.ref.targetDigest, entry.ref.serviceScope);
       const existing = this.targetIndex.get(target);
       const policy = this.targetPolicies.get(target) ?? 'exclusive';
@@ -1323,16 +1555,42 @@ export class LiveGenerationRegistry {
         const unresolvedCompeting = [...this.entries.values()].find(other => other.ref.liveGenerationId !== liveGenerationId && other.disposition !== 'terminal' && other.disposition !== 'provisional' && targetKey(other.ref.targetId, other.ref.targetDigest, other.ref.serviceScope) === target);
         if (unresolvedCompeting) return fail('TARGET_CONFLICT');
       }
-      const base: Plain = { kind: 'live-generation-handoff-observation', observationId: uniqueId('handoff'), originOwnershipId: entry.ref.originOwnershipId, originBindingGenerationId: entry.ref.originBindingGenerationId, liveGenerationId, registryEpochId: this.registryEpochId, workspaceId: entry.ref.providerGenerationProofRef.workspaceId, taskId: entry.ref.providerGenerationProofRef.taskId, taskRevision: entry.ref.providerGenerationProofRef.taskRevision, requestId: entry.ref.providerGenerationProofRef.requestId, attemptId: entry.ref.providerGenerationProofRef.attemptId, originTransactionId: entry.ref.originTransactionId, targetId: entry.ref.targetId, providerGenerationEvidenceDigest: entry.ref.providerGenerationProofRef.providerGenerationEvidenceDigest, ...parsedHandoff, published: true, observedAt: new Date().toISOString(), observationDigest: '0'.repeat(64) };
-      const observation = await makeDigestArtifact('live-generation-handoff-observation', base, 'observationDigest') as Readonly<LiveGenerationHandoffObservation>;
-      // Close origin work before publication.  If this canonical operation
-      // fails, no cross-transaction publication is allowed.
-      try { await this.ledger.closeByHandoff(originReservation.admissionId, observation.observationId); }
-      catch (error) { entry.disposition = 'ownership_unresolved'; entry.version = (entry.version + 1) as SafeInteger; throw error; }
+      return { entry, version: entry.version, capability: entry.capability, target };
+    });
+    await this.verifyCapabilityValue(snapshot.capability);
+    const base: Plain = { kind: 'live-generation-handoff-observation', observationId: uniqueId('handoff'), originOwnershipId: snapshot.entry.ref.originOwnershipId, originBindingGenerationId: snapshot.entry.ref.originBindingGenerationId, liveGenerationId, registryEpochId: this.registryEpochId, workspaceId: snapshot.entry.ref.providerGenerationProofRef.workspaceId, taskId: snapshot.entry.ref.providerGenerationProofRef.taskId, taskRevision: snapshot.entry.ref.providerGenerationProofRef.taskRevision, requestId: snapshot.entry.ref.providerGenerationProofRef.requestId, attemptId: snapshot.entry.ref.providerGenerationProofRef.attemptId, originTransactionId: snapshot.entry.ref.originTransactionId, targetId: snapshot.entry.ref.targetId, providerGenerationEvidenceDigest: snapshot.entry.ref.providerGenerationProofRef.providerGenerationEvidenceDigest, ...parsedHandoff, published: true, observedAt: new Date().toISOString(), observationDigest: '0'.repeat(64) };
+    const observation = await makeDigestArtifact('live-generation-handoff-observation', base, 'observationDigest') as Readonly<LiveGenerationHandoffObservation>;
+    brandTrustedObservation(observation as object, this.#ledgerToken);
+    return this.mutex.run(async () => {
+      const entry = this.current(liveGenerationId);
+      if (entry !== snapshot.entry || entry.version !== snapshot.version || entry.capability !== snapshot.capability || entry.disposition !== 'provisional') return fail('OWNERSHIP_GENERATION_MISMATCH');
+      if (this.projectionFailures.size > 0) return fail('INTERNAL_HARNESS_FAILURE', 'required projection repair pending');
+      const policy = this.targetPolicies.get(snapshot.target) ?? 'exclusive';
+      const existing = this.targetIndex.get(snapshot.target);
+      if (policy === 'exclusive' && existing && existing.liveGenerationId !== liveGenerationId) return fail('TARGET_CONFLICT');
+      if (policy === 'exclusive') {
+        const unresolvedCompeting = [...this.entries.values()].find(other => other.ref.liveGenerationId !== liveGenerationId && other.disposition !== 'terminal' && other.disposition !== 'provisional' && targetKey(other.ref.targetId, other.ref.targetDigest, other.ref.serviceScope) === snapshot.target);
+        if (unresolvedCompeting) return fail('TARGET_CONFLICT');
+      }
+      // Close origin work and refresh all required projections before making
+      // the published disposition visible.  Unexpected projection failure is
+      // rolled back to avoid a published generation with closed origin work.
+      try {
+        await this.ledger.closeByHandoff(originReservation.admissionId, observation, this.#ledgerToken);
+        this.refreshProjectionsUnlocked(liveGenerationId, originReservation.transactionId);
+      } catch (error) {
+        try {
+          await this.ledger.rollbackHandoff(originReservation.admissionId, observation, this.#ledgerToken);
+          this.liveProjection.delete(liveGenerationId);
+          // Rebuild the transaction projection from canonical ledger truth so
+          // a late projection failure cannot leave origin closure visible.
+          this.transactionRegistry.rebuild(this.ledger, originReservation.transactionId);
+        }
+        catch { entry.disposition = 'ownership_unresolved'; entry.version = (entry.version + 1) as SafeInteger; }
+        throw error;
+      }
       entry.handoff = observation; entry.disposition = 'published_open'; entry.version = (entry.version + 1) as SafeInteger;
-      this.targetIndex.set(target, { liveGenerationId, version: entry.version });
-      try { this.refreshProjectionsUnlocked(liveGenerationId, originReservation.transactionId); }
-      catch (error) { throw error; }
+      this.targetIndex.set(snapshot.target, { liveGenerationId, version: entry.version });
       return observation;
     });
   }
@@ -1340,24 +1598,33 @@ export class LiveGenerationRegistry {
   async resolve(liveRef: LiveOwnedGenerationRef): Promise<Readonly<LiveOwnedGenerationRef>> {
     liveRef = validateLiveOwnedGenerationRef(liveRef);
     await assertCurrentDigest(hasLiveGenerationIntegrity(liveRef), 'OWNERSHIP_NOT_PROVEN');
-    return this.mutex.run(() => {
+    const snapshot = await this.mutex.run(() => {
       if (liveRef.registryEpochId !== this.registryEpochId) return fail('RESTART_RECONCILIATION_REQUIRED');
       const entry = this.current(liveRef.liveGenerationId);
       if (entry.ref.liveGenerationDigest !== liveRef.liveGenerationDigest || entry.disposition === 'terminal' || entry.disposition === 'ownership_unresolved') return fail('OWNERSHIP_STALE');
-      return this.verifyCapability(entry).then(() => entry.ref);
+      return { entry, version: entry.version, capability: entry.capability, ref: entry.ref };
+    });
+    await this.verifyCapabilityValue(snapshot.capability);
+    return this.mutex.run(() => {
+      const entry = this.current(liveRef.liveGenerationId);
+      if (entry !== snapshot.entry || entry.version !== snapshot.version || entry.capability !== snapshot.capability || entry.ref.liveGenerationDigest !== snapshot.ref.liveGenerationDigest || entry.disposition === 'terminal' || entry.disposition === 'ownership_unresolved') return fail('OWNERSHIP_GENERATION_MISMATCH');
+      return entry.ref;
     });
   }
 
   async mintProcessBinding(input: ProcessBindingInput): Promise<Readonly<OwnedProcessRef>> {
     scanInert(input);
+    const suppliedExecutionRef = input.executionRef;
+    this.assertTrustedExecutionRef(suppliedExecutionRef);
     input = {
       ...input,
       executionRef: validateOwnedExecutionRef(input.executionRef),
       liveGenerationId: text(input.liveGenerationId, 'INVALID_LIVE_GENERATION_ID'),
       ...(input.diagnosticObservation === undefined ? {} : { diagnosticObservation: validateShape(input.diagnosticObservation, parseDiagnostic) })
     };
+    this.assertCurrentH1ExecutionRef(suppliedExecutionRef);
     await assertCurrentDigest(hasOwnedExecutionIntegrity(input.executionRef), 'OWNERSHIP_NOT_PROVEN');
-    return this.mutex.run(async () => {
+    const snapshot = await this.mutex.run(() => {
       const entry = this.current(input.liveGenerationId);
       if (this.closedBindingKeys.has(bindingKey(input.executionRef, input.liveGenerationId))) return fail('OWNERSHIP_STALE', 'transaction control binding has expired');
       const originBinding = entry.disposition === 'provisional' && input.executionRef.ownershipId === entry.ref.originOwnershipId && input.executionRef.bindingGenerationId === entry.ref.originBindingGenerationId && sameH1Scope(input.executionRef, entry.ref.providerGenerationProofRef);
@@ -1366,18 +1633,30 @@ export class LiveGenerationRegistry {
       if (entry.ref.registryEpochId !== this.registryEpochId || entry.ref.targetId !== input.executionRef.targetId || entry.ref.targetDigest !== input.executionRef.targetDigest) return fail('OWNERSHIP_SCOPE_MISMATCH');
       this.assertScopeCompatibility(entry.ref.serviceScope, input.executionRef);
       if (entry.ref.providerId !== input.executionRef.providerId || entry.ref.providerVersion !== input.executionRef.providerVersion) return fail('OWNERSHIP_SCOPE_MISMATCH');
-      await this.verifyCapability(entry);
-      const proof = entry.ref.providerGenerationProofRef;
-      const binding = await createOwnedProcessRef({ executionRef: input.executionRef, liveGenerationRef: entry.ref, providerGenerationProofRef: proof, ...(input.diagnosticObservation === undefined ? {} : { diagnosticObservation: input.diagnosticObservation }) });
+      return { entry, version: entry.version, capability: entry.capability };
+    });
+    await this.verifyCapabilityValue(snapshot.capability);
+    const proof = snapshot.entry.ref.providerGenerationProofRef;
+    const binding = await createOwnedProcessRef({ executionRef: input.executionRef, liveGenerationRef: snapshot.entry.ref, providerGenerationProofRef: proof, ...(input.diagnosticObservation === undefined ? {} : { diagnosticObservation: input.diagnosticObservation }) });
+    return this.mutex.run(() => {
+      const entry = this.current(input.liveGenerationId);
+      if (entry !== snapshot.entry || entry.version !== snapshot.version || entry.capability !== snapshot.capability) return fail('OWNERSHIP_GENERATION_MISMATCH');
+      if (entry.disposition !== 'published_open' && !(entry.disposition === 'provisional' && input.executionRef.ownershipId === entry.ref.originOwnershipId)) return fail(entry.disposition === 'retirement_fenced' ? 'ADMISSION_NOT_STOPPED' : 'OWNERSHIP_STALE');
+      this.assertCurrentH1ExecutionRef(suppliedExecutionRef);
       const key = bindingKey(input.executionRef, entry.ref.liveGenerationId);
       const existing = this.bindings.get(key) ?? [];
       if (!existing.some(candidate => candidate.bindingDigest === binding.bindingDigest)) this.bindings.set(key, [...existing, binding]);
+      const bindingExecution = binding.executionRef;
+      const h1 = this.#h1Provenance.get(suppliedExecutionRef as object);
+      if (h1) this.#h1Provenance.set(bindingExecution as object, h1);
       return binding;
     });
   }
 
   async mintToolBinding(input: ToolBindingInput): Promise<Readonly<OwnedToolInvocationRef>> {
     scanInert(input);
+    const suppliedExecutionRef = input.executionRef;
+    this.assertTrustedExecutionRef(suppliedExecutionRef);
     input = {
       ...input,
       executionRef: validateOwnedExecutionRef(input.executionRef),
@@ -1387,8 +1666,9 @@ export class LiveGenerationRegistry {
       toolKind: oneOf(input.toolKind, TOOL_KINDS, 'INVALID_TOOL_KIND'),
       toolInvocationProvenanceDigest: digest(input.toolInvocationProvenanceDigest, 'INVALID_TOOL_PROVENANCE')
     };
+    this.assertCurrentH1ExecutionRef(suppliedExecutionRef);
     await assertCurrentDigest(hasOwnedExecutionIntegrity(input.executionRef), 'OWNERSHIP_NOT_PROVEN');
-    return this.mutex.run(async () => {
+    const snapshot = await this.mutex.run(() => {
       const entry = this.current(input.liveGenerationId);
       if (this.closedBindingKeys.has(bindingKey(input.executionRef, input.liveGenerationId))) return fail('OWNERSHIP_STALE', 'transaction control binding has expired');
       const originBinding = entry.disposition === 'provisional' && input.executionRef.ownershipId === entry.ref.originOwnershipId && input.executionRef.bindingGenerationId === entry.ref.originBindingGenerationId && sameH1Scope(input.executionRef, entry.ref.providerGenerationProofRef);
@@ -1396,8 +1676,15 @@ export class LiveGenerationRegistry {
       if (entry.ref.executionKind !== 'tool' || entry.ref.toolKind !== input.toolKind) return fail('OWNERSHIP_SCOPE_MISMATCH');
       if (entry.ref.targetId !== input.executionRef.targetId || entry.ref.targetDigest !== input.executionRef.targetDigest || entry.ref.providerId !== input.executionRef.providerId || entry.ref.providerVersion !== input.executionRef.providerVersion) return fail('OWNERSHIP_SCOPE_MISMATCH');
       this.assertScopeCompatibility(entry.ref.serviceScope, input.executionRef);
-      await this.verifyCapability(entry);
-      const binding = await createOwnedToolInvocationRef({ executionRef: input.executionRef, liveGenerationId: entry.ref.liveGenerationId, invocationId: input.invocationId, normalizedInputDigest: input.normalizedInputDigest, toolKind: input.toolKind, toolInvocationProvenanceDigest: input.toolInvocationProvenanceDigest });
+      return { entry, version: entry.version, capability: entry.capability };
+    });
+    await this.verifyCapabilityValue(snapshot.capability);
+    const binding = await createOwnedToolInvocationRef({ executionRef: input.executionRef, liveGenerationId: snapshot.entry.ref.liveGenerationId, invocationId: input.invocationId, normalizedInputDigest: input.normalizedInputDigest, toolKind: input.toolKind, toolInvocationProvenanceDigest: input.toolInvocationProvenanceDigest });
+    return this.mutex.run(() => {
+      const entry = this.current(input.liveGenerationId);
+      if (entry !== snapshot.entry || entry.version !== snapshot.version || entry.capability !== snapshot.capability) return fail('OWNERSHIP_GENERATION_MISMATCH');
+      if (entry.disposition !== 'published_open' && !(entry.disposition === 'provisional' && input.executionRef.ownershipId === entry.ref.originOwnershipId)) return fail(entry.disposition === 'retirement_fenced' ? 'ADMISSION_NOT_STOPPED' : 'OWNERSHIP_STALE');
+      this.assertCurrentH1ExecutionRef(suppliedExecutionRef);
       const invocationKey = `${entry.ref.liveGenerationId}\u0000${input.invocationId}`;
       const invocationBinding = this.invocationBindings.get(invocationKey);
       const key = bindingKey(input.executionRef, entry.ref.liveGenerationId);
@@ -1405,6 +1692,9 @@ export class LiveGenerationRegistry {
       this.invocationBindings.set(invocationKey, { bindingDigest: binding.bindingDigest, scopeKey: key });
       const existing = this.bindings.get(key) ?? [];
       if (!existing.some(candidate => candidate.bindingDigest === binding.bindingDigest)) this.bindings.set(key, [...existing, binding]);
+      const bindingExecution = binding.executionRef;
+      const h1 = this.#h1Provenance.get(suppliedExecutionRef as object);
+      if (h1) this.#h1Provenance.set(bindingExecution as object, h1);
       return binding;
     });
   }
@@ -1424,23 +1714,31 @@ export class LiveGenerationRegistry {
   liveProjectionFor(liveGenerationId: string): readonly string[] { return this.liveProjection.get(liveGenerationId)?.admissionIds ?? []; }
 
   async admitOrdinary(binding: OwnedProcessRef | OwnedToolInvocationRef, reservation: AdmissionReservationRef, receipt: AuthorityConsumptionRef): Promise<Readonly<AdmittedOperationRef>> {
-    scanInert(binding); scanInert(reservation); scanInert(receipt);
-    binding = 'liveGenerationRef' in binding ? validateOwnedProcessRef(binding) : validateOwnedToolInvocationRef(binding);
+    const suppliedBinding = binding;
+    scanInert(suppliedBinding); scanInert(reservation); scanInert(receipt);
+    const parsedBinding = 'liveGenerationRef' in suppliedBinding ? validateOwnedProcessRef(suppliedBinding) : validateOwnedToolInvocationRef(suppliedBinding);
     reservation = validateAdmissionReservationRef(reservation);
     receipt = validateAuthorityConsumptionRef(receipt);
-    await assertCurrentDigest(('liveGenerationRef' in binding ? hasOwnedProcessIntegrity(binding) : hasOwnedToolIntegrity(binding)), 'OWNERSHIP_NOT_PROVEN');
+    await assertCurrentDigest(('liveGenerationRef' in parsedBinding ? hasOwnedProcessIntegrity(parsedBinding) : hasOwnedToolIntegrity(parsedBinding)), 'OWNERSHIP_NOT_PROVEN');
     await assertCurrentDigest(hasReservationIntegrity(reservation), 'INVALID_RESERVATION_INTEGRITY');
     await assertCurrentDigest(hasAuthorityReceiptIntegrity(receipt), 'INVALID_AUTHORITY_RECEIPT_INTEGRITY');
-    return this.mutex.run(async () => {
-      const execution = binding.executionRef;
-      const liveGenerationId = 'liveGenerationRef' in binding ? binding.liveGenerationRef.liveGenerationId : binding.liveGenerationId;
+    const snapshot = await this.mutex.run(() => {
+      const execution = parsedBinding.executionRef;
+      const liveGenerationId = 'liveGenerationRef' in parsedBinding ? parsedBinding.liveGenerationRef.liveGenerationId : parsedBinding.liveGenerationId;
       const entry = this.current(liveGenerationId);
       if (entry.disposition !== 'published_open') return fail(entry.disposition === 'retirement_fenced' ? 'ADMISSION_NOT_STOPPED' : 'OWNERSHIP_STALE');
       if (reservation.bindingGenerationId !== execution.bindingGenerationId || reservation.liveGenerationId !== liveGenerationId || reservation.transactionId !== execution.transactionId) return fail('OWNERSHIP_SCOPE_MISMATCH');
       if (entry.ref.targetId !== execution.targetId || entry.ref.targetDigest !== execution.targetDigest || entry.ref.providerId !== execution.providerId || entry.ref.providerVersion !== execution.providerVersion) return fail('OWNERSHIP_SCOPE_MISMATCH');
-      this.assertReservationBinding(reservation, binding);
+      this.assertReservationBinding(reservation, suppliedBinding);
       if (!this.receiptBridge || !this.receiptBridge.isTrustedReceipt(receipt)) return fail('AUTHORITY_OBSERVATION_UNRESOLVED');
-      await this.verifyCapability(entry);
+      return { entry, version: entry.version, capability: entry.capability, liveGenerationId };
+    });
+    await this.verifyCapabilityValue(snapshot.capability);
+    return this.mutex.run(async () => {
+      const entry = this.current(snapshot.liveGenerationId);
+      if (entry !== snapshot.entry || entry.version !== snapshot.version || entry.capability !== snapshot.capability || entry.disposition !== 'published_open') return fail('OWNERSHIP_GENERATION_MISMATCH');
+      this.assertReservationBinding(reservation, suppliedBinding);
+      if (!this.receiptBridge || !this.receiptBridge.isTrustedReceipt(receipt)) return fail('AUTHORITY_OBSERVATION_UNRESOLVED');
       await this.ledger.noteAuthorityConsumption(reservation, receipt);
       let admitted: Readonly<AdmittedOperationRef>;
       try {
@@ -1449,7 +1747,7 @@ export class LiveGenerationRegistry {
         try { await this.ledger.consumedUnresolved(reservation, 'ordinary_admission_commit_failed'); } catch { /* retain RESERVED + receipt if the ledger itself is faulted */ }
         throw error;
       }
-      this.refreshProjectionsUnlocked(liveGenerationId, reservation.transactionId);
+      this.refreshProjectionsUnlocked(snapshot.liveGenerationId, reservation.transactionId);
       return admitted;
     });
   }
@@ -1462,13 +1760,21 @@ export class LiveGenerationRegistry {
     await assertCurrentDigest(hasAuthorityReceiptIntegrity(receipt), 'INVALID_AUTHORITY_RECEIPT_INTEGRITY');
     if (!this.receiptBridge) return fail('AUTHORITY_OBSERVATION_UNRESOLVED');
     this.receiptBridge.assertExecutorCallbackPermit(callbackPermit, receipt);
-    return this.mutex.run(async () => {
+    const snapshot = await this.mutex.run(() => {
       const entry = this.current(reservation.liveGenerationId);
       if (entry.disposition !== 'published_open') return fail(entry.disposition === 'retirement_fenced' ? 'FENCE_CONFLICT' : 'OWNERSHIP_STALE');
       if (entry.ref.registryEpochId !== this.registryEpochId || entry.ref.targetId !== reservation.targetId || entry.ref.targetDigest !== reservation.targetDigest || entry.ref.providerId !== reservation.providerId || entry.ref.providerVersion !== reservation.providerVersion || !receiptMatchesReservation(receipt, reservation)) return fail('OWNERSHIP_SCOPE_MISMATCH');
       this.assertReservationBinding(reservation);
       if (!this.receiptBridge || !this.receiptBridge.isTrustedReceipt(receipt)) return fail('AUTHORITY_OBSERVATION_UNRESOLVED');
-      await this.verifyCapability(entry);
+      return { entry, version: entry.version, capability: entry.capability };
+    });
+    await this.verifyCapabilityValue(snapshot.capability);
+    return this.mutex.run(async () => {
+      const entry = this.current(reservation.liveGenerationId);
+      if (entry !== snapshot.entry || entry.version !== snapshot.version || entry.capability !== snapshot.capability || entry.disposition !== 'published_open') return fail('OWNERSHIP_GENERATION_MISMATCH');
+      if (entry.ref.registryEpochId !== this.registryEpochId || entry.ref.targetId !== reservation.targetId || entry.ref.targetDigest !== reservation.targetDigest || entry.ref.providerId !== reservation.providerId || entry.ref.providerVersion !== reservation.providerVersion || !receiptMatchesReservation(receipt, reservation)) return fail('OWNERSHIP_SCOPE_MISMATCH');
+      this.assertReservationBinding(reservation);
+      if (!this.receiptBridge || !this.receiptBridge.isTrustedReceipt(receipt)) return fail('AUTHORITY_OBSERVATION_UNRESOLVED');
       this.receiptBridge.assertExecutorCallbackPermit(callbackPermit, receipt);
       const base: Plain = { kind: 'retirement-fence-ref', liveGenerationId: reservation.liveGenerationId, registryEpochId: this.registryEpochId, stopTransactionId: reservation.transactionId, bindingGenerationId: reservation.bindingGenerationId, admissionReservationId: reservation.admissionId, operationDigest: reservation.operationDigest, targetDigest: reservation.targetDigest, fenceGeneration: entry.version, fenceDigest: '0'.repeat(64) };
       const fence = await makeDigestArtifact('retirement-fence-ref', base, 'fenceDigest') as Readonly<RetirementFenceRef>;
@@ -1497,9 +1803,7 @@ export class LiveGenerationRegistry {
     fence = validateRetirementFenceRef(fence);
     await assertCurrentDigest(hasReservationIntegrity(reservation), 'INVALID_RESERVATION_INTEGRITY');
     await assertCurrentDigest(hasRetirementFenceIntegrity(fence), 'FENCE_CONFLICT');
-    let capability: TrustedProviderGenerationCapability;
-    let controlBinding: Readonly<OwnedProcessRef | OwnedToolInvocationRef>;
-    await this.mutex.run(async () => {
+    const snapshot = await this.mutex.run(() => {
       const entry = this.current(reservation.liveGenerationId);
       if (entry.disposition !== 'retirement_fenced' || !entry.fence ||
           entry.fence.fenceDigest !== fence.fenceDigest ||
@@ -1512,30 +1816,42 @@ export class LiveGenerationRegistry {
           entry.fence.targetDigest !== reservation.targetDigest) return fail('FENCE_CONFLICT');
       const record = this.ledger.get(reservation);
       if (record.state !== 'COMMITTED' || !record.admittedOperation || !record.authorityConsumption) return fail('ADMISSION_NOT_STOPPED');
-      controlBinding = this.assertReservationBinding(reservation);
+      const controlBinding = this.assertReservationBinding(reservation);
       if (!this.receiptBridge || !this.receiptBridge.isTrustedReceipt(record.authorityConsumption)) return fail('AUTHORITY_OBSERVATION_UNRESOLVED');
       if (this.projectionFailures.size > 0) return fail('INTERNAL_HARNESS_FAILURE', 'required projection repair pending');
-      await this.verifyCapability(entry);
+      if (!entry.capability.terminateExact) return fail('PROCESS_GENERATION_UNAVAILABLE', 'exact-generation termination capability unavailable');
+      return { entry, version: entry.version, capability: entry.capability, controlBinding };
+    });
+    await this.verifyCapabilityValue(snapshot.capability);
+    const capability = await this.mutex.run(async () => {
+      const entry = this.current(reservation.liveGenerationId);
+      if (entry !== snapshot.entry || entry.version !== snapshot.version || entry.capability !== snapshot.capability || entry.disposition !== 'retirement_fenced' || !entry.fence || entry.fence.fenceDigest !== fence.fenceDigest) return fail('OWNERSHIP_GENERATION_MISMATCH');
+      const record = this.ledger.get(reservation);
+      if (record.state !== 'COMMITTED' || !record.admittedOperation || !record.authorityConsumption) return fail('ADMISSION_NOT_STOPPED');
+      this.assertReservationBinding(reservation, snapshot.controlBinding);
+      if (!this.receiptBridge || !this.receiptBridge.isTrustedReceipt(record.authorityConsumption)) return fail('AUTHORITY_OBSERVATION_UNRESOLVED');
+      if (this.projectionFailures.size > 0) return fail('INTERNAL_HARNESS_FAILURE', 'required projection repair pending');
       if (!entry.capability.terminateExact) return fail('PROCESS_GENERATION_UNAVAILABLE', 'exact-generation termination capability unavailable');
       await this.ledger.markDispatchStarted(reservation.admissionId);
-      capability = entry.capability;
+      return entry.capability;
     });
     let outcome: TerminationObservation['outcome'] = 'unconfirmed';
     let dispatchStarted = false;
     try {
-      if (capability!.terminateExact) {
+      if (capability.terminateExact) {
         dispatchStarted = true;
-        const providerOutcome = await capability!.terminateExact();
+        const providerOutcome = await capability.terminateExact();
         if (!TERMINATION_OUTCOMES.includes(providerOutcome)) throw new Error('provider returned an invalid termination outcome');
         outcome = providerOutcome;
       }
     } catch { outcome = 'unconfirmed'; }
-    const observationBase: Plain = { kind: 'termination-observation', observationId: uniqueId('termination'), ownershipId: controlBinding!.executionRef.ownershipId, liveGenerationId: reservation.liveGenerationId, registryEpochId: this.registryEpochId, admissionId: reservation.admissionId, workspaceId: reservation.workspaceId, taskId: reservation.taskId, taskRevision: reservation.taskRevision, requestId: reservation.requestId, attemptId: reservation.attemptId, transactionId: reservation.transactionId, outcome, dispatchStarted, exactGenerationProven: true, observedAt: new Date().toISOString(), observationDigest: '0'.repeat(64) };
+    const observationBase: Plain = { kind: 'termination-observation', observationId: uniqueId('termination'), ownershipId: snapshot.controlBinding.executionRef.ownershipId, liveGenerationId: reservation.liveGenerationId, registryEpochId: this.registryEpochId, admissionId: reservation.admissionId, workspaceId: reservation.workspaceId, taskId: reservation.taskId, taskRevision: reservation.taskRevision, requestId: reservation.requestId, attemptId: reservation.attemptId, transactionId: reservation.transactionId, outcome, dispatchStarted, exactGenerationProven: true, observedAt: new Date().toISOString(), observationDigest: '0'.repeat(64) };
     const observation = await makeDigestArtifact('termination-observation', observationBase, 'observationDigest') as Readonly<TerminationObservation>;
     await this.mutex.run(async () => {
       const entry = this.current(reservation.liveGenerationId);
       if (outcome === 'exact_generation_exited' || outcome === 'already_exited') {
-        await this.ledger.markGenerationTerminal(reservation.liveGenerationId, observation.observationId);
+        brandTrustedObservation(observation as object, this.#ledgerToken);
+        await this.ledger.markGenerationTerminal(reservation.liveGenerationId, observation, this.#ledgerToken);
         this.retireEntry(entry);
       }
     });
@@ -1550,20 +1866,23 @@ export class LiveGenerationRegistry {
   }
 
   async observeNaturalExit(liveGenerationId: string): Promise<void> {
-    const capability = await this.mutex.run(() => {
+    const snapshot = await this.mutex.run(() => {
       const entry = this.current(liveGenerationId);
-      return entry.capability.observeExactExit;
+      return { entry, version: entry.version, capability: entry.capability, observe: entry.capability.observeExactExit };
     });
-    if (!capability) return;
+    if (!snapshot.observe) return;
     let exited = false;
-    try { exited = (await capability()) === true; } catch { exited = false; }
+    try { exited = (await snapshot.observe()) === true; } catch { exited = false; }
     if (!exited) return;
     await this.mutex.run(() => {
       const entry = this.current(liveGenerationId);
+      if (entry !== snapshot.entry || entry.version !== snapshot.version || entry.capability !== snapshot.capability) return fail('OWNERSHIP_GENERATION_MISMATCH');
       if (entry.disposition === 'provisional' || entry.disposition === 'published_open' || entry.disposition === 'retirement_fenced') {
         // Exact native exit closes every committed H2 operation affected by
         // this generation; it does not imply any effect-certainty outcome.
-        return this.ledger.markGenerationTerminal(liveGenerationId, uniqueId('natural-exit')).then(() => this.retireEntry(entry));
+        const observation = Object.freeze({ observationId: uniqueId('natural-exit') });
+        brandTrustedObservation(observation, this.#ledgerToken);
+        return this.ledger.markGenerationTerminal(liveGenerationId, observation, this.#ledgerToken).then(() => this.retireEntry(entry));
       }
     });
   }
@@ -1584,22 +1903,94 @@ export class LiveGenerationRegistry {
     return this.mutex.run(() => this.ledger.activeForGeneration(liveGenerationId));
   }
 
+  /** Provider-observer ingress for exact descendant accounting. */
+  async registerDescendant(admissionId: string, descendantId: string, capability: TrustedProviderGenerationCapability): Promise<void> {
+    const id = text(descendantId, 'INVALID_DESCENDANT_ID');
+    if (capability === null || typeof capability !== 'object' || !this.#trustedCapabilities.has(capability as object)) return fail('DESCENDANT_UNOWNED');
+    await this.mutex.run(() => {
+      const record = this.ledger.get(admissionId);
+      if (record.state !== 'COMMITTED' || !record.admittedOperation || record.terminal) return fail('DESCENDANT_UNOWNED');
+      const entry = this.current(record.reservation.liveGenerationId);
+      const exactCapability = capability === entry.capability ? entry.capability : this.#capabilityAliases.get(capability as object);
+      if (!exactCapability || exactCapability !== entry.capability) return fail('DESCENDANT_UNOWNED');
+      const descendants = this.descendants.get(admissionId) ?? new Map<string, { readonly capability: TrustedProviderGenerationCapability; resolved: boolean }>();
+      const existing = descendants.get(id);
+      if (existing && (existing.capability !== entry.capability || existing.resolved)) return fail('DESCENDANT_UNOWNED');
+      descendants.set(id, { capability: entry.capability, resolved: false });
+      this.descendants.set(admissionId, descendants);
+    });
+  }
+
+  /** Trusted provider observer closes one exact descendant identity. */
+  async resolveDescendant(admissionId: string, descendantId: string, capability: TrustedProviderGenerationCapability): Promise<void> {
+    const id = text(descendantId, 'INVALID_DESCENDANT_ID');
+    if (capability === null || typeof capability !== 'object' || !this.#trustedCapabilities.has(capability as object)) return fail('DESCENDANT_UNOWNED');
+    await this.mutex.run(() => {
+      const descendants = this.descendants.get(admissionId);
+      const item = descendants?.get(id);
+      const record = this.ledger.get(admissionId);
+      const entry = this.current(record.reservation.liveGenerationId);
+      const exactCapability = capability === entry.capability ? entry.capability : this.#capabilityAliases.get(capability as object);
+      if (!item || item.capability !== exactCapability) return fail('DESCENDANT_UNOWNED');
+      item.resolved = true;
+    });
+  }
+
+  /**
+   * Trusted H1 boundary: closes admission for one exact transaction epoch.
+   * Callers cannot assert a cutoff by supplying booleans or an arbitrary
+   * scope object; the exact H1 execution object must be present in the
+   * registry's private provenance map.
+   */
+  async closeAdmission(executionRef: OwnedExecutionRef): Promise<void> {
+    const supplied = executionRef;
+    this.assertTrustedExecutionRef(supplied);
+    executionRef = validateOwnedExecutionRef(executionRef);
+    this.assertCurrentH1ExecutionRef(supplied);
+    await assertCurrentDigest(hasOwnedExecutionIntegrity(executionRef), 'OWNERSHIP_NOT_PROVEN');
+    await this.mutex.run(() => this.ledger.closeAdmission({
+      workspaceId: executionRef.workspaceId,
+      taskId: executionRef.taskId,
+      taskRevision: executionRef.taskRevision,
+      requestId: executionRef.requestId,
+      attemptId: executionRef.attemptId,
+      transactionId: executionRef.transactionId
+    }, this.registryEpochId, this.#ledgerToken));
+  }
+
   /** H1 calls this when the bound epoch closes; the binding remains historical but cannot admit work. */
   async closeControlBinding(binding: OwnedProcessRef | OwnedToolInvocationRef): Promise<void> {
-    binding = 'liveGenerationRef' in binding ? validateOwnedProcessRef(binding) : validateOwnedToolInvocationRef(binding);
-    await assertCurrentDigest(('liveGenerationRef' in binding ? hasOwnedProcessIntegrity(binding) : hasOwnedToolIntegrity(binding)), 'OWNERSHIP_NOT_PROVEN');
+    const suppliedBinding = binding;
+    const parsedBinding = 'liveGenerationRef' in suppliedBinding ? validateOwnedProcessRef(suppliedBinding) : validateOwnedToolInvocationRef(suppliedBinding);
+    await assertCurrentDigest(('liveGenerationRef' in parsedBinding ? hasOwnedProcessIntegrity(parsedBinding) : hasOwnedToolIntegrity(parsedBinding)), 'OWNERSHIP_NOT_PROVEN');
     await this.mutex.run(() => {
-      const liveGenerationId = 'liveGenerationRef' in binding ? binding.liveGenerationRef.liveGenerationId : binding.liveGenerationId;
-      const key = bindingKey(binding.executionRef, liveGenerationId);
+      const liveGenerationId = 'liveGenerationRef' in parsedBinding ? parsedBinding.liveGenerationRef.liveGenerationId : parsedBinding.liveGenerationId;
+      const key = bindingKey(parsedBinding.executionRef, liveGenerationId);
       if (this.closedBindingKeys.has(key)) return;
-      this.bindingFor(binding.executionRef, liveGenerationId, binding);
+      this.bindingFor(parsedBinding.executionRef, liveGenerationId, suppliedBinding);
       this.closedBindingKeys.add(key);
     });
   }
 
-  /** Quiescence is always evaluated against canonical ledger truth in this registry epoch. */
-  async createQuiescence(scope: { workspaceId: WorkspaceId; taskId: TaskId; taskRevision: TaskRevision; requestId: HarnessExecutionRequestId; attemptId: WorkerAttemptId; transactionId: HarnessTransactionId }, options: { admissionCutoff: boolean; registryCompleteness: boolean; unresolvedDescendantIds?: readonly string[] }): Promise<Readonly<QuiescenceObservation>> {
-    return this.mutex.run(() => this.ledger.createQuiescence(scope, { ...options, registryEpochId: this.registryEpochId }));
+  /** Quiescence is derived from the trusted cutoff, ledger and descendant registry. */
+  async createQuiescence(executionRef: OwnedExecutionRef): Promise<Readonly<QuiescenceObservation>> {
+    const supplied = executionRef;
+    this.assertTrustedExecutionRef(supplied);
+    executionRef = validateOwnedExecutionRef(executionRef);
+    this.assertCurrentH1ExecutionRef(supplied);
+    await assertCurrentDigest(hasOwnedExecutionIntegrity(executionRef), 'OWNERSHIP_NOT_PROVEN');
+    return this.mutex.run(() => {
+      const transactionAdmissionIds = new Set(this.ledger.listForTransaction(executionRef.transactionId).map(entry => entry.reservation.admissionId));
+      const unresolvedDescendantIds = [...this.descendants.entries()].filter(([admissionId]) => transactionAdmissionIds.has(admissionId)).flatMap(([, descendants]) => [...descendants.entries()].filter(([, item]) => !item.resolved).map(([id]) => id)).sort();
+      return this.ledger.createQuiescence({
+        workspaceId: executionRef.workspaceId,
+        taskId: executionRef.taskId,
+        taskRevision: executionRef.taskRevision,
+        requestId: executionRef.requestId,
+        attemptId: executionRef.attemptId,
+        transactionId: executionRef.transactionId
+      }, this.registryEpochId, this.#ledgerToken, unresolvedDescendantIds);
+    });
   }
 }
 
@@ -1633,6 +2024,17 @@ export interface BridgeExecuteClassification {
 }
 
 /**
+ * Private composition-root ingress for facts that only the real authority
+ * execution seam can establish.  The public bridge surface deliberately does
+ * not expose callback/settlement minting because those facts are provenance,
+ * not caller claims.
+ */
+export interface TrustedAuthorityReceiptBridgeIngress {
+  readonly enterExecutorCallback: (watchId: string) => object;
+  readonly settleExecute: (watchId: string, input: { readonly callbackEntered: boolean; readonly dispatchStarted: boolean }) => void;
+}
+
+/**
  * Composition-root observation bridge for the existing Execution Authority
  * recorder. It observes the same persisted consumed event and never grants,
  * revokes or executes authority.
@@ -1654,12 +2056,16 @@ export class AuthorityConsumptionReceiptBridge {
   private recorderWrapped = false;
   private epochFaulted = false;
 
-  constructor(options: { bridgeEpochId?: string; maxWatches?: number; maxReceipts?: number; maxTombstones?: number } = {}) {
+  constructor(options: { bridgeEpochId?: string; maxWatches?: number; maxReceipts?: number; maxTombstones?: number; trustedRuntime?: (ingress: TrustedAuthorityReceiptBridgeIngress) => void } = {}) {
     this.bridgeEpochId = options.bridgeEpochId ?? uniqueId('bridge-epoch');
     this.maxWatches = options.maxWatches ?? MAX_WATCHES;
     this.maxReceipts = options.maxReceipts ?? MAX_RECEIPTS;
     this.maxTombstones = options.maxTombstones ?? MAX_TOMBSTONES;
     if (!Number.isSafeInteger(this.maxWatches) || this.maxWatches < 1 || !Number.isSafeInteger(this.maxReceipts) || this.maxReceipts < 1 || !Number.isSafeInteger(this.maxTombstones) || this.maxTombstones < 1) return fail('BRIDGE_CAPACITY_EXHAUSTED');
+    options.trustedRuntime?.({
+      enterExecutorCallback: watchId => this.enterExecutorCallbackInternal(watchId),
+      settleExecute: (watchId, input) => this.settleExecuteInternal(watchId, input)
+    });
   }
 
   get healthy(): boolean { return !this.epochFaulted; }
@@ -1696,7 +2102,7 @@ export class AuthorityConsumptionReceiptBridge {
    * Authority executor callback.  The returned identity is deliberately
    * ephemeral and cannot be reconstructed from serialized data.
    */
-  enterExecutorCallback(watchId: string): object {
+  private enterExecutorCallbackInternal(watchId: string): object {
     const watch = this.watches.get(watchId);
     if (!watch || watch.state !== 'executing' || watch.callbackEntered || !watch.receipt || this.epochFaulted || !this.recorderWrapped) return fail('FENCE_CONFLICT', 'executor callback receipt is not available');
     watch.callbackEntered = true;
@@ -1705,8 +2111,15 @@ export class AuthorityConsumptionReceiptBridge {
     return permit;
   }
 
+  /** Public callers cannot synthesize trusted callback provenance. */
+  enterExecutorCallback(_watchId: string): object {
+    return fail('FENCE_CONFLICT', 'executor callback provenance is trusted-adapter only');
+  }
+
   /** Validate callback provenance without acquiring any H2 ownership lock. */
   assertExecutorCallbackPermit(permit: unknown, receipt: AuthorityConsumptionRef): void {
+    scanInert(receipt);
+    receipt = validateAuthorityConsumptionRef(receipt);
     if (permit === null || typeof permit !== 'object') return fail('FENCE_CONFLICT', 'executor callback provenance required');
     const internal = this.callbackPermits.get(permit);
     const watch = internal === undefined ? undefined : this.watches.get(internal.watchId);
@@ -1720,12 +2133,17 @@ export class AuthorityConsumptionReceiptBridge {
     internal.used = true;
   }
 
-  settleExecute(watchId: string, input: { callbackEntered: boolean; dispatchStarted: boolean }): void {
+  private settleExecuteInternal(watchId: string, input: { callbackEntered: boolean; dispatchStarted: boolean }): void {
     const watch = this.watches.get(watchId);
     if (!watch || (watch.state !== 'executing' && watch.state !== 'ambiguous')) return fail('BRIDGE_HEALTH_UNCERTAIN');
     watch.executeSettled = true; watch.callbackEntered = input.callbackEntered; watch.dispatchStarted = input.dispatchStarted;
     if (!watch.recorderFault && watch.state !== 'ambiguous') watch.state = 'settled';
     if (watch.state === 'settled' && !watch.receipt) this.addTombstone(watch.ref.authorityOperationId);
+  }
+
+  /** Public callers cannot synthesize trusted execution settlement. */
+  settleExecute(_watchId: string, _input: { callbackEntered: boolean; dispatchStarted: boolean }): void {
+    return fail('BRIDGE_HEALTH_UNCERTAIN', 'execution settlement is trusted-adapter only');
   }
 
   private addTombstone(operationId: string): void {
@@ -1806,6 +2224,8 @@ export class AuthorityConsumptionReceiptBridge {
 
   /** A receipt is trusted only while the current bridge/watch is alive. */
   resolveReceipt(watchId: string, receipt: AuthorityConsumptionRef): Readonly<AuthorityConsumptionRef> {
+    scanInert(receipt);
+    receipt = validateAuthorityConsumptionRef(receipt);
     const watch = this.watches.get(watchId);
     if (!watch || !watch.receipt || !sameReceiptIdentity(watch.receipt, receipt) || receipt.bridgeEpochId !== this.bridgeEpochId || !this.isTrustedReceipt(receipt)) return fail('AUTHORITY_OBSERVATION_UNRESOLVED');
     return watch.receipt;

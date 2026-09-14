@@ -25,6 +25,8 @@ import type {
   OwnedExecutionRef,
   SafeInteger,
   ServiceScope,
+  TrustedAuthorityReceiptBridgeIngress,
+  TrustedH2RuntimeIngress,
   WorkspaceId,
   TaskId,
   WorkerAttemptId
@@ -43,9 +45,37 @@ const scope = {
 };
 const serviceScope: ServiceScope = { kind: 'workspace', scopeId: scope.workspaceId, policyDigest: D };
 const bridgeRecorders = new WeakMap<AuthorityConsumptionReceiptBridge, (event: unknown) => Promise<{ persisted: boolean; error?: string | null }>>();
+const bridgeIngresses = new WeakMap<AuthorityConsumptionReceiptBridge, TrustedAuthorityReceiptBridgeIngress>();
 
 function expectCode(action: () => unknown, code: string): void {
   assert.throws(action, (error: unknown) => error instanceof HarnessOwnershipError && error.code === code);
+}
+
+function trustedRegistry(options: ConstructorParameters<typeof LiveGenerationRegistry>[0] = {}): { registry: LiveGenerationRegistry; ingress: TrustedH2RuntimeIngress } {
+  let captured!: TrustedH2RuntimeIngress;
+  const registry = new LiveGenerationRegistry({ ...options, trustedRuntime: ingress => { captured = ingress; } });
+  return { registry, ingress: captured };
+}
+
+function trustedBridge(options: ConstructorParameters<typeof AuthorityConsumptionReceiptBridge>[0] = {}): AuthorityConsumptionReceiptBridge {
+  let captured!: TrustedAuthorityReceiptBridgeIngress;
+  const bridge = new AuthorityConsumptionReceiptBridge({ ...options, trustedRuntime: ingress => { captured = ingress; } });
+  bridgeIngresses.set(bridge, captured);
+  return bridge;
+}
+
+function bridgeIngress(bridge: AuthorityConsumptionReceiptBridge): TrustedAuthorityReceiptBridgeIngress {
+  const ingress = bridgeIngresses.get(bridge);
+  assert.ok(ingress);
+  return ingress;
+}
+
+function enterExecutorCallback(bridge: AuthorityConsumptionReceiptBridge, watchId: string): object {
+  return bridgeIngress(bridge).enterExecutorCallback(watchId);
+}
+
+function settleExecute(bridge: AuthorityConsumptionReceiptBridge, watchId: string, input: { callbackEntered: boolean; dispatchStarted: boolean }): void {
+  bridgeIngress(bridge).settleExecute(watchId, input);
 }
 
 async function redigest<T extends Record<string, unknown>>(kind: string, value: T, field: keyof T, changes: Partial<T>): Promise<T> {
@@ -87,13 +117,16 @@ function capability(state: { alive: boolean } = { alive: true }) {
 async function publishedRegistry(exec: OwnedExecutionRef | undefined = undefined, options: { targetPolicy?: 'exclusive' | 'multi'; state?: { alive: boolean }; receiptBridge?: AuthorityConsumptionReceiptBridge } = {}) {
   exec ??= await execution();
   const state = options.state ?? { alive: true };
-  const receiptBridge = options.receiptBridge ?? new AuthorityConsumptionReceiptBridge({ bridgeEpochId: `bridge-${exec.transactionId}` });
-  const registry = new LiveGenerationRegistry({ registryEpochId: 'epoch-1', receiptBridge });
+  const receiptBridge = options.receiptBridge ?? trustedBridge({ bridgeEpochId: `bridge-${exec.transactionId}` });
+  const provider = capability(state);
+  const { registry, ingress } = trustedRegistry({ registryEpochId: 'epoch-1', receiptBridge });
+  ingress.registerH1ExecutionRef(exec);
+  ingress.registerProviderCapability(provider);
   const live = await registry.registerProvisional({
     executionRef: exec,
     providerGenerationEvidenceDigest: D,
     creationObservationDigest: E,
-    capability: capability(state),
+    capability: provider,
     targetId: exec.targetId,
     targetDigest: exec.targetDigest,
     serviceScope,
@@ -117,13 +150,14 @@ async function publishedRegistry(exec: OwnedExecutionRef | undefined = undefined
   const handoff = await registry.completePersistentHandoff(live.liveGenerationId, originReservation, {
     noUnresolvedLaunchWork: true,
     noUnresolvedDescendants: true,
-    responsibilityTransferred: true
+    responsibilityTransferred: true,
+    trustedHandoffProof: ingress.issueHandoffProof()
   });
   assert.equal(handoff.published, true);
-  return { registry, live, state, receiptBridge, originBinding, originReservation };
+  return { registry, ingress, live, state, receiptBridge, originBinding, originReservation };
 }
 
-async function watchAndReceipt(overrides: Partial<AuthorityConsumptionWatchInput> = {}, bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-1' }), callbackEntered = false) {
+async function watchAndReceipt(overrides: Partial<AuthorityConsumptionWatchInput> = {}, bridge = trustedBridge({ bridgeEpochId: 'bridge-1' }), callbackEntered = false) {
   const watch = await bridge.installWatch({
     authorityOperationId: 'operation-1',
     authorityRevision: 1 as SafeInteger,
@@ -157,8 +191,8 @@ async function watchAndReceipt(overrides: Partial<AuthorityConsumptionWatchInput
     decision: 'consumed'
   };
   await recorder(event);
-  const callbackPermit = callbackEntered ? bridge.enterExecutorCallback(watch.watchId) : undefined;
-  bridge.settleExecute(watch.watchId, { callbackEntered, dispatchStarted: false });
+  const callbackPermit = callbackEntered ? enterExecutorCallback(bridge, watch.watchId) : undefined;
+  settleExecute(bridge, watch.watchId, { callbackEntered, dispatchStarted: false });
   const classification = bridge.classify(watch.watchId);
   assert.equal(classification.outcome, 'CONSUMED_NO_DISPATCH');
   assert.ok(classification.receipt);
@@ -231,7 +265,7 @@ test('H2 rejects hidden, symbol, prototype, BigInt, cycle, and unsafe object val
   cycle.targetId = cycle;
   expectCode(() => validateOwnedExecutionRef(cycle), 'JSON_CYCLE');
   const unsafe = { ...ref, taskRevision: Number.MAX_SAFE_INTEGER + 1 };
-  expectCode(() => validateOwnedExecutionRef(unsafe), 'INVALID_OWNED_EXECUTION_REVISION');
+  expectCode(() => validateOwnedExecutionRef(unsafe), 'UNSAFE_INTEGER');
 });
 
 test('parent provenance cannot substitute H1 scope', async () => {
@@ -248,13 +282,16 @@ test('parent provenance cannot substitute H1 scope', async () => {
 
 test('provisional generations are not bindable until trusted handoff publication', async () => {
   const exec = await execution();
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-provisional' });
-  const registry = new LiveGenerationRegistry({ registryEpochId: 'epoch-provisional', receiptBridge });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-provisional' });
+  const provider = capability();
+  const { registry, ingress } = trustedRegistry({ registryEpochId: 'epoch-provisional', receiptBridge });
+  ingress.registerH1ExecutionRef(exec);
+  ingress.registerProviderCapability(provider);
   const live = await registry.registerProvisional({
     executionRef: exec,
     providerGenerationEvidenceDigest: D,
     creationObservationDigest: E,
-    capability: capability(),
+    capability: provider,
     targetId: exec.targetId,
     targetDigest: exec.targetDigest,
     serviceScope,
@@ -263,13 +300,13 @@ test('provisional generations are not bindable until trusted handoff publication
   const originBinding = await registry.mintProcessBinding({ executionRef: exec, liveGenerationId: live.liveGenerationId });
   assert.equal(originBinding.executionRef.transactionId, exec.transactionId);
   const foreign = await execution({ ownershipId: 'foreign', bindingGenerationId: 'foreign-binding', requestId: 'foreign-request' as HarnessExecutionRequestId, attemptId: 'foreign-attempt' as WorkerAttemptId, transactionId: 'foreign-transaction' as HarnessTransactionId });
-  await assert.rejects(registry.mintProcessBinding({ executionRef: foreign, liveGenerationId: live.liveGenerationId }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'PUBLICATION_NOT_READY');
+  await assert.rejects(registry.mintProcessBinding({ executionRef: foreign, liveGenerationId: live.liveGenerationId }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'OWNERSHIP_NOT_PROVEN');
   const originReservation = await reservation(exec, live.liveGenerationId, 'provisional-handoff');
   await registry.ledger.reserve(originReservation);
   const { receipt } = await watchAndReceipt({ authorityOperationId: exec.operationId, descriptorDigest: exec.operationDigest, reservationId: originReservation.admissionId }, receiptBridge);
   await registry.ledger.noteAuthorityConsumption(originReservation, receipt);
   await registry.ledger.commit(originReservation);
-  await registry.completePersistentHandoff(live.liveGenerationId, originReservation, { noUnresolvedLaunchWork: true, noUnresolvedDescendants: true, responsibilityTransferred: true });
+  await registry.completePersistentHandoff(live.liveGenerationId, originReservation, { noUnresolvedLaunchWork: true, noUnresolvedDescendants: true, responsibilityTransferred: true, trustedHandoffProof: ingress.issueHandoffProof() });
   const binding = await registry.mintProcessBinding({ executionRef: exec, liveGenerationId: live.liveGenerationId });
   assert.notEqual(binding.executionRef.bindingGenerationId, binding.liveGenerationRef.liveGenerationId);
 });
@@ -277,7 +314,9 @@ test('provisional generations are not bindable until trusted handoff publication
 test('provider capability methods are snapshotted at the trusted registration boundary', async () => {
   const exec = await execution({ ownershipId: 'cap-snapshot-owner', bindingGenerationId: 'cap-snapshot-binding', requestId: 'cap-snapshot-request' as HarnessExecutionRequestId, attemptId: 'cap-snapshot-attempt' as WorkerAttemptId, transactionId: 'cap-snapshot-transaction' as HarnessTransactionId });
   const provider = capability();
-  const registry = new LiveGenerationRegistry({ registryEpochId: 'epoch-cap-snapshot' });
+  const { registry, ingress } = trustedRegistry({ registryEpochId: 'epoch-cap-snapshot' });
+  ingress.registerH1ExecutionRef(exec);
+  ingress.registerProviderCapability(provider);
   const live = await registry.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: provider, targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope, processKind: 'persistent_service' });
   provider.verifyExactGeneration = () => false;
   const binding = await registry.mintProcessBinding({ executionRef: exec, liveGenerationId: live.liveGenerationId });
@@ -288,21 +327,33 @@ test('broader service scopes require trusted registry policy and cannot be calle
   const exec = await execution({ ownershipId: 'scope-owner', bindingGenerationId: 'scope-binding', requestId: 'scope-request' as HarnessExecutionRequestId, attemptId: 'scope-attempt' as WorkerAttemptId, transactionId: 'scope-transaction' as HarnessTransactionId });
   const shared: ServiceScope = { kind: 'explicit-shared', scopeId: 'approved-shared-service', policyDigest: D };
   const project: ServiceScope = { kind: 'project', scopeId: 'project-1', policyDigest: E };
-  const untrusted = new LiveGenerationRegistry({ registryEpochId: 'epoch-untrusted-scope' });
-  await assert.rejects(untrusted.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: capability(), targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope: shared, processKind: 'persistent_service' }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'OWNERSHIP_SCOPE_MISMATCH');
-  await assert.rejects(untrusted.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: capability(), targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope: project, processKind: 'persistent_service' }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'OWNERSHIP_SCOPE_MISMATCH');
-  const trusted = new LiveGenerationRegistry({ registryEpochId: 'epoch-trusted-scope', trustedServiceScopes: [shared, project] });
-  const live = await trusted.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: capability(), targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope: shared, processKind: 'persistent_service' });
+  const { registry: untrusted, ingress: untrustedIngress } = trustedRegistry({ registryEpochId: 'epoch-untrusted-scope' });
+  untrustedIngress.registerH1ExecutionRef(exec);
+  const untrustedProviderA = capability();
+  const untrustedProviderB = capability();
+  untrustedIngress.registerProviderCapability(untrustedProviderA);
+  untrustedIngress.registerProviderCapability(untrustedProviderB);
+  await assert.rejects(untrusted.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: untrustedProviderA, targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope: shared, processKind: 'persistent_service' }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'OWNERSHIP_SCOPE_MISMATCH');
+  await assert.rejects(untrusted.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: untrustedProviderB, targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope: project, processKind: 'persistent_service' }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'OWNERSHIP_SCOPE_MISMATCH');
+  const { registry: trusted, ingress } = trustedRegistry({ registryEpochId: 'epoch-trusted-scope', trustedServiceScopes: [shared, project] });
+  const trustedExec = await execution({ ownershipId: 'scope-owner-trusted', bindingGenerationId: 'scope-binding-trusted', requestId: 'scope-request-trusted' as HarnessExecutionRequestId, attemptId: 'scope-attempt-trusted' as WorkerAttemptId, transactionId: 'scope-transaction-trusted' as HarnessTransactionId });
+  ingress.registerH1ExecutionRef(trustedExec);
+  const trustedProvider = capability();
+  const trustedProjectProvider = capability();
+  ingress.registerProviderCapability(trustedProvider);
+  ingress.registerProviderCapability(trustedProjectProvider);
+  const live = await trusted.registerProvisional({ executionRef: trustedExec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: trustedProvider, targetId: trustedExec.targetId, targetDigest: trustedExec.targetDigest, serviceScope: shared, processKind: 'persistent_service' });
   assert.equal(live.serviceScope.kind, 'explicit-shared');
-  const projectLive = await trusted.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: capability(), targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope: project, processKind: 'persistent_service', targetPolicy: 'multi' });
+  const projectLive = await trusted.registerProvisional({ executionRef: trustedExec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: trustedProjectProvider, targetId: trustedExec.targetId, targetDigest: trustedExec.targetDigest, serviceScope: project, processKind: 'persistent_service', targetPolicy: 'multi' });
   assert.equal(projectLive.serviceScope.scopeId, 'project-1');
 });
 
 test('cross-transaction control requires a fresh H1 binding while preserving the same live generation', async () => {
   const first = await execution();
-  const { registry, live } = await publishedRegistry(first);
+  const { registry, ingress, live } = await publishedRegistry(first);
   const firstBinding = await registry.mintProcessBinding({ executionRef: first, liveGenerationId: live.liveGenerationId });
   const second = await execution({ ownershipId: 'ownership-2', bindingGenerationId: 'binding-2', requestId: 'request-2' as HarnessExecutionRequestId, attemptId: 'attempt-2' as WorkerAttemptId, transactionId: 'transaction-2' as HarnessTransactionId });
+  ingress.registerH1ExecutionRef(second);
   const secondBinding = await registry.mintProcessBinding({ executionRef: second, liveGenerationId: live.liveGenerationId });
   assert.equal(secondBinding.liveGenerationRef.liveGenerationId, firstBinding.liveGenerationRef.liveGenerationId);
   assert.notEqual(secondBinding.executionRef.transactionId, firstBinding.executionRef.transactionId);
@@ -330,8 +381,8 @@ test('canonical AdmissionLedger preserves reservations, consumed-no-dispatch, an
 
 test('retirement fence is owned by one exact stop reservation and blocks ordinary work', async () => {
   const exec = await execution();
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-stop' });
-  const { registry, live, state } = await publishedRegistry(exec, { receiptBridge });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-stop' });
+  const { registry, ingress, live, state } = await publishedRegistry(exec, { receiptBridge });
   const binding = await registry.mintProcessBinding({ executionRef: exec, liveGenerationId: live.liveGenerationId });
   const stop = await reservation(exec, live.liveGenerationId);
   await registry.ledger.reserve(stop);
@@ -339,6 +390,7 @@ test('retirement fence is owned by one exact stop reservation and blocks ordinar
   const result = await registry.fenceAndCommitStop(stop, receipt, callbackPermit);
   assert.equal((await registry.disposition(live.liveGenerationId)), 'retirement_fenced');
   const ordinaryExec = await execution({ ownershipId: 'ordinary', bindingGenerationId: 'ordinary-binding', requestId: 'ordinary-request' as HarnessExecutionRequestId, attemptId: 'ordinary-attempt' as WorkerAttemptId, transactionId: 'ordinary-transaction' as HarnessTransactionId });
+  ingress.registerH1ExecutionRef(ordinaryExec);
   await assert.rejects(registry.mintProcessBinding({ executionRef: ordinaryExec, liveGenerationId: live.liveGenerationId }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'ADMISSION_NOT_STOPPED');
   await assert.rejects(registry.dispatchTermination(stop, { ...result.fence, fenceDigest: D }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'FENCE_CONFLICT');
   const observation = await registry.dispatchTermination(stop, result.fence);
@@ -350,7 +402,7 @@ test('retirement fence is owned by one exact stop reservation and blocks ordinar
 
 test('receipt consumption alone cannot create a pre-callback retirement fence', async () => {
   const exec = await execution({ ownershipId: 'pre-callback-owner', bindingGenerationId: 'pre-callback-binding', requestId: 'pre-callback-request' as HarnessExecutionRequestId, attemptId: 'pre-callback-attempt' as WorkerAttemptId, transactionId: 'pre-callback-transaction' as HarnessTransactionId });
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-pre-callback' });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-pre-callback' });
   const { registry, live } = await publishedRegistry(exec, { receiptBridge });
   const stop = await reservation(exec, live.liveGenerationId, 'pre-callback-stop', 'pre-callback-stop-op' as OwnedExecutionRef['operationId']);
   await registry.ledger.reserve(stop);
@@ -361,7 +413,7 @@ test('receipt consumption alone cannot create a pre-callback retirement fence', 
 
 test('registry-issued binding provenance rejects a structurally valid recomputed binding', async () => {
   const exec = await execution();
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-binding-forge' });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-binding-forge' });
   const { registry, live, originBinding } = await publishedRegistry(exec, { receiptBridge });
   const forgedBinding = await createOwnedProcessRef({
     executionRef: exec,
@@ -384,7 +436,7 @@ test('a closed H1 control binding remains historical and cannot be minted or reu
 
 test('one H1 binding can admit distinct operations only with distinct admission and authority identities', async () => {
   const exec = await execution();
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-multi-op' });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-multi-op' });
   const { registry, live, originBinding } = await publishedRegistry(exec, { receiptBridge });
   const first = await reservation(exec, live.liveGenerationId, 'multi-1', 'multi-op-1' as OwnedExecutionRef['operationId']);
   await registry.ledger.reserve(first);
@@ -401,7 +453,7 @@ test('one H1 binding can admit distinct operations only with distinct admission 
 
 test('projection failure cannot erase canonical committed admission or permit dispatch', async () => {
   const exec = await execution();
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-projection' });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-projection' });
   const { registry, live } = await publishedRegistry(exec, { receiptBridge });
   const binding = await registry.mintProcessBinding({ executionRef: exec, liveGenerationId: live.liveGenerationId });
   const stop = await reservation(exec, live.liveGenerationId);
@@ -416,7 +468,7 @@ test('projection failure cannot erase canonical committed admission or permit di
 
 test('recomputed receipt integrity cannot substitute for trusted bridge provenance', async () => {
   const exec = await execution();
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-receipt-forge' });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-receipt-forge' });
   const { registry, live } = await publishedRegistry(exec, { receiptBridge });
   const stop = await reservation(exec, live.liveGenerationId, 'receipt-forge', 'receipt-forge-op' as OwnedExecutionRef['operationId']);
   await registry.ledger.reserve(stop);
@@ -427,7 +479,7 @@ test('recomputed receipt integrity cannot substitute for trusted bridge provenan
 
 test('authority receipt bridge installs watches before execute and closes the D-06 callback gap', async () => {
   let recorderCalls = 0;
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-d06' });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-d06' });
   const watch = await bridge.installWatch({
     authorityOperationId: 'op-d06', authorityRevision: 2 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D,
     actorId: 'actor-d06', ownerId: 'owner-d06', reservationId: 'reservation-d06', bindingGenerationId: 'binding-d06', requestId: 'request-d06' as HarnessExecutionRequestId,
@@ -436,7 +488,7 @@ test('authority receipt bridge installs watches before execute and closes the D-
   const recorder = bridge.wrapRecorder(async event => { recorderCalls++; assert.equal(event.decision, 'consumed'); return { persisted: true }; });
   bridge.beginExecute(watch.watchId);
   await recorder({ type: 'authority', ts: '2026-09-14T12:00:00.000Z', workspace: 'workspace-1', operation_id: 'op-d06', actor_id: 'actor-d06', owner_id: 'owner-d06', task_id: 'task-1', kind: 'tasks.stop', digest: D, policy_revision: 2 as SafeInteger, decision: 'consumed' });
-  bridge.settleExecute(watch.watchId, { callbackEntered: false, dispatchStarted: false });
+  settleExecute(bridge, watch.watchId, { callbackEntered: false, dispatchStarted: false });
   const outcome = bridge.classify(watch.watchId);
   assert.equal(recorderCalls, 1);
   assert.equal(outcome.outcome, 'CONSUMED_NO_DISPATCH');
@@ -445,7 +497,7 @@ test('authority receipt bridge installs watches before execute and closes the D-
 });
 
 test('real Execution Authority consumed persistence is receipted even when revocation prevents callback entry', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-real-d06' });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-real-d06' });
   let authority!: ReturnType<typeof createExecutionAuthority>;
   let callbackCount = 0;
   const recorder = bridge.wrapRecorder(async event => {
@@ -476,7 +528,7 @@ test('real Execution Authority consumed persistence is receipted even when revoc
   });
   bridge.beginExecute(watch.watchId);
   await assert.rejects(authority.execute(owner, proposed.operation_id, input, () => { callbackCount++; }), { code: 'CONFLICT' });
-  bridge.settleExecute(watch.watchId, { callbackEntered: callbackCount > 0, dispatchStarted: false });
+  settleExecute(bridge, watch.watchId, { callbackEntered: callbackCount > 0, dispatchStarted: false });
   const classification = bridge.classify(watch.watchId);
   assert.equal(callbackCount, 0);
   assert.equal(classification.outcome, 'CONSUMED_NO_DISPATCH');
@@ -484,16 +536,16 @@ test('real Execution Authority consumed persistence is receipted even when revoc
 });
 
 test('receipt absence is abort only under healthy settled-watch proof; recorder ambiguity is unresolved', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-abort' });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-abort' });
   const watch = await bridge.installWatch({
     authorityOperationId: 'op-abort', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D,
     actorId: 'actor', ownerId: 'owner', reservationId: 'res', bindingGenerationId: 'bind', requestId: 'req' as HarnessExecutionRequestId, attemptId: 'att' as WorkerAttemptId, transactionId: 'tx' as HarnessTransactionId
   });
   const recorder = bridge.wrapRecorder(async () => ({ persisted: false }));
   bridge.beginExecute(watch.watchId);
-  bridge.settleExecute(watch.watchId, { callbackEntered: false, dispatchStarted: false });
+  settleExecute(bridge, watch.watchId, { callbackEntered: false, dispatchStarted: false });
   assert.equal(bridge.classify(watch.watchId).outcome, 'ABORTED_PRECONSUMPTION');
-  const bridgeAmbiguous = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-ambiguous' });
+  const bridgeAmbiguous = trustedBridge({ bridgeEpochId: 'bridge-ambiguous' });
   const ambiguous = await bridgeAmbiguous.installWatch({
     authorityOperationId: 'op-ambiguous', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D,
     actorId: 'actor', ownerId: 'owner', reservationId: 'res-2', bindingGenerationId: 'bind-2', requestId: 'req-2' as HarnessExecutionRequestId, attemptId: 'att-2' as WorkerAttemptId, transactionId: 'tx-2' as HarnessTransactionId
@@ -501,13 +553,13 @@ test('receipt absence is abort only under healthy settled-watch proof; recorder 
   const ambiguousRecorder = bridgeAmbiguous.wrapRecorder(async () => ({ persisted: false }));
   bridgeAmbiguous.beginExecute(ambiguous.watchId);
   await ambiguousRecorder({ type: 'authority', ts: '2026-09-14T12:00:00.000Z', workspace: 'workspace-1', operation_id: 'op-ambiguous', actor_id: 'actor', owner_id: 'owner', task_id: 'task-1', kind: 'tasks.stop', digest: D, policy_revision: 1 as SafeInteger, decision: 'consumed' });
-  bridgeAmbiguous.settleExecute(ambiguous.watchId, { callbackEntered: false, dispatchStarted: false });
+  settleExecute(bridgeAmbiguous, ambiguous.watchId, { callbackEntered: false, dispatchStarted: false });
   assert.equal(bridgeAmbiguous.classify(ambiguous.watchId).outcome, 'CONSUMED_UNRESOLVED');
   void recorder;
 });
 
 test('bridge does not correlate unwatched authority events and rejects duplicate/conflicting watches', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-watch' });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-watch' });
   const watch = await bridge.installWatch({
     authorityOperationId: 'op-watch', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D,
     actorId: 'actor', ownerId: 'owner', reservationId: 'res', bindingGenerationId: 'bind', requestId: 'req' as HarnessExecutionRequestId, attemptId: 'att' as WorkerAttemptId, transactionId: 'tx' as HarnessTransactionId
@@ -523,13 +575,13 @@ test('bridge does not correlate unwatched authority events and rejects duplicate
 });
 
 test('bridge bounds receipt retention and rejects watch reuse before execution', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-bounds', maxReceipts: 1, maxTombstones: 4 });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-bounds', maxReceipts: 1, maxTombstones: 4 });
   const event = (operationId: string) => ({ type: 'authority' as const, ts: '2026-09-14T12:00:00.000Z', workspace: 'workspace-1', operation_id: operationId, actor_id: 'actor', owner_id: 'owner', task_id: 'task-1', kind: 'tasks.stop', digest: D, policy_revision: 1 as SafeInteger, decision: 'consumed' });
   const first = await bridge.installWatch({ authorityOperationId: 'bounds-1', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'bounds-res-1', bindingGenerationId: 'bounds-bind-1', requestId: 'bounds-req-1' as HarnessExecutionRequestId, attemptId: 'bounds-att-1' as WorkerAttemptId, transactionId: 'bounds-tx-1' as HarnessTransactionId });
   const recorder = bridge.wrapRecorder(async () => ({ persisted: true }));
   bridge.beginExecute(first.watchId);
   await recorder(event('bounds-1'));
-  bridge.settleExecute(first.watchId, { callbackEntered: false, dispatchStarted: false });
+  settleExecute(bridge, first.watchId, { callbackEntered: false, dispatchStarted: false });
   await assert.rejects(bridge.installWatch({ authorityOperationId: 'bounds-2', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'bounds-res-2', bindingGenerationId: 'bounds-bind-2', requestId: 'bounds-req-2' as HarnessExecutionRequestId, attemptId: 'bounds-att-2' as WorkerAttemptId, transactionId: 'bounds-tx-2' as HarnessTransactionId }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'BRIDGE_CAPACITY_EXHAUSTED');
   bridge.closeWatch(first.watchId);
   await assert.rejects(bridge.installWatch({ authorityOperationId: 'bounds-1', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'bounds-res-3', bindingGenerationId: 'bounds-bind-3', requestId: 'bounds-req-3' as HarnessExecutionRequestId, attemptId: 'bounds-att-3' as WorkerAttemptId, transactionId: 'bounds-tx-3' as HarnessTransactionId }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'BRIDGE_WATCH_CONFLICT');
@@ -538,7 +590,7 @@ test('bridge bounds receipt retention and rejects watch reuse before execution',
 });
 
 test('bridge registration capacity failure after durable persistence is unresolved, never an abort', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-registration-fault', maxReceipts: 1 });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-registration-fault', maxReceipts: 1 });
   const makeWatch = (id: string) => bridge.installWatch({ authorityOperationId: id, authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: `${id}-res`, bindingGenerationId: `${id}-bind`, requestId: `${id}-req` as HarnessExecutionRequestId, attemptId: `${id}-att` as WorkerAttemptId, transactionId: `${id}-tx` as HarnessTransactionId });
   const first = await makeWatch('registration-1');
   const second = await makeWatch('registration-2');
@@ -548,47 +600,47 @@ test('bridge registration capacity failure after durable persistence is unresolv
   await recorder(event('registration-1'));
   bridge.beginExecute(second.watchId);
   await assert.rejects(recorder(event('registration-2')), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'BRIDGE_CAPACITY_EXHAUSTED');
-  bridge.settleExecute(second.watchId, { callbackEntered: false, dispatchStarted: false });
+  settleExecute(bridge, second.watchId, { callbackEntered: false, dispatchStarted: false });
   assert.equal(bridge.classify(second.watchId).outcome, 'CONSUMED_UNRESOLVED');
 });
 
 test('conflicting duplicate consumed events never downgrade a receipt to no-dispatch', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-duplicate-conflict' });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-duplicate-conflict' });
   const watch = await bridge.installWatch({ authorityOperationId: 'duplicate-op', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'duplicate-res', bindingGenerationId: 'duplicate-bind', requestId: 'duplicate-req' as HarnessExecutionRequestId, attemptId: 'duplicate-att' as WorkerAttemptId, transactionId: 'duplicate-tx' as HarnessTransactionId });
   const recorder = bridge.wrapRecorder(async () => ({ persisted: true }));
   bridge.beginExecute(watch.watchId);
   const event = { type: 'authority' as const, ts: '2026-09-14T12:00:00.000Z', workspace: 'workspace-1', operation_id: 'duplicate-op', actor_id: 'actor', owner_id: 'owner', task_id: 'task-1', kind: 'tasks.stop', digest: D, policy_revision: 1 as SafeInteger, decision: 'consumed' };
   await recorder(event);
   await assert.rejects(recorder({ ...event, ts: '2026-09-14T12:00:01.000Z' }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'AUTHORITY_OBSERVATION_UNRESOLVED');
-  bridge.settleExecute(watch.watchId, { callbackEntered: false, dispatchStarted: false });
+  settleExecute(bridge, watch.watchId, { callbackEntered: false, dispatchStarted: false });
   assert.equal(bridge.classify(watch.watchId).outcome, 'CONSUMED_UNRESOLVED');
 });
 
 test('bridge marks an unwatched consumed operation and recorder partial failure unresolved', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-health' });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-health' });
   const recorder = bridge.wrapRecorder(async () => { throw new Error('write closed after partial persistence'); });
   const event = { type: 'authority' as const, ts: '2026-09-14T12:00:00.000Z', workspace: 'workspace-1', operation_id: 'missed-consumed', actor_id: 'actor', owner_id: 'owner', task_id: 'task-1', kind: 'tasks.stop', digest: D, policy_revision: 1 as SafeInteger, decision: 'consumed' };
   await assert.rejects(recorder(event));
-  await assert.rejects(bridge.installWatch({ authorityOperationId: 'missed-consumed', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'missed-res', bindingGenerationId: 'missed-bind', requestId: 'missed-req' as HarnessExecutionRequestId, attemptId: 'missed-att', transactionId: 'missed-tx' as HarnessTransactionId }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'BRIDGE_WATCH_CONFLICT');
-  const watched = await bridge.installWatch({ authorityOperationId: 'partial-consumed', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'partial-res', bindingGenerationId: 'partial-bind', requestId: 'partial-req' as HarnessExecutionRequestId, attemptId: 'partial-att', transactionId: 'partial-tx' as HarnessTransactionId });
+  await assert.rejects(bridge.installWatch({ authorityOperationId: 'missed-consumed', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'missed-res', bindingGenerationId: 'missed-bind', requestId: 'missed-req' as HarnessExecutionRequestId, attemptId: 'missed-att' as WorkerAttemptId, transactionId: 'missed-tx' as HarnessTransactionId }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'BRIDGE_WATCH_CONFLICT');
+  const watched = await bridge.installWatch({ authorityOperationId: 'partial-consumed', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'partial-res', bindingGenerationId: 'partial-bind', requestId: 'partial-req' as HarnessExecutionRequestId, attemptId: 'partial-att' as WorkerAttemptId, transactionId: 'partial-tx' as HarnessTransactionId });
   bridge.beginExecute(watched.watchId);
   await assert.rejects(recorder({ ...event, operation_id: 'partial-consumed' }));
-  bridge.settleExecute(watched.watchId, { callbackEntered: false, dispatchStarted: false });
+  settleExecute(bridge, watched.watchId, { callbackEntered: false, dispatchStarted: false });
   assert.equal(bridge.classify(watched.watchId).outcome, 'CONSUMED_UNRESOLVED');
 });
 
 test('receipt absence after bridge epoch loss is never definitive pre-consumption abort', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-epoch-loss' });
-  const watch = await bridge.installWatch({ authorityOperationId: 'epoch-loss-op', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'epoch-loss-res', bindingGenerationId: 'epoch-loss-bind', requestId: 'epoch-loss-req' as HarnessExecutionRequestId, attemptId: 'epoch-loss-att', transactionId: 'epoch-loss-tx' as HarnessTransactionId });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-epoch-loss' });
+  const watch = await bridge.installWatch({ authorityOperationId: 'epoch-loss-op', authorityRevision: 1 as SafeInteger, workspaceId: 'workspace-1', taskId: 'task-1', operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'epoch-loss-res', bindingGenerationId: 'epoch-loss-bind', requestId: 'epoch-loss-req' as HarnessExecutionRequestId, attemptId: 'epoch-loss-att' as WorkerAttemptId, transactionId: 'epoch-loss-tx' as HarnessTransactionId });
   bridge.wrapRecorder(async () => ({ persisted: false }));
   bridge.beginExecute(watch.watchId);
   bridge.markEpochLost();
-  bridge.settleExecute(watch.watchId, { callbackEntered: false, dispatchStarted: false });
+  settleExecute(bridge, watch.watchId, { callbackEntered: false, dispatchStarted: false });
   assert.equal(bridge.classify(watch.watchId).outcome, 'CONSUMED_UNRESOLVED');
 });
 
 test('non-H2 authority events pass through without H2 schema requirements', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-non-h2' });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-non-h2' });
   const seen: unknown[] = [];
   const recorder = bridge.wrapRecorder(async event => { seen.push(event); return { persisted: true }; });
   const event = { type: 'authority', ts: '2026-09-14T12:00:00.000Z', workspace: 'workspace-1', decision: 'paired', origin: 'local-composition-root' };
@@ -600,7 +652,7 @@ test('non-H2 authority events pass through without H2 schema requirements', asyn
 
 test('fence and admission identities cannot be substituted across generations or transactions', async () => {
   const exec = await execution();
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-fence' });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-fence' });
   const { registry, live } = await publishedRegistry(exec, { receiptBridge });
   const reservationOne = await reservation(exec, live.liveGenerationId);
   await registry.ledger.reserve(reservationOne);
@@ -615,42 +667,54 @@ test('canonical ledger drives quiescence even when projections are stale, and em
   const exec = await execution();
   const ledger = new AdmissionLedger();
   const txProjection = new TransactionExecutionRegistry();
-  const empty = await ledger.createQuiescence(scope, { admissionCutoff: true, registryCompleteness: true });
+  await assert.rejects(() => ledger.createQuiescence(scope, 'epoch', Object.freeze({})), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'OWNERSHIP_NOT_PROVEN');
+  const { registry: emptyRegistry, ingress: emptyIngress } = trustedRegistry({ registryEpochId: 'epoch-ledger-quiescence-empty' });
+  emptyIngress.registerH1ExecutionRef(exec);
+  await emptyRegistry.closeAdmission(exec);
+  const empty = await emptyRegistry.createQuiescence(exec);
   assert.equal(empty.quiescent, true);
-  const reserved = await reservation(exec, 'live-empty');
-  await ledger.reserve(reserved);
-  const blocked = await ledger.createQuiescence(scope, { admissionCutoff: true, registryCompleteness: true });
+  const secondExec = await execution({ ownershipId: 'quiescence-second-owner', bindingGenerationId: 'quiescence-second-binding', requestId: 'quiescence-second-request' as HarnessExecutionRequestId, attemptId: 'quiescence-second-attempt' as WorkerAttemptId, transactionId: 'quiescence-second-transaction' as HarnessTransactionId });
+  const { registry, ingress } = trustedRegistry({ registryEpochId: 'epoch-ledger-quiescence' });
+  ingress.registerH1ExecutionRef(secondExec);
+  const reserved = await reservation(secondExec, 'live-empty');
+  await registry.ledger.reserve(reserved);
+  await registry.closeAdmission(secondExec);
+  const blocked = await registry.createQuiescence(secondExec);
   assert.equal(blocked.quiescent, false);
   assert.deepEqual(blocked.unresolvedAdmissionIds, ['admission-1']);
-  txProjection.setProjection(scope.transactionId, []);
-  assert.throws(() => txProjection.assertMatches(ledger, scope.transactionId), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'INTERNAL_HARNESS_FAILURE');
+  txProjection.setProjection(secondExec.transactionId, []);
+  assert.throws(() => txProjection.assertMatches(registry.ledger, secondExec.transactionId), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'INTERNAL_HARNESS_FAILURE');
 });
 
 test('exact generation exit closes all committed operations before transaction quiescence', async () => {
   const state = { alive: true };
   const exec = await execution();
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-exit-accounting' });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-exit-accounting' });
   const { registry, live, originBinding } = await publishedRegistry(exec, { state, receiptBridge });
   const active = await reservation(exec, live.liveGenerationId, 'active-exit', 'active-exit-op' as OwnedExecutionRef['operationId']);
   await registry.ledger.reserve(active);
   const receipt = (await watchAndReceipt({ authorityOperationId: active.operationId, descriptorDigest: active.operationDigest, reservationId: active.admissionId }, receiptBridge)).receipt;
   await registry.admitOrdinary(originBinding, active, receipt);
-  const before = await registry.createQuiescence(scope, { admissionCutoff: true, registryCompleteness: true });
+  await registry.closeAdmission(exec);
+  const before = await registry.createQuiescence(exec);
   assert.equal(before.quiescent, false);
   state.alive = false;
   await registry.observeNaturalExit(live.liveGenerationId);
-  const after = await registry.createQuiescence(scope, { admissionCutoff: true, registryCompleteness: true });
+  const after = await registry.createQuiescence(exec);
   assert.equal(after.quiescent, true);
   assert.deepEqual(after.activeAdmissionIds, []);
 });
 
 test('exclusive target publication linearizes so one concurrent generation remains provisional', async () => {
-  const bridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-target-race' });
-  const registry = new LiveGenerationRegistry({ registryEpochId: 'epoch-target-race', receiptBridge: bridge });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-target-race' });
+  const { registry, ingress } = trustedRegistry({ registryEpochId: 'epoch-target-race', receiptBridge: bridge });
   const firstExec = await execution({ transactionId: 'target-tx-1' as HarnessTransactionId, requestId: 'target-req-1' as HarnessExecutionRequestId });
   const secondExec = await execution({ ownershipId: 'target-owner-2', bindingGenerationId: 'target-bind-2', transactionId: 'target-tx-2' as HarnessTransactionId, requestId: 'target-req-2' as HarnessExecutionRequestId, attemptId: 'target-att-2' as WorkerAttemptId });
-  const firstLive = await registry.registerProvisional({ executionRef: firstExec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: capability(), targetId: firstExec.targetId, targetDigest: firstExec.targetDigest, serviceScope, processKind: 'persistent_service' });
-  const secondLive = await registry.registerProvisional({ executionRef: secondExec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: capability(), targetId: secondExec.targetId, targetDigest: secondExec.targetDigest, serviceScope, processKind: 'persistent_service' });
+  ingress.registerH1ExecutionRef(firstExec); ingress.registerH1ExecutionRef(secondExec);
+  const firstProvider = capability(); const secondProvider = capability();
+  ingress.registerProviderCapability(firstProvider); ingress.registerProviderCapability(secondProvider);
+  const firstLive = await registry.registerProvisional({ executionRef: firstExec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: firstProvider, targetId: firstExec.targetId, targetDigest: firstExec.targetDigest, serviceScope, processKind: 'persistent_service' });
+  const secondLive = await registry.registerProvisional({ executionRef: secondExec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: secondProvider, targetId: secondExec.targetId, targetDigest: secondExec.targetDigest, serviceScope, processKind: 'persistent_service' });
   const firstBinding = await registry.mintProcessBinding({ executionRef: firstExec, liveGenerationId: firstLive.liveGenerationId });
   const secondBinding = await registry.mintProcessBinding({ executionRef: secondExec, liveGenerationId: secondLive.liveGenerationId });
   const firstReservation = await reservation(firstExec, firstLive.liveGenerationId, 'target-res-1', 'target-op-1' as OwnedExecutionRef['operationId']);
@@ -661,8 +725,8 @@ test('exclusive target publication linearizes so one concurrent generation remai
   await registry.ledger.noteAuthorityConsumption(firstReservation, firstReceipt); await registry.ledger.commit(firstReservation);
   await registry.ledger.noteAuthorityConsumption(secondReservation, secondReceipt); await registry.ledger.commit(secondReservation);
   const outcomes = await Promise.allSettled([
-    registry.completePersistentHandoff(firstLive.liveGenerationId, firstReservation, { noUnresolvedLaunchWork: true, noUnresolvedDescendants: true, responsibilityTransferred: true }),
-    registry.completePersistentHandoff(secondLive.liveGenerationId, secondReservation, { noUnresolvedLaunchWork: true, noUnresolvedDescendants: true, responsibilityTransferred: true })
+    registry.completePersistentHandoff(firstLive.liveGenerationId, firstReservation, { noUnresolvedLaunchWork: true, noUnresolvedDescendants: true, responsibilityTransferred: true, trustedHandoffProof: ingress.issueHandoffProof() }),
+    registry.completePersistentHandoff(secondLive.liveGenerationId, secondReservation, { noUnresolvedLaunchWork: true, noUnresolvedDescendants: true, responsibilityTransferred: true, trustedHandoffProof: ingress.issueHandoffProof() })
   ]);
   assert.equal(outcomes.filter(item => item.status === 'fulfilled').length, 1);
   const rejected = outcomes.find(item => item.status === 'rejected');
@@ -685,10 +749,12 @@ test('natural exit retires only the exact live generation; PID diagnostics never
 
 test('tool ownership uses invocation identity without pretending a PID exists', async () => {
   const toolExec = await execution({ ownershipId: 'tool-owner', bindingGenerationId: 'tool-binding', executionKind: 'tool', targetId: 'model-rpc' });
-  const receiptBridge = new AuthorityConsumptionReceiptBridge({ bridgeEpochId: 'bridge-tool' });
-  const registry = new LiveGenerationRegistry({ registryEpochId: 'tool-epoch', receiptBridge });
+  const receiptBridge = trustedBridge({ bridgeEpochId: 'bridge-tool' });
+  const { registry, ingress } = trustedRegistry({ registryEpochId: 'tool-epoch', receiptBridge });
+  ingress.registerH1ExecutionRef(toolExec);
+  const toolProvider = capability(); ingress.registerProviderCapability(toolProvider);
   const live = await registry.registerProvisional({
-    executionRef: toolExec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: capability(),
+    executionRef: toolExec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: toolProvider,
     targetId: toolExec.targetId, targetDigest: toolExec.targetDigest, serviceScope, toolKind: 'rpc'
   });
   const originBinding = await registry.mintToolBinding({ executionRef: toolExec, liveGenerationId: live.liveGenerationId, invocationId: 'origin-invocation', normalizedInputDigest: D, toolKind: 'rpc', toolInvocationProvenanceDigest: E });
@@ -697,7 +763,7 @@ test('tool ownership uses invocation identity without pretending a PID exists', 
   const { receipt } = await watchAndReceipt({ authorityOperationId: originReservation.operationId, descriptorDigest: originReservation.operationDigest, reservationId: originReservation.admissionId, bindingGenerationId: toolExec.bindingGenerationId, requestId: toolExec.requestId, attemptId: toolExec.attemptId, transactionId: toolExec.transactionId }, receiptBridge);
   await registry.ledger.noteAuthorityConsumption(originReservation, receipt);
   await registry.ledger.commit(originReservation);
-  await registry.completePersistentHandoff(live.liveGenerationId, originReservation, { noUnresolvedLaunchWork: true, noUnresolvedDescendants: true, responsibilityTransferred: true });
+  await registry.completePersistentHandoff(live.liveGenerationId, originReservation, { noUnresolvedLaunchWork: true, noUnresolvedDescendants: true, responsibilityTransferred: true, trustedHandoffProof: ingress.issueHandoffProof() });
   const invocation = await registry.mintToolBinding({ executionRef: toolExec, liveGenerationId: live.liveGenerationId, invocationId: 'invoke-1', normalizedInputDigest: D, toolKind: 'rpc', toolInvocationProvenanceDigest: E });
   assert.equal(invocation.liveGenerationId, live.liveGenerationId);
   assert.equal('pid' in invocation, false);
@@ -723,4 +789,90 @@ test('provider proof factory is integrity-bound and provider proof substitution 
   assert.equal(Object.isFrozen(proof), true);
   const forged = { ...proof, liveGenerationId: 'live-2' };
   assert.equal(await (await import('../../common/execution/harness-ownership.ts')).hasProviderGenerationProofIntegrity(forged), false);
+});
+
+test('unregistered provider and H1 identities cannot mint actionable generations', async () => {
+  const exec = await execution({ ownershipId: 'untrusted-root', bindingGenerationId: 'untrusted-binding', requestId: 'untrusted-request' as HarnessExecutionRequestId, attemptId: 'untrusted-attempt' as WorkerAttemptId, transactionId: 'untrusted-transaction' as HarnessTransactionId });
+  const provider = capability();
+  const registry = new LiveGenerationRegistry({ registryEpochId: 'epoch-untrusted-root' });
+  await assert.rejects(registry.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: provider, targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope, processKind: 'persistent_service' }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'OWNERSHIP_NOT_PROVEN');
+  const trusted = trustedRegistry({ registryEpochId: 'epoch-untrusted-provider' });
+  trusted.ingress.registerH1ExecutionRef(exec);
+  await assert.rejects(trusted.registry.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: provider, targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope, processKind: 'persistent_service' }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'PROCESS_GENERATION_UNAVAILABLE');
+});
+
+test('provider and H1 identities cannot cross registry epochs', async () => {
+  const exec = await execution({ ownershipId: 'epoch-root-owner', bindingGenerationId: 'epoch-root-binding', requestId: 'epoch-root-request' as HarnessExecutionRequestId, attemptId: 'epoch-root-attempt' as WorkerAttemptId, transactionId: 'epoch-root-transaction' as HarnessTransactionId });
+  const provider = capability();
+  const first = trustedRegistry({ registryEpochId: 'epoch-root-first' });
+  first.ingress.registerH1ExecutionRef(exec);
+  first.ingress.registerProviderCapability(provider);
+  const second = trustedRegistry({ registryEpochId: 'epoch-root-second' });
+  expectCode(() => second.ingress.registerH1ExecutionRef(exec), 'OWNERSHIP_STALE');
+  expectCode(() => second.ingress.registerProviderCapability(provider), 'OWNERSHIP_STALE');
+});
+
+test('same admission identity has one canonical reservation under concurrent conflict', async () => {
+  const exec = await execution({ ownershipId: 'reservation-race', bindingGenerationId: 'reservation-binding', requestId: 'reservation-request' as HarnessExecutionRequestId, attemptId: 'reservation-attempt' as WorkerAttemptId, transactionId: 'reservation-transaction' as HarnessTransactionId });
+  const ledger = new AdmissionLedger();
+  const reservations = await Promise.all(Array.from({ length: 128 }, (_, index) => reservation(exec, 'reservation-live', 'reservation-race', `reservation-operation-${index}` as OwnedExecutionRef['operationId'])));
+  const results = await Promise.allSettled(reservations.map(item => ledger.reserve(item)));
+  assert.equal(results.filter(item => item.status === 'fulfilled').length, 1);
+  assert.equal(results.filter(item => item.status === 'rejected').length, 127);
+  const winnerIndex = results.findIndex(item => item.status === 'fulfilled');
+  assert.ok(winnerIndex >= 0);
+  const canonical = ledger.get('reservation-race');
+  assert.equal(canonical.reservation.operationId, reservations[winnerIndex]!.operationId);
+});
+
+test('handoff publication failure leaves origin responsibility and no published entry', async () => {
+  const exec = await execution({ ownershipId: 'handoff-failure', bindingGenerationId: 'handoff-failure-binding', requestId: 'handoff-failure-request' as HarnessExecutionRequestId, attemptId: 'handoff-failure-attempt' as WorkerAttemptId, transactionId: 'handoff-failure-transaction' as HarnessTransactionId });
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-handoff-failure' });
+  const { registry, ingress } = trustedRegistry({ registryEpochId: 'epoch-handoff-failure', receiptBridge: bridge });
+  ingress.registerH1ExecutionRef(exec);
+  const provider = capability();
+  ingress.registerProviderCapability(provider);
+  const live = await registry.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: provider, targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope, processKind: 'persistent_service' });
+  await registry.mintProcessBinding({ executionRef: exec, liveGenerationId: live.liveGenerationId });
+  const origin = await reservation(exec, live.liveGenerationId, 'handoff-failure-admission', 'handoff-failure-operation' as OwnedExecutionRef['operationId']);
+  await registry.ledger.reserve(origin);
+  const receipt = (await watchAndReceipt({ authorityOperationId: origin.operationId, descriptorDigest: origin.operationDigest, reservationId: origin.admissionId, bindingGenerationId: origin.bindingGenerationId, requestId: origin.requestId, attemptId: origin.attemptId, transactionId: origin.transactionId, workspaceId: origin.workspaceId, taskId: origin.taskId }, bridge)).receipt;
+  await registry.ledger.noteAuthorityConsumption(origin, receipt);
+  await registry.ledger.commit(origin);
+  registry.setProjectionFailure('transaction', true);
+  await assert.rejects(registry.completePersistentHandoff(live.liveGenerationId, origin, { noUnresolvedLaunchWork: true, noUnresolvedDescendants: true, responsibilityTransferred: true, trustedHandoffProof: ingress.issueHandoffProof() }), (error: unknown) => error instanceof HarnessOwnershipError && error.code === 'INTERNAL_HARNESS_FAILURE');
+  assert.equal(await registry.disposition(live.liveGenerationId), 'provisional');
+  assert.equal(registry.ledger.get(origin).terminal, false);
+});
+
+test('public bridge lifecycle methods cannot synthesize callback or settlement provenance', async () => {
+  const bridge = trustedBridge({ bridgeEpochId: 'bridge-public-provenance' });
+  const watch = await bridge.installWatch({ authorityOperationId: 'public-provenance-op', authorityRevision: 1 as SafeInteger, workspaceId: scope.workspaceId, taskId: scope.taskId, operationKind: 'tasks.stop', descriptorDigest: D, actorId: 'actor', ownerId: 'owner', reservationId: 'public-provenance-res', bindingGenerationId: 'public-provenance-bind', requestId: scope.requestId, attemptId: scope.attemptId, transactionId: scope.transactionId });
+  bridge.wrapRecorder(async () => ({ persisted: true }));
+  bridge.beginExecute(watch.watchId);
+  expectCode(() => bridge.enterExecutorCallback(watch.watchId), 'FENCE_CONFLICT');
+  expectCode(() => bridge.settleExecute(watch.watchId, { callbackEntered: false, dispatchStarted: false }), 'BRIDGE_HEALTH_UNCERTAIN');
+});
+
+test('provider verification runs outside registry synchronization and revalidates state', async () => {
+  const exec = await execution({ ownershipId: 'provider-reentry', bindingGenerationId: 'provider-reentry-binding', requestId: 'provider-reentry-request' as HarnessExecutionRequestId, attemptId: 'provider-reentry-attempt' as WorkerAttemptId, transactionId: 'provider-reentry-transaction' as HarnessTransactionId });
+  let registry!: LiveGenerationRegistry;
+  let liveGenerationId = '';
+  const provider = {
+    capabilityId: 'provider-reentry-capability',
+    verifyExactGeneration: async () => {
+      if (liveGenerationId) await registry.disposition(liveGenerationId);
+      return true;
+    },
+    observeExactExit: () => false,
+    terminateExact: async () => 'survived' as const
+  };
+  let ingress!: TrustedH2RuntimeIngress;
+  registry = new LiveGenerationRegistry({ registryEpochId: 'epoch-provider-reentry', trustedRuntime: value => { ingress = value; } });
+  ingress.registerH1ExecutionRef(exec);
+  ingress.registerProviderCapability(provider);
+  const live = await registry.registerProvisional({ executionRef: exec, providerGenerationEvidenceDigest: D, creationObservationDigest: E, capability: provider, targetId: exec.targetId, targetDigest: exec.targetDigest, serviceScope, processKind: 'persistent_service' });
+  liveGenerationId = live.liveGenerationId;
+  const binding = await registry.mintProcessBinding({ executionRef: exec, liveGenerationId });
+  assert.equal(binding.liveGenerationRef.liveGenerationId, liveGenerationId);
 });

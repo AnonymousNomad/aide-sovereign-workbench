@@ -24,7 +24,7 @@ import type { Route } from '../../node/src/server.ts';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const PHASE2A_ACCEPTANCE_REQUESTED = false;
-const EXPECTED_WAIVER_COUNT = 36;
+const EXPECTED_WAIVER_COUNT = 35;
 
 type WaiverClassification = 'READY-DESCRIPTOR' | 'ARCHITECTURE-DECISION';
 interface MigrationWaiverEntry { method: string; path: string; classification: WaiverClassification }
@@ -59,7 +59,6 @@ const MIGRATION_WAIVER: MigrationWaiverEntry[] = [
 
   { method: 'POST', path: '/api/providers/connect', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/providers/disconnect', classification: 'ARCHITECTURE-DECISION' },
-  { method: 'POST', path: '/api/providers/import', classification: 'ARCHITECTURE-DECISION' },
   { method: 'POST', path: '/api/training/datasets/delete', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/training/start', classification: 'READY-DESCRIPTOR' },
   { method: 'POST', path: '/api/training/stop', classification: 'READY-DESCRIPTOR' },

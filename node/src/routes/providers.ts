@@ -1,5 +1,7 @@
 import type { Route } from '../server.ts';
 import { RouteError } from '../server.ts';
+import type { OperationInput } from '../../../common/security/operation-policy.mjs';
+import { createHash } from 'node:crypto';
 import { ProviderError, type ProviderService } from '../services/providers.ts';
 import type { ChatStore } from '../services/chat-store.ts';
 import { importChatExport } from '../services/importers/index.ts';
@@ -61,12 +63,32 @@ export function routeForProviderDisconnect(service: ProviderService): Route {
   };
 }
 
-export function routeForProviderImport(store: ChatStore): Route {
+export function routeForProviderImport(store: ChatStore, workspace: string): Route {
   return {
     method: 'POST',
     path: '/api/providers/import',
     body: ProviderImportRequest,
     response: ProviderImportResponse,
+    // Local chat-export import: the approved operation binds the exact import
+    // identity without retaining the raw export. payloadDigest is sha256 over
+    // the UTF-8 bytes of the exact validated string; payloadLength is the
+    // exact UTF-16 code-unit length. The raw payload stays handler data only.
+    // The digest is input-binding only: not permission, validation, or proof.
+    describeOperation: async ({ body }, taskId): Promise<OperationInput> => {
+      const request = body as { format: 'chatgpt' | 'claude'; payload: string };
+      return {
+        workspace,
+        taskId,
+        kind: 'capability.write',
+        args: {
+          body: {
+            format: request.format,
+            payloadDigest: createHash('sha256').update(request.payload, 'utf8').digest('hex'),
+            payloadLength: request.payload.length
+          }
+        }
+      };
+    },
     handler: async ({ body }) => {
       try {
         const request = body as { format: 'chatgpt' | 'claude'; payload: string };

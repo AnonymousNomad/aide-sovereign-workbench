@@ -533,7 +533,7 @@ export async function buildRoutes(workspace: string, version: string, options: B
     routeForProvidersList(providerService),
     routeForProviderConnect(providerService),
     routeForProviderDisconnect(providerService),
-    routeForProviderImport(chatStore),
+      routeForProviderImport(chatStore, workspace),
     routeForLearnerState(learnerState),
     routeForLearnerReviews(learnerState),
     routeForLearnerAttempt(learnerState),

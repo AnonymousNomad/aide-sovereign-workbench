@@ -42,7 +42,7 @@ export const ProviderDisconnectResponse = z.object({
 export const ProviderImportRequest = z.object({
   format: z.enum(['chatgpt', 'claude']),
   payload: z.string().max(10_000_000)
-});
+}).strict();
 
 export const ProviderImportResponse = z.object({
   imported: z.number(),

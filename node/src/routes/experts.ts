@@ -172,6 +172,15 @@ const StatsResponse = z.object({
   threshold: z.number().int().gte(0), state: z.string()
 }).strict();
 const StateResponse = z.object({ name: z.string(), state: z.string() }).strict();
+// ExpertRegistry canonical identity grammar (mirrors the registry's
+// assertExpertName): lowercase alphanumerics and hyphens, starting
+// alphanumeric, 1-64 characters, and never the reserved registry-state name.
+// Validation is identity-only: the accepted string is bound verbatim as the
+// operation target, exactly as the registry will use it at actuation.
+const EXPERT_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const TierStateBody = z.object({
+  name: z.string().regex(EXPERT_NAME_PATTERN, 'invalid expert name').refine(name => name !== 'signals', 'reserved expert name')
+}).strict();
 const DiffRiskBody = z.object({ diff: z.string().min(1).max(60_000) }).strict();
 const DiffRiskResponse = z.object({
   expert: z.string(),
@@ -271,13 +280,28 @@ export function routesForExperts(service: ExpertsService): Route[] {
     {
       method: 'POST',
       path: '/api/experts/freeze',
+      body: TierStateBody,
       response: StateResponse,
+      // Operator-initiated tier demotion: the approved operation binds exactly
+      // the canonical expert identity. Tier directories, filename suffix,
+      // rename direction, containment policy, cache eviction and the response
+      // state are server-derived and never caller-controlled.
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => ({
+        workspace: service.workspace, taskId, kind: 'capability.write', args: { body: { name: (body as { name: string }).name } }
+      }),
       handler: async ({ body }) => service.freeze((body as { name: string }).name)
     },
     {
       method: 'POST',
       path: '/api/experts/thaw',
+      body: TierStateBody,
       response: StateResponse,
+      // Operator-initiated tier promotion: same exact identity binding. The
+      // current preserved semantics (in-memory resurrection, dormant file
+      // retained) are unchanged; no caller field selects direction or tier.
+      describeOperation: async ({ body }, taskId): Promise<OperationInput> => ({
+        workspace: service.workspace, taskId, kind: 'capability.write', args: { body: { name: (body as { name: string }).name } }
+      }),
       handler: async ({ body }) => service.thaw((body as { name: string }).name)
     }
   ];

@@ -209,11 +209,172 @@ test('expert serve wire-in: diff-risk + classify-request advisory routes', async
     assert.equal(linkRejected.status, 400, 'link-like expert file rejected even under prepared authority');
     assert.equal(await fs.readFile(outsideSentinel, 'utf8'), sentinelText, 'sentinel untouched');
 
-    // 8. The tier routes stay fail-closed until their own decision.
-    for (const routePath of ['/api/experts/freeze', '/api/experts/thaw']) {
-      const blocked = await owner.request(routePath, { method: 'POST', body: JSON.stringify({ name: 'diff-risk-gate' }) });
-      assert.equal(blocked.status, 403, `${routePath} remains fail-closed`);
+    // 8. Wave 3K: ExpertRegistry tier lifecycle authority matrices. Enrollment
+    //    binds exactly the canonical expert identity (capability.write); the
+    //    preserved freeze/thaw semantics (already-dormant 504, no-rename thaw)
+    //    are pinned verbatim, never prettified.
+    const expertsRoot = path.join(dir, '.aide', 'experts');
+    const hotFile = (name: string) => path.join(expertsRoot, `${name}.json`);
+    const dormantFile = (name: string) => path.join(expertsRoot, 'dormant', `${name}.json`);
+    const fileExists = (target: string) => fs.access(target).then(() => true, () => false);
+    const malformedNames = ['Tier-One', ' tier', 'tier one', '../x'];
+
+    // FREEZE — transport and contract edge.
+    const freezeAnon = await fetch(`${base}/api/experts/freeze`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'task-intent-router' })
+    });
+    assert.equal(freezeAnon.status, 403, 'freeze anonymous rejected');
+    const freezeNoApproval = await owner.request('/api/experts/freeze', { method: 'POST', body: JSON.stringify({ name: 'task-intent-router' }) });
+    assert.equal(freezeNoApproval.status, 409, 'freeze without approval fails');
+    for (const name of malformedNames) {
+      const malformed = await owner.request('/api/experts/freeze', { method: 'POST', body: JSON.stringify({ name }) });
+      assert.equal(malformed.status, 400, `freeze malformed name rejected: ${JSON.stringify(name)}`);
     }
+    const freezeExtra = await owner.request('/api/experts/freeze', { method: 'POST', body: JSON.stringify({ name: 'task-intent-router', force: true }) });
+    assert.equal(freezeExtra.status, 400, 'freeze extra field rejected at the contract edge');
+    const freezeNull = await owner.request('/api/experts/freeze', { method: 'POST', body: JSON.stringify({ name: null }) });
+    assert.equal(freezeNull.status, 400, 'freeze null name rejected');
+    const freezeMissingField = await owner.request('/api/experts/freeze', { method: 'POST', body: JSON.stringify({}) });
+    assert.equal(freezeMissingField.status, 400, 'freeze missing name rejected');
+
+    // FREEZE — the operation binds the server workspace and the exact identity.
+    const scopeProbe = await owner.request('/api/authority/prepare', {
+      method: 'POST',
+      body: JSON.stringify({ method: 'POST', path: '/api/experts/freeze', task_id: 'task:expert-freeze-scope', body: { name: 'task-intent-router' } })
+    });
+    assert.equal(scopeProbe.status, 200);
+    const scopeOp = ((await scopeProbe.json()) as { data: { operation_id: string; state: string; kind: string; workspace: string; task_id: string } }).data;
+    assert.equal(scopeOp.state, 'pending');
+    assert.equal(scopeOp.kind, 'capability.write');
+    assert.equal(scopeOp.workspace, path.resolve(dir), 'authority binds the server workspace, never a caller scope');
+    assert.equal(scopeOp.task_id, 'task:expert-freeze-scope');
+    assert.equal((await owner.decide(scopeOp.operation_id, 'reject')).status, 200, 'scope probe decision recorded');
+
+    // FREEZE — changed identity cannot reuse an approval.
+    const freezeHeaders = await owner.approve('POST', '/api/experts/freeze', { name: 'task-intent-router' }, 'task:expert-freeze-1');
+    const freezeChanged = await owner.request('/api/experts/freeze', { method: 'POST', headers: freezeHeaders, body: JSON.stringify({ name: 'request-intent-classifier' }) });
+    assert.equal(freezeChanged.status, 409, 'changed identity cannot reuse freeze approval');
+    assert.equal(await fileExists(hotFile('task-intent-router')), true, 'changed-identity attempt moved nothing');
+    assert.equal(await fileExists(dormantFile('task-intent-router')), false, 'changed-identity attempt created nothing');
+
+    // FREEZE — approved exact HOT expert.
+    const freezeApplied = await owner.request('/api/experts/freeze', { method: 'POST', headers: freezeHeaders, body: JSON.stringify({ name: 'task-intent-router' }) });
+    assert.equal(freezeApplied.status, 200);
+    const freezeAppliedBody = (await freezeApplied.json()) as { data: { name: string; state: string } };
+    assert.deepEqual(freezeAppliedBody.data, { name: 'task-intent-router', state: 'dormant' });
+    assert.equal(await fileExists(hotFile('task-intent-router')), false, 'hot manifest moved away');
+    assert.equal(await fileExists(dormantFile('task-intent-router')), true, 'dormant manifest present');
+
+    // FREEZE — consumed approval cannot replay.
+    const freezeReplay = await owner.request('/api/experts/freeze', { method: 'POST', headers: freezeHeaders, body: JSON.stringify({ name: 'task-intent-router' }) });
+    assert.equal(freezeReplay.status, 409, 'consumed freeze approval cannot replay');
+    assert.equal(await fileExists(dormantFile('task-intent-router')), true, 'replay changed nothing');
+
+    // FREEZE — containment dominates approval (link-like hot manifest).
+    const linkFreezeName = 'linked-freeze';
+    await fs.symlink(outsideSentinel, hotFile(linkFreezeName), 'file');
+    const freezeLinkHeaders = await owner.approve('POST', '/api/experts/freeze', { name: linkFreezeName }, 'task:expert-freeze-link');
+    const freezeLink = await owner.request('/api/experts/freeze', { method: 'POST', headers: freezeLinkHeaders, body: JSON.stringify({ name: linkFreezeName }) });
+    assert.equal(freezeLink.status, 400, 'link-like source rejected under approved authority');
+    assert.equal(await fs.readFile(outsideSentinel, 'utf8'), sentinelText, 'freeze sentinel untouched');
+
+    // FREEZE — already-dormant preserves the current 504 (no idempotence).
+    const freezeDormantHeaders = await owner.approve('POST', '/api/experts/freeze', { name: 'task-intent-router' }, 'task:expert-freeze-2');
+    const freezeDormant = await owner.request('/api/experts/freeze', { method: 'POST', headers: freezeDormantHeaders, body: JSON.stringify({ name: 'task-intent-router' }) });
+    assert.equal(freezeDormant.status, 504, 'already-dormant freeze keeps the current ENOENT failure');
+    const freezeDormantBody = (await freezeDormant.json()) as { error: { code: string; message: string } };
+    assert.equal(freezeDormantBody.error.code, 'CHILD_FAILED');
+    assert.match(freezeDormantBody.error.message, /ENOENT|rename/, 'raw rename failure preserved');
+    assert.equal(await fileExists(hotFile('task-intent-router')), false, 'already-dormant freeze left the filesystem unchanged');
+    assert.equal(await fileExists(dormantFile('task-intent-router')), true, 'already-dormant freeze left the dormant copy in place');
+    const stillServed = await owner.request('/api/experts/infer', { method: 'POST', body: JSON.stringify({ name: 'task-intent-router', features: taskRouterFeatures('plan the migration steps for the new module') }) });
+    assert.equal(stillServed.status, 200, 'dormant expert remains loadable after the preserved 504');
+
+    // FREEZE — missing expert preserves the current 504 and stays consumed.
+    const freezeMissingHeaders = await owner.approve('POST', '/api/experts/freeze', { name: 'no-such-expert-9k' }, 'task:expert-freeze-missing');
+    const freezeMissing = await owner.request('/api/experts/freeze', { method: 'POST', headers: freezeMissingHeaders, body: JSON.stringify({ name: 'no-such-expert-9k' }) });
+    assert.equal(freezeMissing.status, 504, 'missing expert keeps the current failure');
+    const freezeMissingBody = (await freezeMissing.json()) as { error: { code: string; message: string } };
+    assert.equal(freezeMissingBody.error.code, 'CHILD_FAILED');
+    assert.match(freezeMissingBody.error.message, /no such micro-expert/);
+    const freezeMissingReplay = await owner.request('/api/experts/freeze', { method: 'POST', headers: freezeMissingHeaders, body: JSON.stringify({ name: 'no-such-expert-9k' }) });
+    assert.equal(freezeMissingReplay.status, 409, 'failure after consumption still consumes the operation');
+
+    // FREEZE — ambiguous hot+dormant: hot wins, stale dormant copy replaced.
+    const ambiguousHot = JSON.parse(await fs.readFile(hotFile('diff-risk-gate'), 'utf8')) as Record<string, unknown>;
+    ambiguousHot.name = 'ambiguous-probe';
+    ambiguousHot.meta = { marker: 'v2-hot' };
+    await fs.writeFile(hotFile('ambiguous-probe'), JSON.stringify(ambiguousHot));
+    await fs.writeFile(dormantFile('ambiguous-probe'), JSON.stringify({ ...ambiguousHot, meta: { marker: 'v1-dormant' } }));
+    const ambiguousHeaders = await owner.approve('POST', '/api/experts/freeze', { name: 'ambiguous-probe' }, 'task:expert-freeze-ambiguous');
+    const ambiguous = await owner.request('/api/experts/freeze', { method: 'POST', headers: ambiguousHeaders, body: JSON.stringify({ name: 'ambiguous-probe' }) });
+    assert.equal(ambiguous.status, 200, 'ambiguous identity keeps hot-wins semantics');
+    assert.equal(await fileExists(hotFile('ambiguous-probe')), false);
+    const ambiguousDormant = JSON.parse(await fs.readFile(dormantFile('ambiguous-probe'), 'utf8')) as { meta: { marker: string } };
+    assert.equal(ambiguousDormant.meta.marker, 'v2-hot', 'hot manifest replaced the stale dormant copy');
+
+    // THAW — transport and contract edge.
+    const thawAnon = await fetch(`${base}/api/experts/thaw`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'task-intent-router' })
+    });
+    assert.equal(thawAnon.status, 403, 'thaw anonymous rejected');
+    const thawNoApproval = await owner.request('/api/experts/thaw', { method: 'POST', body: JSON.stringify({ name: 'task-intent-router' }) });
+    assert.equal(thawNoApproval.status, 409, 'thaw without approval fails');
+    for (const name of malformedNames) {
+      const malformed = await owner.request('/api/experts/thaw', { method: 'POST', body: JSON.stringify({ name }) });
+      assert.equal(malformed.status, 400, `thaw malformed name rejected: ${JSON.stringify(name)}`);
+    }
+    const thawExtra = await owner.request('/api/experts/thaw', { method: 'POST', body: JSON.stringify({ name: 'task-intent-router', tier: 'hot' }) });
+    assert.equal(thawExtra.status, 400, 'thaw extra field rejected at the contract edge');
+    const thawNull = await owner.request('/api/experts/thaw', { method: 'POST', body: JSON.stringify({ name: null }) });
+    assert.equal(thawNull.status, 400, 'thaw null name rejected');
+    const thawMissingField = await owner.request('/api/experts/thaw', { method: 'POST', body: JSON.stringify({}) });
+    assert.equal(thawMissingField.status, 400, 'thaw missing name rejected');
+
+    // THAW — approved exact DORMANT expert (preserved no-rename semantics).
+    const thawHeaders = await owner.approve('POST', '/api/experts/thaw', { name: 'task-intent-router' }, 'task:expert-thaw-1');
+    const thawApplied = await owner.request('/api/experts/thaw', { method: 'POST', headers: thawHeaders, body: JSON.stringify({ name: 'task-intent-router' }) });
+    assert.equal(thawApplied.status, 200);
+    const thawAppliedBody = (await thawApplied.json()) as { data: { name: string; state: string } };
+    assert.deepEqual(thawAppliedBody.data, { name: 'task-intent-router', state: 'hot' });
+    assert.equal(await fileExists(dormantFile('task-intent-router')), true, 'dormant file stays on disk (preserved thaw semantics)');
+    assert.equal(await fileExists(hotFile('task-intent-router')), false, 'thaw invents no hot-tier file');
+    assert.ok((await registry.infer('task-intent-router', taskRouterFeatures('plan the migration steps for the new module'))).class, 'registry serves the revived identity');
+
+    // THAW — changed identity cannot reuse an approval.
+    const thawHotHeaders = await owner.approve('POST', '/api/experts/thaw', { name: 'diff-risk-gate' }, 'task:expert-thaw-2');
+    const thawChanged = await owner.request('/api/experts/thaw', { method: 'POST', headers: thawHotHeaders, body: JSON.stringify({ name: 'request-intent-classifier' }) });
+    assert.equal(thawChanged.status, 409, 'changed identity cannot reuse thaw approval');
+    assert.equal(await fileExists(hotFile('diff-risk-gate')), true, 'changed-identity thaw moved nothing');
+    assert.equal(await fileExists(dormantFile('diff-risk-gate')), false, 'changed-identity thaw created nothing');
+
+    // THAW — approved exact HOT expert.
+    const thawHot = await owner.request('/api/experts/thaw', { method: 'POST', headers: thawHotHeaders, body: JSON.stringify({ name: 'diff-risk-gate' }) });
+    assert.equal(thawHot.status, 200);
+    const thawHotBody = (await thawHot.json()) as { data: { name: string; state: string } };
+    assert.deepEqual(thawHotBody.data, { name: 'diff-risk-gate', state: 'hot' });
+    assert.equal(await fileExists(hotFile('diff-risk-gate')), true, 'hot thaw mutates no filesystem state');
+    const thawReplay = await owner.request('/api/experts/thaw', { method: 'POST', headers: thawHotHeaders, body: JSON.stringify({ name: 'diff-risk-gate' }) });
+    assert.equal(thawReplay.status, 409, 'consumed thaw approval cannot replay');
+
+    // THAW — missing expert preserves the current 504 and stays consumed.
+    const thawMissingHeaders = await owner.approve('POST', '/api/experts/thaw', { name: 'no-such-expert-9k' }, 'task:expert-thaw-missing');
+    const thawMissing = await owner.request('/api/experts/thaw', { method: 'POST', headers: thawMissingHeaders, body: JSON.stringify({ name: 'no-such-expert-9k' }) });
+    assert.equal(thawMissing.status, 504);
+    const thawMissingBody = (await thawMissing.json()) as { error: { code: string; message: string } };
+    assert.equal(thawMissingBody.error.code, 'CHILD_FAILED');
+    assert.match(thawMissingBody.error.message, /no such micro-expert/);
+    const thawMissingReplay = await owner.request('/api/experts/thaw', { method: 'POST', headers: thawMissingHeaders, body: JSON.stringify({ name: 'no-such-expert-9k' }) });
+    assert.equal(thawMissingReplay.status, 409, 'thaw failure after consumption stays consumed');
+
+    // THAW — load-side containment dominates approval.
+    const linkThawName = 'linked-thaw';
+    await fs.symlink(outsideSentinel, dormantFile(linkThawName), 'file');
+    const thawLinkHeaders = await owner.approve('POST', '/api/experts/thaw', { name: linkThawName }, 'task:expert-thaw-link');
+    const thawLink = await owner.request('/api/experts/thaw', { method: 'POST', headers: thawLinkHeaders, body: JSON.stringify({ name: linkThawName }) });
+    assert.equal(thawLink.status, 400, 'link-like dormant manifest rejected under approved authority');
+    assert.equal(await fs.readFile(outsideSentinel, 'utf8'), sentinelText, 'thaw sentinel untouched');
+    assert.equal(await fileExists(hotFile(linkThawName)), false, 'rejected thaw invents nothing');
   } finally {
     server.authority.control.close();
     server.events.close();
